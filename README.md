@@ -20,7 +20,7 @@ public domain). Everything here is derived from it.
 |---|---|
 | Gas generator speed vs Table B.1 | **±0.13 %** across three trim conditions |
 | Shaft power vs Table B.1 | **±0.05 %** at hover and level, −0.73 % at descent |
-| Jacobian eigenvalues vs Table 1 | +0.6 %, +5.0 %, +5.2 %, +14.9 % |
+| Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transient, Figure 9 | endpoints within 0.9–3.9 %; T41 overshoot 1.67× Ballin's, down from 3.41× |
 | Tests | 463, with lint and formatting clean |
 

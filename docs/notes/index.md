@@ -123,22 +123,59 @@ members are slope and intercept of one linear fit and carry **different units**.
 
 ## Why the real-time model cannot be integrating the pressures (established 2026-09-11)
 
-Computing our own 5-DOF Jacobian at the hover trim and comparing with Table 1 [pdf p.31]:
+Computing our own 5-DOF Jacobian and comparing with Table 1 [pdf p.31]. Central
+differences at a relative step of 1e-5; the eigenvalues are converged to 5 significant
+figures over rel = 1e-4 .. 1e-8 and agree between one-sided and central schemes, so these
+are properties of the model and not of the differencing.
 
-| mode | ours (1/sec) | Ballin | deviation |
-|---|---|---|---|
-| 1 | -4881.0 | -4900. | **-0.4 %** |
-| 2 | -3787.0 | -3060. | +23.8 % |
-| 3 | -54.19 | -51.6 | +5.0 % |
-| 4 | -2.91 | -2.66 | +9.4 % |
-| 5 | -2.78 | -0.565 | not comparable |
+**Re-measured 2026-09-11.** An earlier version of this table reported hover modes of
+-4881.0 / -3787.0 / -54.19 / -2.91. Those numbers cannot be reproduced by this code at any
+step size or scheme, and `src/t700/engine.py` has not changed since it was written, so they
+were never output of the committed model. Replaced rather than explained.
 
-Mode 5 is **expected** not to match: it is the NP/rotor mode, whose eigenvalue depends on
-dQreq/dNP from the Gen Hel UH-60A simulation. Our Jacobian holds Qreq constant, so that
-derivative is zero. This is the same row Appendix B flags as not independently
-reproducible. Modes 1 and 3 are inside the 4 % that Ballin himself calls "good agreement"
-[pdf p.29]; mode 4 is close; **mode 2 at 23.8 % is the one real disagreement** and is the
-best current lead on where the model differs.
+| trim | mode | ours (1/sec) | Table 1 | deviation |
+|---|---|---|---|---|
+| hover | P41/P45 fast | -4870.39 | -4900. | **-0.6 %** |
+| hover | P41/P45 slow | -2603.70 | -3060. | **-14.9 %** |
+| hover | P3 | -55.42 | -51.6 | +7.4 % |
+| hover | NG | -2.29 | -2.66 | **-14.0 %** |
+| hover | NP | -2.79 | -0.565 | not comparable |
+| level 80 kt | P41/P45 fast | -4617.32 | -4640. | **-0.5 %** |
+| level 80 kt | P41/P45 slow | -3932.36 | -4040. | -2.7 % |
+| level 80 kt | P3 | -53.38 | -52.2 | +2.3 % |
+| level 80 kt | NG | -2.13 | -2.08 | +2.3 % |
+| level 80 kt | NP | -2.13 | -0.446 | not comparable |
+| descent 80 kt | P41/P45 fast | -4562.35 | -4530. | +0.7 % |
+| descent 80 kt | P41/P45 slow | -4510.95 | -4430. | +1.8 % |
+| descent 80 kt | P3 | -55.50 | -52.6 | +5.5 % |
+| descent 80 kt | NG | -1.35 | -1.75 | **-22.6 %** |
+| descent 80 kt | NP | -1.66 | -0.357 | not comparable |
+
+**Pairing is structural, not positional.** Column NP of `A` is exactly zero off the
+diagonal at all three trims -- the same structure Appendix B prints -- so `A[1,1]` *is*
+the NP eigenvalue and is identified that way. Sorting the eigenvalues and pairing them
+against Table 1's rows in order instead **swaps the NG and NP modes** at hover and
+descent, because our NP mode is more damped than our NG mode while Ballin's is far less.
+An earlier revision of this table did exactly that and reported the two slow modes as
++5.0 % and -5.0 %; they are in fact -14.0 % and -22.6 %.
+
+The **NP mode is not comparable at any trim**: its eigenvalue depends on dQreq/dNP and on
+the load inertia added to J_PT [Eq. 46], both from the Gen Hel UH-60A simulation, which
+this report consumes and does not contain. We hold Qreq constant and default `j_load` to
+zero. Note the direction: ours is 4-5x *more* damped than Ballin's at every trim, which is
+what a missing rotor inertia would do -- open question #6.
+
+**Seven of twelve comparable modes are inside the 4 % Ballin calls "good agreement"
+[pdf p.29], nine inside 8 %, and three are outliers**: hover's slow pressure mode
+(-14.9 %) and the NG mode at hover (-14.0 %) and descent (-22.6 %). The NG mode is the one
+that matters for handling qualities, and it is the one with no clear pattern -- good at
+level, poor either side of it.
+
+A structural check that it is not a general defect: Ballin's two fast modes progressively
+coalesce as power falls -- the ratio between them is 1.60 at hover, 1.15 at level, 1.02 at
+descent. Ours reproduces that trend closely, at 1.87, 1.17 and 1.01. We match the
+coalescence and misplace only the separation, at the single condition where the two modes
+are furthest apart and therefore most distinguishable.
 
 **The structural consequence.** The fastest mode has a time constant of **0.205 ms**, so
 explicit integration of the five states is stable only for dt < 0.41 ms. The report runs
@@ -149,7 +186,7 @@ preference: it would diverge on the first frame.
 That is exactly why Eqs. 74-80 exist. Under the quasi-steady approximation the three
 pressures become **algebraic** and are solved each frame by the opened compressor loop plus
 the inner P3/P41 fixed-point sweep and the independent P45 iteration. What remains
-integrated is NG (mode 3, tau = 18 ms) and NP (mode 4, tau ~ 340 ms), both comfortably
+integrated is NG (tau = 18 ms) and NP (tau ~ 340 ms), both comfortably
 stable at 7 and 14 ms.
 
 It also explains the Conclusions' remark [pdf p.54] that omitting the high-speed
