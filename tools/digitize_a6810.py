@@ -95,6 +95,56 @@ FIGS = {
         nmark=18,
         rad=18.0,  # the 99.5 / 100 pair is 40 px apart; keep the discs disjoint
     ),
+    # ---- Appendix C scheduling functions -------------------------------------------
+    # Same machinery, different appendix: single-curve 'x'-marker plots on the same
+    # 300 dpi 1-bit rasters. Axis lattices read off the rendered page, not inferred.
+    "c24": dict(
+        page=95,
+        fig="C24",
+        csv=Path("data/schedules/fhm1_topping_line.csv"),
+        frame_spec=[
+            ("left", 0, 536, 626, 314, 2625),
+            ("right", 0, 2202, 2292, 314, 2625),
+            ("top", 1, 264, 334, 596, 2232),
+            ("bottom", 1, 2605, 2675, 596, 2232),
+        ],
+        x=dict(lo=390.0, hi=640.0, step=50.0, n=4, printed=("lo", "hi")),
+        y=dict(lo=-0.50, hi=4.00, step=0.50, n=8, printed=("lo", "hi")),
+        nmark=9,
+        rad=20.0,
+        open_sz=6,
+        rail=20.0,
+    ),
+    "c25": dict(
+        page=96,
+        fig="C25",
+        csv=Path("data/schedules/fhm2_power_available.csv"),
+        frame_spec=[
+            ("left", 0, 417, 507, 348, 2839),
+            ("right", 0, 2078, 2168, 348, 2839),
+            ("top", 1, 298, 368, 477, 2108),
+            ("bottom", 1, 2819, 2889, 477, 2108),
+        ],
+        x=dict(lo=20.0, hi=120.0, step=20.0, n=4, printed=("lo", "hi")),
+        y=dict(lo=-2.0, hi=12.0, step=1.0, n=13, printed=("lo", "hi")),
+        nmark=11,
+        rad=20.0,
+    ),
+    "c26": dict(
+        page=97,
+        fig="C26",
+        csv=Path("data/schedules/fhm3_load_demand_png.csv"),
+        frame_spec=[
+            ("left", 0, 560, 650, 318, 2816),
+            ("right", 0, 2226, 2316, 318, 2816),
+            ("top", 1, 268, 338, 620, 2256),
+            ("bottom", 1, 2796, 2866, 620, 2256),
+        ],
+        x=dict(lo=0.0, hi=100.0, step=20.0, n=4, printed=("lo", "hi")),
+        y=dict(lo=75.0, hi=112.5, step=2.5, n=14, printed=("lo", "hi")),
+        nmark=11,
+        rad=20.0,
+    ),
     "a6": dict(
         page=61,
         fig="A6",
@@ -452,13 +502,21 @@ def _dist(edge, X, Y, vertical=True):
     )
 
 
-def seeds(ink, fr, nmark):
+def seeds(ink, fr, nmark, open_sz=7, rail=-14.0):
     """Marker seeds from a morphological opening -- no density, no threshold sweep.
 
     The joining polyline is ~3.5 px wide; where two 3.5 px strokes cross at right angles
     the ink is ~5 px wide in every direction, so a 7x7 opening erases the line and every
     tick and leaves one core per marker.  Cores closer than 12 px are one marker split by
     the scan (A10's 70 % marker does this).
+
+    `open_sz` and `rail` exist because the Appendix C plots are drawn with a lighter pen.
+    On C24 a 7x7 opening erases the ninth marker outright -- it is not filtered out, it is
+    never found -- while 6x6 keeps it and also keeps a rail of fragments along the frame
+    lines. `rail` is the distance from a frame inside which a component is discarded: the
+    default -14 keeps anything up to 14 px OUTSIDE the frame, which A6/A8/A10 need because
+    their end markers sit on it, and a positive value discards anything within that many
+    pixels INSIDE it, which C24 needs because its markers all stand at least 33 px clear.
     """
     Y, X = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]]
     dL = _dist(fr["left"], X, Y)
@@ -466,7 +524,7 @@ def seeds(ink, fr, nmark):
     dT = _dist(fr["top"], X, Y, False)
     dB = _dist(fr["bottom"], X, Y, False)
     band = ink & (dL > -26) & (dR < 26) & (dT > -26) & (dB < 26)
-    op = ndimage.binary_opening(band, structure=np.ones((7, 7), bool))
+    op = ndimage.binary_opening(band, structure=np.ones((open_sz, open_sz), bool))
     lab, n = ndimage.label(op, structure=np.ones((3, 3)))
     if n == 0:
         raise AssertionError("opening found nothing")
@@ -474,10 +532,10 @@ def seeds(ink, fr, nmark):
     sz = np.array(ndimage.sum(op, lab, range(1, n + 1)))
     cy, cx = com[:, 0], com[:, 1]
     # keep only what is inside the plot rectangle (axis titles and tick labels sit outside)
-    ky = _dist(fr["top"], cx, cy, False) > -14
-    ky &= _dist(fr["bottom"], cx, cy, False) < 14
-    ky &= _dist(fr["left"], cx, cy) > -14
-    ky &= _dist(fr["right"], cx, cy) < 14
+    ky = _dist(fr["top"], cx, cy, False) > rail
+    ky &= _dist(fr["bottom"], cx, cy, False) < -rail
+    ky &= _dist(fr["left"], cx, cy) > rail
+    ky &= _dist(fr["right"], cx, cy) < -rail
     cx, cy, sz = cx[ky], cy[ky], sz[ky]
     o = np.argsort(cx)
     cx, cy, sz = cx[o], cy[o], sz[o]
@@ -794,7 +852,7 @@ def run(key):
     cx, cy = CX["c"], CY["c"]
 
     print("markers:")
-    C0 = seeds(ink, fr, cfg["nmark"])
+    C0 = seeds(ink, fr, cfg["nmark"], cfg.get("open_sz", 7), cfg.get("rail", -14.0))
     W = windows(ink, fr, allt, C0, cfg["rad"])
     C, tpl = fit_glyphs(W, C0, rounds=4)
     # re-centre the windows on the fitted centres and refit, so the disc is self-consistent
@@ -953,6 +1011,23 @@ OLD = {  # the 2026-09-10 extraction, kept so the move can be reported in sigma
 }
 
 PROSE = {
+    "c24": dict(
+        quantity=(
+            "F_HM1 -- HMU topping line schedule (Fig. C14, pdf p.91: WFPTP = F_HM1(T2)).\n"
+            "#    One of the eight Appendix C scheduling functions, which exist ONLY as\n"
+            "#    plots -- Appendix C prints no numbered equations and no function tables"
+        ),
+        xdesc="T2 engine inlet temperature, deg R",
+        ydesc="WFPTP fuel flow topping line parameter, nondimensional (no unit printed)",
+        fmt=("%.4f", "%.5f", "%.4f", "%.5f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. The six interior abscissae land on a 20 deg R lattice",
+            "(515, 535, 555, 575, 595, 615) to +0.18, +0.19, +0.03, +0.12, +0.07, +0.16 --",
+            "max 0.19, against a mean sigma_x of 0.22. Nothing in the extraction was told to",
+            "expect a lattice. The two end markers do NOT sit on the frame values: they read",
+            "395.0 and 634.2 against frames at 390 and 640, which is what the figure shows.",
+        ],
+    ),
     "a8": dict(
         quantity="f8 -- power turbine energy (Eq. 32, pdf p.24: dH_PT = theta45 * f8(P49/P45))",
         xdesc=(
@@ -1073,7 +1148,7 @@ def write_csv(key, r):
     xs, ys = cfg["x"], cfg["y"]
     X, Y = r["X"], r["Y"]
     sx, sy = r["sig"]["x"], r["sig"]["y"]
-    old = np.array(OLD[key])
+    old = np.array(OLD[key]) if key in OLD else None
     fmtx, fmty, fmtsx, fmtsy = pr["fmt"]
     L = []
     A = L.append
@@ -1086,7 +1161,10 @@ def write_csv(key, r):
     A("# sigma_y: 1 sigma uncertainty on y, in y's own units, per point (see UNCERTAINTY)")
     A(f"# points: {cfg['nmark']}")
     A("# digitized: 2026-09-11 by tools/digitize_a6810.py -- reruns and reproduces this file")
-    A("#            exactly; a re-digitisation of the 2026-09-10 extraction (see MOVEMENT)")
+    if old is not None:
+        A("#            exactly; a re-digitisation of the 2026-09-10 extraction (see MOVEMENT)")
+    else:
+        A("#            exactly; a first extraction, with no earlier version to compare against")
     A("#")
     A(f"# RASTER. `pdfimages -list -f {cfg['page']}` shows pdf p.{cfg['page']} is a single 300 dpi")
     A("# 1-bit CCITT image (2544x3300), so every render above 300 dpi is an upsample of that")
@@ -1210,18 +1288,19 @@ def write_csv(key, r):
     for ln in pr["extra"]:
         A("# " + ln)
     A("#")
-    A("# MOVEMENT from the 2026-09-10 extraction (old -> new, and the move in units of the")
-    A("# 1 sigma above):")
-    dxs = X - old[:, 0]
-    dys = Y - old[:, 1]
-    for i in range(cfg["nmark"]):
-        A(
-            f"#   {i + 1:2d}  x {old[i, 0]:{fmtx[1:]}} -> {X[i]:{fmtx[1:]}} "
-            f"({dxs[i]:+.3g}, {dxs[i] / sx[i]:+.1f} sigma)   "
-            f"y {old[i, 1]:{fmty[1:]}} -> {Y[i]:{fmty[1:]}} "
-            f"({dys[i]:+.3g}, {dys[i] / sy[i]:+.1f} sigma)"
-        )
-    A("#")
+    if old is not None:
+        A("# MOVEMENT from the 2026-09-10 extraction (old -> new, and the move in units of the")
+        A("# 1 sigma above):")
+        dxs = X - old[:, 0]
+        dys = Y - old[:, 1]
+        for i in range(cfg["nmark"]):
+            A(
+                f"#   {i + 1:2d}  x {old[i, 0]:{fmtx[1:]}} -> {X[i]:{fmtx[1:]}} "
+                f"({dxs[i]:+.3g}, {dxs[i] / sx[i]:+.1f} sigma)   "
+                f"y {old[i, 1]:{fmty[1:]}} -> {Y[i]:{fmty[1:]}} "
+                f"({dys[i]:+.3g}, {dys[i] / sy[i]:+.1f} sigma)"
+            )
+        A("#")
     A("# NOT transcribed. Values carry read error; see validation/out/digitize/a6810/.")
     A("x,y,sigma_x,sigma_y")
     for i in range(cfg["nmark"]):

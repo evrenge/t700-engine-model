@@ -1292,3 +1292,62 @@ between them, which is exactly what the config needs.
 directly**, the way `digitize_a7.py`'s header shows was done for A7. Until then the
 existing extraction stands: it is sound, its uncertainty is stated, and the measured
 effect of any plausible revision is below 0.05 % on every result in this repository.
+
+## Appendix C scheduling functions — state as of 2026-09-11
+
+The eight functions `F_EC1` and `F_HM1`..`F_HM7` exist only as plots (Figs. C23-C30,
+pdf pp.94-101). All eight pages are single 300 dpi 1-bit CCITT rasters, so
+`digitize_a6810`'s native-bitmap machinery applies directly rather than needing a render.
+
+**`F_HM1` (Fig. C24) is done** -- `data/schedules/fhm1_topping_line.csv`, nine points with
+per-point uncertainties. Both axes calibrated to better than 1.3 per-mille of range on the
+held-out frame test, the tick lattices closing at 5.0100 against a printed 5 in x and
+9.0118 against 9 in y. The six interior abscissae land on a 20 deg R lattice to within
+0.19 against a mean sigma_x of 0.22, which the extraction was never told to expect.
+
+Two changes were needed and both are now parameters with defaults that leave A6, A8 and
+A10 reproducing byte for byte:
+
+* **`open_sz`** -- the Appendix C plots are drawn with a lighter pen. On C24 the default
+  7x7 morphological opening *erases* the ninth marker outright; it is not filtered out, it
+  is never found. 6x6 keeps it.
+* **`rail`** -- 6x6 also keeps a rail of fragments along the frame lines. A6/A8/A10 need
+  the default, which keeps components up to 14 px *outside* a frame because their end
+  markers sit on it; C24 needs the opposite, discarding anything within 20 px *inside* it,
+  because its markers all stand at least 33 px clear.
+
+### What blocks the remaining seven
+
+**A bug in the frame locator, not in the tool.** The helper that finds the printed frame
+by taking the two strongest horizontal lines picks the wrong bottom line on at least
+C25 and C26: the detected frame spans fifteen major intervals where the printed labels say
+fourteen, putting every predicted tick slot about 188 px out and failing
+`_pick_majors` with "no major near slot ...". The tick candidates themselves are clean --
+C25 gives fourteen evenly spaced at 167.5 px, C26 sixteen at 157 px -- so once the frame
+is right the rest should follow.
+
+Fix the frame locator before adding more configs. Candidate approach: find the frame from
+the *tick lattice* rather than from ink alone -- the correct bottom frame is the one that
+makes the interior tick count match the printed label count.
+
+### Axis lattices already read off the pages
+
+| fig | function | x | y | markers |
+|---|---|---|---|---|
+| C24 | `F_HM1` | T2 390-640, step 50, both frames printed | WFPTP -0.50-4.00, step 0.50, both | 9 **done** |
+| C25 | `F_HM2` | PAS 20-120, step 20, both | WFPRF -2-12, step 1, both | 11 |
+| C26 | `F_HM3` | XLDSA 0-100, step 20, both | PNG 75.0-112.5, step 2.5, both | 11 |
+| C23 | `F_EC1` | W45R 0-16 | TAU45 1-6 | 4 curves, digit markers |
+| C27 | `F_HM4` | XLDSA 0-100 | WFQPS3 2.1-3.7 | 11 |
+| C28 | `F_HM5` | T2 390-640 | WFIRF 2.05-2.65 | 13 |
+| C29 | `F_HM6` | T2 390-640 | PCNGI 62-~75 (top tick unlabelled) | 2 |
+| C30 | `F_HM7` | PCNGHL 50-110 | WFPAC 0-5 | 7 curves, crossing bundle |
+
+C23 and C30 will need more than a frame fix: their markers are printed **digits**
+identifying which curve a point belongs to, not `x` glyphs, and C30's seven curves cross
+in a tight bundle around PCNGHL 84-95.
+
+Frame windows for all eight pages are in the session notes and are re-derivable in a few
+seconds; they are deliberately not pasted here, because the ones for C25 and C26 are
+wrong and the next attempt should recompute them with a fixed locator rather than inherit
+a known-bad table.
