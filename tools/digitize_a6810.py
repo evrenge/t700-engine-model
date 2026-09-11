@@ -197,12 +197,6 @@ FIGS = {
         page=63,
         fig="A8",
         csv=Path("data/maps/f8_pt_energy.csv"),
-        frame_spec=[
-            ("left", 0, 550, 640, 330, 2600),
-            ("right", 0, 2220, 2300, 330, 2600),
-            ("top", 1, 265, 335, 630, 2230),
-            ("bottom", 1, 2600, 2680, 630, 2230),
-        ],
         x=dict(lo=0.30, hi=0.85, step=0.05, n=10, printed=("hi",), anchor=("lo", "hi")),
         y=dict(lo=-5.0, hi=40.0, step=2.5, n=17, printed=("lo", "hi")),
         nmark=12,
@@ -212,12 +206,6 @@ FIGS = {
         page=65,
         fig="A10",
         csv=Path("data/maps/f10_exhaust_pressure_loss.csv"),
-        frame_spec=[
-            ("left", 0, 555, 645, 320, 2580),
-            ("right", 0, 2225, 2305, 320, 2580),
-            ("top", 1, 255, 325, 635, 2235),
-            ("bottom", 1, 2580, 2660, 635, 2235),
-        ],
         x=dict(lo=65.0, hi=100.0, step=5.0, n=6, printed=("lo", "hi")),
         y=dict(lo=1.01, hi=1.14, step=0.01, n=12, printed=("hi",), anchor=("lo", "hi")),
         nmark=18,
@@ -230,12 +218,6 @@ FIGS = {
         page=95,
         fig="C24",
         csv=Path("data/schedules/fhm1_topping_line.csv"),
-        frame_spec=[
-            ("left", 0, 536, 626, 314, 2625),
-            ("right", 0, 2202, 2292, 314, 2625),
-            ("top", 1, 264, 334, 596, 2232),
-            ("bottom", 1, 2605, 2675, 596, 2232),
-        ],
         x=dict(lo=390.0, hi=640.0, step=50.0, n=4, printed=("lo", "hi")),
         y=dict(lo=-0.50, hi=4.00, step=0.50, n=8, printed=("lo", "hi")),
         nmark=9,
@@ -247,27 +229,19 @@ FIGS = {
         page=96,
         fig="C25",
         csv=Path("data/schedules/fhm2_power_available.csv"),
-        frame_spec=[
-            ("left", 0, 417, 507, 348, 2839),
-            ("right", 0, 2078, 2168, 348, 2839),
-            ("top", 1, 298, 368, 477, 2108),
-            ("bottom", 1, 2819, 2889, 477, 2108),
-        ],
         x=dict(lo=20.0, hi=120.0, step=20.0, n=4, printed=("lo", "hi")),
         y=dict(lo=-2.0, hi=12.0, step=1.0, n=13, printed=("lo", "hi")),
         nmark=11,
         rad=20.0,
+        open_sz=6,
+        # A fragment sits on the top frame at x=1957. The last marker sits ON the right
+        # frame, so only the top rail may be excluded.
+        rail=(-14.0, -14.0, 20.0, -14.0),
     ),
     "c26": dict(
         page=97,
         fig="C26",
         csv=Path("data/schedules/fhm3_load_demand_png.csv"),
-        frame_spec=[
-            ("left", 0, 560, 650, 318, 2816),
-            ("right", 0, 2226, 2316, 318, 2816),
-            ("top", 1, 268, 338, 620, 2256),
-            ("bottom", 1, 2796, 2866, 620, 2256),
-        ],
         x=dict(lo=0.0, hi=100.0, step=20.0, n=4, printed=("lo", "hi")),
         y=dict(lo=75.0, hi=112.5, step=2.5, n=14, printed=("lo", "hi")),
         nmark=11,
@@ -313,16 +287,55 @@ FIGS = {
         rad=20.0,
         rail=(-14.0, -14.0, -14.0, 200.0),
     ),
+    "c27": dict(
+        page=98,
+        fig="C27",
+        csv=Path("data/schedules/fhm4_load_demand_wfqps3.csv"),
+        x=dict(lo=0.0, hi=100.0, step=20.0, n=4, printed=("lo", "hi")),
+        y=dict(lo=2.1, hi=3.7, step=0.2, n=7, printed=("lo", "hi")),
+        nmark=11,
+        rad=20.0,
+        open_sz=6,
+        # First and last markers sit ON the left and right frames, so those rails must
+        # stay; the fragments there are separated by size instead.
+        rail=(-14.0, -14.0, 20.0, 20.0),
+        rail_min_size=60,
+    ),
+    "c28": dict(
+        page=99,
+        fig="C28",
+        csv=Path("data/schedules/fhm5_idle_wfirf.csv"),
+        x=dict(lo=390.0, hi=640.0, step=50.0, n=4, printed=("lo", "hi")),
+        y=dict(lo=2.05, hi=2.65, step=0.05, n=11, printed=("lo", "hi")),
+        nmark=13,
+        rad=20.0,
+        open_sz=6,
+        rail=20.0,  # every marker stands clear of the frames on this one
+    ),
+    "c29": dict(
+        page=100,
+        fig="C29",
+        csv=Path("data/schedules/fhm6_idle_pcngi.csv"),
+        x=dict(lo=390.0, hi=640.0, step=50.0, n=4, printed=("lo", "hi")),
+        # The TOP frame carries no label. The printed majors run 64..74 at a step of 2 and
+        # the frame sits one half-interval above 74, i.e. at 75.0 -- measured off the page,
+        # and the held-out frame test judges it because the fit never sees it.
+        y=dict(
+            lo=62.0,
+            hi=75.0,
+            majors=[64.0, 66.0, 68.0, 70.0, 72.0, 74.0],
+            printed=("lo",),
+            anchor=("lo", "hi"),
+        ),
+        nmark=2,
+        rad=20.0,
+        open_sz=6,
+        rail=20.0,
+    ),
     "a6": dict(
         page=61,
         fig="A6",
         csv=Path("data/maps/f6_combustor_efficiency.csv"),
-        frame_spec=[
-            ("left", 0, 560, 650, 330, 2600),
-            ("right", 0, 2230, 2310, 330, 2600),
-            ("top", 1, 270, 340, 640, 2240),
-            ("bottom", 1, 2600, 2680, 640, 2240),
-        ],
         x=dict(lo=0.010, hi=0.020, step=0.001, n=9, printed=("lo", "hi")),
         y=dict(lo=0.88, hi=1.10, step=0.02, n=10, printed=("lo", "hi")),
         nmark=2,
@@ -726,7 +739,9 @@ def _dist(edge, X, Y, vertical=True):
     )
 
 
-def seeds(ink, fr, nmark, open_sz=7, rail=-14.0, min_size=0):
+def seeds(
+    ink, fr, nmark, open_sz=7, rail=-14.0, min_size=0, merge=12.0, rail_min_size=0, rail_zone=12.0
+):
     """Marker seeds from a morphological opening -- no density, no threshold sweep.
 
     The joining polyline is ~3.5 px wide; where two 3.5 px strokes cross at right angles
@@ -774,12 +789,25 @@ def seeds(ink, fr, nmark, open_sz=7, rail=-14.0, min_size=0):
     ky &= _dist(fr["right"], cx, cy) < -rr
     if min_size:
         ky &= sz >= min_size
+    if rail_min_size:
+        # A size floor that applies ONLY within `rail_zone` of a frame line. C27 needs
+        # exactly this: seven fragments of its left frame survive the opening at 36 px,
+        # its marker at XLDSA = 0 sits on that same frame at 209 px, and its marker at
+        # XLDSA = 90 is also 36 px but stands in open plot. A global floor would drop the
+        # real one; a rail exclusion would drop the other. Size near a frame separates them.
+        near = (
+            (np.abs(_dist(fr["left"], cx, cy)) < rail_zone)
+            | (np.abs(_dist(fr["right"], cx, cy)) < rail_zone)
+            | (np.abs(_dist(fr["top"], cx, cy, False)) < rail_zone)
+            | (np.abs(_dist(fr["bottom"], cx, cy, False)) < rail_zone)
+        )
+        ky &= ~near | (sz >= rail_min_size)
     cx, cy, sz = cx[ky], cy[ky], sz[ky]
     o = np.argsort(cx)
     cx, cy, sz = cx[o], cy[o], sz[o]
     merged = []
     for a, b, s in zip(cx, cy, sz, strict=True):
-        if merged and np.hypot(a - merged[-1][0], b - merged[-1][1]) < 12.0:
+        if merged and np.hypot(a - merged[-1][0], b - merged[-1][1]) < merge:
             wa, wb, ws = merged[-1]
             merged[-1] = ((wa * ws + a * s) / (ws + s), (wb * ws + b * s) / (ws + s), ws + s)
         else:
@@ -1118,6 +1146,9 @@ def run(key):
         cfg.get("open_sz", 7),
         cfg.get("rail", -14.0),
         cfg.get("min_size", 0),
+        cfg.get("merge", 12.0),
+        cfg.get("rail_min_size", 0),
+        cfg.get("rail_zone", 12.0),
     )
     W = windows(ink, fr, allt, C0, cfg["rad"])
     C, tpl = fit_glyphs(W, C0, rounds=4)
@@ -1369,6 +1400,95 @@ PROSE = {
             "fragments along the inside of the bottom frame. Marker 1 also HIDES the y major",
             "at 4.00 on the left edge; that major is dropped from the axis fit rather than",
             "failing the extraction, and the held-out frame test still judges the result.",
+        ],
+    ),
+    "c29": dict(
+        quantity=(
+            "F_HM6 -- HMU idle-schedule function 2 (Fig. C20, pdf p.93:\n"
+            "#    PCNGI = F_HM6(T2)), the NG droop-line reference of the idle schedule"
+        ),
+        xdesc="T2 engine inlet temperature, deg R",
+        ydesc="PCNGI NG droop line idle reference parameter, percent",
+        fmt=("%.4f", "%.5f", "%.4f", "%.5f"),
+        extra=[
+            "TWO KNOTS ONLY. Fig. C29 is a straight line and the report draws a marker at each",
+            "end; there is nothing between them to read. The function is fully determined.",
+            "THE TOP FRAME CARRIES NO LABEL. Its value is taken as 75.0 -- the printed majors",
+            "run 64 to 74 at a step of 2 and the frame sits one half-interval above the last.",
+            "That reading is what the held-out frame test judges, and it predicts the LOW",
+            "frame, 62, to 0.002 -- 0.16 per-mille of range -- from the interior majors alone.",
+            "A wrong top frame would show up there.",
+        ],
+    ),
+    "c27": dict(
+        quantity=(
+            "F_HM4 -- HMU load-demand-compensation schedule function 2 (Fig. C17,\n"
+            "#    pdf p.91: WFQPS3 = F_HM4(XLDSH)). Same argument caveat as F_HM3: the block\n"
+            "#    diagram feeds it post-hysteresis XLDSH, the axis here is labelled XLDSA"
+        ),
+        xdesc="XLDSA load demand spindle angle, degrees",
+        ydesc="WFQPS3 fuel flow delta demand parameter, nondimensional (no unit printed)",
+        fmt=("%.4f", "%.5f", "%.4f", "%.5f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. The eleven abscissae recover 0, 10, ... 100 to max 0.08 deg",
+            "against a mean sigma_x of 0.11. Nothing here expects a lattice.",
+            "Flat above 80 deg at 3.5717, 3.5717, 3.5717 -- the three plateau knots agree to",
+            "8e-05 of each other, which is a second free check on the y calibration.",
+            "SEVEN FRAGMENTS of the left frame survive the opening at 36 px. The marker at",
+            "XLDSA = 0 sits on that same frame at 209 px and the marker at XLDSA = 90 is also",
+            "36 px but stands in open plot, so neither a global size floor nor a rail exclusion",
+            "works: the floor applies only WITHIN 12 px of a frame.",
+        ],
+    ),
+    "c28": dict(
+        quantity=(
+            "F_HM5 -- HMU idle-schedule function 1 (Fig. C20, pdf p.93:\n"
+            "#    WFIRF = F_HM5(T2)), the fuel-flow term of the idle droop line"
+        ),
+        xdesc="T2 engine inlet temperature, deg R",
+        ydesc="WFIRF fuel flow idle schedule limit parameter, nondimensional",
+        fmt=("%.4f", "%.5f", "%.4f", "%.5f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. The thirteen abscissae land on a 20 deg R lattice from 395",
+            "to 635, recovering it to max 0.16 deg R against a mean sigma_x of 0.19. Nothing",
+            "here is told to expect a lattice, and the end markers stand clear of both frames.",
+            "MONOTONE RISING, as an idle schedule must be: 2.0997 at 395 deg R to 2.5708 at",
+            "635 deg R.",
+        ],
+    ),
+    "c25": dict(
+        quantity=(
+            "F_HM2 -- HMU power-available input schedule (Fig. C16, pdf p.91:\n"
+            "#    WFPRF = F_HM2(PAS)). One of the eight Appendix C scheduling functions,\n"
+            "#    which exist ONLY as plots -- Appendix C prints no equations and no tables"
+        ),
+        xdesc="PAS power available spindle angle, degrees",
+        ydesc="WFPRF fuel flow power-available parameter, nondimensional (no unit printed)",
+        fmt=("%.4f", "%.5f", "%.4f", "%.5f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. Nine of the eleven abscissae recover 40, 50, 60, 70, 80,",
+            "90, 100, 110, 120 to max 0.16 deg against a mean sigma_x of 0.14. The first two",
+            "are genuinely off-lattice at 28.45 and 29.95, which is what the figure shows.",
+            "The last marker sits ON the right frame, so only the TOP rail is excluded --",
+            "a fragment sits on the top frame at x = 1957 px.",
+            "MONOTONE by construction of the schedule: WFPRF falls from 10.43 at 28 deg to",
+            "0.006 at 120 deg. Fig. C25 is what fixes that sign convention (inventory 2.3).",
+        ],
+    ),
+    "c26": dict(
+        quantity=(
+            "F_HM3 -- HMU load-demand-compensation schedule function 1 (Fig. C17,\n"
+            "#    pdf p.91: PNG = F_HM3(XLDSH)). Note the ARGUMENT: Fig. C17 feeds it the\n"
+            "#    post-hysteresis spindle angle XLDSH, while the axis here is labelled\n"
+            "#    XLDSA -- see open question list, Appendix C item 5"
+        ),
+        xdesc="XLDSA load demand spindle angle, degrees",
+        ydesc="PNG gas generator speed demand parameter, percent",
+        fmt=("%.4f", "%.5f", "%.4f", "%.5f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. The eleven abscissae recover 0, 10, 20, ... 100 to max",
+            "0.11 deg against a mean sigma_x of 0.14. Nothing here expects a lattice.",
+            "The schedule is flat above 80 deg, which is the topping plateau.",
         ],
     ),
     "c24": dict(

@@ -25,13 +25,13 @@
 #
 # GEOMETRY. The four frame lines are fitted sub-pixel by tracing the single ink run per
 # row/column and least-squares fitting with outlier rejection:
-#   left   x = 605.098 -0.001006 y   (-0.058 deg, 1607 samples, rms 0.88 px)
-#   right  x = 2272.146 -0.001671 y   (-0.096 deg, 1523 samples, rms 1.04 px)
-#   top    y = 278.915 +0.006967 x   (+0.399 deg, 1421 samples, rms 0.66 px)
-#   bottom y = 2609.759 +0.010079 x   (+0.577 deg, 1308 samples, rms 0.36 px)
+#   left   x = 605.162 -0.001066 y   (-0.061 deg, 1645 samples, rms 0.89 px)
+#   right  x = 2272.617 -0.002243 y   (-0.129 deg, 1622 samples, rms 1.15 px)
+#   top    y = 278.939 +0.006966 x   (+0.399 deg, 1458 samples, rms 0.66 px)
+#   bottom y = 2609.785 +0.010055 x   (+0.576 deg, 1332 samples, rms 0.37 px)
 # The four edge slopes are not a common rotation, so the frame is a genuine
-# quadrilateral; corners TL(604.814,283.128) TR(2271.653,294.741)
-# BR(2267.746,2632.615) BL(602.466,2615.831) are mapped onto the unit
+# quadrilateral; corners TL(604.860,283.153) TR(2271.956,294.765)
+# BR(2266.712,2632.576) BL(602.374,2615.841) are mapped onto the unit
 # square (u right, v up) by a homography, and every measured point is carried through
 # it. NOT `digitize.py axes`, and NOT a pixel warp -- nothing is resampled.
 #
@@ -42,48 +42,48 @@
 #   x majors every 5 (6 interior, read off the top and bottom edges);
 #   y majors every 0.01 (12 interior, off the left and right edges).
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
-#      x = +35.016596 u +65.027646
+#      x = +35.013709 u +65.026128
 #      Fitted on 12 interior major ticks (both ticked edges) plus the frame
 #      value(s) left = 65, right = 100;
-#      residual rms 0.04065, i.e. 1.16 per-mille of the axis range.
+#      residual rms 0.03501, i.e. 1.00 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
 #      value at the frame, which the fit was never given (leave-one-tick-out rms is
 #      shown beside it, as an independent check that the order is not fitting noise):
-#        order 1 (linear   ): lo frame printed 65 -> 65.0279 (+0.0279)
-#                             hi frame printed 100 -> 100.068 (+0.068)
-#                             leave-one-tick-out 1.377 per-mille of range
-#        order 2 (quadratic): lo frame printed 65 -> 65.0364 (+0.0364)
-#                             hi frame printed 100 -> 100.077 (+0.0767)
-#                             leave-one-tick-out 1.588 per-mille of range
-#        order 3 (cubic    ): lo frame printed 65 -> 65.0911 (+0.0911)
-#                             hi frame printed 100 -> 100.021 (+0.0205)
-#                             leave-one-tick-out 1.751 per-mille of range
-#        order 4 (quartic  ): lo frame printed 65 -> 65.0388 (+0.0388)
-#                             hi frame printed 100 -> 99.9663 (-0.0337)
-#                             leave-one-tick-out 1.940 per-mille of range
+#        order 1 (linear   ): lo frame printed 65 -> 65.0274 (+0.0274)
+#                             hi frame printed 100 -> 100.061 (+0.0606)
+#                             leave-one-tick-out 1.165 per-mille of range
+#        order 2 (quadratic): lo frame printed 65 -> 65.0358 (+0.0358)
+#                             hi frame printed 100 -> 100.069 (+0.0691)
+#                             leave-one-tick-out 1.350 per-mille of range
+#        order 3 (cubic    ): lo frame printed 65 -> 65.0901 (+0.0901)
+#                             hi frame printed 100 -> 100.014 (+0.0137)
+#                             leave-one-tick-out 1.479 per-mille of range
+#        order 4 (quartic  ): lo frame printed 65 -> 65.0382 (+0.0382)
+#                             hi frame printed 100 -> 99.9601 (-0.0399)
+#                             leave-one-tick-out 1.629 per-mille of range
 #      -> order 1 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
-#      y = -0.0058452278 v^4 +0.014522538 v^3 -0.010794488 v^2 +0.13217488 v +1.009954
+#      y = -0.0057998996 v^4 +0.014445399 v^3 -0.010666049 v^2 +0.13207808 v +1.0099538
 #      Fitted on 24 interior major ticks (both ticked edges) plus the frame
 #      value(s) bottom = 1.01 (DERIVED, see below), top = 1.14;
-#      residual rms 6.526e-05, i.e. 0.50 per-mille of the axis range.
+#      residual rms 6.523e-05, i.e. 0.50 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
 #      value at the frame, which the fit was never given (leave-one-tick-out rms is
 #      shown beside it, as an independent check that the order is not fitting noise):
-#        order 1 (linear   ): hi frame printed 1.14 -> 1.13977 (-0.000235)
-#                             leave-one-tick-out 0.960 per-mille of range
-#        order 2 (quadratic): hi frame printed 1.14 -> 1.13995 (-4.57e-05)
-#                             leave-one-tick-out 0.836 per-mille of range
-#        order 3 (cubic    ): hi frame printed 1.14 -> 1.14022 (+0.000221)
-#                             leave-one-tick-out 0.668 per-mille of range
-#        order 4 (quartic  ): hi frame printed 1.14 -> 1.13995 (-4.72e-05)
-#                             leave-one-tick-out 0.577 per-mille of range
+#        order 1 (linear   ): hi frame printed 1.14 -> 1.13975 (-0.000253)
+#                             leave-one-tick-out 0.988 per-mille of range
+#        order 2 (quadratic): hi frame printed 1.14 -> 1.13995 (-4.84e-05)
+#                             leave-one-tick-out 0.837 per-mille of range
+#        order 3 (cubic    ): hi frame printed 1.14 -> 1.14022 (+0.000219)
+#                             leave-one-tick-out 0.669 per-mille of range
+#        order 4 (quartic  ): hi frame printed 1.14 -> 1.13995 (-5.08e-05)
+#                             leave-one-tick-out 0.576 per-mille of range
 #      -> order 4 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   Independent bow-free cross-check: linear interpolation between the two majors that
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
-#   model to 0.0853 in x and 0.108 in y, worst point.
+#   model to 0.0908 in x and 0.108 in y, worst point.
 #
 # MARKERS. 18 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
@@ -92,40 +92,40 @@
 # half-segment U outgoing half-segment), all four radiating from one point, rendered by
 # 5x5 supersampling and scored as sum (coverage - ink)^2 over an unmasked disc of radius
 # 18 px. The glyph template is global -- the plotter drew the same mark 18 times -- and
-# came out as strokes at -44.03 deg (half-length 15.31 px) and +45.51 deg (15.35 px),
-# stroke width 4.29 px, joining-line width 4.39 px. Frame lines and tick
+# came out as strokes at -44.02 deg (half-length 15.32 px) and +45.52 deg (15.35 px),
+# stroke width 4.30 px, joining-line width 4.40 px. Frame lines and tick
 # marks are MASKED, never modelled, and the mask is SYMMETRIC about each frame line: the
 # ticks all protrude inward, so masking only the inward side would strip ink from one
 # half of a marker that sits on a frame and bias its abscissa. Fitted centres, image px:
-#   m1 ( 603.416, 569.955)  m2 ( 841.473, 678.438)  m3 ( 888.888, 711.607)
-#   m4 (1128.194,1176.910)  m5 (1246.970,1379.621)  m6 (1389.348,1726.240)
-#   m7 (1576.202,2142.488)  m8 (1622.189,2260.316)  m9 (1669.174,2329.234)
-#   m10(1716.463,2377.821)  m11(1787.747,2425.964)  m12(1834.796,2431.739)
-#   m13(1883.290,2414.748)  m14(1979.751,2308.500)  m15(2076.440,2204.663)
-#   m16(2150.107,2021.135)  m17(2248.004,1660.472)  m18(2271.391,1623.921)
+#   m1 ( 603.429, 569.962)  m2 ( 841.468, 678.441)  m3 ( 888.890, 711.604)
+#   m4 (1128.192,1176.905)  m5 (1246.918,1379.582)  m6 (1389.354,1726.231)
+#   m7 (1576.182,2142.514)  m8 (1622.178,2260.326)  m9 (1669.169,2329.241)
+#   m10(1716.557,2377.732)  m11(1787.754,2425.974)  m12(1834.794,2431.738)
+#   m13(1883.169,2414.722)  m14(1979.741,2308.489)  m15(2076.528,2204.572)
+#   m16(2150.186,2021.221)  m17(2248.003,1660.477)  m18(2271.406,1623.945)
 #
 # UNCERTAINTY, per point, 1 sigma, in data units -- the sigma_x and sigma_y columns.
 # Quadrature of four named contributions, each measured, none assumed:
-#   x: tick-fit residual 0.0406 | calibration order spread (deg 1-4) 0.0227 mean, 0.0468 max |
-#      the two ticked edges calibrated separately, half their disagreement 0.0216 mean, 0.0272 max |
-#      glyph centre 0.00197 mean, 0.00522 max.  Total 1 sigma 0.0521 mean, 0.0646 max.
+#   x: tick-fit residual 0.035 | calibration order spread (deg 1-4) 0.0206 mean, 0.0427 max |
+#      the two ticked edges calibrated separately, half their disagreement 0.0166 mean, 0.0242 max |
+#      glyph centre 0.00223 mean, 0.00646 max.  Total 1 sigma 0.0447 mean, 0.0565 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
-#      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0251.)
-#   y: tick-fit residual 6.53e-05 | calibration order spread (deg 1-4) 9.08e-05 mean, 0.00014 max |
+#      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0228.)
+#   y: tick-fit residual 6.52e-05 | calibration order spread (deg 1-4) 9.51e-05 mean, 0.000148 max |
 #      the two ticked edges calibrated separately, half their disagreement 2.15e-05 mean, 5.75e-05 max |
-#      glyph centre 7.79e-06 mean, 1.96e-05 max.  Total 1 sigma 0.000118 mean, 0.000165 max.
+#      glyph centre 5.23e-06 mean, 1.78e-05 max.  Total 1 sigma 0.000121 mean, 0.000171 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.00011.)
 #   The glyph term is the worst case over: window radius +/-3 px, frame-mask half-width
 #   3.0 and 5.0 px, tick-mask half-width 3.0 and 6.0 px, and masking the joining line out
 #   ENTIRELY and fitting the two strokes alone. Worst move in px over those variants:
-#      rad-3            0.25 px
-#      rad+3            0.07 px
-#      framemask 3.0    0.06 px
-#      framemask 5.0    0.01 px
-#      tickpad 3.0      0.27 px
-#      tickpad 6.0      0.18 px
-#      line masked out  0.35 px
+#      rad-3            0.19 px
+#      rad+3            0.11 px
+#      framemask 3.0    0.08 px
+#      framemask 5.0    0.08 px
+#      tickpad 3.0      0.17 px
+#      tickpad 6.0      0.31 px
+#      line masked out  0.32 px
 #
 # COUNT CHECK, independent of any detector. Walking the ink along each fitted joining
 # segment in 10 px bins, every excess over that segment's own baseline sits at a segment
@@ -143,42 +143,42 @@
 #
 # MOVEMENT from the 2026-09-10 extraction (old -> new, and the move in units of the
 # 1 sigma above):
-#    1  x 65.0736 -> 65.0043 (-0.0693, -1.2 sigma)   y 1.124080 -> 1.123925 (-0.000155, -1.6 sigma)
-#    2  x 69.9940 -> 70.0179 (+0.0239, +0.5 sigma)   y 1.118160 -> 1.117939 (-0.000221, -2.3 sigma)
-#    3  x 71.0033 -> 71.0165 (+0.0132, +0.3 sigma)   y 1.116300 -> 1.116100 (-0.0002, -2.1 sigma)
-#    4  x 76.0341 -> 76.0622 (+0.0281, +0.6 sigma)   y 1.090600 -> 1.090207 (-0.000393, -2.4 sigma)
-#    5  x 78.5311 -> 78.5653 (+0.0342, +0.7 sigma)   y 1.079380 -> 1.078999 (-0.000381, -2.5 sigma)
-#    6  x 81.5433 -> 81.5682 (+0.0249, +0.5 sigma)   y 1.060210 -> 1.059886 (-0.000324, -4.1 sigma)
-#    7  x 85.4701 -> 85.5075 (+0.0374, +0.7 sigma)   y 1.037150 -> 1.036970 (-0.00018, -1.4 sigma)
-#    8  x 86.4374 -> 86.4774 (+0.04, +0.8 sigma)   y 1.030620 -> 1.030456 (-0.000164, -1.2 sigma)
-#    9  x 87.4257 -> 87.4667 (+0.041, +0.8 sigma)   y 1.026850 -> 1.026645 (-0.000205, -1.6 sigma)
-#   10  x 88.4350 -> 88.4618 (+0.0268, +0.5 sigma)   y 1.024100 -> 1.023961 (-0.000139, -1.1 sigma)
-#   11  x 89.9279 -> 89.9607 (+0.0328, +0.6 sigma)   y 1.021460 -> 1.021309 (-0.000151, -1.3 sigma)
-#   12  x 90.9162 -> 90.9492 (+0.033, +0.6 sigma)   y 1.021150 -> 1.021012 (-0.000138, -1.2 sigma)
-#   13  x 91.9045 -> 91.9671 (+0.0626, +1.2 sigma)   y 1.022150 -> 1.021989 (-0.000161, -1.4 sigma)
-#   14  x 93.9546 -> 93.9890 (+0.0344, +0.7 sigma)   y 1.028100 -> 1.027967 (-0.000133, -1.0 sigma)
-#   15  x 95.9890 -> 96.0152 (+0.0262, +0.6 sigma)   y 1.033960 -> 1.033786 (-0.000174, -1.3 sigma)
-#   16  x 97.5188 -> 97.5549 (+0.0361, +0.8 sigma)   y 1.044180 -> 1.043981 (-0.000199, -1.7 sigma)
-#   17  x 99.5584 -> 99.5961 (+0.0377, +0.7 sigma)   y 1.064240 -> 1.063937 (-0.000303, -3.2 sigma)
-#   18  x 99.9790 -> 100.0853 (+0.106, +1.6 sigma)   y 1.066210 -> 1.065967 (-0.000243, -2.3 sigma)
+#    1  x 65.0736 -> 65.0024 (-0.0712, -1.4 sigma)   y 1.124080 -> 1.123925 (-0.000155, -1.6 sigma)
+#    2  x 69.9940 -> 70.0152 (+0.0212, +0.5 sigma)   y 1.118160 -> 1.117939 (-0.000221, -2.3 sigma)
+#    3  x 71.0033 -> 71.0138 (+0.0105, +0.3 sigma)   y 1.116300 -> 1.116100 (-0.0002, -2.1 sigma)
+#    4  x 76.0341 -> 76.0611 (+0.027, +0.6 sigma)   y 1.090600 -> 1.090208 (-0.000392, -2.3 sigma)
+#    5  x 78.5311 -> 78.5643 (+0.0332, +0.8 sigma)   y 1.079380 -> 1.079002 (-0.000378, -2.4 sigma)
+#    6  x 81.5433 -> 81.5709 (+0.0276, +0.6 sigma)   y 1.060210 -> 1.059887 (-0.000323, -4.0 sigma)
+#    7  x 85.4701 -> 85.5136 (+0.0435, +1.0 sigma)   y 1.037150 -> 1.036969 (-0.000181, -1.4 sigma)
+#    8  x 86.4374 -> 86.4849 (+0.0475, +1.1 sigma)   y 1.030620 -> 1.030454 (-0.000166, -1.2 sigma)
+#    9  x 87.4257 -> 87.4753 (+0.0496, +1.1 sigma)   y 1.026850 -> 1.026644 (-0.000206, -1.5 sigma)
+#   10  x 88.4350 -> 88.4732 (+0.0382, +0.9 sigma)   y 1.024100 -> 1.023965 (-0.000135, -1.0 sigma)
+#   11  x 89.9279 -> 89.9714 (+0.0435, +1.0 sigma)   y 1.021460 -> 1.021307 (-0.000153, -1.3 sigma)
+#   12  x 90.9162 -> 90.9601 (+0.0439, +1.0 sigma)   y 1.021150 -> 1.021011 (-0.000139, -1.2 sigma)
+#   13  x 91.9045 -> 91.9758 (+0.0713, +1.6 sigma)   y 1.022150 -> 1.021989 (-0.000161, -1.3 sigma)
+#   14  x 93.9546 -> 93.9999 (+0.0453, +1.0 sigma)   y 1.028100 -> 1.027966 (-0.000134, -1.0 sigma)
+#   15  x 95.9890 -> 96.0278 (+0.0388, +1.0 sigma)   y 1.033960 -> 1.033791 (-0.000169, -1.3 sigma)
+#   16  x 97.5188 -> 97.5658 (+0.047, +1.2 sigma)   y 1.044180 -> 1.043976 (-0.000204, -1.7 sigma)
+#   17  x 99.5584 -> 99.6016 (+0.0432, +0.9 sigma)   y 1.064240 -> 1.063937 (-0.000303, -3.0 sigma)
+#   18  x 99.9790 -> 100.0908 (+0.112, +2.0 sigma)   y 1.066210 -> 1.065965 (-0.000245, -2.2 sigma)
 #
 # NOT transcribed. Values carry read error; see validation/out/digitize/a6810/.
 x,y,sigma_x,sigma_y
-65.0043,1.123925,0.0558,0.000095
-70.0179,1.117939,0.0494,0.000097
-71.0165,1.116100,0.0489,0.000097
-76.0622,1.090207,0.0493,0.000165
-78.5653,1.078999,0.0503,0.000153
-81.5682,1.059886,0.0507,0.000078
-85.5075,1.036970,0.0518,0.000128
-86.4774,1.030456,0.0519,0.000134
-87.4667,1.026645,0.0520,0.000132
-88.4618,1.023961,0.0514,0.000125
-89.9607,1.021309,0.0521,0.000114
-90.9492,1.021012,0.0528,0.000114
-91.9671,1.021989,0.0531,0.000117
-93.9890,1.027967,0.0517,0.000133
-96.0152,1.033786,0.0472,0.000129
-97.5549,1.043981,0.0469,0.000119
-99.5961,1.063937,0.0571,0.000094
-100.0853,1.065967,0.0646,0.000104
+65.0024,1.123925,0.0496,0.000096
+70.0152,1.117939,0.0427,0.000097
+71.0138,1.116100,0.0421,0.000097
+76.0611,1.090208,0.0423,0.000171
+78.5643,1.079002,0.0432,0.000160
+81.5709,1.059887,0.0435,0.000082
+85.5136,1.036969,0.0443,0.000128
+86.4849,1.030454,0.0444,0.000135
+87.4753,1.026644,0.0445,0.000135
+88.4732,1.023965,0.0438,0.000129
+89.9714,1.021307,0.0445,0.000119
+90.9601,1.021011,0.0451,0.000119
+91.9758,1.021989,0.0455,0.000123
+93.9999,1.027966,0.0440,0.000135
+96.0278,1.033791,0.0398,0.000129
+97.5658,1.043976,0.0395,0.000119
+99.6016,1.063937,0.0493,0.000100
+100.0908,1.065965,0.0565,0.000109

@@ -20,13 +20,13 @@
 #
 # GEOMETRY. The four frame lines are fitted sub-pixel by tracing the single ink run per
 # row/column and least-squares fitting with outlier rejection:
-#   left   x = 601.544 +0.003623 y   (+0.208 deg, 1796 samples, rms 0.89 px)
-#   right  x = 2266.715 +0.002682 y   (+0.154 deg, 2037 samples, rms 0.90 px)
-#   top    y = 302.710 -0.001885 x   (-0.108 deg, 1541 samples, rms 0.51 px)
-#   bottom y = 2635.404 +0.002617 x   (+0.150 deg, 1216 samples, rms 0.40 px)
+#   left   x = 601.492 +0.003656 y   (+0.209 deg, 1835 samples, rms 0.89 px)
+#   right  x = 2266.670 +0.002714 y   (+0.155 deg, 2045 samples, rms 0.90 px)
+#   top    y = 302.745 -0.001909 x   (-0.109 deg, 1573 samples, rms 0.50 px)
+#   bottom y = 2635.384 +0.002621 x   (+0.150 deg, 1256 samples, rms 0.41 px)
 # The four edge slopes are not a common rotation, so the frame is a genuine
-# quadrilateral; corners TL(602.637,301.574) TR(2267.515,298.435)
-# BR(2273.800,2641.355) BL(611.099,2637.003) are mapped onto the unit
+# quadrilateral; corners TL(602.595,301.594) TR(2267.480,298.415)
+# BR(2273.838,2641.344) BL(611.134,2636.986) are mapped onto the unit
 # square (u right, v up) by a homography, and every measured point is carried through
 # it. NOT `digitize.py axes`, and NOT a pixel warp -- nothing is resampled.
 #
@@ -37,52 +37,52 @@
 #   x majors every 0.001 (9 interior, read off the top and bottom edges);
 #   y majors every 0.02 (10 interior, off the left and right edges).
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
-#      x = +0.010004156 u +0.0099983915
+#      x = +0.010004176 u +0.0099983467
 #      Fitted on 18 interior major ticks (both ticked edges) plus the frame
 #      value(s) left = 0.01, right = 0.02;
-#      residual rms 8.407e-06, i.e. 0.84 per-mille of the axis range.
+#      residual rms 8.231e-06, i.e. 0.82 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
 #      value at the frame, which the fit was never given (leave-one-tick-out rms is
 #      shown beside it, as an independent check that the order is not fitting noise):
-#        order 1 (linear   ): lo frame printed 0.01 -> 0.00999676 (-3.24e-06)
-#                             hi frame printed 0.02 -> 0.0200044 (+4.39e-06)
-#                             leave-one-tick-out 1.057 per-mille of range
-#        order 2 (quadratic): lo frame printed 0.01 -> 0.0099961 (-3.9e-06)
-#                             hi frame printed 0.02 -> 0.0200037 (+3.72e-06)
-#                             leave-one-tick-out 1.165 per-mille of range
-#        order 3 (cubic    ): lo frame printed 0.01 -> 0.0100142 (+1.42e-05)
-#                             hi frame printed 0.02 -> 0.0199856 (-1.44e-05)
-#                             leave-one-tick-out 1.191 per-mille of range
+#        order 1 (linear   ): lo frame printed 0.01 -> 0.0099967 (-3.3e-06)
+#                             hi frame printed 0.02 -> 0.0200044 (+4.36e-06)
+#                             leave-one-tick-out 1.035 per-mille of range
+#        order 2 (quadratic): lo frame printed 0.01 -> 0.00999608 (-3.92e-06)
+#                             hi frame printed 0.02 -> 0.0200037 (+3.74e-06)
+#                             leave-one-tick-out 1.141 per-mille of range
+#        order 3 (cubic    ): lo frame printed 0.01 -> 0.0100141 (+1.41e-05)
+#                             hi frame printed 0.02 -> 0.0199857 (-1.43e-05)
+#                             leave-one-tick-out 1.163 per-mille of range
 #        order 4 (quartic  ): lo frame printed 0.01 -> 0.0100109 (+1.09e-05)
 #                             hi frame printed 0.02 -> 0.0199824 (-1.76e-05)
-#                             leave-one-tick-out 1.294 per-mille of range
+#                             leave-one-tick-out 1.264 per-mille of range
 #      -> order 1 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
-#      y = +0.023772476 v^4 -0.050072372 v^3 +0.031023962 v^2 +0.21525874 v +0.88001165
+#      y = +0.023710248 v^4 -0.049937065 v^3 +0.030930864 v^2 +0.21527868 v +0.88001162
 #      Fitted on 20 interior major ticks (both ticked edges) plus the frame
 #      value(s) bottom = 0.88, top = 1.1;
-#      residual rms 4.924e-05, i.e. 0.22 per-mille of the axis range.
+#      residual rms 5.038e-05, i.e. 0.23 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
 #      value at the frame, which the fit was never given (leave-one-tick-out rms is
 #      shown beside it, as an independent check that the order is not fitting noise):
-#        order 1 (linear   ): lo frame printed 0.88 -> 0.880099 (+9.88e-05)
+#        order 1 (linear   ): lo frame printed 0.88 -> 0.8801 (+9.98e-05)
 #                             hi frame printed 1.1 -> 1.10039 (+0.000394)
-#                             leave-one-tick-out 1.430 per-mille of range
-#        order 2 (quadratic): lo frame printed 0.88 -> 0.879301 (-0.000699)
-#                             hi frame printed 1.1 -> 1.0996 (-0.0004)
-#                             leave-one-tick-out 0.538 per-mille of range
-#        order 3 (cubic    ): lo frame printed 0.88 -> 0.879504 (-0.000496)
-#                             hi frame printed 1.1 -> 1.0994 (-0.000601)
-#                             leave-one-tick-out 0.512 per-mille of range
-#        order 4 (quartic  ): lo frame printed 0.88 -> 0.880111 (+0.000111)
-#                             hi frame printed 1.1 -> 1.1 (-2.17e-06)
-#                             leave-one-tick-out 0.308 per-mille of range
+#                             leave-one-tick-out 1.429 per-mille of range
+#        order 2 (quadratic): lo frame printed 0.88 -> 0.879303 (-0.000697)
+#                             hi frame printed 1.1 -> 1.0996 (-0.000399)
+#                             leave-one-tick-out 0.540 per-mille of range
+#        order 3 (cubic    ): lo frame printed 0.88 -> 0.879506 (-0.000494)
+#                             hi frame printed 1.1 -> 1.0994 (-0.0006)
+#                             leave-one-tick-out 0.515 per-mille of range
+#        order 4 (quartic  ): lo frame printed 0.88 -> 0.88011 (+0.00011)
+#                             hi frame printed 1.1 -> 1.1 (-3.55e-06)
+#                             leave-one-tick-out 0.315 per-mille of range
 #      -> order 4 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   Independent bow-free cross-check: linear interpolation between the two majors that
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
-#   model to 9.94e-06 in x and 0.0101 in y, worst point.
+#   model to 9.98e-06 in x and 0.0101 in y, worst point.
 #
 # MARKERS. 2 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
@@ -100,14 +100,14 @@
 #
 # UNCERTAINTY, per point, 1 sigma, in data units -- the sigma_x and sigma_y columns.
 # Quadrature of four named contributions, each measured, none assumed:
-#   x: tick-fit residual 8.41e-06 | calibration order spread (deg 1-4) 3.96e-06 mean, 4.49e-06 max |
-#      the two ticked edges calibrated separately, half their disagreement 5.55e-06 mean, 7.3e-06 max |
-#      glyph centre 6.91e-07 mean, 1.08e-06 max.  Total 1 sigma 1.1e-05 mean, 1.21e-05 max.
+#   x: tick-fit residual 8.23e-06 | calibration order spread (deg 1-4) 3.97e-06 mean, 4.47e-06 max |
+#      the two ticked edges calibrated separately, half their disagreement 5.4e-06 mean, 7.15e-06 max |
+#      glyph centre 6.91e-07 mean, 1.08e-06 max.  Total 1 sigma 1.07e-05 mean, 1.18e-05 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 4e-06.)
-#   y: tick-fit residual 4.92e-05 | calibration order spread (deg 1-4) 0.000402 mean, 0.000402 max |
-#      the two ticked edges calibrated separately, half their disagreement 3.77e-05 mean, 3.78e-05 max |
-#      glyph centre 3.42e-06 mean, 6.1e-06 max.  Total 1 sigma 0.000406 mean, 0.000407 max.
+#   y: tick-fit residual 5.04e-05 | calibration order spread (deg 1-4) 0.000401 mean, 0.000401 max |
+#      the two ticked edges calibrated separately, half their disagreement 3.91e-05 mean, 3.92e-05 max |
+#      glyph centre 3.42e-06 mean, 6.1e-06 max.  Total 1 sigma 0.000406 mean, 0.000406 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.000164.)
 #   The glyph term is the worst case over: window radius +/-3 px, frame-mask half-width
@@ -132,15 +132,15 @@
 # question -- which is exactly what the scan's bow attacks. That is why the held-out
 # frame test matters more here than on any other figure in the appendix, and why both
 # y frame values being printed (0.88 and 1.10) is worth as much as the ticks.
-# The two markers agree on y to 7.1e-05, which is 0.1 sigma -- the
+# The two markers agree on y to 7.3e-05, which is 0.1 sigma -- the
 # figure's own statement that it is a constant.
 #
 # MOVEMENT from the 2026-09-10 extraction (old -> new, and the move in units of the
 # 1 sigma above):
-#    1  x 0.009993 -> 0.009990 (-3.14e-06, -0.3 sigma)   y 0.985076 -> 0.985038 (-3.8e-05, -0.1 sigma)
-#    2  x 0.019988 -> 0.020003 (+1.47e-05, +1.2 sigma)   y 0.984982 -> 0.984967 (-1.54e-05, -0.0 sigma)
+#    1  x 0.009993 -> 0.009990 (-3.18e-06, -0.3 sigma)   y 0.985076 -> 0.985038 (-3.8e-05, -0.1 sigma)
+#    2  x 0.019988 -> 0.020003 (+1.47e-05, +1.2 sigma)   y 0.984982 -> 0.984965 (-1.7e-05, -0.0 sigma)
 #
 # NOT transcribed. Values carry read error; see validation/out/digitize/a6810/.
 x,y,sigma_x,sigma_y
-0.009990,0.985038,0.000010,0.000407
-0.020003,0.984967,0.000012,0.000406
+0.009990,0.985038,0.000010,0.000406
+0.020003,0.984965,0.000012,0.000406
