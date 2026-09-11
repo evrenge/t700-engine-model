@@ -21,11 +21,13 @@ public domain). Everything here is derived from it.
 | Gas generator speed vs Table B.1 | **±0.13 %** across three trim conditions |
 | Shaft power vs Table B.1 | **±0.05 %** at hover and level, −0.73 % at descent |
 | Jacobian eigenvalues vs Table 1 | +0.6 %, +5.0 %, +5.2 %, +14.9 % |
-| Fuel-step transient, Figure 9 | endpoints within 0.9–3.9 %; shape not yet right (see below) |
-| Tests | 272, with lint and formatting clean |
+| Fuel-step transient, Figure 9 | endpoints within 0.9–3.9 %; T41 overshoot 1.67× Ballin's, down from 3.41× |
+| Tests | 463, with lint and formatting clean |
 
 Phases 0–4 of `SCOPE.md` are complete: the report is ingested, the data captured, and the
-engine trims and runs transients. The fuel control system (Phase 5) is not built.
+engine trims and runs transients in **either of the two configurations Ballin published**
+— with or without the station 4.1 heat-sink model. The fuel control system (Phase 5) is
+not built.
 
 ## What is actually in here
 
@@ -60,6 +62,22 @@ comparison pass.** Shaft power went from −0.75 % to −0.05 % over five rounds
 recalibration and not one data value was adjusted to fit. What was wrong every time was
 our own pixels-to-numbers map, not the report's data.
 
+## Two models, not one
+
+Ballin ran the engine with and without a station 4.1 heat-sink model and published results
+for both, which makes it a switch rather than a feature. He states which is which for the
+linear results and leaves it to inference for the transients:
+
+| Result | Heat sink | Basis |
+|---|---|---|
+| Table 1 eigenvalues, Appendix B B1–B6 | off | printed, pdf pp.27, 67 |
+| Appendix B B7–B12 | on | printed, pdf p.67 |
+| Figures 9, 10 | on | inferred — pdf pp.20, 38, 47 |
+
+Eq. 50 has unit DC gain, so the switch cannot move a trim. Every steady-state result here
+is valid in both configurations at once, and that is measured rather than argued: the two
+agree to ~1e-15 relative. `docs/notes/heat-sink-configuration.md` carries the evidence.
+
 ## Things the report gets wrong, and one it does not
 
 Reading a 1988 scan carefully turns up genuine defects. They are reproduced as printed and
@@ -79,9 +97,11 @@ pressure ratio we nearly inverted.
 
 ## Known gaps
 
-- **The transient shape is wrong** even though its endpoints are right: our engine responds
-  1.4–3.5× too fast and overshoots T41 by 3.3× too much. The heat-sink model (Eqs. 48–53)
-  is the leading suspect and is not implemented.
+- **The transient is still too sharp**, though much less so. T41 now overshoots by 1.67×
+  Ballin's figure, down from 3.41×. Two thirds of that gap was the station 4.1 heat-sink
+  model (Eqs. 48–53) — and part of it was our own error: Figures 9 and 10 were generated
+  with the heat sink *on*, so comparing our 5-DOF model against them was a category
+  mistake rather than an incomplete model. The remaining 1.67× is unexplained.
 - **Table B.1 and Figures 6–7 disagree with each other**, by up to 5.5 % on shaft power at
   low power. We track Table B.1, which is printed numbers rather than a plot.
 - Figures 11–15 are **not reproducible** — they need the Gen Hel UH-60A blade-element

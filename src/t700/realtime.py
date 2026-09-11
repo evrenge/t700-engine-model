@@ -49,7 +49,7 @@ import numpy as np
 
 from t700 import constants as c
 from t700 import corrections, maps, thermo
-from t700.engine import STANDARD_DAY, Ambient, State
+from t700.engine import STANDARD_DAY, Ambient, Frame, State
 from t700.units import BTU_TO_FTLBF, RAD_PER_SEC_TO_RPM, RPM_TO_RAD_PER_SEC
 
 _TORQUE_SCALE = BTU_TO_FTLBF * RAD_PER_SEC_TO_RPM
@@ -81,6 +81,21 @@ class RTState:
     """The opened compressor mass-flow iteration's memory (Eq. 74). Its initialization is
     not stated anywhere in the report -- open question #23."""
 
+    hs_lag_degR: float = 0.0
+    """Eq. 50's lead-lag memory, deg R. Unused when `heat_sink=False`. See `_heat_sink`
+    for why the memory is this and not T41 itself."""
+
+    t41_carry_degR: float = 0.0
+    """Previous frame's T41, deg R. This is the report's **sixth state** [pdf p.29,
+    p.32] -- gas temperature at station 4.1, not metal temperature. Eq. 51 needs it to
+    form the time constant, and this frame has not computed it yet. Unused when
+    `heat_sink=False`."""
+
+    w41_carry_pps: float = 0.0
+    """Previous frame's W41, lbm/sec. Eqs. 51 and 53 both need W41, which depends on
+    theta41, which depends on T41 -- the quantity the heat sink is computing. Lagged one
+    frame, exactly as Eq. 74 opens the mass-flow loop. Unused when `heat_sink=False`."""
+
     def to_state(self) -> State:
         return State(self.ng_rpm, self.np_rpm, self.p3_psia, self.p41_psia, self.p45_psia)
 
@@ -92,6 +107,8 @@ class FrameOut:
     inner_iters: int
     p45_iters: int
     t41_degR: float
+    t41_ns_degR: float
+    """T41 before the heat sink. Equal to `t41_degR` when `heat_sink=False` [Eq. 23]."""
     t45_degR: float
     q_pt_ftlbf: float
     q_gt_ftlbf: float
@@ -163,6 +180,58 @@ def _p45_loop(
     return float(p45), it
 
 
+def _heat_sink(
+    t41_ns_degR: float,
+    lag_degR: float,
+    t41_prev_degR: float,
+    w41_prev_pps: float,
+    ngc_pct: float,
+    dt: float,
+) -> tuple[float, float]:
+    """Advance Eq. 50's lead-lag one frame. Returns `(T41, next memory)`.
+
+    ```
+    T41       (M c_pm/(h A_m) - M c_pm/(W_g c_pg)) s + 1
+    ------ = --------------------------------------------          (50)  [pdf p.26]
+    T41_ns              M c_pm/(h A_m) s + 1
+
+    M c_pm/(h A_m)     = TC_T41 * sqrt(T41) / W41^(4/5)             (51)
+    T41_sgn            = f_hs(NG_c)                                 (52)
+    M c_pm/(W_g c_pg)  = T41_sgn / W41                              (53)
+    ```
+
+    Write `tau_a` for Eq. 51 and `tau_b` for Eq. 53, so Eq. 50 is
+    `((tau_a - tau_b) s + 1) / (tau_a s + 1)`.
+
+    **There is no metal-temperature state.** `T_m` appears only in Eqs. 48-49 and is
+    eliminated when those collapse into Eq. 50; the lead-lag carries the metal's thermal
+    inertia implicitly. The report is explicit that the extra state is "gas temperature at
+    station 4.1" [pdf p.29]. Adding a `T_m` state would not reproduce Appendix B.
+
+    ## Why the memory is `x` and not T41
+
+    Realized as `T41 = k*T41_ns + x` with `x' = (-x + (1-k)*T41_ns)/tau_a` and
+    `k = 1 - tau_b/tau_a`. Substituting gives back Eq. 50 exactly, and it avoids
+    differentiating the input, which a fixed-step explicit frame cannot do cleanly. The
+    report's state T41 is recovered algebraically as `k*T41_ns + x`, so nothing is lost.
+
+    ## Two properties worth stating, because they are load-bearing
+
+    * **DC gain is exactly 1.** At equilibrium T41 = T41_ns, so the heat sink cannot move
+      a trim. That is why `engine.frame` and `trim.solve` need no heat-sink flag and why
+      Table B.1 validates both configurations.
+    * **High-frequency gain is `k = 1 - tau_b/tau_a`**, which is below 1 whenever
+      `tau_b > 0`. The heat sink attenuates fast excursions in T41 and passes slow ones,
+      which is the "response is significantly slowed" of [pdf p.33].
+    """
+    tau_a = c.TC_T41 * t41_prev_degR**0.5 / w41_prev_pps**0.8  # (51)
+    tau_b = float(maps.f_hs()(ngc_pct)) / w41_prev_pps  # (52), (53)
+    k = 1.0 - tau_b / tau_a
+    t41 = k * t41_ns_degR + lag_degR
+    lag_next = lag_degR + dt * (-lag_degR + (1.0 - k) * t41_ns_degR) / tau_a
+    return t41, lag_next
+
+
 def step(
     st: RTState,
     wf_pps: float,
@@ -172,6 +241,7 @@ def step(
     j_load: float = 0.0,
     integrate_np: bool = True,
     lag_whole_flow: bool = True,
+    heat_sink: bool = False,
 ) -> tuple[RTState, FrameOut]:
     """Advance one engine frame.
 
@@ -214,7 +284,13 @@ def step(
     far = wf_pps / wa31  # (19)
     eta_b = float(maps.f6()(far))  # (20)
     h41_ns = (h3 + eta_b * far * c.HVF) / (1.0 + far)  # (21)
-    t41 = thermo.t41_from_h41(h41_ns)  # (22), (23) with no heat sink
+    t41_ns = thermo.t41_from_h41(h41_ns)  # (22)
+    if heat_sink:
+        t41, hs_lag = _heat_sink(
+            t41_ns, st.hs_lag_degR, st.t41_carry_degR, st.w41_carry_pps, ngc_pct, dt
+        )  # (48)-(53)
+    else:
+        t41, hs_lag = t41_ns, st.hs_lag_degR  # (23), no heat-sink representation
     h41 = thermo.h41_from_t41(t41)  # (24)
     theta41 = thermo.theta41_from_t41(t41)  # (25)
 
@@ -251,11 +327,12 @@ def step(
         )  # (46), (47)
 
     carry = wa31 if not lag_whole_flow else (wa3 - wa3_bl)
-    nxt = RTState(ng, np_, p3, p41, p45, float(carry))
+    nxt = RTState(ng, np_, p3, p41, p45, float(carry), hs_lag, t41, float(w41))
     out = FrameOut(
         inner_iters=inner_iters,
         p45_iters=p45_iters,
         t41_degR=t41,
+        t41_ns_degR=t41_ns,
         t45_degR=t45,
         q_pt_ftlbf=q_pt,
         q_gt_ftlbf=q_gt,
@@ -268,15 +345,28 @@ def step(
     return nxt, out
 
 
-def from_trim(result, wa31_pps: float) -> RTState:
+def from_trim(result, wa31_pps: float, frame: Frame | None = None) -> RTState:
     """Seed a real-time state from a converged trim.
 
     The carried mass flow is initialized to its equilibrium value. The report never says
     how it initializes (open question #23); starting at equilibrium is the choice that
     makes a trimmed engine sit still, which is the only defensible default.
+
+    Pass `frame` -- the `engine.frame` evaluated at the same trim -- to seed the
+    heat-sink carries as well. Required for `heat_sink=True` runs; harmless otherwise.
+    The seed follows the same principle: at equilibrium Eq. 50 has unit gain, so
+    T41 = T41_ns and the lag memory is whatever holds that identity, `(1-k)*T41_ns`.
     """
     s = result.state
-    return RTState(s.ng_rpm, s.np_rpm, s.p3_psia, s.p41_psia, s.p45_psia, wa31_pps)
+    if frame is None:
+        return RTState(s.ng_rpm, s.np_rpm, s.p3_psia, s.p41_psia, s.p45_psia, wa31_pps)
+
+    t41 = frame.t41_ns_degR
+    w41 = frame.w41_pps
+    tau_a = c.TC_T41 * t41**0.5 / w41**0.8  # (51)
+    tau_b = float(maps.f_hs()(frame.ngc_pct)) / w41  # (52), (53)
+    lag = (tau_b / tau_a) * t41  # = (1 - k) * T41_ns, the memory that holds T41 = T41_ns
+    return RTState(s.ng_rpm, s.np_rpm, s.p3_psia, s.p41_psia, s.p45_psia, wa31_pps, lag, t41, w41)
 
 
 def run(
@@ -293,7 +383,21 @@ def run(
     input is just a lambda.
     """
     n = int(round(duration_s / dt)) + 1
-    keys = ("t", "ng", "np", "p3", "p41", "p45", "t41", "t45", "q_pt", "wf", "wa2", "far")
+    keys = (
+        "t",
+        "ng",
+        "np",
+        "p3",
+        "p41",
+        "p45",
+        "t41",
+        "t41_ns",
+        "t45",
+        "q_pt",
+        "wf",
+        "wa2",
+        "far",
+    )
     tr = {k: np.zeros(n) for k in keys}
     for i in range(n):
         t = i * dt
@@ -307,6 +411,7 @@ def run(
         tr["wf"][i] = wf
         st, out = step(st, wf, ambient, dt, **kw)
         tr["t41"][i] = out.t41_degR
+        tr["t41_ns"][i] = out.t41_ns_degR
         tr["t45"][i] = out.t45_degR
         tr["q_pt"][i] = out.q_pt_ftlbf
         tr["wa2"][i] = out.wa2_pps

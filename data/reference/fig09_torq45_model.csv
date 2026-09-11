@@ -6,6 +6,10 @@
 # points: 716
 # x tick check: worst interior major tick off by 0.0554 s
 # NOT transcribed. Values carry read error.
+# defect: the final sample (t~4.9, after a ~0.47 s gap in an otherwise 0.003 s
+#   trace) is a digitizer artifact, not data. Found 2026-09-11; torque cannot fall from 414 to 194 while fuel flow is still at 775 lbm/hr. Kept rather than
+#   deleted, per the provenance rule -- consumers must window t < 4.6. See
+#   docs/notes/open-questions.md #48.
 t_s,value
 0.05984,174.92447
 0.06284,174.92447

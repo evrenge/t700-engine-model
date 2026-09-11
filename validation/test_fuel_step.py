@@ -9,6 +9,19 @@ reference markers. We are replicating his model, so his output is what ours must
 the GE data is the hardware reference he was himself validating against, and he does not
 match it perfectly either.
 
+## Which configuration these run
+
+**Heat sink on.** Figures 9 and 10 were generated with the station 4.1 heat-sink model
+active -- inferred, not printed; the evidence and its strength are laid out in
+`docs/notes/heat-sink-configuration.md`. Running our 5-DOF (`T41 = T41ns`) model against
+them is a category error, and was the leading cause of transients that ran 1.4-3.5x too
+fast. Table 1 and Appendix B figures B1-B6 are the opposite case, heat sink **off**, and
+are compared elsewhere against the 5-DOF model.
+
+Because Eq. 50 has unit DC gain, the switch cannot move a trim -- so the initial-state
+tests below are configuration-independent by construction, and only the transient shape
+and settled state respond to it.
+
 ## What these tests establish, and what they do not
 
 They compare the **initial trim** and the **settled final state** on each panel. They do
@@ -78,12 +91,12 @@ def _reference(fig: int, key: str) -> tuple[np.ndarray, np.ndarray]:
     return t[o], v[o]
 
 
-def _run(fig: int, wf_hi: float, t_step: float):
+def _run(fig: int, wf_hi: float, t_step: float, heat_sink: bool = True):
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
     f0 = frame(r0.state, wf0, AMB)
     hi = wf_pps_from_pph(wf_hi)
-    st = realtime.from_trim(r0, f0.wa31_pps)
+    st = realtime.from_trim(r0, f0.wa31_pps, f0)
     return realtime.run(
         st,
         lambda t: wf0 if t < t_step else hi,
@@ -92,6 +105,7 @@ def _run(fig: int, wf_hi: float, t_step: float):
         dt=0.007,
         q_req_ftlbf=f0.q_pt_ftlbf,
         integrate_np=False,
+        heat_sink=heat_sink,
     )
 
 
@@ -132,6 +146,9 @@ def test_settled_state_matches_the_figure(fig: int, wf_hi: float, t_step: float,
     ours = PANELS[key](tr)
 
     late_us = ours[tr["t"] > 4.0]
+    # The 4.6 upper bound is load-bearing: fig09_t41_model.csv and fig09_torq45_model.csv
+    # each carry a spurious trailing sample at t ~ 4.9 (see their headers, and open
+    # question #48). Widening this window silently corrupts the comparison.
     late_them = vb[(tb > 4.0) & (tb < 4.6)]
     if late_them.size == 0:
         pytest.skip("no settled reference samples")
@@ -159,7 +176,7 @@ def test_step_up_stays_inside_the_compressor_map():
 def test_step_down_runs_off_the_bottom_of_the_maps():
     """Figure 10 disagrees far more, and this measures why rather than asserting it.
 
-    The step to 125 lbm/hr drives NGc down to about 68 %, against a compressor map whose
+    The step to 125 lbm/hr drives NGc down to about 71 %, against a compressor map whose
     lowest speed line is 65 %, and drives the fuel-air ratio to 0.005 against an `f6`
     table that starts at 0.010. The model spends the whole late transient extrapolating
     at the bottom of its own data, so the 9-16 % deviations there are a statement about
@@ -174,7 +191,11 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     ngc = 100.0 * tr["ng"] / c.NG_DES
     rep = maps.clamp_report()
 
-    assert ngc.min() < 70.0, "the step down should reach the bottom of the speed range"
+    # 70.94 % with the heat sink on, against 67.64 % without it -- the lead-lag slows the
+    # decay, so the engine no longer plunges as deep, and Ballin's own trace bottoms at
+    # 74.2 %. Still below the 75 % where `f1` has real speed lines either side, so the
+    # extrapolation argument below survives; it is simply less severe than it was.
+    assert ngc.min() < 72.0, "the step down should still reach the bottom of the speed range"
     assert tr["far"].min() < 0.010, "and below f6's tabulated fuel-air ratio"
     assert rep.get("f1@65", 0) > 100, (
         "the lowest compressor speed line should be heavily extrapolated here; if it is "
@@ -221,26 +242,57 @@ def test_the_two_figures_agree_at_their_shared_trim(key: str):
     )
 
 
-def test_transient_shape_gap_is_characterized_not_forgotten():
-    """Record the shape mismatch so it cannot regress silently, and so it flags when fixed.
+def _t41_overshoot(t: np.ndarray, v: np.ndarray, t_step: float) -> tuple[float, float]:
+    """Peak T41 above the settled value. Windowed at t < 4.6 -- see `late_them` above."""
+    settled = v[(t > 4.0) & (t < 4.6)].mean()
+    return v[(t > t_step) & (t < 4.6)].max() - settled, settled
 
-    The endpoint comparisons above pass at 0.9-3.9 % while the *shape* is visibly wrong:
-    our engine responds faster than Ballin's and spikes turbine temperature far harder.
-    Plotting found this; percentages did not.
 
-    The leading suspect is the heat-sink model (Eqs. 48-53), which is not implemented --
-    see open question #47. This is a **characterization** test: it asserts the gap that
-    exists today. When the heat sink lands it should FAIL, and that failure is the signal
-    to re-measure and tighten it.
+def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
+    """The heat sink is the larger part of the shape mismatch, but not all of it.
+
+    History, because the numbers only mean something against it. With `T41 = T41ns` our
+    overshoot was 400.8 degR against Ballin's 117.4 -- 3.41x. That was recorded as a
+    characterization test with a note saying that if the heat-sink model ever landed, the
+    bound was to be **re-measured and tightened, not relaxed**. It landed on 2026-09-11
+    and this is that re-measurement: 196.1 degR, 1.67x.
+
+    So Eqs. 48-53 account for roughly 65 % of the peak error and the remaining 1.67x is
+    unexplained. Candidates not yet eliminated, in no order: the compressor map's
+    digitized transient envelope, the `lag_whole_flow` reading of Eq. 74 (open question
+    #22), and the possibility that Figures 9/10 used the NASA-Lewis test-engine function
+    set rather than the specification set -- the report states that substitution for
+    Tables 2/3 [pdf p.39] but says nothing about these figures.
+
+    This stays a characterization test. If it fails low, something improved and the bound
+    should be tightened again rather than widened.
     """
     tr = _run(9, 775.0, 0.539)
-    t41 = tr["t41"]
-    settled = t41[tr["t"] > 4.0].mean()
-    overshoot = t41.max() - settled
+    ours, _ = _t41_overshoot(tr["t"], tr["t41"], 0.539)
+    tb, vb = _reference(9, "t41")
+    theirs, _ = _t41_overshoot(tb, vb, 0.539)
+    ratio = ours / theirs
 
-    assert overshoot > 250.0, (
-        f"T41 overshoot is now {overshoot:.0f} degR against the {400.8:.0f} on record. "
-        f"If the heat-sink model has been added, re-measure against Ballin's +120.6 and "
-        f"tighten this bound -- do not simply relax it."
+    assert 1.4 < ratio < 2.0, (
+        f"T41 overshoot is {ours:.0f} degR against Ballin's {theirs:.0f}, a ratio of "
+        f"{ratio:.2f}x. On record is 1.67x (196.1 vs 117.4) with the heat sink on, down "
+        f"from 3.41x without it. Below this band something improved -- re-measure and "
+        f"tighten. Above it, something regressed."
     )
-    assert overshoot < 600.0, "overshoot has grown; something regressed"
+
+
+def test_the_heat_sink_is_what_closed_it():
+    """Guard the attribution itself, not just the number.
+
+    The claim above is that Eqs. 48-53 are responsible. That is checkable directly by
+    running the same step both ways, and it is worth checking: if the heat sink were
+    silently disabled, `test_heat_sink_closes_most_of_the_t41_overshoot_gap` alone would
+    fail with no indication of why.
+    """
+    bare = _run(9, 775.0, 0.539, heat_sink=False)
+    sunk = _run(9, 775.0, 0.539, heat_sink=True)
+    off, _ = _t41_overshoot(bare["t"], bare["t41"], 0.539)
+    on, _ = _t41_overshoot(sunk["t"], sunk["t41"], 0.539)
+    assert on < 0.6 * off, (
+        f"the heat sink should roughly halve the T41 overshoot; it went {off:.0f} -> {on:.0f} degR"
+    )
