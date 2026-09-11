@@ -38,7 +38,7 @@ import pytest
 
 from t700 import appendix_b as ab
 from t700 import constants as c
-from t700 import trim
+from t700 import maps, trim
 from t700.engine import Ambient
 from t700.linear import DOF, extract
 from t700.units import wf_pps_from_pph
@@ -198,3 +198,84 @@ def test_the_f7_error_shrinks_monotonically_with_power():
         devs.append(abs((ours.A[i, j] - ref.A[i, j]) / ref.A[i, j] * 100.0))
     assert devs[0] > devs[1] > devs[2], f"the power ordering is gone: {devs}"
     assert devs[0] > 2.5 * devs[2], f"the spread has collapsed: {devs}"
+
+
+# --------------------------------------------------------------- knot proximity
+
+
+def _knot_distance_f7(trim_no: int) -> float:
+    """How far this trim's P45/P41 sits from the nearest `f7` knot, as a fraction of its
+    segment. 0 means on a knot, where a linear interpolant's derivative is undefined."""
+    from t700.engine import frame
+
+    wf = wf_pps_from_pph(WF_PPH[trim_no])
+    r = trim.solve(wf, NP_RPM, AMB)
+    arg = r.state.p45_psia / r.state.p41_psia
+    x = maps.f7().x
+    k = int(np.searchsorted(x, arg))
+    frac = (arg - x[k - 1]) / (x[k] - x[k - 1])
+    assert frame  # the import above documents where P45/P41 comes from
+    return min(frac, 1.0 - frac)
+
+
+def _knot_distance_f1(trim_no: int) -> float:
+    """Same, for NGc against `f1`'s speed lines."""
+    from t700.engine import frame
+
+    wf = wf_pps_from_pph(WF_PPH[trim_no])
+    r = trim.solve(wf, NP_RPM, AMB)
+    ngc = frame(r.state, wf, AMB).ngc_pct
+    p = maps.f1().params
+    k = int(np.searchsorted(p, ngc))
+    frac = (ngc - p[k - 1]) / (p[k] - p[k - 1])
+    return min(frac, 1.0 - frac)
+
+
+def _err(trim_no: int, si: str, sj: str) -> float:
+    ours, ref = _pair(trim_no)
+    i, j = S.index(si), S.index(sj)
+    return abs((ours.A[i, j] - ref.A[i, j]) / ref.A[i, j] * 100.0)
+
+
+def test_hover_is_the_double_case_that_pins_the_mechanism():
+    """One operating point, two tables, opposite outcomes -- the strongest single check.
+
+    Hover sits 0.0002 from `f7`'s knot at 0.21496, and simultaneously 58 % across an `f1`
+    segment. If knot proximity is really what drives the disagreement, hover must hold
+    both the WORST `f7`-driven errors and the BEST `f1`-driven errors in the whole
+    comparison. It does. A wrong equation could not produce that split at one trim.
+
+    See `docs/notes/derivative-ambiguity.md`.
+    """
+    assert _knot_distance_f7(1) < 0.05, "hover no longer sits on an f7 knot"
+    assert _knot_distance_f1(1) > 0.30, "hover no longer sits mid-segment on f1"
+
+    f7_here = _err(1, "NG", "P45")
+    f7_elsewhere = max(_err(2, "NG", "P45"), _err(3, "NG", "P45"))
+    assert f7_here > f7_elsewhere, "hover should hold the worst f7-driven error"
+
+    for si, sj in NG_COLUMN:
+        here = _err(1, si, sj)
+        elsewhere = min(_err(2, si, sj), _err(3, si, sj))
+        assert here < elsewhere, (
+            f"hover should hold the BEST d({si})/d({sj}); got {here:.1f} % against "
+            f"{elsewhere:.1f} % elsewhere"
+        )
+        assert here < 1.0, f"hover d({si})/d({sj}) is {here:.1f} %, expected under 1 %"
+
+
+def test_the_ng_column_fails_only_where_the_trim_sits_on_a_speed_line():
+    """`f1` interpolates linearly between speed lines, so d/dNGc jumps at each one.
+
+    Level sits 2.8 % past the 89 line and descent 7.5 % past the 85 line; hover sits 58 %
+    across [92, 94]. The errors follow, and this asserts the ordering rather than the
+    numbers, because the ordering is the claim.
+    """
+    d = {t: _knot_distance_f1(t) for t in (1, 2, 3)}
+    assert d[1] > d[3] > d[2], f"knot distances changed: {d}"
+    for si, sj in NG_COLUMN:
+        e = {t: _err(t, si, sj) for t in (1, 2, 3)}
+        assert e[1] < e[2] and e[1] < e[3], (
+            f"d({si})/d({sj}): hover {e[1]:.1f} % should beat level {e[2]:.1f} % and "
+            f"descent {e[3]:.1f} %, since only hover sits mid-segment"
+        )
