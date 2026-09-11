@@ -171,6 +171,39 @@ NP_DES: Final = 20900.0
 
 Consistent with the Appendix B trim condition NP = 20895 rpm [pdf p.67]."""
 
+# --------------------------------------------------------------------------- derived, not printed
+
+J_LOAD_UH60A: Final = 0.57352
+"""Load inertia added to J_PT [Eq. 46], for the UH-60A drivetrain Appendix B trims.
+
+**DERIVED from the report, not printed in it.** Table A.1 gives no load inertia and the
+value belongs to the Gen Hel UH-60A simulation, which this report consumes and does not
+contain -- that was open question #6, and it blocked the entire NP row.
+
+Recovered from Appendix B's own numbers. Our NP row runs with `j_load = 0`, so for every
+element except the diagonal the ratio to Ballin's is purely the inertia ratio:
+
+    ours A(2,j)   = (dQ_PT/dxj) * k / J_PT
+    Ballin A(2,j) = (dQ_PT/dxj) * k / (J_PT + j_load)
+
+`b(NP)` is the cleanest estimator, because `b(NG)`, `b(P41)` and `b(P45)` all agree with
+Ballin to 0.1 %, so the fuel derivative itself is right and the ratio is inertia alone. It
+gives **10.2503, 10.2610, 10.2417** at the three trims -- a spread of **0.186 %** across
+hover, level flight and descent.
+
+That consistency is the evidence. Inertia is the only quantity that *must* be identical at
+all three conditions; a units error or a wrong Q_PT model would not land within two parts
+in a thousand three times over. Feeding it back reduces the NP row from ~900 % error to
+within 10 %, and `b(NP)` to 0.1 %.
+
+    J_PT + j_load = 10.2503 * J_PT = 0.63552
+    j_load        =  9.2503 * J_PT = 0.57352
+
+**Not a Table A.1 constant.** It is a property of the airframe Appendix B was trimmed on,
+so it belongs to a comparison against Appendix B and nowhere else. Passing it into
+`t700.linear.extract` or `engine.frame` is opt-in, and the model's default stays 0.
+"""
+
 # --------------------------------------------------------------------------- heat sink
 
 TC_T41: Final = 0.29
