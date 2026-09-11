@@ -100,7 +100,10 @@ with fuel flow prescribed.
 *Gate:* steady-state gas path variables match the report's trim conditions within
 tolerance.
 
-**Phase 4 — Dynamics.** **COMPLETE; transition *shape* not yet compared, only endpoints.**
+**Phase 4 — Dynamics.** **COMPLETE**, including the station 4.1 heat-sink model as a
+switch (Eqs. 48–53), so the engine runs in either configuration Ballin published. Shape
+now compared, not just endpoints: T41 overshoot is 1.67× his against 3.41× before the heat
+sink landed.
 Five-state integration at the report's frame rate, including the opened compressor
 mass-flow iteration. Reproduce the report's time-step sensitivity (0.1% at 10 ms) as a
 test — matching the *error behaviour*, not just the answer.
@@ -110,7 +113,14 @@ test — matching the *error behaviour*, not just the answer.
 Appendix C, implemented and closed around the engine.
 *Gate:* closed-loop transients match the report's figures.
 
-**Phase 6 — Validation.** **PARTIAL.** Trim, transient endpoints and 5 eigenvalues done; the 297-element Appendix B comparison remains.
+**Phase 6 — Validation.** **SUBSTANTIALLY COMPLETE**, and the remaining gaps are in the
+source rather than the work. Done: Table B.1 trims (±0.13 %NG, ±0.05 % shp); Table 1
+eigenvalues; **all 297 Appendix B elements, element by element, across all five linear
+models**; the steady-state sweeps of Figures 6–8 across their full range; Figures 9–10
+transients in the configuration they were actually generated in.
+
+Not done, with reasons: Figures 11–15 need Gen Hel and are out of scope by construction;
+the GE reference series on Figures 6–8 is digitized but uncompared; and Phase 5 below.
 Two independent lines:
 1. *Figure reproduction* — regenerate the report's result figures; `/validate` reports
    every deviation.
