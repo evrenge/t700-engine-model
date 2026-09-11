@@ -158,7 +158,7 @@ in a long session, so mechanize any that proves to matter.
 | No SciPy / Matplotlib / pandas / Numba under `src/t700/` | **live** — `tests/test_imports.py` parses every core module's imports |
 | Gas properties only via `t700.thermo` | **live** — `tests/test_imports.py` fails any module outside `thermo/` that names a `K_H*`/`K_T*`/`K_TH*` constant |
 | Core is deterministic | **live** — `tests/test_imports.py` bans clocks and RNGs structurally; `tests/test_determinism.py` checks it behaviourally |
-| No `git push` | `permissions.deny` in `.claude/settings.json` |
+| No force-push | `permissions.ask`. A plain `git push` was denied outright until 2026-09-11, when the remote was created and publishing was authorized; force-push still prompts |
 | Python stays formatted and linted | PostToolUse hook: `ruff check --fix` then `ruff format` |
 
 Those tests are written and passing as of 2026-09-10, so three rules that were wishes

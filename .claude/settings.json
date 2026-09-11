@@ -25,11 +25,11 @@
       "Bash(jq *)"
     ],
     "ask": [
-      "Bash(rm -rf *)"
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)"
     ],
-    "deny": [
-      "Bash(git push *)"
-    ]
+    "deny": []
   },
   "hooks": {
     "PostToolUse": [
