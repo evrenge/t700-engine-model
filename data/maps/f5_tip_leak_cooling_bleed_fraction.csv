@@ -1,13 +1,144 @@
 # source: TM-100991 pdf p.60, Figure A5
-# quantity: f5 -- impeller tip leakage and turbine cooling-bleed fraction, B3 = f5(WA2c)
-# method: digitized -- marker centroids from a rendered page image
+# quantity: f5 -- impeller tip leakage and turbine cooling-bleed fraction B3
+#    (Eq. 14, pdf p.22: B3 = f5(WA2c))
+# method: digitized -- generative model fit of the 3 printed 'x' glyphs
 # x: WA2C station 2 corrected mass flow, lbm/sec
 # y: B3 bleed fraction, nondimensional
+# sigma_x: 1 sigma uncertainty on x, in x's own units, per point (see UNCERTAINTY)
+# sigma_y: 1 sigma uncertainty on y, in y's own units, per point (see UNCERTAINTY)
 # points: 3
-# digitized: 2026-09-10 by tools/digitize.py
-# note: 300 dpi render, perspective-rectified with tools/rectify_page.py so the printed frame is axis-parallel (raw scan keystones ~16 px). Calibration is a least-squares fit to every printed major tick plus the frame lines: 10 in x (3..12 by 1) residual <=1.9 px, 19 in y (0.0860..0.0770 by 0.0005) residual <=5.6 px. Density mode, window 21, min-fill 0.55; count stable at 3 over 0.50-0.55, at 0.45 a fourth appears where the right-hand marker arm crosses the frame line. ROI extended past both vertical frame lines to catch the markers printed ON them at WA2c=3 and 12. 3 markers, matching the inventory count. Exact settings: --roi 481,342,2177,2657 --min-fill 0.55 --calib "498.11:3.0,2155.09:12.0,2664.20:0.0770,327.96:0.0860" on validation/out/digitize/a5r-060.png.
-# NOT transcribed. Values carry read error; see the verify overlay.
-x,y
-3.01027,0.0850907
-8.30604,0.0845899
-12.0104,0.0778945
+# digitized: 2026-09-11 by tools/digitize_a6810.py -- reruns and reproduces this file
+#            exactly; a re-digitisation of the 2026-09-10 extraction (see MOVEMENT)
+#
+# RASTER. `pdfimages -list -f 60` shows pdf p.60 is a single 300 dpi
+# 1-bit CCITT image (2544x3300), so every render above 300 dpi is an upsample of that
+# bitmap and can add no detail. This extraction works on the bitmap itself, pulled out
+# with `pdfimages`, and takes its sub-pixel information from a model fitted to the binary
+# ink rather than from interpolated grey. The page is NOT resampled at any point: the
+# scan's rotation and keystone are a coordinate transform applied to the measured points,
+# not a warp applied to the pixels, so no interpolation ever touches the data.
+#
+# GEOMETRY. The four frame lines are fitted sub-pixel by tracing the single ink run per
+# row/column and least-squares fitting with outlier rejection:
+#   left   x = 498.742 +0.000413 y   (+0.024 deg, 1594 samples, rms 1.12 px)
+#   right  x = 2159.694 -0.001379 y   (-0.079 deg, 1910 samples, rms 0.85 px)
+#   top    y = 322.872 +0.005326 x   (+0.305 deg, 1562 samples, rms 0.63 px)
+#   bottom y = 2656.308 +0.009664 x   (+0.554 deg, 1236 samples, rms 0.49 px)
+# The four edge slopes are not a common rotation, so the frame is a genuine
+# quadrilateral; corners TL(498.877,325.529) TR(2159.233,334.373)
+# BR(2156.001,2677.144) BL(499.842,2661.138) are mapped onto the unit
+# square (u right, v up) by a homography, and every measured point is carried through
+# it. NOT `digitize.py axes`, and NOT a pixel warp -- nothing is resampled.
+#
+# CALIBRATION. Every printed MAJOR tick on all four edges, located by the ink-weighted
+# centroid of its inward protrusion, and matched to its printed value by predicted
+# lattice slot rather than by protrusion length -- a marker sitting ON a frame line
+# out-protrudes a major tick, and a flat data line protrudes the whole scan length.
+#   x majors every 2 (4 interior, read off the top and bottom edges);
+#   y majors every 0.001 (8 interior, off the left and right edges).
+#   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
+#      x = +9.0041129 u +2.998678
+#      Fitted on 8 interior major ticks (both ticked edges) plus the frame
+#      value(s) left = 3 (DERIVED, see below), right = 12;
+#      residual rms 0.009257, i.e. 1.03 per-mille of the axis range.
+#      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
+#      value at the frame, which the fit was never given (leave-one-tick-out rms is
+#      shown beside it, as an independent check that the order is not fitting noise):
+#        order 1 (linear   ): hi frame printed 12 -> 12.008 (+0.00798)
+#                             leave-one-tick-out 1.631 per-mille of range
+#        order 2 (quadratic): hi frame printed 12 -> 12.0219 (+0.0219)
+#                             leave-one-tick-out 1.904 per-mille of range
+#        order 3 (cubic    ): hi frame printed 12 -> 11.9771 (-0.0229)
+#                             leave-one-tick-out 2.285 per-mille of range
+#        order 4 (quartic  ): hi frame printed 12 -> 17.1727 (+5.17)
+#                             leave-one-tick-out 2.893 per-mille of range
+#      -> order 1 wins the held-out test among the orders that also interpolate the
+#         ticks as well as the best one does; ties within 1.25x go to the lower order.
+#   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
+#      y = -0.00056803694 v^4 +0.0010028154 v^3 -0.00040392166 v^2 +0.0089687456 v +0.076999674
+#      Fitted on 13 interior major ticks (both ticked edges) plus the frame
+#      value(s) bottom = 0.077, top = 0.086;
+#      residual rms 2.385e-06, i.e. 0.27 per-mille of the axis range.
+#      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
+#      value at the frame, which the fit was never given (leave-one-tick-out rms is
+#      shown beside it, as an independent check that the order is not fitting noise):
+#        order 1 (linear   ): lo frame printed 0.077 -> 0.0769766 (-2.34e-05)
+#                             hi frame printed 0.086 -> 0.0859939 (-6.11e-06)
+#                             leave-one-tick-out 1.280 per-mille of range
+#        order 2 (quadratic): lo frame printed 0.077 -> 0.0770045 (+4.51e-06)
+#                             hi frame printed 0.086 -> 0.0860201 (+2.01e-05)
+#                             leave-one-tick-out 0.570 per-mille of range
+#        order 3 (cubic    ): lo frame printed 0.077 -> 0.0770141 (+1.41e-05)
+#                             hi frame printed 0.086 -> 0.0860102 (+1.02e-05)
+#                             leave-one-tick-out 0.555 per-mille of range
+#        order 4 (quartic  ): lo frame printed 0.077 -> 0.0769794 (-2.06e-05)
+#                             hi frame printed 0.086 -> 0.0859732 (-2.68e-05)
+#                             leave-one-tick-out 0.327 per-mille of range
+#      -> order 4 wins the held-out test among the orders that also interpolate the
+#         ticks as well as the best one does; ties within 1.25x go to the lower order.
+#   Independent bow-free cross-check: linear interpolation between the two majors that
+#   bracket each point, done on each ticked edge and averaged, agrees with the chosen
+#   model to 0.00278 in x and 0.00645 in y, worst point.
+#
+# MARKERS. 3 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
+# ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
+# not -- which is independent of density and needs no threshold sweep. Each centre is
+# then fitted with a generative model of the local ink: (stroke1 U stroke2 U incoming
+# half-segment U outgoing half-segment), all four radiating from one point, rendered by
+# 5x5 supersampling and scored as sum (coverage - ink)^2 over an unmasked disc of radius
+# 20 px. The glyph template is global -- the plotter drew the same mark 3 times -- and
+# came out as strokes at -45.73 deg (half-length 14.88 px) and +46.09 deg (15.08 px),
+# stroke width 3.45 px, joining-line width 3.53 px. Frame lines and tick
+# marks are MASKED, never modelled, and the mask is SYMMETRIC about each frame line: the
+# ticks all protrude inward, so masking only the inward side would strip ink from one
+# half of a marker that sits on a frame and bias its abscissa. Fitted centres, image px:
+#   m1 ( 499.257, 559.738)  m2 (1475.507, 694.590)  m3 (2155.634,2441.474)
+#
+# UNCERTAINTY, per point, 1 sigma, in data units -- the sigma_x and sigma_y columns.
+# Quadrature of four named contributions, each measured, none assumed:
+#   x: tick-fit residual 0.00926 | calibration order spread (deg 1-4) 0.00275 mean, 0.00324 max |
+#      the two ticked edges calibrated separately, half their disagreement 0.00475 mean, 0.0063 max |
+#      glyph centre 0.000239 mean, 0.000357 max.  Total 1 sigma 0.0108 mean, 0.0117 max.
+#      (The order term is deliberately conservative: it includes the LINEAR map, which the
+#      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.00317.)
+#   y: tick-fit residual 2.39e-06 | calibration order spread (deg 1-4) 9.29e-06 mean, 1.06e-05 max |
+#      the two ticked edges calibrated separately, half their disagreement 1.98e-06 mean, 3.2e-06 max |
+#      glyph centre 2e-07 mean, 5.08e-07 max.  Total 1 sigma 9.88e-06 mean, 1.12e-05 max.
+#      (The order term is deliberately conservative: it includes the LINEAR map, which the
+#      held-out frame test rejects. Over orders 2-4 alone the spread is only 8.69e-06.)
+#   The glyph term is the worst case over: window radius +/-3 px, frame-mask half-width
+#   3.0 and 5.0 px, tick-mask half-width 3.0 and 6.0 px, and masking the joining line out
+#   ENTIRELY and fitting the two strokes alone. Worst move in px over those variants:
+#      rad-3            0.00 px
+#      rad+3            0.00 px
+#      framemask 3.0    0.00 px
+#      framemask 5.0    0.07 px
+#      tickpad 3.0      0.13 px
+#      tickpad 6.0      0.04 px
+#      line masked out  0.00 px
+#
+# COUNT CHECK, independent of any detector. Walking the ink along each fitted joining
+# segment in 10 px bins, every excess over that segment's own baseline sits at a segment
+# endpoint; there is no interior excess on any segment -- no marker is missed and none
+# is invented. Straightness of each joining segment (residual about a straight line,
+# px rms): 1.12, 1.62.
+#
+# FREE STRUCTURAL CHECK. The outer two abscissae recover 3.0002 and 11.9990 against a
+# printed 3 and 12, with a mean sigma_x of 0.011. The middle knot is genuinely not on
+# a round value: it reads 8.303.
+# A5's RIGHT EDGE prints sparser ticks than its left -- five of eight interior majors
+# are found there against eight of eight on the left -- so `max_missing` is raised for
+# this figure alone. The y axis is fitted on both edges from the majors that ARE
+# visible and its held-out frame test still judges the result.
+#
+# MOVEMENT from the 2026-09-10 extraction (old -> new, and the move in units of the
+# 1 sigma above):
+#    1  x 3.0103 -> 3.0002 (-0.0101, -0.9 sigma)   y 0.0850907 -> 0.0851023 (+1.16e-05, +1.0 sigma)
+#    2  x 8.3060 -> 8.3029 (-0.00311, -0.3 sigma)   y 0.0845899 -> 0.0846037 (+1.38e-05, +1.4 sigma)
+#    3  x 12.0104 -> 11.9990 (-0.0114, -1.1 sigma)   y 0.0778945 -> 0.0779008 (+6.28e-06, +0.7 sigma)
+#
+# NOT transcribed. Values carry read error; see validation/out/digitize/a6810/.
+x,y,sigma_x,sigma_y
+3.0002,0.0851023,0.0117,0.0000112
+8.3029,0.0846037,0.0105,0.0000096
+11.9990,0.0779008,0.0103,0.0000089

@@ -56,6 +56,134 @@ from scipy.optimize import minimize
 PDF = Path("docs/ballin-tm100991.pdf")
 OUT = Path("validation/out/digitize/a6810")
 
+# --------------------------------------------------------------------------- frame finding
+
+
+def _longest_run(mask, gap=8):
+    """Longest run of True in a 1-D boolean array, tolerating gaps of up to `gap`.
+
+    Gap tolerance is not a nicety. The frame lines on several of these pages are broken
+    by the scan: Figure A3's horizontal frames have a longest *strictly* contiguous run of
+    777 px against a 1666 px frame, so a zero-gap measure does not see them at all.
+    """
+    m = np.ascontiguousarray(mask).astype(np.int8)
+    if not m.any():
+        return 0
+    if gap > 0:
+        m = ndimage.binary_closing(m.astype(bool), structure=np.ones(2 * gap + 1, bool))
+        m = m.astype(np.int8)
+    d = np.diff(np.concatenate(([0], m, [0])))
+    return int((np.flatnonzero(d == -1) - np.flatnonzero(d == 1)).max())
+
+
+def _run_extent(mask, gap=8):
+    """(start, end, length) of the longest gap-tolerant True run in a 1-D array."""
+    m = np.ascontiguousarray(mask).astype(bool)
+    if not m.any():
+        return (0, 0, 0)
+    if gap > 0:
+        m = ndimage.binary_closing(m, structure=np.ones(2 * gap + 1, bool))
+        if not m.any():  # closing erodes a run that only touches the border
+            return (0, 0, 0)
+    d = np.diff(np.concatenate(([0], m.astype(np.int8), [0])))
+    a = np.flatnonzero(d == 1)
+    b = np.flatnonzero(d == -1)
+    k = int(np.argmax(b - a))
+    return int(a[k]), int(b[k]), int(b[k] - a[k])
+
+
+def _sheared_row_profile(sub, slope):
+    """Row-sum of `sub` after shearing each column to undo a line of the given slope."""
+    h, w = sub.shape
+    xc = w / 2.0
+    shift = np.rint(slope * (np.arange(w) - xc)).astype(int)
+    ys = np.arange(h)[:, None] + shift[None, :]
+    ok = (ys >= 0) & (ys < h)
+    return np.where(ok, sub[np.clip(ys, 0, h - 1), np.arange(w)[None, :]], False).sum(axis=1)
+
+
+def find_frame_box(ink, margin=150, sep_frac=0.25, slopes=None):
+    """Locate the printed plot box as (left, right, top, bottom) pixel centres.
+
+    The horizontal frames on these scans are **tilted and broken**, and that combination
+    defeats every row-wise measure. A11's bottom frame descends ten rows across the plot
+    -- 0.36 degrees -- so no single row holds more than about half of it, and simple row
+    sums pick the x-axis label band or a caption rule instead. That is how A11 acquired a
+    bottom frame 192 px too low, which put every digitized value 0.3 too high while the
+    tick lattice still appeared to close.
+
+    So the rows are summed **after shearing** the page by a trial slope, and the slope that
+    maximises the response is the one the line actually has. Verticals need no such
+    treatment: they are solid, and their own tilt is small over the page width.
+    """
+    if slopes is None:
+        slopes = np.arange(-14, 15) * 0.001
+    h, w = ink.shape
+
+    def two(profile, lo, hi, minsep):
+        prof = profile.astype(float).copy()
+        prof[:lo] = 0.0
+        prof[hi:] = 0.0
+        out = []
+        for _ in range(2):
+            i = int(np.argmax(prof))
+            if prof[i] <= 0:
+                raise AssertionError("no frame candidate -- check the margin")
+            out.append(i)
+            prof[max(0, i - minsep) : i + minsep] = 0.0
+        return sorted(out)
+
+    lef, rig = two(ink.sum(axis=0), margin, w - margin, int(sep_frac * w))
+    sub = ink[:, lef + 10 : rig - 10]
+
+    def outermost(prof, cover):
+        """Extreme rows that span the plot, not the strongest rows.
+
+        Two failures shaped this. Taking the two *strongest* rows picks Figure A6's flat
+        combustor-efficiency curve instead of its top frame, because that curve is solid
+        while the frame is broken. Taking the extreme rows above a fraction of the *max*
+        then drops A6's top frame entirely, for the same reason -- the solid data line
+        sets the max.
+
+        Thresholding on coverage of the plot WIDTH fixes both: a footer rule is too short
+        to qualify, a data line qualifies but lies inside, and a frame -- however broken --
+        still spans the plot once the shear has been undone.
+        """
+        q = prof.astype(float).copy()
+        q[:margin] = 0.0
+        q[h - margin :] = 0.0
+        idx = np.flatnonzero(q >= cover * sub.shape[1])
+        if idx.size == 0 or idx.max() - idx.min() < sep_frac * h:
+            return None
+        return int(idx.min()), int(idx.max())
+
+    best = None
+    for m in slopes:
+        prof = _sheared_row_profile(sub, float(m))
+        got = outermost(prof, 0.60)
+        if got is None:
+            continue
+        a, b = got
+        score = float(prof[a]) + float(prof[b])
+        if best is None or score > best[0]:
+            best = (score, a, b, float(m))
+    if best is None:
+        raise AssertionError("no horizontal frame candidates")
+    _, top, bot, _m = best
+    return float(lef), float(rig), float(top), float(bot)
+
+
+def auto_frame_spec(page, pad=45, inset=15):
+    """`frame_spec` for a page, derived from its own bitmap. See `find_frame_box`."""
+    lef, rig, top, bot = find_frame_box(native_bitmap(page))
+    return [
+        ("left", 0, int(lef - pad), int(lef + pad), int(top + inset), int(bot - inset)),
+        ("right", 0, int(rig - pad), int(rig + pad), int(top + inset), int(bot - inset)),
+        ("top", 1, int(top - pad + 10), int(top + pad - 10), int(lef + inset), int(rig - inset)),
+        ("bottom", 1, int(bot - pad + 10), int(bot + pad - 10), int(lef + inset), int(rig - inset)),
+    ]
+
+
 # --------------------------------------------------------------------------- figure table
 #
 # `frame_spec`  windows in which to trace each frame line: (name, along, xlo, xhi, tlo, thi)
@@ -144,6 +272,46 @@ FIGS = {
         y=dict(lo=75.0, hi=112.5, step=2.5, n=14, printed=("lo", "hi")),
         nmark=11,
         rad=20.0,
+    ),
+    "a3": dict(
+        page=58,
+        fig="A3",
+        csv=Path("data/maps/f3_seal_bleed_fraction.csv"),
+        x=dict(lo=65.0, hi=100.0, majors=[70.0, 80.0, 90.0], printed=("hi",), anchor=("lo", "hi")),
+        y=dict(lo=-0.02, hi=0.12, step=0.01, n=13, printed=("lo", "hi")),
+        nmark=13,
+        rad=18.0,
+        open_sz=6,
+        min_size=60,
+    ),
+    "a4": dict(
+        page=59,
+        fig="A4",
+        csv=Path("data/maps/f4_pt_balance_bleed_fraction.csv"),
+        x=dict(lo=3.0, hi=12.0, majors=[4.0, 6.0, 8.0, 10.0], printed=("hi",), anchor=("lo", "hi")),
+        y=dict(lo=0.0088, hi=0.0108, step=0.0002, n=9, printed=("lo", "hi")),
+        nmark=3,
+        rad=20.0,
+    ),
+    "a5": dict(
+        page=60,
+        fig="A5",
+        csv=Path("data/maps/f5_tip_leak_cooling_bleed_fraction.csv"),
+        x=dict(lo=3.0, hi=12.0, majors=[4.0, 6.0, 8.0, 10.0], printed=("hi",), anchor=("lo", "hi")),
+        y=dict(lo=0.0770, hi=0.0860, step=0.0010, n=8, printed=("lo", "hi")),
+        nmark=3,
+        rad=20.0,
+        max_missing=3,  # A5's right edge prints sparser ticks than its left
+    ),
+    "a11": dict(
+        page=66,
+        fig="A11",
+        csv=Path("data/maps/fhs_heat_sink_constant.csv"),
+        x=dict(lo=65.0, hi=100.0, step=5.0, n=6, printed=("lo", "hi")),
+        y=dict(lo=3.50, hi=8.00, step=0.50, n=8, printed=("lo", "hi")),
+        nmark=6,
+        rad=20.0,
+        rail=(-14.0, -14.0, -14.0, 200.0),
     ),
     "a6": dict(
         page=61,
@@ -306,7 +474,7 @@ def _groups(p, lo, thresh, gap=3):
     return res
 
 
-def _pick_majors(cands, t0, t1, n, name):
+def _pick_majors(cands, t0, t1, frac, name, max_missing=2):
     """Match interior major ticks to their printed values by predicted lattice slot.
 
     Thresholding on protrusion length does NOT work here.  A marker sitting on a frame
@@ -315,10 +483,13 @@ def _pick_majors(cands, t0, t1, n, name):
     as a minor.  What is reliable is the SLOT: there are exactly `n` interior majors,
     evenly spaced between the two frame lines to within the scan's few-pixel bow.  So
     predict each slot, keep candidates whose protrusion is in family with the majors, and
-    take the closest.  Returns the `n` centres in printing order.
+    take the closest.  Returns one centre per entry of `frac`, in printing order, where
+    `frac` is each major's fractional position between the two frames -- not necessarily
+    evenly spaced, because Figure A4's majors are not.
     """
+    n = len(frac)
+    slots = [t0 + (t1 - t0) * f for f in frac]
     step = (t1 - t0) / (n + 1)
-    slots = [t0 + step * (k + 1) for k in range(n)]
     win = 0.25 * abs(step)
     # protrusion length of a major: median of the nearest in-window candidate per slot,
     # over candidates that are neither a minor tick (<5) nor a runaway (>25)
@@ -330,20 +501,66 @@ def _pick_majors(cands, t0, t1, n, name):
     if not seed:
         raise AssertionError(f"{name}: no major-tick candidates at all")
     lmaj = float(np.median(seed))
-    out = []
+    # A marker printed ON a frame hides the tick underneath it -- A11's first marker sits
+    # at y = 4.00 on the left frame and A7 records the same thing. A hidden major is
+    # recorded as NaN and dropped from the fit rather than failing the extraction; the
+    # axis map is fitted on the majors that ARE visible, and the held-out frame test still
+    # judges it. Losing more than two of them is a real failure and still raises.
+    out, missing = [], 0
     for s in slots:
         c = [g for g in cands if abs(g[0] - s) < win and 0.55 * lmaj <= g[1] <= 1.7 * lmaj]
         if not c:
-            raise AssertionError(f"{name}: no major near slot {s:.1f} (L~{lmaj:.1f})")
+            out.append(float("nan"))
+            missing += 1
+            continue
         out.append(min(c, key=lambda g: abs(g[0] - s))[0])
-    if len(set(out)) != n:
+    if missing > max_missing:
+        raise AssertionError(
+            f"{name}: {missing} of {n} majors not found (L~{lmaj:.1f}) -- frame wrong?"
+        )
+    seen = [v for v in out if not np.isnan(v)]
+    if len(set(seen)) != len(seen):
         raise AssertionError(f"{name}: duplicate tick matched")
-    resid = np.array(out) - np.array(slots)
+    resid = np.array(seen) - np.array(
+        [s for s, v in zip(slots, out, strict=True) if not np.isnan(v)]
+    )
     print(
-        f"    {name:6s} {n} majors, L~{lmaj:.1f} px, "
+        f"    {name:6s} {n - missing}/{n} majors, L~{lmaj:.1f} px, "
         f"slot residual {resid.std():.2f} px rms, max {np.abs(resid).max():.2f}"
+        + (f"  ({missing} hidden by a marker)" if missing else "")
     )
     return out, lmaj
+
+
+def major_step(ax):
+    """The axis's major-tick interval, whether given as `step` or implied by `majors`."""
+    if "step" in ax:
+        return float(ax["step"])
+    v = np.asarray(ax["majors"], float)
+    d = np.diff(v)
+    if d.size == 0:
+        raise AssertionError("an axis needs either `step` or two or more `majors`")
+    if np.ptp(d) > 1e-9 * abs(d[0]):
+        raise AssertionError(f"majors are not evenly spaced: {v}")
+    return float(d[0])
+
+
+def major_values(ax):
+    """Interior major-tick values of an axis.
+
+    Defaults to `lo + step*(k+1)`, which is right whenever the lattice is anchored on the
+    low frame. Figure A4 is not: its frame is at WA2c = 3.0 while its majors are printed
+    at 4, 6, 8, 10, so they are neither at `lo + k*step` nor evenly spaced between the
+    frames. Such an axis gives `majors` explicitly.
+    """
+    if "majors" in ax:
+        return np.asarray(ax["majors"], float)
+    return np.array([ax["lo"] + ax["step"] * (k + 1) for k in range(ax["n"])])
+
+
+def n_majors(ax):
+    """How many interior majors the axis has."""
+    return len(major_values(ax))
 
 
 def ticks(ink, fr, cfg):
@@ -366,8 +583,15 @@ def ticks(ink, fr, cfg):
         pr = _protrusion(ink, fr[nm], along, sign, lo, hi)
         cands = _groups(pr, lo, 3)
         allt[nm] = cands
-        n = cfg["y" if nm in ("left", "right") else "x"]["n"]
-        maj[nm], _ = _pick_majors(cands, a, b, n, nm)
+        ax = cfg["y" if nm in ("left", "right") else "x"]
+        vals = major_values(ax)
+        if nm in ("left", "right"):
+            # Pixels run top to bottom, values high to low, so slot 0 is the HIGHEST
+            # major. Reverse the values, then measure down from the high frame.
+            frac = (ax["hi"] - vals[::-1]) / (ax["hi"] - ax["lo"])
+        else:
+            frac = (vals - ax["lo"]) / (ax["hi"] - ax["lo"])
+        maj[nm], _ = _pick_majors(cands, a, b, frac, nm, cfg.get("max_missing", 2))
     return maj, allt, (TL, TR, BR, BL)
 
 
@@ -447,11 +671,11 @@ def calibrate_axis(t_lo_edge, t_hi_edge, spec, label):
     # count fixes that frame's value and it is used as an anchor -- derived, not printed,
     # and flagged as such.
     c1 = np.polyfit(tt, vv, 1)
-    span = (np.polyval(c1, 1.0) - np.polyval(c1, 0.0)) / spec["step"]
+    span = (np.polyval(c1, 1.0) - np.polyval(c1, 0.0)) / major_step(spec)
     print(
         f"    tick lattice: the frame spans {span:.4f} major steps "
         f"(nearest integer {round(span)}, printed span "
-        f"{(spec['hi'] - spec['lo']) / spec['step']:.0f})"
+        f"{(spec['hi'] - spec['lo']) / major_step(spec):.0f})"
     )
     anchors = spec.get("anchor", spec["printed"])
     if set(anchors) - set(spec["printed"]):
@@ -502,7 +726,7 @@ def _dist(edge, X, Y, vertical=True):
     )
 
 
-def seeds(ink, fr, nmark, open_sz=7, rail=-14.0):
+def seeds(ink, fr, nmark, open_sz=7, rail=-14.0, min_size=0):
     """Marker seeds from a morphological opening -- no density, no threshold sweep.
 
     The joining polyline is ~3.5 px wide; where two 3.5 px strokes cross at right angles
@@ -517,6 +741,17 @@ def seeds(ink, fr, nmark, open_sz=7, rail=-14.0):
     default -14 keeps anything up to 14 px OUTSIDE the frame, which A6/A8/A10 need because
     their end markers sit on it, and a positive value discards anything within that many
     pixels INSIDE it, which C24 needs because its markers all stand at least 33 px clear.
+
+    `min_size` drops fragments by area. A3 needs it: at the 6x6 opening its two steepest
+    markers finally separate from the curve, but four fragments survive as well -- three on
+    the left frame rail and one on the top frame -- and they are 36 to 48 px against 72 to
+    151 px for every real marker. Size separates them where position cannot, because A3's
+    first and last markers sit on those same frames.
+
+    `rail` may also be a 4-tuple `(left, right, top, bottom)` when a page needs both at once.
+    A11 does: its end markers sit ON the left and right frames, so those two must stay
+    negative, while a band of tick-label fragments runs along the inside of the bottom
+    frame and has to be excluded -- its real markers all stand 450 px clear of it.
     """
     Y, X = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]]
     dL = _dist(fr["left"], X, Y)
@@ -532,10 +767,13 @@ def seeds(ink, fr, nmark, open_sz=7, rail=-14.0):
     sz = np.array(ndimage.sum(op, lab, range(1, n + 1)))
     cy, cx = com[:, 0], com[:, 1]
     # keep only what is inside the plot rectangle (axis titles and tick labels sit outside)
-    ky = _dist(fr["top"], cx, cy, False) > rail
-    ky &= _dist(fr["bottom"], cx, cy, False) < -rail
-    ky &= _dist(fr["left"], cx, cy) > rail
-    ky &= _dist(fr["right"], cx, cy) < -rail
+    rl, rr, rt, rb = (rail,) * 4 if np.isscalar(rail) else rail
+    ky = _dist(fr["top"], cx, cy, False) > rt
+    ky &= _dist(fr["bottom"], cx, cy, False) < -rb
+    ky &= _dist(fr["left"], cx, cy) > rl
+    ky &= _dist(fr["right"], cx, cy) < -rr
+    if min_size:
+        ky &= sz >= min_size
     cx, cy, sz = cx[ky], cy[ky], sz[ky]
     o = np.argsort(cx)
     cx, cy, sz = cx[o], cy[o], sz[o]
@@ -785,9 +1023,9 @@ def overlay(ink, fr, C, cx, cy, cfg, tag):
     Hi = homography([(0, 1), (1, 1), (1, 0), (0, 0)], [TL, TR, BR, BL])
     tt = np.linspace(0.0, 1.0, 20001)
     for spec, poly, horiz in ((cfg["x"], cx, False), (cfg["y"], cy, True)):
-        n = int(round((spec["hi"] - spec["lo"]) / spec["step"]))
+        n = int(round((spec["hi"] - spec["lo"]) / major_step(spec)))
         for k in range(n + 1):
-            val = spec["lo"] + spec["step"] * k
+            val = spec["lo"] + major_step(spec) * k
             s = float(tt[np.argmin(np.abs(np.polyval(poly, tt) - val))])
             p0, p1 = ((0.0, s), (1.0, s)) if horiz else ((s, 0.0), (s, 1.0))
             q0, q1 = _apply(Hi, *p0), _apply(Hi, *p1)
@@ -817,7 +1055,8 @@ def run(key):
     print(f"\n================ {cfg['fig']}  (pdf p.{cfg['page']})")
     ink = native_bitmap(cfg["page"])
     print("frame lines:")
-    fr = frame(ink, cfg["frame_spec"])
+    spec = cfg.get("frame_spec") or auto_frame_spec(cfg["page"])
+    fr = frame(ink, spec)
     TL = corner(fr["top"], fr["left"])
     TR = corner(fr["top"], fr["right"])
     BL = corner(fr["bottom"], fr["left"])
@@ -840,19 +1079,46 @@ def run(key):
 
     xs = cfg["x"]
     ys = cfg["y"]
-    xv = np.array([xs["lo"] + xs["step"] * (k + 1) for k in range(xs["n"])])
-    yv = np.array([ys["lo"] + ys["step"] * (k + 1) for k in range(ys["n"])])
-    ub, _ = uv_of("bottom", sorted(maj["bottom"]))
-    ut, _ = uv_of("top", sorted(maj["top"]))
-    _, vl = uv_of("left", sorted(maj["left"], reverse=True))
-    _, vr = uv_of("right", sorted(maj["right"], reverse=True))
+    xv = major_values(xs)
+    yv = major_values(ys)
+
+    def paired(name, vals, descending):
+        """Positions and values, dropping any major hidden by a marker.
+
+        `_pick_majors` returns slot order -- low edge to high edge -- so slot k carries
+        `vals[k]` on the x edges and `vals[-1-k]` on the y edges, where pixel order runs
+        opposite to value order. Pairing by INDEX rather than by sorting keeps a NaN
+        attached to the value it belongs to, so dropping it drops both.
+        """
+        pos = np.asarray(maj[name], float)
+        v = np.asarray(vals, float)[::-1] if descending else np.asarray(vals, float)
+        ok = ~np.isnan(pos)
+        pos, v = pos[ok], v[ok]
+        o = np.argsort(pos)
+        return pos[o], v[o]
+
+    pb, xb = paired("bottom", xv, False)
+    pt, xt = paired("top", xv, False)
+    pl, yl = paired("left", yv, True)
+    pr, yr = paired("right", yv, True)
+    ub, _ = uv_of("bottom", list(pb))
+    ut, _ = uv_of("top", list(pt))
+    _, vl = uv_of("left", list(pl))
+    _, vr = uv_of("right", list(pr))
     print("calibration:")
-    CX = calibrate_axis((ub, xv), (ut, xv), xs, "x")
-    CY = calibrate_axis((vl, yv), (vr, yv), ys, "y")
+    CX = calibrate_axis((ub, xb), (ut, xt), xs, "x")
+    CY = calibrate_axis((vl, yl), (vr, yr), ys, "y")
     cx, cy = CX["c"], CY["c"]
 
     print("markers:")
-    C0 = seeds(ink, fr, cfg["nmark"], cfg.get("open_sz", 7), cfg.get("rail", -14.0))
+    C0 = seeds(
+        ink,
+        fr,
+        cfg["nmark"],
+        cfg.get("open_sz", 7),
+        cfg.get("rail", -14.0),
+        cfg.get("min_size", 0),
+    )
     W = windows(ink, fr, allt, C0, cfg["rad"])
     C, tpl = fit_glyphs(W, C0, rounds=4)
     # re-centre the windows on the fitted centres and refit, so the disc is self-consistent
@@ -972,7 +1238,32 @@ def run(key):
 
 # --------------------------------------------------------------------------- the CSVs
 
-OLD = {  # the 2026-09-10 extraction, kept so the move can be reported in sigma
+OLD = {
+    "a3": [
+        (65.0605, 0.108942),
+        (78.0725, 0.10912),
+        (79.0605, 0.108525),
+        (80.08, 0.106204),
+        (81.0785, 0.102454),
+        (82.0454, 0.097811),
+        (83.0544, 0.0892992),
+        (84.0004, 0.0738827),
+        (85.0094, 0.0500735),
+        (87.0274, 0.0131692),
+        (88.0154, 0.0022765),
+        (89.0244, -0.00010442),
+        (99.9973, 1.46257e-05),
+    ],
+    "a4": [(3.00493, 0.0105709), (5.01405, 0.00899895), (12.0054, 0.00899766)],
+    "a5": [(3.01027, 0.0850907), (8.30604, 0.0845899), (12.0104, 0.0778945)],
+    "a11": [
+        (64.9947, 4.00062),
+        (69.9947, 4.00062),
+        (75.1108, 5.75467),
+        (80.1002, 6.20473),
+        (85.0158, 7.49719),
+        (99.9736, 7.49719),
+    ],  # the 2026-09-10 extraction, kept so the move can be reported in sigma
     "a8": [
         (0.300661, 33.8654),
         (0.35024, 30.2596),
@@ -1011,6 +1302,75 @@ OLD = {  # the 2026-09-10 extraction, kept so the move can be reported in sigma
 }
 
 PROSE = {
+    "a3": dict(
+        quantity="f3 -- seal-pressurization bleed fraction B1 (Eq. 12, pdf p.22: B1 = f3(NGc))",
+        xdesc="NGC corrected gas generator speed, percent",
+        ydesc="B1 bleed fraction, nondimensional",
+        fmt=("%.4f", "%.6f", "%.4f", "%.6f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. The thirteen abscissae recover 65, 78, 79, 80, 81, 82, 83,",
+            "84, 85, 87, 88, 89, 100 to max 0.05 percent NGc against a mean sigma_x of 0.025.",
+            "Nothing here is told to expect integers.",
+            "THE 0.11 PLATEAU, INDEPENDENTLY. Open question #42 concluded from the tick lattice",
+            "alone that the upper plateau is 0.1091 and that the printed 0.11 axis LABEL is",
+            "displaced, not the tick. This extraction -- a different raster, a different frame",
+            "fit and a different calibration -- recovers 0.108989 and 0.109077. It is an",
+            "independent confirmation, not a repetition.",
+            "THE NEGATIVE TAIL is real and is left as measured: -0.000168 and -0.000095 at the",
+            "top of the speed range. See open question #44; do not clamp the file.",
+        ],
+    ),
+    "a4": dict(
+        quantity="f4 -- power-turbine-balance bleed fraction B2 (Eq. 13, pdf p.22: B2 = f4(WA2c))",
+        xdesc="WA2C station 2 corrected mass flow, lbm/sec",
+        ydesc="B2 bleed fraction, nondimensional",
+        fmt=("%.4f", "%.7f", "%.4f", "%.7f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. The three abscissae recover 3.000, 5.000 and 12.002 against",
+            "a printed 3, 5 and 12, with a mean sigma_x of 0.011. The first and last markers sit",
+            "ON the left and right frame lines, which is why `rail` keeps frame-adjacent",
+            "components here.",
+        ],
+    ),
+    "a5": dict(
+        quantity=(
+            "f5 -- impeller tip leakage and turbine cooling-bleed fraction B3\n"
+            "#    (Eq. 14, pdf p.22: B3 = f5(WA2c))"
+        ),
+        xdesc="WA2C station 2 corrected mass flow, lbm/sec",
+        ydesc="B3 bleed fraction, nondimensional",
+        fmt=("%.4f", "%.7f", "%.4f", "%.7f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. The outer two abscissae recover 3.0002 and 11.9990 against a",
+            "printed 3 and 12, with a mean sigma_x of 0.011. The middle knot is genuinely not on",
+            "a round value: it reads 8.303.",
+            "A5's RIGHT EDGE prints sparser ticks than its left -- five of eight interior majors",
+            "are found there against eight of eight on the left -- so `max_missing` is raised for",
+            "this figure alone. The y axis is fitted on both edges from the majors that ARE",
+            "visible and its held-out frame test still judges the result.",
+        ],
+    ),
+    "a11": dict(
+        quantity=(
+            "f_hs -- station 4.1 heat-sink constant (Eq. 52, pdf p.26: T41sgn = f_hs(NGc)),\n"
+            "#    which feeds the heat-sink lag tau_b of Eq. 53. NOT f_s: the report prints\n"
+            "#    them as different symbols and an earlier draft of the notes conflated them"
+        ),
+        xdesc="NGC corrected gas generator speed, percent",
+        ydesc="T41SGN heat-sink constant (no unit on the figure or in the nomenclature)",
+        fmt=("%.4f", "%.5f", "%.4f", "%.5f"),
+        extra=[
+            "FREE STRUCTURAL CHECK. The six abscissae should land on 65, 70, 75, 80, 85, 100",
+            "(Fig. A11 draws a marker at every printed major x tick plus the right frame).",
+            "Nothing here is told to expect that. They recover to -0.074, -0.042, +0.090,",
+            "+0.084, +0.016, -0.002 -- max 0.09 against a mean sigma_x of 0.041.",
+            "MARKERS ON THE FRAME. Markers 1 and 6 sit on the left and right frame lines, so",
+            "`rail` keeps frame-adjacent components in x while excluding a band of tick-label",
+            "fragments along the inside of the bottom frame. Marker 1 also HIDES the y major",
+            "at 4.00 on the left edge; that major is dropped from the axis fit rather than",
+            "failing the extraction, and the held-out frame test still judges the result.",
+        ],
+    ),
     "c24": dict(
         quantity=(
             "F_HM1 -- HMU topping line schedule (Fig. C14, pdf p.91: WFPTP = F_HM1(T2)).\n"
@@ -1195,8 +1555,14 @@ def write_csv(key, r):
     A("# centroid of its inward protrusion, and matched to its printed value by predicted")
     A("# lattice slot rather than by protrusion length -- a marker sitting ON a frame line")
     A("# out-protrudes a major tick, and a flat data line protrudes the whole scan length.")
-    A(f"#   x majors every {xs['step']:g} ({xs['n']} interior, read off the top and bottom edges);")
-    A(f"#   y majors every {ys['step']:g} ({ys['n']} interior, off the left and right edges).")
+    A(
+        f"#   x majors every {major_step(xs):g} ({len(major_values(xs))} interior, read off"
+        f" the top and bottom edges);"
+    )
+    A(
+        f"#   y majors every {major_step(ys):g} ({len(major_values(ys))} interior, off the"
+        f" left and right edges)."
+    )
     L.extend(_cal_block(r["CX"], xs, "x"))
     L.extend(_cal_block(r["CY"], ys, "y"))
     A("#   Independent bow-free cross-check: linear interpolation between the two majors that")
@@ -1307,7 +1673,7 @@ def write_csv(key, r):
         A(f"{fmtx % X[i]},{fmty % Y[i]},{fmtsx % sx[i]},{fmtsy % sy[i]}")
     text = "\n".join(L) + "\n"
     if key == "a8":
-        lat = X - np.round(X / xs["step"]) * xs["step"]
+        lat = X - np.round(X / major_step(xs)) * major_step(xs)
         text = (
             text.replace("{LATTICE}", " ".join(f"{d:+.5f}" for d in lat))
             .replace("{LATTICEMAX:.2g}", f"{np.abs(lat).max():.2g}")
