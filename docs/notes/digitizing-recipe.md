@@ -1232,3 +1232,63 @@ off, which is the same list. Neither is expected to move a published value by mo
 stated read error, so neither is on its own a reason to redo those figures — but the next
 time any of them is touched, both are cheap to carry across. A1, A3, A4, A5, A11 still use
 the straight-edge homography as well.
+
+## Attempted 2026-09-11: porting A3, A4, A5 and A11 to the `digitize_a6810` machinery
+
+`f3`, `f4`, `f5` and `f_hs` are still the 2026-09-10 extraction by the generic
+`tools/digitize.py` (300 dpi render, `rectify_page` homography, least-squares tick fit)
+while the other seven maps were redone the next day on the native bitmap with frame arcs,
+held-out frame calibration and leave-one-tick-out order selection. The four were measured
+first and found to be worth at most 0.21 % on any NG trim and 0.37 % on `tau1/tau2` per
+1 % of map movement, so this was a consistency exercise, not a correction.
+
+**It did not complete, and the reasons are worth recording so the next attempt starts
+further along.**
+
+### What worked: the axis calibration on A11
+
+Frames located on the native bitmap at left 475.0, right 2133.5, top 305.5, bottom 2836.7
+(plot 1658 x 2531 px). Both axes chose **order 1** on the held-out frame test, and the
+lattice closed on the printed span: x spanned 7.0435 major steps against a printed 7, y
+spanned 9.0112 against 9.
+
+That is an independent cross-check of the existing extraction, by a different method on a
+different raster:
+
+| | printed | new calibration recovers |
+|---|---|---|
+| x low frame | 65 | 64.806 |
+| x high frame | 100 | 99.894 |
+| y low frame | 3.50 | **3.49728** |
+| y high frame | 8.00 | **8.00012** |
+
+The y axis -- the one that sets `f_hs` and therefore `tau_b` -- comes back to within
+**0.0044 in T41SGN**, or 0.06 % of the 7.497 plateau, against the older extraction's stated
+0.0104. Two independent calibrations of the same figure agree to better than a tenth of a
+per cent, which is worth more than either alone.
+
+### What did not: the marker seeder does not transfer to A11
+
+`seeds()` uses a 7x7 morphological opening, which works where markers are isolated 'x'
+glyphs. A11's six markers sit **on** the joining polyline, which is why the original used a
+density detector with a window and a fill threshold. Sweeping the opening size gives 15
+components at 7x7, 8 at 8x8, 2 at 9x9 and nothing at 10x10 -- it never passes through 6.
+The glyph strokes are too thin relative to the line for an opening to separate them.
+
+Also noted: A11's **bottom frame is faint**. Tracing it yields 105 points against
+1442-1558 for the other three edges. The frame fit there rests on far less ink than
+elsewhere.
+
+### And A3, A4, A5 need their tick lattices read off the page
+
+All three fail in `label_ticks` with "no major near slot ...", which means the `x`/`y`
+config -- low and high frame values, major step, count of interior majors, which frame
+values are actually printed -- does not match what the page prints. Those were inferred
+from `inventory-appendix-a.md`'s axis table rather than read off the rendered page, and
+the inventory records the *labelled* majors without saying whether unlabelled majors sit
+between them, which is exactly what the config needs.
+
+**Next attempt should start by rendering each page and reading its tick lattice
+directly**, the way `digitize_a7.py`'s header shows was done for A7. Until then the
+existing extraction stands: it is sound, its uncertainty is stated, and the measured
+effect of any plausible revision is below 0.05 % on every result in this repository.
