@@ -279,3 +279,129 @@ def test_the_ng_column_fails_only_where_the_trim_sits_on_a_speed_line():
             f"d({si})/d({sj}): hover {e[1]:.1f} % should beat level {e[2]:.1f} % and "
             f"descent {e[3]:.1f} %, since only hover sits mid-segment"
         )
+
+
+# ------------------------------------------------- the heat-sink models, B7-B12
+
+HS_FIG = {
+    (DOF.THREE, 1): 7,
+    (DOF.THREE, 2): 9,
+    (DOF.THREE, 3): 11,
+    (DOF.SIX, 1): 8,
+    (DOF.SIX, 2): 10,
+    (DOF.SIX, 3): 12,
+}
+
+
+def _hs_pair(dof: DOF, trim_no: int):
+    """Heat-sink models are compared with the load inertia supplied: Appendix B's
+    matrices carry the UH-60A drivetrain, not the bare power turbine."""
+    wf = wf_pps_from_pph(WF_PPH[trim_no])
+    r = trim.solve(wf, NP_RPM, AMB)
+    return extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A), ab.load(HS_FIG[(dof, trim_no)])
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+@pytest.mark.parametrize("dof", [DOF.THREE, DOF.SIX])
+def test_feedthrough_is_nonzero_only_on_the_t41_row(dof: DOF, trim_no: int):
+    """`d = F1^-1 G2`, and `G2` is zero except in T41's row -- which we never asserted
+    into the derivation. Appendix B prints exactly this shape, so reproducing it is a
+    check on the descriptor form (Eq. 65) rather than an input to it."""
+    ours, ref = _hs_pair(dof, trim_no)
+    t41 = ours.states.index("T41")
+    assert ours.d is not None and ref.d is not None
+    assert abs(ours.d[t41]) > 0.0
+    # `d = F1^-1 G2` is exactly zero off the T41 row in exact arithmetic -- F1 is block
+    # lower-triangular -- but `np.linalg.solve` leaves rounding at ~1e-20, so compare
+    # against the entry that should be non-zero rather than against literal zero.
+    assert np.abs(np.delete(ours.d, t41)).max() < 1e-12 * abs(ours.d[t41])
+    assert np.abs(np.delete(ref.d, t41)).max() == 0.0
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_six_dof_t41_column_is_close(trim_no: int):
+    """How the five engine equations respond to T41 -- the new physics in the 6-DOF model.
+
+    This is the part the 5-DOF cannot be checked on at all, and it agrees to well under a
+    percent at every trim, which says Eq. 23's coupling of T41 into h41 and theta41 is
+    right.
+    """
+    ours, ref = _hs_pair(DOF.SIX, trim_no)
+    t41 = ours.states.index("T41")
+    for i, s in enumerate(ours.states):
+        if s == "T41" or ref.A[i, t41] == 0.0:
+            continue
+        dev = (ours.A[i, t41] - ref.A[i, t41]) / abs(ref.A[i, t41]) * 100.0
+        assert abs(dev) < 1.0, f"trim {trim_no} d({s})/d(T41): {dev:+.2f} %"
+
+
+def test_the_six_dof_loses_the_p3_to_np_coupling_the_five_dof_has():
+    """A structural difference between the two that both models must show.
+
+    The 5-DOF prints `A(2,3) = -0.4128E+2`; the 6-DOF prints `0.0000E+0` at all three
+    trims. With T41 promoted to a state, P3 no longer reaches power-turbine torque except
+    through T41, so the path moves out of that element and into the T41 column. If our
+    6-DOF produced a non-zero there, the promotion would not have taken.
+    """
+    assert ab.find(5, 1).A[1, 2] != 0.0
+    for trim_no in (1, 2, 3):
+        ours, ref = _hs_pair(DOF.SIX, trim_no)
+        assert ref.A[1, 2] == 0.0, "B8/B10/B12 should print zero for d(NP)/d(P3)"
+        assert ours.A[1, 2] == 0.0, f"trim {trim_no}: we still couple P3 to NP directly"
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio(trim_no: int):
+    """Characterization: the whole T41 row sits ~7 % low, and for one reason.
+
+    The row scales with `tau1/tau2`, which Appendix B *does* determine (0.6845 / 0.6571 /
+    0.6270) even though `tau2` alone does not survive its own print precision. Ours is
+    7.3 % low at every trim. Uniformity across three flight conditions is what says this
+    is the time constants and not the structure -- see `docs/notes/derivative-ambiguity.md`
+    and open question #31.
+
+    **The NG column is excluded, and that exclusion is itself a result.** Every other
+    element of the row scales by 0.925-0.928 at every trim, but the NG element runs
+    0.927 / 0.973 / 0.813 -- because `A(T41, NG)` is built from the engine block's NG
+    column, which carries the `f1` speed-line knot error documented above. The two known
+    faults compose exactly where they should, and nowhere else.
+
+    If this tightens, `f_hs` or `TC_T41` has moved; re-measure and tighten rather than
+    widening.
+    """
+    ours, ref = _hs_pair(DOF.SIX, trim_no)
+    t41 = ours.states.index("T41")
+    ng = ours.states.index("NG")
+    ratios = [
+        ours.A[t41, j] / ref.A[t41, j]
+        for j in range(len(ours.states))
+        if ref.A[t41, j] != 0.0 and j != ng
+    ]
+    assert all(0.90 < r < 0.96 for r in ratios), f"T41 row ratios moved: {ratios}"
+    spread = (max(ratios) - min(ratios)) / np.mean(ratios) * 100.0
+    assert spread < 1.0, f"the row is no longer uniformly scaled: spread {spread:.2f} %"
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_the_t41_row_ng_element_carries_the_f1_error_on_top(trim_no: int):
+    """The two known faults compose, and only where they should.
+
+    `A(T41, NG)` is the one element of the T41 row built through the engine block's NG
+    column, so it carries the `f1` knot error as well as the lead-lag ratio. It therefore
+    deviates from the row's otherwise uniform scaling, and by most at descent -- which is
+    also where the `f1` error is worst.
+    """
+    ours, ref = _hs_pair(DOF.SIX, trim_no)
+    t41, ng = ours.states.index("T41"), ours.states.index("NG")
+    others = [
+        ours.A[t41, j] / ref.A[t41, j]
+        for j in range(len(ours.states))
+        if ref.A[t41, j] != 0.0 and j != ng
+    ]
+    r_ng = ours.A[t41, ng] / ref.A[t41, ng]
+    if trim_no == 3:
+        assert abs(r_ng - np.mean(others)) > 0.05, (
+            "descent has the worst f1 error, so its T41/NG element should stand clear of "
+            f"the row; got {r_ng:.3f} against a row mean of {np.mean(others):.3f}"
+        )
+    assert 0.75 < r_ng < 1.05, f"trim {trim_no} A(T41,NG) ratio {r_ng:.3f}"

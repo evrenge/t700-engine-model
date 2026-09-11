@@ -85,7 +85,9 @@ from enum import StrEnum
 
 import numpy as np
 
-from t700.engine import STANDARD_DAY, Ambient, State, frame
+from t700 import constants as c
+from t700 import maps
+from t700.engine import STANDARD_DAY, Ambient, Frame, State, frame
 
 
 class DOF(StrEnum):
@@ -104,7 +106,12 @@ class DOF(StrEnum):
     """Extracted from the full-dynamics model. Figs. B2/B4/B6, Table 1 col. 3."""
 
     SIX = "6dof"
-    """`FIVE` plus the heat-sink state. Figs. B8/B10/B12. No printed eigenvalues exist."""
+    """`FIVE` plus the heat-sink state. Figs. B8/B10/B12.
+
+    **Never compare eigenvalues of this one.** The printed matrices are ill-conditioned
+    by the report's own arithmetic -- `A(6,3)` and `A(6,4)` carry about +-50 absolute --
+    and B8 is unstable as printed. Element-wise only; `appendix_b.Reference.ill_conditioned`
+    flags it."""
 
     REDUCED_FIVE = "reduced5"
     """Order reduction of `FIVE` [pdf p.28]. Table 1 col. 5 only; not in Appendix B."""
@@ -137,6 +144,9 @@ class LinearModel:
     """The trim state the linearization is about, in the same order as `states`."""
     wf_pps: float
     np_rpm: float
+    d: np.ndarray | None = None
+    """Feedthrough from Wf [Eq. 67], `x = C z + d Wf` with `C = I`. Only the heat-sink
+    models have one; `None` for 2-, 5- and reduced-5-DOF, which have no Wf-dot term."""
 
     @property
     def eigenvalues(self) -> np.ndarray:
@@ -159,9 +169,17 @@ class LinearModel:
 # ------------------------------------------------------------------ the two vector fields
 
 
-def _full_deriv(x: np.ndarray, wf: float, amb: Ambient, qreq: float, j_load: float):
-    """Five derivatives from `engine.frame`: the complete nonlinear simulation."""
-    f = frame(State.from_array(x), wf, amb, q_req_ftlbf=qreq, j_load=j_load)
+def _full_frame(x: np.ndarray, wf: float, amb: Ambient, qreq: float, j_load: float, t41=None):
+    return frame(State.from_array(x), wf, amb, q_req_ftlbf=qreq, j_load=j_load, t41_degR=t41)
+
+
+def _full_deriv(x: np.ndarray, wf: float, amb: Ambient, qreq: float, j_load: float, t41=None):
+    """Five derivatives from `engine.frame`: the complete nonlinear simulation.
+
+    `t41` drives station 4.1 temperature instead of computing it, which is what makes it
+    a sixth state rather than an algebraic result [pdf p.23, Eq. 23].
+    """
+    f = _full_frame(x, wf, amb, qreq, j_load, t41)
     return np.array([f.dng_dt, f.dnp_dt, f.dp3_dt, f.dp41_dt, f.dp45_dt])
 
 
@@ -173,6 +191,7 @@ def _solve_pressures(
     amb: Ambient,
     qreq: float,
     j_load: float,
+    t41=None,
     tol: float = 1e-10,
     max_iter: int = 60,
 ) -> np.ndarray:
@@ -185,7 +204,7 @@ def _solve_pressures(
     p = p_guess.astype(float).copy()
 
     def res(pv):
-        return _full_deriv(np.array([ng, np_rpm, *pv]), wf, amb, qreq, j_load)[2:]
+        return _full_deriv(np.array([ng, np_rpm, *pv]), wf, amb, qreq, j_load, t41)[2:]
 
     for _ in range(max_iter):
         r = res(p)
@@ -205,11 +224,17 @@ def _solve_pressures(
 
 
 def _quasi_steady_deriv(
-    s: np.ndarray, p_guess: np.ndarray, wf: float, amb: Ambient, qreq: float, j_load: float
+    s: np.ndarray,
+    p_guess: np.ndarray,
+    wf: float,
+    amb: Ambient,
+    qreq: float,
+    j_load: float,
+    t41=None,
 ):
     """Two speed derivatives with the pressures slaved -- the reduced-order simulation."""
-    p = _solve_pressures(s[0], s[1], p_guess, wf, amb, qreq, j_load)
-    return _full_deriv(np.array([s[0], s[1], *p]), wf, amb, qreq, j_load)[:2], p
+    p = _solve_pressures(s[0], s[1], p_guess, wf, amb, qreq, j_load, t41)
+    return _full_deriv(np.array([s[0], s[1], *p]), wf, amb, qreq, j_load, t41)[:2], p
 
 
 # --------------------------------------------------------------------------- extraction
@@ -227,6 +252,88 @@ def _central_jacobian(f, x0: np.ndarray, n_out: int, rel: float) -> np.ndarray:
         xm[i] -= h
         A[:, i] = (f(xp) - f(xm)) / (2.0 * h)
     return A
+
+
+def _heat_sink_taus(f: Frame) -> tuple[float, float]:
+    """`(tau1, tau2)` at a trim -- the heat-sink lead and lag [nomenclature pdf p.13].
+
+    Eq. 63 writes the linearized heat sink as `T41/T41_ns = (tau1 s + 1)/(tau2 s + 1)`;
+    Eq. 50 gives the same transfer function built from the nonlinear model, so
+    `tau2 = tau_a` (Eq. 51) and `tau1 = tau_a - tau_b` (Eqs. 52-53).
+
+    **The report prints no numeric value for either** -- open question #31. They are
+    trim-dependent by definition, "those values corresponding to the trim operating
+    condition" [pdf p.31], so they can only come from our own Eqs. 50-53 at trim.
+    """
+    tau_a = c.TC_T41 * f.t41_ns_degR**0.5 / f.w41_pps**0.8  # (51)
+    tau_b = float(maps.f_hs()(f.ngc_pct)) / f.w41_pps  # (52), (53)
+    return tau_a - tau_b, tau_a
+
+
+def _chen(F1, F2, G1, G2):
+    """Eqs. 65-67: descriptor form to standard form.
+
+    `F1 xdot = F2 x + G1 Wf + G2 Wfdot` is not state-space, because differentiating the
+    lead term of Eq. 63 introduces `Wfdot`. With `B0 = F1^-1 G1` and `B1 = F1^-1 G2` it
+    reads `xdot = A x + B0 Wf + B1 Wfdot`, and `z = x - B1 Wf` gives
+
+        zdot = A z + (B0 + A B1) Wf        (66)
+        x    = z + B1 Wf                   (67)  ->  C = I, d = B1
+
+    which is why every printed `C` in Figures B7-B12 is the literal `[ I ]`.
+
+    This also answers open question #32. The report writes `b = F1^-1 G1 + F F1^-1 G2`
+    with `F` defined nowhere; the transformation gives `b = B0 + A B1`, so
+    `F == A == F1^-1 F2`. **Derived here, not transcribed.**
+    """
+    A = np.linalg.solve(F1, F2)
+    B0 = np.linalg.solve(F1, G1)
+    B1 = np.linalg.solve(F1, G2)
+    return A, B0 + A @ B1, B1
+
+
+def _extract_heat_sink(dof, f_deriv, f_t41ns, z0, wf_pps, rel_step, taus, states, np_rpm):
+    """Build one heat-sink linear model from its two vector fields.
+
+    `z0` is the trim state with T41 last. `f_deriv(z, wf)` gives the `m` engine-state
+    derivatives with T41 **driven**; `f_t41ns(z, wf)` gives T41_ns at the same point.
+
+    The T41 row is Eq. 63 written out. With `cx = dT41_ns/dz` and `cw = dT41_ns/dWf`:
+
+        tau2 T41dot + T41 = tau1 (cx.zdot + cw Wfdot) + (cx.z + cw Wf)
+
+    Rearranged into `F1 zdot = F2 z + G1 Wf + G2 Wfdot`, `G2` comes out zero in every row
+    but T41's -- which is what Appendix B prints [pdf p.33], and therefore a check on the
+    derivation rather than an input to it.
+    """
+    tau1, tau2 = taus
+    m = len(z0) - 1
+    n = m + 1
+
+    Jx = _central_jacobian(lambda z: f_deriv(z, wf_pps), z0, m, rel_step)
+    cx = _central_jacobian(lambda z: np.array([f_t41ns(z, wf_pps)]), z0, 1, rel_step)[0]
+    hw = rel_step * max(abs(wf_pps), 1e-6)
+    Jw = (f_deriv(z0, wf_pps + hw) - f_deriv(z0, wf_pps - hw)) / (2.0 * hw)
+    cw = (f_t41ns(z0, wf_pps + hw) - f_t41ns(z0, wf_pps - hw)) / (2.0 * hw)
+
+    F1 = np.eye(n)
+    F1[m, :m] = -tau1 * cx[:m]
+    F1[m, m] = tau2 - tau1 * cx[m]
+
+    F2 = np.zeros((n, n))
+    F2[:m, :] = Jx
+    F2[m, :m] = cx[:m]
+    F2[m, m] = cx[m] - 1.0
+
+    G1 = np.zeros(n)
+    G1[:m] = Jw
+    G1[m] = cw
+
+    G2 = np.zeros(n)
+    G2[m] = tau1 * cw
+
+    A, b, d = _chen(F1, F2, G1, G2)
+    return LinearModel(dof, states, A, b, z0, wf_pps, np_rpm, d=d)
 
 
 def extract(
@@ -256,19 +363,40 @@ def extract(
             f"residual_converged={trim_result.residual_converged}, "
             f"on_data={trim_result.on_data}. A clamped solve has no usable derivatives."
         )
-    if dof in HEAT_SINK:
-        raise NotImplementedError(
-            f"{dof.value} needs the heat-sink state in the linearization. Eqs. 48-53 are "
-            "implemented in realtime.step but not yet in engine.frame, and the Wf-dot "
-            "feedthrough needs the Chen transformation of Eqs. 66-67. Appendix B figures "
-            "B7-B12 are the targets; note the report prints no 3- or 6-DOF eigenvalues, "
-            "so those comparisons are element-by-element only."
-        )
-
     amb = ambient
     full0 = trim_result.state.as_array()
     qreq = frame(trim_result.state, wf_pps, amb, j_load=j_load).q_pt_ftlbf
     np_rpm = float(full0[1])
+
+    if dof in HEAT_SINK:
+        f0 = frame(trim_result.state, wf_pps, amb, j_load=j_load)
+        taus = _heat_sink_taus(f0)
+        t41_0 = f0.t41_ns_degR  # at a trim T41 == T41_ns: Eq. 50 has unit DC gain
+
+        if dof is DOF.SIX:
+            z0 = np.array([*full0, t41_0])
+
+            def f_deriv(z, wf):
+                return _full_deriv(z[:5], wf, amb, qreq, j_load, z[5])
+
+            def f_t41ns(z, wf):
+                return _full_frame(z[:5], wf, amb, qreq, j_load, z[5]).t41_ns_degR
+        else:
+            z0 = np.array([full0[0], full0[1], t41_0])
+            p_guess = full0[2:]
+
+            def f_deriv(z, wf):
+                return _quasi_steady_deriv(z[:2], p_guess, wf, amb, qreq, j_load, z[2])[0]
+
+            def f_t41ns(z, wf):
+                p = _solve_pressures(z[0], z[1], p_guess, wf, amb, qreq, j_load, z[2])
+                return _full_frame(
+                    np.array([z[0], z[1], *p]), wf, amb, qreq, j_load, z[2]
+                ).t41_ns_degR
+
+        return _extract_heat_sink(
+            dof, f_deriv, f_t41ns, z0, wf_pps, rel_step, taus, STATES[dof], np_rpm
+        )
 
     if dof is DOF.FIVE:
         A = _central_jacobian(

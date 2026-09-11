@@ -131,12 +131,33 @@ def test_ng_mode_is_recorded_not_forgotten(name: str):
 
 
 @pytest.mark.parametrize("dof", [DOF.THREE, DOF.SIX])
-def test_heat_sink_variants_refuse_clearly(dof: DOF):
-    """Not implemented, and it must say why rather than return something plausible."""
+def test_heat_sink_variants_extract_with_the_right_shape(dof: DOF):
+    """All five variants are now live. These two carry a `Wf-dot` feedthrough.
+
+    Shape and structure only -- the numeric comparison against Figures B7-B12 lives in
+    `validation/test_appendix_b_elements.py`, since the report prints no 3- or 6-DOF
+    eigenvalues and the 6-DOF matrices support nothing but element-wise checks.
+    """
     wf = wf_pps_from_pph(476.3)
     r = trim.solve(wf, NP_RPM, AMB)
-    with pytest.raises(NotImplementedError, match="Chen|heat-sink"):
-        extract(r, wf, dof, AMB)
+    m = extract(r, wf, dof, AMB)
+    n = len(STATES[dof])
+    assert m.A.shape == (n, n) and m.b.shape == (n,)
+    assert m.states[-1] == "T41", "T41 is the appended state [pdf pp.29, 32]"
+    assert m.d is not None, "the heat-sink models have a Wf-dot feedthrough [Eq. 67]"
+    t41 = m.states.index("T41")
+    assert abs(m.d[t41]) > 0.0
+    assert np.abs(np.delete(m.d, t41)).max() < 1e-12 * abs(m.d[t41])
+
+
+@pytest.mark.parametrize("dof", [DOF.TWO, DOF.FIVE, DOF.REDUCED_FIVE])
+def test_non_heat_sink_variants_have_no_feedthrough(dof: DOF):
+    """`d` exists only where a `Wf-dot` term had to be absorbed -- Eq. 65's G2 comes from
+    differentiating the heat-sink lead, so without the heat sink there is nothing to
+    absorb. Appendix B prints `C` and `d` only on B7-B12, and this mirrors that."""
+    wf = wf_pps_from_pph(476.3)
+    r = trim.solve(wf, NP_RPM, AMB)
+    assert extract(r, wf, dof, AMB).d is None
 
 
 def test_extract_refuses_an_untrustworthy_trim():

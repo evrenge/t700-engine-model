@@ -156,6 +156,7 @@ def frame(
     ambient: Ambient = STANDARD_DAY,
     q_req_ftlbf: float = 0.0,
     j_load: float = 0.0,
+    t41_degR: float | None = None,
 ) -> Frame:
     """Evaluate Eqs. 1-49 once.
 
@@ -166,8 +167,13 @@ def frame(
         q_req_ftlbf: load torque on the power turbine, Qreq [Eq. 47]. An **input**: it
             comes from the Gen Hel UH-60A simulation, which this report consumes and does
             not contain.
-        j_load: load inertia added to J_PT [Eq. 46]. Also external; not in Table A.1
-            (open question #6).
+        j_load: load inertia added to J_PT [Eq. 46]. External to the report; recovered
+            from Appendix B as `constants.J_LOAD_UH60A` (open question #6, closed).
+        t41_degR: drive T41 instead of computing it from T41_ns. `None` -- the default --
+            is Eq. 23's `T41 = T41_ns`, the 5-DOF configuration. Supplying it makes T41 an
+            independent input, which is how the heat-sink (3-/6-DOF) linear models are
+            extracted. It changes nothing at a trim, because Eq. 50 has unit DC gain and
+            the trim value of T41 *is* T41_ns.
 
     Returns:
         Every station value, the three torques, and the five derivatives.
@@ -213,7 +219,13 @@ def frame(
     eta_b = float(maps.f6()(far))  # (20)
     h41_ns = (h3 + eta_b * far * c.HVF) / (1.0 + far)  # (21)
     t41_ns = thermo.t41_from_h41(h41_ns)  # (22)
-    t41 = t41_ns  # (23) with no heat-sink representation [pdf p.23]
+    # (23): T41 = T41_ns when no heat-sink representation is used [pdf p.23]. Passing
+    # `t41_degR` drives it instead, which is what makes T41 a sixth **state** rather than
+    # a computed quantity -- the 6-DOF configuration, and the form the report's own
+    # derivative extraction uses: "During derivative extraction, T41 was held fixed at the
+    # trim value and the change in T41 was determined for each state perturbation"
+    # [pdf p.31].
+    t41 = t41_ns if t41_degR is None else float(t41_degR)
     h41 = thermo.h41_from_t41(t41)  # (24)
     theta41 = thermo.theta41_from_t41(t41)  # (25)
 

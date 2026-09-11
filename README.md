@@ -22,7 +22,8 @@ public domain). Everything here is derived from it.
 | Shaft power vs Table B.1 | **±0.05 %** at hover and level, −0.73 % at descent |
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transient, Figure 9 | endpoints within 0.9–3.9 %; T41 overshoot 1.67× Ballin's, down from 3.41× |
-| Tests | 463, with lint and formatting clean |
+| Appendix B, 297 printed elements | zero structure exact; P3/P41 block <1.5 %; `b` 0.1 % |
+| Tests | 627, with lint and formatting clean |
 
 Phases 0–4 of `SCOPE.md` are complete: the report is ingested, the data captured, and the
 engine trims and runs transients in **either of the two configurations Ballin published**
@@ -77,6 +78,13 @@ linear results and leaves it to inference for the transients:
 Eq. 50 has unit DC gain, so the switch cannot move a trim. Every steady-state result here
 is valid in both configurations at once, and that is measured rather than argued: the two
 agree to ~1e-15 relative. `docs/notes/heat-sink-configuration.md` carries the evidence.
+
+All five of his linear models extract from one call — `extract(trim, wf, dof="6dof")` —
+and comparing them element by element against Appendix B rather than by eigenvalue turned
+up three things the report never printed: the UH-60A load inertia (`9.2503 × J_PT`,
+consistent to 0.186 % across three flight conditions), `dQreq/dNP`, and the heat-sink lead
+to lag ratio. What it also showed is that our remaining derivative error is not physics but
+**interpolation** — see `docs/notes/derivative-ambiguity.md`.
 
 ## Things the report gets wrong, and one it does not
 

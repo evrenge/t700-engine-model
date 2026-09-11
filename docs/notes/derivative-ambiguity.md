@@ -85,3 +85,54 @@ every result in the repository, to fix derivatives that are ambiguous by constru
 
 What would settle it: the report stating its interpolation scheme or its extraction step
 size. Neither is printed. Recorded against open question #43.
+
+---
+
+# Addendum: what the 3- and 6-DOF models added (2026-09-11)
+
+## The structure is confirmed
+
+The heat-sink linear models were derived rather than transcribed -- descriptor form
+Eq. 65, Chen transformation Eqs. 66-67 -- and three printed features fall out of that
+derivation without being put in, which is the check that it is the right one:
+
+* **`G2` is zero in every row but T41's**, so `d = F1^-1 G2` is too. Appendix B prints
+  exactly that in all six heat-sink figures.
+* **`C = [ I ]`**, printed literally in all six, is what `z = x - B1 Wf` gives.
+* **The 6-DOF `A(2,3)` is zero** where the 5-DOF's is `-0.4128E+2`. With T41 a separate
+  state, P3 no longer reaches power-turbine torque except through T41, so that path moves
+  out of the element and into the T41 column. We reproduce both.
+
+It also answers **open question #32**: the report writes `b = F1^-1 G1 + F F1^-1 G2` with
+`F` defined nowhere, and the transformation gives `b = B0 + A B1`, so `F == A == F1^-1 F2`.
+Derived, not transcribed.
+
+## tau1/tau2 is recoverable; tau2 is not
+
+Open question #31 records that no numeric value of either time constant is printed. The
+6-DOF T41 row is linear in `(1/tau2, tau1/tau2)`, so both look recoverable -- but they are
+not equally determined:
+
+* `tau2`'s independent signature in that row is worth about **18**, in elements of about
+  **198 400**. The report prints four significant figures, i.e. +-50. **tau2 is below its
+  own print precision** and a least-squares fit for it returns noise -- run naively it
+  produces *negative* time constants at all three trims, which is how this was noticed.
+* `tau1/tau2` rides the dominant term and is well determined: 0.6845 / 0.6571 / 0.6270,
+  with the six row elements agreeing to 0.74 % at hover. An independent estimator, the
+  feedthrough `d`, gives 0.6712 / 0.6450 / 0.6182.
+
+**Ours is 0.6378 / 0.6084 / 0.5810 -- uniformly 7.3 % low**, ratio 0.932 / 0.926 / 0.927.
+The uniformity is the evidence: a structural error would not be constant across three
+flight conditions.
+
+Equivalently our `tau_b/tau_a` is about 14 % too high, and
+
+    tau_b/tau_a = f_hs(NGc) / (TC_T41 * sqrt(T41) * W41^0.2)
+
+so the candidates are `f_hs` (digitized, Fig. A11) and `TC_T41 = 0.29` (transcribed,
+Table A.1). **They cannot be separated on this data**: all three trims land on `f_hs`'s
+flat top -- NGc 93.2 %, 89.1 % and 85.2 %, and the plateau runs 85 % to 100 % at 7.497 --
+so `f_hs` is the same number at every one of them and is indistinguishable from a constant.
+Separating them needs a trim below 85 % NGc, and the report gives none.
+
+Recorded against open questions #31 and #4. Do not adjust either value on this evidence.
