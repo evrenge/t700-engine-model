@@ -1,0 +1,65 @@
+                Values     of torque      which        are output           or required           by the engine            are determined              from      the changes      in
+     energy     across    the compressor          and turbines.             Effects     of the compressor                  interstage         bleed flows         are accounted
+     for with an empirically            determined            function.       A damping              factor     based      on change              of power     turbine    speed       is
+     an additional        term in the power            turbine     torque       equation.
+
+                                                        60         1
+                             Qc = 778.12              • 2---_    NG         {WA2(KQc_               H3     -    H2)       + WA3           • KQea H3 }                          (39)
+
+                                                                                       60            1
+                                                        Qcr      = 778.12           • 2_r          NG      " W41AHcr                                                           (40)
+
+                                                         60            1                                                  2rr
+                             Qer      = 778.12         • 2---_" N-'-'ft' W45t_/-/pr                  -    K_p.           _-_.      (NP        -    NP_,)                       (41)
+
+                Conservation          of mass      is applied          to determine               intervolume           pressure         dynamics          for stations    3, 4.1,
+     and 4.5.
+
+
+                                                 P3     = Kv3       f T3(WA3                  -     WA3bt-            WA31)dt                                                  (42)
+
+
+
+                                                  P41        = Kv4_        f T41(WA31 - Ws -                             W41)dt                                                (43)
+
+
+
+                                           P45        = Kv45 f             T45(W41           -     W45         + B3 KbtWA2)              dt                                    (44)
+
+                Turbine      speeds     are determined            as a function             of the externally-applied                    torques       by assuming        conser-
+     vation     of angular     momentum.
+
+
+                                                                               60            Qcr         - Qc dt                                                               (45)
+                                                                  NG         = _  f                 _
+
+
+                                                                              J = JPr            + Jt_d                                                                        (46)
+
+                                                                               60 /" Or, r - Q,.q
+                                                                                                  dt                                                                           (47)
+                                                                  NP=          2tr J       J
+
+
+                                                                           Heat-Sink Model
+
+                Early in the validation               effort,    the modeling               of nonadiabatic               processes        occurring          in areas    of large
+i
+I    temperature         gradients     was found to be necessary                      for correct         transient        response.          There is a transient         energy
+_z
+     transfer    which     is caused by the metal mass of the turbine absorbing                                         heat from the hot gas. This is especially
+     significant     at station 4.1, immediately                  downstream             of the combustor.                  Known          as the heat-sink          effect,    this
+     phenomenon           can be modeled          as a lumped              parameter         system        with the heat transfer                   equations.
+
+                                                                             dT"
+                                                                 c_M          dt      = hA,,(           Tg, -    T,,)                                                          (48)
+
+                                                                                                                 dT,,,
+                                                                                                                                                                               (49)
+                                                                c_Wg(        Tg,-      Tg,)        = c_M          "_
+                 The first equation        relates      the change           in metal        temperature            to the difference               between       metal   and gas
+     temperatures,        and the second          equation        represents          the effect         of this change            of metal         temperature      on the gas.
+
+
+                                                                                            11
+

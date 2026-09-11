@@ -1,0 +1,69 @@
+!
+
+
+
+
+         O.
+         EL
+
+
+
+         =-
+         UJ
+         F-
+         LU
+
+
+         _:3
+         O_
+
+         I-
+
+
+
+         Z
+         0
+
+
+
+         w
+         .J
+         "'2
+
+
+
+         0
+         ,_1
+
+             ..I
+             w
+             u_
+
+
+
+
+                                        SYMBOL               1:    T2 = 395.0               deg R
+                                        SYMBOL               2:    T2 = 430.0               deg R
+                                        SYMBOL               3:    T2 = 460.0               deg R
+                                        SYMBOL               4:    T2 = 480.0               deg R
+                                        SYMBOL               5:    T2 = 519.0               deg R
+                                        SYMBOL               6:    T2 = 555.0               deg R
+                                        SYMBOL              7:     T2 = 590.0               deg R
+
+
+
+                         .........              i    .........              i   .........                ,,j   .........       =   ......       =   i   -   i   .........
+
+                    50                          60                        70                         80                       90                        100                      110
+                                                                   SENSED        GAS          TURBINE             SPEED,   PCNGHL,          %
+
+
+
+    Figure         C30.-             T700   real-time             model   function              F'ttu-7--HMU               maximum          fuel-parameter                  limit during
+                                                                                             acceleration.
+
+
+
+
+                                                                                                    87
+

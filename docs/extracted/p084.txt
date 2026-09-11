@@ -1,0 +1,39 @@
+             Table      C.1 Concluded
+    T700 Fuel   Control      System       Constants
+  Constant       Value                     Units
+
+T45 COFI        11.0            °R
+T45 REF         2004.0          °R
+TL1             0.010           sec
+TL2             0.010           sec
+TLGE            0.077           sec
+TMDB            2.0             ma
+TMGN            0.0159          in/ms     • 8ec
+TMLG            84.0            Ib_ • in2 /lb/    • hr.   in
+TMLVG           55.0            voltsin
+WFMAX           785.0           Ib,,/hr
+WFMIN           65.0            lbm/hr
+WFPDCH          2.10            Ib,, . inZ /ibs   . hr
+WFPDCL          1.45            Ib,_ . in2 /lb/ • hr
+XHILIM          O.0787          in/sec
+X KINTG         0.18            nondimensional
+X KPROP         0.20            nondimensional
+XLDHYS          2.5             deg
+X LO L I M      -0.0427         in/ sec
+YHILIM          40.0            nondimensional
+YLOLIM          0.0             nondimensional
+ZHILIM          3.5             nondimensional
+Z K 1           1.7             nondimensional
+ZK3             0.045           n0ndimensional
+ZK5             0.40            nondimensional
+Z K7            0.30            nondimensional
+ZK8             0.231           nondimensional
+Z K9            0.625           nondimensional
+ZK     10       0.375           nondimensional
+ZLOLI3)I        - 1.0           nondimensional
+
+
+
+
+                           7O
+

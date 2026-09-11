@@ -1,0 +1,64 @@
+                                                           APPENDIX                            C
+                        T700 FUEL                   CONTROL                             SYSTEM                       MODEL
+
+        The real-time       model     of the T700-GE-700                fuel control            system     is given      below.
+
+
+                           T700      Fuel       Control          System           Variables              and     Constants
+
+AWFP           HMU       deceleration         schedule      gain,     lb,_ • in 2 lib.           hr . %
+
+
+B4             ECU      nonlinear       NP-loop-gain          circuit       (discrete         switch)
+
+
+B6             ECU      speed      error gain
+
+
+BWFP           HMU       deceleration         schedule      bias,     lb,_ • in 2/lb¢          • hr
+
+
+CB             ECU      error     threshold     for additional          NP governing               gain,   percent       NP
+
+
+CE             ECU      load-share-authority             upper      limit, percent             NP
+
+
+CH             hysteresis       of gas-generator           speed     sensor,       percent          NG
+
+
+CLMV           metering-valve           lag time constant,            sec
+
+
+CLLDS          load-demand-spindle               lag time constant,               sec
+
+
+CNTL           lag time constant            for gas-generator-speed                 sensor,        sec
+
+
+CORR           threshold        for nonlinear      NP-loop-gain              circuit
+
+
+CR             engine      torque-level       threshold       for nonlinear             NP loop gain circuit
+
+C7"2           lag time constant          for ECU         governor,         sec
+
+
+CT7            lag time constant          for ECU         load-share         circuit,     sec
+
+
+CT9            ECU      T4.5-compensation            lag time constant,                 sec
+
+
+CT12           lag time constant          for ECU         governor,         sec
+
+
+CT13           lag time constant          for ECU         governor-rate           compensation,                sec
+
+CT14           lag time constant          for ECU         governor-rate           compensation,                sec
+
+CT16           lag time constant          for ECU        proportional-plus-integral                      compensation,        sec
+
+
+                                                                            63
+

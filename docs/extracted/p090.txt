@@ -1,0 +1,41 @@
+                                                                                    PS3HYS
+
+
+
+                                  Ps3 ..1                 1           I
+                                              "l   CTPS3s+       1    I
+
+                             Figure    C11.- Compressor              static   discharge     pressure    sensor.
+
+
+
+
+                                          DWFP
+                                                                                             i,=
+
+
+                                                      J           1 + 1 [
+                                                              CLLDSs                    DWFPL
+
+
+
+                         Figure       C12.-    Load demand           (fuel flow command)            dynamics.
+
+
+
+
+                                                              5.34                      XLDHYS
+
+
+                               XCPC                       +          + XLDSA                        XLDSH
+
+
+
+
+Figure   C 13.- Collective     pitch to load demand             spindle       rigging     (UH-60A      Black    Hawk   implementation).
+
+
+
+
+                                                                      76
+

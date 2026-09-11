@@ -1,0 +1,50 @@
+                                                                       APPENDIX                         B
+                                                               LINEAR                    MODELS
+
+            Small-perturbation          linear       models           for three         trim conditions          are given        below.     The   two-     and three-
+degree-of-freedom          models        approximate                  the dynamics           between          the control      volumes       to be instantaneous;
+the five-     and six-degree-of-freedom                   models         contain        complete         dynamics.         The heat-sink      model       is contained
+in the three-      and six-degree-of-freedom                      models.
+
+
+                                                                             TABLE              B.1
+                             SMALL-PERTURBATION                                         MODEL           TRIM       CONDITIONS
+                                              Trim Condition                                            1 °
+                                                                                                                     2 b      [         3c
+
+                             Aircraft        weight,           Ib,_                                16825.         16825.          16825.
+                             CG station,            in                                            355.0           355.0           355.0
+                             CG waterline,                in                                      248.2           248.2           248.2
+                             CG buttline,            in                                           0.0             0.0             0.0
+
+                             Equivalent            airspeed,           kts                        0.0             80.0            80.0
+                             Flightpath            angle,       deg                               0.0             0.0             -7.08
+
+                             Altitude,        ft                                                  0.0             0.0             0.0
+
+                             Required         torque           (ref. hub),         ft   • Ib!      32865.         20747.          10792.
+
+                             Engine       torque          (ref. shaft),           ft • lb[         229.0          138.9           76106
+
+                             Horsepower              per engine                                    911.1          552.6           302.6
+
+                             Power       turbine          speed,        rpm                        20895.         20895.          20895.
+                             Gas Generator                Speed,         rpraM                     41638.         39768.          38072.
+                             Fuel flow per engine,                      lb_/hr                     476.3          349.3           267.7
+                             P2, PSIA                                                              14.696         14.696          14.696
+                             T2, de9 R                                                             518.67         518.67          518.67
+                             P,3,     PSIA                                                         176.34         142.13          114.27
+                             P41, PSIA                                                             174.28         140.26          112.77
+                             T41, deg         R                                                    2292.          2102.           1982.
+                             P45, PSIA                                                             37.42          30.66           25.54
+                             T45, deg         R                                                    1632.          1501.           1424.
+
+_Trim       condition   1: hover
+bTrim condition         2: level    flight     at 80 knots
+_Trim condition         3:1000      ft/min         descending            flight     at 80 knots
+
+
+
+
+                                                                                        53
+

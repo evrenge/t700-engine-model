@@ -1,0 +1,22 @@
+# source: TM-100991 pdf p.41, Figure 7
+# quantity: SHAFT HORSEPOWER (no unit printed) vs FUEL FLOW, lb/hr; series: G.E. STATUS-81 MODEL
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
+# shp: SHAFT HORSEPOWER (no unit printed), axis -200.0 to 2000.0
+# points: 14
+# NOT transcribed. Values carry read error.
+wf_pph,shp
+207.3908,108.5209
+238.5849,184.2659
+289.9872,359.4549
+319.1450,462.8723
+413.8308,742.9967
+445.7547,837.8170
+481.8297,941.9593
+522.5671,1056.1954
+566.0272,1185.0070
+619.9306,1339.2426
+679.9660,1503.7289
+774.8966,1718.5911
+800.6595,1766.4407
+826.1957,1812.1088

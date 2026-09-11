@@ -1,0 +1,43 @@
+=
+
+
+
+
+                                                                        DRAFT
+                                    A HIGH            FIDELITY               REAL-TIME                 SIMULATION
+
+                                             OF      A SMALL             TURBOSHAFT                     ENGINE
+
+
+
+
+                                                                      Mark        G. Ball.in
+
+
+
+
+                                                                Ames      Research         Center
+
+
+
+
+                                                                    SUMMARY
+
+
+
+         A high-fidellty           component-type                model          and     real-time        digital      simulation          of the         General
+
+    Electric      T700-GE-700              turboshaft           engine          were    developed         for use         with     current         generation
+
+    real-time       blade-dement            rotor      helicopter          simulations.             A control       system        model      based        on the
+
+    specification        fuel    control       system       used        in the         UH-60A          Black       Hawk      helicopter           is also     pre-
+
+    sented.      The    modeling         assumptions            and      real-time        digital      implementation             methods           particular
+
+    to the      simulation       of small          turboshaft         engines          are described.           The    validity       of the       simulation
+
+    is demonstrated             by comparison             with        analysis-oriented              simulations          developed          by    the     manu-
+
+    facturer,       available     test     data,      and flight         test    time     histories.
+

@@ -1,0 +1,90 @@
+                 107.5 ............
+
+
+                 105.0
+         :E
+         m
+         n..
+         i-      102.5
+         IJ..
+         O
+                 100.0
+
+         O
+         ...,I
+         u.       97.5                                                                                                     GEN HEL UH-60A SIMULATION
+         -/                                                                                                                5 DOF LINEAR PERTURBATION   MODEL
+         uJ
+                                                                                                                           2 DOF LINEAR PERTURBATION   MODEL
+         u.       95.0
+                                                                                                ...........                REDUCED-ORDER    LINEAR PERTURBATION                                        MODEL
+
+                  92.5            ....                  i       ,         .       .   .         i             ....         =   ....              i        ....     1     ....    i       ....     1    .....
+
+
+
+
+                 101.0
+
+
+         z_                                       /
+                                              I
+         d 100.5                          I
+                                      I
+         LU
+         UJ
+         eL                       i
+
+
+         UJ                   i
+
+         z       100.0
+
+
+
+
+         ,_       99.5
+
+
+
+                  99.0                                                                              i                      I                         i             l                 i
+
+
+
+
+                 102.0                                      i       . '       •           . '       i         ',           _                 .       =             |                 ¢            i
+
+
+
+
+         d
+         uJ
+         uJ
+         a. 101.0
+         u'J
+         1.1.1
+         Z
+                                            A
+                                          /\\
+         n,-                             # \\
+                              //
+         P" 100.0
+         uJ
+
+         O
+         el
+
+
+                  99.0                                      t                                           i                  l                         1
+
+                          0                            2.0                                 4.0                         6.0                  8.0                   10.0          12.0            14.0           16.0
+                                                                                                                                         TIME, sec
+
+
+Figure    4: Comparison                               of the linear                                         perturbation              models             with the nonlinear      simulation       for a high-power
+flight condition.
+
+
+
+                                                                                                                                        16
+

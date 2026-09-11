@@ -1,0 +1,87 @@
+ T2                  TOPPING LINE                WFPTP             PCNGHLJ        DECELERATION     WFPDC               PS3L        PS3
+
+
+
+
+ NG
+                     __
+                          SCHEDULE               i
+
+
+
+
+                                                     NGREF
+                                                             X_
+                                                             \--
+
+                                                                     __
+                                                                                    SCHEDULE
+
+
+                                                                                                   -[
+                                                                                                 SELECTOR
+                                                                                                                                  SENSOR                PS3
+
+
+
+
+                                                                                                                                   METERING
+                                                                                                   LOGIC
+                                                                                                                                     VALVE
+                                                                                                                                     FUEL
+
+
+
+
+ PAS
+ _P1                      SP,NDLE           I                "              I--
+               I'NPU"
+                    SCHEDULE
+                        1                                                   L
+                                                                                                                     SCHEDULE              C        L
+
+XLDSA                  SPINDLE
+                                                     LOAD
+                                                       DEMAND
+                        INPUT
+                    LOAD DEMAND
+                      SCHEDULE
+
+                                                                                                       WFIDM
+                                        H            DYNAMICS        J_+l           +                                SCHEDULE
+               [                                                                                                        IDLE                   T_
+ SPDG          |    TORQUE     MOTOR
+                                                     TMRU
+
+               1l   COMPENSATION
+                    DYNAMICS  AND
+
+(FROM     ECU)
+
+
+
+                                        Figure       C9.- "I"700 hydromechanical                 control     unit (HMU).
+
+
+
+
+       -0.44
+                                                                    -31.0           TMDB                                 XHILIM
+
+
+                            0.045 + 1
+
+                             0.2s + 1
+                                                                                                                    J: lrl
+                                                                                   TMDB                               XLOLIM
+
+
+
+
+                                  Figure         C10.-      T700     torque       motor    dynamics        and compensation.
+
+
+
+
+                                                                                    75
+

@@ -1,0 +1,37 @@
+# source: TM-100991 pdf p.40, Figure 6
+# quantity: GAS GENERATOR SPEED, percent vs FUEL FLOW, lb/hr; series: REAL-TIME MODEL -- Ballin's model, the replication target
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
+# ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
+# points: 29
+# NOT transcribed. Values carry read error.
+wf_pph,ng_pct
+136.0443,72.6969
+142.0235,73.6416
+143.6963,74.5953
+147.9890,75.5229
+152.6077,76.4578
+157.3952,77.4001
+162.8044,78.3384
+167.9879,79.2622
+173.7898,80.1994
+181.1646,81.1114
+185.5192,82.0499
+218.5072,83.8752
+233.3450,84.7869
+250.3158,86.5855
+266.1073,86.5982
+286.7189,87.5144
+311.4248,88.4255
+331.4372,89.3282
+351.1881,90.2353
+380.3670,91.1579
+410.1379,92.0782
+441.2107,92.9932
+474.1050,93.9194
+506.7738,94.8295
+546.0137,95.7305
+645.8508,97.5211
+708.7329,98.4454
+757.4733,99.3809
+809.6315,100.3054

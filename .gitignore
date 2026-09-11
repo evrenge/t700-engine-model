@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Rendered page images -- derived from the PDF, regenerate with pdftoppm
+docs/extracted/*.png
+docs/extracted/*.ppm
+
+# Validation output plots -- derived, regenerate with /validate
+validation/out/

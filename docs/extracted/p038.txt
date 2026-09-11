@@ -1,0 +1,52 @@
+maybeobtainedwithin a specifiederrortolerance.Becauseof the openedcompressormass-flowiteration,
+however,responseis dependenton time step.For theT700implementation,a restrictionon time stepto a
+maximumvalueof 10msecwasestablishedbasedon a maximumallowableerror of 0.1 percentbetween
+time steps.
+
+                                                    Pressure            Function           Table Solution
+
+            A further        method     is being       investigated         which      has the advantage           of removing             all real-time      iteration,
+thereby      relaxing        the severe       time-step       size requirements              associated         with the iteration           solution.       A prepro-
+cessing     program         is used to tabulate           steady-state        values       of pressure        at station      4.1 as a function           of fuel flow,
+the inlet conditions,            temperature           at station       4.1, and gas generator                speed.     Because          of the use of the heat-
+sink model, station 4.1 temperature     must be an independent      input to the function table.                                                  A table look-up
+method is then used in real-time    execution. Pressures  at stations 3 and 4.5 are determined                                                     as functions  of
+fuel flow and pressure                at station      4.1.    The      method       involves        no loss of generality.            It has been          found      to be
+valid for large         time steps,         thereby     alleviating        computer          speed     requirements           and allowing        multiple-engine
+installations       for real-time         execution.         The major          disadvantage           is the requirement            for storage         of the station
+4.1 pressure        table,     which      involves        thousands         of data       points.      The method            also requires       the use of a pre-
+processing        program,       thus preventing             on-line     modification          to the compressor              mass-flow        and turbine-energy
+functions.
+
+
+
+                                       FUEL             CONTROL                        SYSTEM                   MODEL
+
+            The real-time         digital      implementation            of the fuel control           system     consists       of simplified        versions      of the
+ECU       and the HMU            and models           of pressure,        temperature,         torque,       and speed        sensors.       Collective       pitch    rig-
+ging to the load demand                spindle      for the UH-60A            implementation             is also provided.           Each of these is modeled
+as an explicit        entity     such that all interfaces               between       components            represent        interfaces      in the actual         control
+system.      Simplifications           were made          by eliminating          models       and control        logic which         are beyond           the scope of
+real-time       simulation       requirements           or are not needed             because        of simplifications           to the engine        model.       Elim-
+inated      model     features       include       automatic        engine      start-up       capability,      fuel    control      below      flight-idle        power,
+position      control      of the variable-geometry                    inlet-guide-vanes,            redundancy         models,           and redundancy           model
+logic.     The complete          fuel control         system     model       is presented           in Appendix         C.
+
+
+
+                                                                    VALIDATION
+
+            The     model      was     validated        by comparison             of static      trim performance               and dynamic           response        with
+available       information,         which      was provided            by GF and NASA                 Lewis.
+
+
+                                                                           Static Trim
+
+            Steady-state         simulation        performance            was verified         to be within        normal        limits     of operation        by com-
+parison      with data supplied             from two computer               simulations         developed        by the engine            manufacturer.          The GE
+status-81       model    is a comprehensive               analysis-oriented            model        which    is used for detailed            representation         of the
+engine      thermodynamic             cycle.     The GE unbalanced                  torque     model        is a simplified        model      which       is optimized
+
+
+                                                                                     24
+

@@ -1,0 +1,63 @@
+                                                                                   0
+
+
+                                                                                   0
+
+
+                                                                                   0
+                                                                 G2   =
+                                                                                   0
+
+
+                                                                                   0
+
+
+                                                                              a.oT4_.
+                                                                                  owl
+
+             The model         may be expressed         in standard       state-equation     form with the following                   transformation      (as
+derived       by then).
+
+
+                                                                      = A-i + "bW!                                                                      (66)
+
+                                                                                   w
+
+
+                                                                   _ = C_ + dWf                                                                         (67)
+             where
+
+
+                                                                      A = F?IFz
+
+
+
+                                                              "_= Fi'1GI         + FFi-1G2
+
+
+
+                                                                           C=I
+
+
+
+                                                                      "8= Fi-l O2
+
+             Figure     5 illustrates    the importance      of the use of a station 4.1 heat-sink model. Response                               is signifi-
+cantly      slowed     compared       to the five-degree-of-freedom       model. The overall effect of the heat-sink                             represen-
+tation is a larger          variation   of rotor   shaft speed and decreased            closed-loop       system       stability.      Analysis-oriented
+simulations          such     as the performance        standard      component-model           program            developed        by the engine       man-
+ufacturer       also model          a heat   sink effect     at station     4.5.   Because     its influence          was      found     to be small,      the
+station 4.5 heat-sink             effect is not represented  in the real-time              model. Figures B7 through B 12 present the
+six-degree-of-freedom                extracted  linear models and three-state              extracted models which contain the volume
+dynamics        approximation           for the three      flight conditions.
+
+
+
+
+                                                                                                      -     --7,
+
+
+
+
+                                                                             19
+

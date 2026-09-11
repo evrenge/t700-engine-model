@@ -1,0 +1,64 @@
+        The nonlinearfractionsof bleedflow arealsodeterminedfrom function maps.Actual bleedflows
+are then determinedfrom the bleedfractions. Flow extractedat station2.4 actsto pressurizethe seals,
+preventingoil lossandkeepinghot gases,dust,andmoistureout of the oil sumps.In addition,the flow is
+usedto pressurizethe power-turbinebalancepiston,which providesa forwardforce on thepower turbine
+to alleviatesomeof the thrustload on the turbine bearing.The diffuser dischargeair, WA3bt, is used to
+cool the combustion         liner and the gas-generator-turbine                            blades     and shrouds.         The fraction       of the bleed     flow
+used to cool the gas generator           is reintroduced              to the gas path downstream                       of the gas generator       turbine.      The
+turbine blades      are cooled     internally           and the bleed        gas is then released                 through      a shower-head-type            series
+of nozzles.
+
+
+                                                                     B_ = f3 ( NGc)                                                                           (12)
+
+                                                                 B2 = f4 (WA2c)                                                                               (13)
+
+                                                                 B3 = f5 (WA2,)                                                                               (14)
+
+
+
+                                                          WA24bt         = WA2(             BI + B2)                                                          (15)
+
+                                                          WA3u         = WA2(              B3 + Kb3)                                                          (16)
+
+          The fraction     of mass flow at the diffuser                  is determined               by subtracting        the compressor        stage-4     bleed
+flow from      flow entering      the compressor.
+
+
+                                                           WA3        = WA2            -     WA24bl                                                           (17)
+
+          The combustor        mass flow and efficiency                    are nonlinear             functions      of inlet and outlet        pressures,     inlet
+temperature,      and the fuel-to-air          ratio.     Change        of enthalpy              across      the combustor       is also a function          of the
+heating   value    of the fuel.
+
+
+                                                                        _]P3( P3 - P41)
+                                                          WA31        = V     ]rf---_-pb
+                                                                                      :_                                                                      (18)
+
+                                                                   FAR=                IV
+                                                                                      WA31                                                                    (19)
+
+                                                                     rl = f6 (FAR)                                                                            (20)
+
+                                                                      H3     + ,1 • FAR.              HVF
+                                                        H41,_    =                                                                                            (21)
+                                                                                   1 + FAR
+          The value      of the temperature             at station      4.1 without              heat-sink      dynamics      is a function      of enthalpy.
+
+
+                                                         T41,_   = Kr4hH41,_                      + Kr412                                                     (22)
+
+          The temperature         at station      4.1 is expressed               as a transfer         function     with slowly       varying     coefficient,.
+(See   the following      subsection.)     If no heat-sink              representation               is used,     T41    = T41,_.
+
+
+                                          T41       = T41,..,        . f,(T41,         T41_,         W41,       NG_)                                          (23)
+
+                                                           H41     = KH4hT41                 +    KH412                                                       (24)
+
+
+
+
+                                                                                  9
+

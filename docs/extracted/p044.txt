@@ -1,0 +1,46 @@
+                    Test                  Data              NG        NP            WA2          P3        T3     T45
+                   Case                   Type
+                                                             %         %           Ib,_/sec    PSIA        oR      oR
+
+                                     Experimental           65.9     52.'6           3.20       58.0      832.0   1413.
+                                     engine
+                                     Real-time              70.0     83.8            3.59       63.4      855.9   13i2.
+                                     model
+
+                                     Experimental           84.7     95.7            5.16       113.1     1026.   1577.
+                           2         engine
+                                     Real-time              86.4     100.6           5.52       119.0     1043.   1555.
+                                     model
+
+                                     Experimental           87.7     95.7            6.16       139.0     1081.   1626.
+                           3         engine
+                                     Real-time              88.1     97.8            6.27       141.7     1084.   1629.
+                                     model
+
+                                     Experimental           90.4     95.7            6.92       16'1'.1   1127.   1731.
+                           4         engine
+                                     Real-time              90.7     97.3            7.00       163.3     1130.   1734.
+                                     model
+
+                                     Experimental           92.6     95.7            7.66       184.8     1173.   1838.
+                           5         engine
+                                     Real-time              92.8     98.2            7.73       186.4     1178.   1855.
+                                     model
+                    ,,,,       ,
+
+
+                                    Experimental            95.9     95.7            8.50       211.9     1228.   1974.
+                           6         engine
+                                     Real-time              96.1     99.4            8.53       213.8     1233.   2009.
+                                     model
+
+
+
+Table   3: Comparison              of real-time     model     steady-state        operation   with NASA-Lewis     test article.   This does
+not represent   specification            T700     performance.
+
+
+
+
+                                                                             30
+

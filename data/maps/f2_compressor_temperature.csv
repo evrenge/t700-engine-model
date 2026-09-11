@@ -1,0 +1,83 @@
+# source: TM-100991 pdf p.57, Figure A2
+# quantity: f2 -- compressor temperature ratio
+# method: digitized -- generative glyph fit on the page's own 300 dpi 1-bit scan, no resampling
+# x: PS3/P2 compressor static pressure ratio, nondimensional
+# y: T3/T2 compressor temperature ratio, nondimensional
+# sx: 1 sigma uncertainty on x, in PS3/P2 (same units as x); see `uncertainty:` below
+# sy: 1 sigma uncertainty on y, in T3/T2 (same units as y); see `uncertainty:` below
+# points: 20
+# digitized: 2026-09-11 by tools/digitize_a2.py (reruns and reproduces these rows)
+# supersedes: the 2026-09-10 extraction by tools/digitize.py on a perspective-rectified 300 dpi render
+# note: RE-DIGITIZED 2026-09-11. The 2026-09-10 values came from a per-axis LINEAR calibration on a
+#   pixel-rectified render. Both are wrong here. (a) The page bows: the y major-tick spacing runs
+#   124.6 -> 121.5 -> 124.5 px top to bottom, so a straight axis map is an arch, up to 2.5 px = 0.0025
+#   in T3/T2. (b) The printed straight frame edges image as ARCS -- left sagitta -1.16 px, right -1.42,
+#   top -0.98, bottom +0.52 -- so a homography (or any four-corner map) is wrong by that much mid-page.
+# geometry: `pdfimages` pulls the page's own 300 dpi 1-bit CCITT image; nothing is ever resampled.
+#   The four frame edges are fitted sub-pixel as quadratics (rms 0.33-0.78 px; mid-slopes +0.095,
+#   +0.042, +0.165, +0.344 deg -- a genuine quadrilateral, not one rotation), and plot coordinates are
+#   the curvilinear blend between those four arcs. Rotation, keystone and bow are carried as a map
+#   applied to the measured points.
+# calibration: 21 x ticks (every 1.0) on the bottom edge and 21 on the top; 20 y majors (every 0.1) on
+#   the left edge and 20 on the right. Each edge is fitted ALONE as a CUBIC in its own normalized
+#   coordinate and the two opposite edges are blended across the plot -- pooling them would average
+#   away a real difference (top and bottom x lattices disagree by 0.026 at the left frame).
+# calibration-model-choice: HELD-OUT TEST. A2 prints a value at all four frame edges, so each axis
+#   fit was made on the interior ticks alone and asked to predict the printed edge value it was never
+#   given. y, left edge: linear -> 1.09809 / 3.00303 against printed 1.1 / 3.0 (miss 0.0019/0.0030);
+#   quadratic -> 1.09605 / 3.00099 (0.0040/0.0010); CUBIC -> 1.10012 / 2.99694 (0.0001/0.0031), and
+#   the interior residual falls 1.44 -> 0.52 milli-units rms, a factor of 2.7. y, right edge: linear
+#   1.09607/3.00221, cubic 1.09965/2.99633, interior rms 1.53 -> 0.73. x, bottom edge: linear
+#   0.0205/20.0290, cubic 0.0335/19.9946, interior rms 0.009 -> 0.005; x, top edge: linear
+#   -0.0053/20.0180, cubic 0.0096/19.9897, rms 0.008 -> 0.004. Cubic chosen on both axes -- for x the
+#   frame test is close (mean |miss| 0.019 linear against 0.014 cubic) and the free integer check
+#   below is what settles it.
+# free-structural-check: the 20 abscissae land on the integer lattice 1..20 to a maximum of 0.0155
+#   (1.29 px), sd 0.0060 (0.50 px), mean +0.0054 (0.45 px) -- and nothing in the extraction was told to
+#   expect integers. A linear x map gives sd 0.0115, a quadratic 0.0082: this check is what settles the
+#   x order, and it is the reason the frame edges are modelled as arcs (a straight-edge geometry leaves
+#   a -0.02 plateau across markers 9-14, exactly the mid-page sagitta).
+# markers: located by a generative model of the local ink -- glyph stroke 1 at -45.00 deg (half-length
+#   15.43 px) UNION stroke 2 at +44.87 deg (15.28 px) UNION the incoming and outgoing joining
+#   half-segments, all four radiating from one point, rendered by 5x5 supersampling and scored
+#   Sum(coverage - ink)^2 over an unmasked 20 px disc, background included. The template is global (the
+#   plotter drew the same mark 20 times); only the 20 centres are per-point. Frame lines and ticks are
+#   MASKED, never modelled. Independent check: refit every glyph with the joining polyline masked out
+#   of the score entirely -- the centres agree to 0.49 px max, 0.11 px rms.
+# read-at-magnification: marker 20 (PS3/P2 = 20) sits ON the right frame line AND on top of the printed
+#   2.8 major tick, which the protrusion scan reports as two false ticks at y = 529.3 and 541.8; both
+#   the frame band and the tick are masked for that glyph, and the true 2.8 tick is dropped from the
+#   right-edge fit (17 majors there, 18 on the left). Marker 1's upper-right arm merges with the
+#   outgoing joining segment, which is why the segment is modelled rather than avoided. No marker is
+#   split or merged; 20 markers, matching the independent visual count in inventory-appendix-a.md.
+# uncertainty: per-point 1 sigma by quadrature of three named terms, all printed by the tool --
+#   (1) calibration, the polynomial prediction standard error at that point from the tick scatter:
+#       x 0.0013-0.0031, y 0.00018-0.00037;
+#   (2) glyph, the polyline-masked disagreement above times the local scale: x 0.0042-0.0058,
+#       y 0.00028-0.00039;
+#   (3) model, the spread over 16 defensible calibrations (frame arcs order 1 or 2, x order 1 or 3,
+#       y order 3 or 4, edges blended or pooled): x 0.0031-0.0094, y 0.00024-0.00046.
+#   Totals: 1 sigma x 0.0066-0.0107 in PS3/P2, 1 sigma y 0.00044-0.00063 in T3/T2 (0.019-0.042 % of
+#   the value). Columns sx and sy carry them per point.
+# NOT transcribed. Values carry read error; see validation/out/digitize/a2redo/a2_verify.png.
+x,y,sx,sy
+1.01084,1.30487,0.00679,0.00055
+2.01420,1.44541,0.00714,0.00059
+3.00633,1.57034,0.00779,0.00054
+4.01022,1.68308,0.00834,0.00048
+5.01012,1.78253,0.00868,0.00045
+6.00835,1.87282,0.00888,0.00044
+6.99897,1.95236,0.00900,0.00044
+8.00468,2.02434,0.00912,0.00045
+8.99690,2.08981,0.00948,0.00047
+9.99768,2.15043,0.00952,0.00045
+10.99752,2.20798,0.00975,0.00044
+11.99504,2.26315,0.00993,0.00044
+13.00055,2.31786,0.00995,0.00044
+14.00065,2.37446,0.00973,0.00045
+15.00970,2.43259,0.00918,0.00047
+16.00840,2.49436,0.00831,0.00050
+17.01036,2.56201,0.00725,0.00053
+18.01548,2.63616,0.00658,0.00056
+19.00769,2.71820,0.00854,0.00063
+20.00348,2.80868,0.01073,0.00055

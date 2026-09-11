@@ -1,0 +1,17 @@
+# source: TM-100991 pdf p.40, Figure 6
+# quantity: GAS GENERATOR SPEED, percent vs FUEL FLOW, lb/hr; series: G.E. UNBALANCED TORQUE MODEL
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
+# ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
+# points: 9
+# NOT transcribed. Values carry read error.
+wf_pph,ng_pct
+187.9326,67.5408
+219.0231,84.7762
+312.6320,89.2832
+390.0509,92.0251
+492.1017,94.7929
+662.6004,97.9319
+720.6581,98.3869
+803.6600,101.2029
+872.7090,103.9803

@@ -1,0 +1,60 @@
+             This outer          loop proved           to be strongly              convergent.                 This was verified                by examining            the value of the
+ Lipschitz         constant       for extreme          transient          operating            cases.      With           a sufficiently         small      time step, one iteration
+ of the outer          loop      produces          near-equilibrium                 results.         However,                 the approximation               results      in a value         of
+ iteration     error     which         is a function              of the time             step.      The            time     step must          therefore      be kept       as small         as
+possible       to achieve         minimum            error      and acceptable                 transient             response.
+             The inner          loop was then solved                  iteratively              with algebraic                 equations         modified       for efficient      compu-
+tation.      An expression             for P3        is obtained           from         the combustor                  equation.
+
+
+                                                     P32      -     P3         • P41      -    K_         • T3        • WA312           = 0                                            (75)
+
+Solving       for P3,          the physically         realizable,              positive        real root corresponds                     to
+
+
+                                             P3=        1 (P41+_/P412+4
+                                                        _-                                                • K,_b            T3    • WA312)                                             (76)
+
+From       the coupled           PAl     equation        another          expression              for WA31                is obtained.
+
+
+                                                                           WA31               = W41            -     Wf                                                                (77)
+
+The combustor             equation         is then solved            for P41.             Substituting                the above        expression         for WA31,          solving     the
+choked       nozzle      equation         for W41,           and substituting                  results         in the following               expression       for P41.
+
+
+                                                                                              K.,                                    w,)
+                                                     P41      = P3         -                                   P3                                                                      (78)
+
+             A fixed-point             iteration      was     then        used to solve              the two equations                    for P3         and P41.          The iteration
+converges          linearly,      with a total of eleven                  arithmetic            operations                required     for each pass.          No relaxation           algo-
+rithm     is required          for convergence.              Under        the mostextreme                          conditions,        up to ten iterations           may be required
+for convergence               with less than 0.1 percent                       error,     resulting            in a total of 110 arithmetic                   operations.
+             Pressure         upstream       of the power            turbine,           P45,        may be solved                 independently             of the other pressures,
+but because          it is a nonlinear             function        of its own value,                 iterative             techniques         must    be used.       The quasi-static
+approximation            is made by setting                the derivative               of P45       to zero.             The continuity           equation      relates     mass flows
+at station 4.5.
+
+
+                                          P'45      = 0 = Kv45                 • T45      • (W41           -        W45      + B3B4WA2)                                                (79)
+
+Substituting         the expressions               for mass flow at station                       4.5, the iteration                 function      is given     by
+
+
+                                                              P45     = (W41                  + B3B4WA2)v/'ff'_
+                                                                                                     (e .9                                                                             (80)
+                                                                                                f9 kP45 /
+
+             The     numerator           is a constant             over         the iteration.                 A total        of four arithmetic               operations       and     one
+function-table          look-up         is used       for each       iteration.               Stability            and speed         of execution           were tested        under     ex-
+treme conditions              of an instantaneous    step in fuel flow from flight idle to full power.                                                   Eight iterations       resulted
+in an error equal             to less than O. 1 percent of the steady-state    value.
+             The iteration          method          presented        offers            some       advantages                over other methods                which      may     involve
+preprocessing     or altering               of volume dynamics.    All functional  relationships describe  physical                                                            processes
+between     thermodynamic                  or mechanical states of the components.     Hence, engine performance                                                              can be al-
+tered     by adjustment           of these         functions.        No preprocessing                      programs              are required.        An equilibrium            solution
+
+
+                                                                                               23
+

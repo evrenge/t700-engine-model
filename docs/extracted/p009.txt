@@ -1,0 +1,77 @@
+                                                                        NOMENCLATURE
+
+          Am             area of exposed                 metal;     used in heat-sink            representation
+
+
+          B1             seal-pressurization                 bleed      fraction
+    t
+
+
+
+
+          BE             power-turbine:balance                       bleed      fraction
+
+
+          B3             compressor-diffuser                  bleed       fraction
+
+
+                         specific        heat     of gas; used in heat-sink                   representation
+
+
+          c_             specific        heat     of metal;         used in heat-sink           representation
+
+
+          FAR            ratio     of fuel to atmospheric                    gas in combustor
+
+
+          h              convective             heat     transfer     coefficient;         used in heat-sink             representation
+
+
+           H2            station     2 enthalpy,            Btu/lb,_
+
+
+           _3            station     3 enthalpy,            Btu/Ib,_
+
+
+           /741          station     4.1 enthalpy,                Btu/Ib,_
+
+
+           H'41,_        station     4.1 enthalpy             not including            heat-sink          effects,     Btu/tbm
+
+
+           H44           station     4.4 enthalpy,                Btu/lb,_
+
+p
+
+           I745          station     4.5 enthalpy,                Btu/Ib,_
+
+
+           H49           station     4.9 enthalpy,                Btu/Ib,_
+
+
+               HVF       heating         value         of fuel, Btu/Ib,_
+
+
+               J         moment           of inertia        of all mass          rigidly      attached       to the engine          output
+                         shaft,     ft     . Ibf • sec 2
+
+
+               ,f6T      moment           of inertia        of the rigid mass              which         represents      the gas generator,
+                         compressor,              and the associated                shafting,      ft     • Ibf • sec 2
+
+
+               ,f load   moment           of inertia        of the load mass,              ft • lbf • sec 2
+
+
+               JPT       moment           of inertia        of the power            turbine     and output            shaft,   ft   • Ibf • sec 2
+
+
+               Kb3       station         3 bleed-flow             coefficient
+
+                                                                                                   wl,
+
+                                                                                                   111
+
+
+        _R_EDING         PAGE        BLANK                NOT       FILMED
+

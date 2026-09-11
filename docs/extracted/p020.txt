@@ -1,0 +1,50 @@
+        Figure3 is a representationof the major enginecomponentsandlocations,or stations,within the
+enginewherethermodynamicstatesof the gasmustbemodeled.The six compressorstagesandvariable-
+geometryflow vanesarerepresented    with thecompressorcomponent,betweenstations2 and3. Bleedflow
+which is usedfor sealpressurizationandpowerturbinebalanceis extractedfrom stage4 of thecompressor,
+which is representedby station2.4. Station3 is the compressordiffuser, or outlet. Flow is bled at this
+point to cool the combustorand gasgeneratorturbine. Station3.I is the combustorandstation4.1 is
+the mixing volumerepresentingthe c0mbus_or_utlet andgas-generator-turbine   inlet, The two stagesof
+the gas generatorturbine are modeledby the generatorturbine component. Station4.4 representsthe
+thermodynamicstateof outputgasespassingthroughthis turbine,not including the effectsof the cooling
+bleedflow. Theseeffectsareaddedatstation4.5,which representsthepowerturbineinlet. The two-stage
+power turbineis representedby the powerturbinecomponent.Station4.9 is the powerturbineoutlet, and
+station9 is the engineexhaust.
+
+                                                                 Development                  History
+
+            As a part      of ongoing          research        in turboshaft           engine        technology,         a component-type             mathematical
+model    was developed             by NASA            Lewis      Research       Center        for real-time        hybrid     computer         simulation      (ref. 7).
+It is a greatly       simplified      version        of the nonreal-time              component-type              digital     simulation        developed       by GE.
+It is capable       of representing            the operating          condition           of the major        internal      engine      components          as well      as
+the engine        thermodynamic             cycle.     It was chosen           to serve      as the basis        for development           of a real-time        digital
+simulation.
+            Modeling       simplifications             made      in the development               of the NASA-Lewis                   hybrid    simulation       model
+were    based      on a general          simulation         technique          developed        at NASA-Lewis                (ref. 8) as well as experience
+with small        turboshaft       engines.      Power        turbine    efficiency           as a function        of its speed        was neglected          because,
+for the designed           use of the model,              the power         turbine       deviates      from      design      speed     by only a few percent.
+No modeling           of compressor           surge,     heat-sink      losses,     or exhaust         pressure      losses       was attempted.        Linear     rela-
+tionships      were    used to describe              secondary       effects      such as bleed         flows.     Dynamics           of the variable        geometry
+guide   vanes       also were        assumed           to be instantaneous.                A digital      program           was    developed        using    CSMP,         a
+high-level        system    modeling          language.        It accurately          reproduced         steady-state         operation        of an experimental
+test article operated  at Lewis Research    Center. A real-time                                   fixed-point version   of this program was then
+written for use in interfacing  with control system hardware                                     at Lewis Research    Center. Because of the lack
+of transient       data, no validation           of engine        dynamic         characteristics         was performed              in this phase     of the model
+development          (ref. 7).
+            A real-time        digital      simulation        was developed               in FORTRAN             at NASA          Ames,     based     on the NASA
+Lewis    hybrid       model.     During       the validation         effort     for the real-time         simulation,         some expansion           of the model
+was found         to be necessary.          A function        representing          station     4.9 total pressure           was added,        and a model       of the
+nonadiabatic          energy     transfer      at station      4.1 was required.               A power-turbine              damping       factor    was also added
+to aid in matching             transient      response        at low power            levels.     In each        case,      models     developed       by GE were
+used.
+
+
+
+                                                        Model         Component                 Equations
+
+            The    equations       which       describe       the complete            engine     mathematical            model        are given     below.     As will
+be described          in the Volume          Dynamics         Approximation                section,     implementation             of the model        for real-time
+
+
+                                                                                      6
+

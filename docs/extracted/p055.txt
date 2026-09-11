@@ -1,0 +1,50 @@
+                                               APPENDIX                        A
+T700 ENGINE            MODEL              CONSTANTS                             AND FUNCTION                     TABLES
+
+   Model   constants   and functional     relationships             specific   to the TT00-GE-700      engine   are given   below.
+
+
+                                                    Table A.1
+                                           T700     Engine            Constants
+                         Constant          Value          I                     Units
+                         HVF            18300.0               Btu/Ib,_
+                         JGT            0.0445                ft      • lb/ • sec 2
+                         Jr,r           0.062                 ft • Ib! • sec 2
+                         gbl            0.7826                nondimensional
+                         gb3            0.0025                nondimensional
+
+                         gdamp          0.06854               ft.      lbl . sec/rad
+                         Kd_            0.03045               lb} . sec 2 /Ib_ . in 4 • de9      1:l
+                         i_H2           0.239                 Btu/lb_,    . deg R
+                         KH3a           0.2496                Btu/lb,,         . deg    R
+                         KH32           -8.4                  Btu/Ib,_
+                         KH411          0.3010                BtuLlb_          • deg    R
+                         KH412          -86.905                Btu/lb,_
+                         KH45           0.9623                nondimensional
+                         gpa3           0.956                 nondimensional
+                         Kqc_           0.71                  nondimensional
+                         Kqc2           0.29                  nondimensional
+                         KT411          3.322                 lb,_ • deg R/ Btu
+                         KT41_          288.7                 .deg R
+                         KT45_          3.519                 lb,_ • deg R/Btu
+                         KT452          179.1                 deg R
+                         KT491          3.516                 lb,_ . deg R/Btu
+                         KT492          172.3                 deg R
+                         KTH411         0.0018326             1/deg        R
+                         KTtt412        0.0856                nondimensional
+                         KTH45,         0.0018326             1/deg        R
+                         KTH4_          0.0856                nondimensional
+                         Kv3            0.97                  lb//in      2 • lb,_ • deg     R
+                         Kv41           6.17                  lb//in      2 •lbm.      deg   R
+                         Kv45           13.63                 lbl/in      2 • Ib,_ • deg     R
+                         KWGT           0.0876                Ib,_. ir_ fib/.          sec
+                         NG_,           44700.0               rpm
+                         NP s           20900.0               rpm
+
+                         TOr4_          0.29                  lb_ . sec_ /deg           R_
+
+
+
+
+                                                              41
+

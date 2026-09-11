@@ -1,0 +1,53 @@
+                       T2           =_              WFPTP
+
+
+
+                  Figure    C14.-    Topping    line schedule.
+
+
+
+
+                                          CH
+
+
+NG                                                                       1
+                                                                                         w-
+
+                                                                   CNTLs + 1       PCNGHL
+
+
+
+
+              Figure   C15.-   NG spool        sensor     dynamics.
+
+
+
+
+                       PAS          __              WFPRF
+
+
+
+
+     Figure   C16.-    Power    available      spindle    input    schedule.
+
+
+
+
+                                    NGREF
+
+
+XLDSH
+
+
+
+        i                                •
+                                                                             +    DWFP
+        [__                WFQPS3        _*                         +(       )
+
+         Figure    C17.-    Load    demand      spindle    input      schedule.
+
+
+
+
+                                         77
+

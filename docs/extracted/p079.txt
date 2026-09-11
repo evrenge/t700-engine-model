@@ -1,0 +1,63 @@
+         PS3     L   compressor            discharge         pressure      including         sensor dynamics               and hysteresis,
+                     Ibl/in     2
+
+
+         SPDER       ECU        speed      error    signal,      percent      NP
+
+
+         SPDG        ECU      trim-demand              signal,     volts
+
+
+         SPDS1       ECU      compensated              speed error         signal,     volts
+
+
+         SPDSF       ECU        speed      error    signal      with governor           dynamics;          input    to ECU       error
+                     selector       logic,     volts
+
+
+         SPDSP       ECU      compensated              trim-demand           signal,      volts
+
+
+         SPDSS       ECU      trim-demand              signal     before     compensation,             volts
+
+         T2          inlet temperature,              deg R
+
+         T8          lead-time         constant        for ECU       T4.5     limiter      compensation,             sec
+
+
+         T10         lag-time       constant        for ECU        T4.5 limiter           compensation,            sec
+
+         Tll         lead-time       constant          for ECU       governor,         sec
+
+         T17         lag-time       constant        for ECU        load share,         sec
+
+
+         T45         power       turbine       inlet temperature,            T4.5,      deg R
+
+         T45 COR     ECU      T4.5 thermocouple                  harness     correlation           bias,    deg R
+
+
+         T45 E       measured          T4.5,       deg R
+
+
+         T45 EL      T4.5     sensed       by ECU        thermocouple            harness,          deg R
+
+         T45 L       measuredT4.5               with harness         dynamics,          deg R
+
+         T45 REF     reference       constant          used as maximum               T4.5 limit,           deg R
+
+         TAU45       T4.5     harness        t!me-constant          which      varies        based    on station         4.5 flow
+                     parameter          and T4.5,       sec
+
+
+         TL1         lag-time       constant        1 for ECU           load-share        torque     sensor,       sec
+
+IJ       TL2         lag-time       constant        2 for ECU           load share        torque     sensor,       sec
+!
+!    b
+
+
+
+
+                                                                                     65
+

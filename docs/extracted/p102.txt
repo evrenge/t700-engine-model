@@ -1,0 +1,50 @@
+                                                                 REFERENCES
+
+1. Hull,      R.:     Development             of a Rotorcraft/Propulsion                   Dynamics         Interface       Analysis:         Volume        I. NASA
+           CR-166380,             1982.
+
+2. Howlett,         J. J.: UH-60A          Black      Hawk     Engineering          Simulation        Program:          Volume     I-     Mathematical        Model.
+           NASA         CR-166309,            1981.
+
+3. Mihaloew,           J. R.; Ballin,        M. G.; and Ruttledge,             D. G. C.: Rotorcraft                Flight-Propulsion             Control     Integra-
+           tion.     NASA-Army               Rotorcraft       Technology          Conference          paper,     1987.
+
+4. Kaplita,        T. T.: UH-60A             Black      Hawk     Engineering             Simulation      Model        Validation        and Proposed          Modifi-
+           cations.       Tech.     Rep.      SER-70982,          United     Technologies             Sikorsky     Aircraft,       1984.
+
+5. General          Electric      Aircraft       Engine      Business      Group:         Model       Specification         for T700-GE-701              Turboshaft
+           Engine,       Part I. DARCOM                 CP-2222-02701,              1983.
+
+6. Prescott,         W. E.; and Mabee,                R. L.: T700-GE-700                  Training      Guide.        General      Electric      Aircraft     Engine
+           Business        Group;       Technical         Training      Operation,         1984.
+
+7. Hart, C. E.; and Wensel,                  L. M.: Real-Time              Hybrid        Computer       Simulation          of a Small        Turboshaft      Engine
+           and Control          System.          NASA       TM-83579,         1984.
+
+8. Seldner,         K.; Mihaloew,            J. R.; and Blaha,          R. J.: Generalized            Simulation         Technique         for Turbojet       Engine
+           System        Analysis.        NASA        TN D-6610,           1972.
+
+9. Mihaloew,           J. R.; and Hart,           C. E.: Real Time           Digital       Propulsion          System     Simulation          for Manned        Flight
+           Simulators.          NASA         TM-78958,          1978.
+
+10. Mihaloew,  J. R.: A Nonlinear                      Propulsion        System      Simulation         Technique         for Piloted       Simulators.        NASA
+       TM-82600,     1981.
+
+11. French,          M. W.: Development                   of a Compact        Real-Time            Turbofan       Engine       Dynamic         Simulation.       SAE
+           Rep.       821401,      Society       of Automotive           Engineers,         1982.
+
+12.   Pineo,        E J.: Adaptive            Update        Method       for Embedded              Real-Time        Jet Engine          Models.      M.S.      thesis,
+           Massachusetts             Institute     of Technology,           1985.
+
+13. Ballin, M. G.: Validation                     of a Real-Time           Engineering         Simulation         of the UH-60A             Helicopter.        NASA
+        TM-88360,  1987.
+
+14. Abbott,         W. Y.; Benson,           J. O.; Oliver,       R. C.; and Williams,               R. A.: Validation           Flight    Test of UH-60A          for
+           Rotorcraft          Systems        Integration       Simulator      (RSIS).        USAAEFA             Project      79-24,      United    States     Army
+           Aviation        Engineering           Flight     Activity,     1982.
+
+
+
+
+                                                                                    88
+

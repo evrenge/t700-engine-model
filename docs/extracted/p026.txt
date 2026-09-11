@@ -1,0 +1,62 @@
+This model is providedby GE andis identicalto the modelusedin transientanalysissimulations. The
+aboveequationscanbeexpressedasthe transferfunction
+
+                                                      Tgo
+                                                      _=          T41       = ( hAu-_,-           _-Sm'_
+                                                                                                  %_/s+          1
+                                                                                                                                                                      (50)
+                                                      Tg,        T41,_                   _hA,,,    8
+                                                                                                     + 1
+
+          The time constant             _          is known       to be a function           of mass flow and gas temperature.
+                                          hA,,,
+
+
+                                                                 Mc_,,,     = TCT4Z         • "-------r
+                                                                                              _                                                                       (51)
+                                                                 ham                          W41 _r
+
+where     TCT41      is an empirically            determined       constant.       The value of _                varies      as a function         of gas generator
+speed.
+
+
+                                                                    T41,g,_      = fh..(NGc)                                                                          (52)
+
+
+                                                                        M c_            T41,9,_
+                                                                                                                                                                      (53)
+                                                                        Wgc_            W41
+
+
+                                        REAL-TIME                          IMPLEMENTATION
+
+           Because        of the     high-frequency              dynamics        contained          in the described              model,       the model        must      be
+simplified      for use with real-time              rotorcraft     simulations.         The following           sections         describe      the approximations
+made.
+
+
+
+                                                   Volume Dynamics                      Approximation
+
+           Each of the control            volumes        within the engine          is associated           with a temperature,              pressure,     and change
+of mass of the air and fuel mixture.                    During      steady-state        operation          of the engine,         a state of equilibrium             exists
+between       the control       volumes           for each of these         parameters.            A change          in the state       of any control           volume
+creates      pressure     and mass flow changes                  in the other       control        volumes       until a new equilibrium                  is achieved.
+The dynamics            associated      with this change            of equilibrium            are very rapid,           especially          for a small      turboshaft
+engine     for which       control      volumes         are small        compared        to the high mass              flows.       They      are well outside          the
+bandwidth         of interest      for piloted        handling       qualities      investigations.             The     discrete      modeling           of such high-
+frequency        dynamics        necessitates         stepping      forward        in time in extremely                 small      increments,           resulting     in a
+high computation             overhead       which       is unacceptable          for real-time         simulation.
+             Therefore,      it must be assumed              that pr_ ssures       and mass flows within                  the mixing         volumes        are in equi-
+librium at all times. Such a quasi-steady  approximation    is only valid if it can be shown                                                    that the eliminated
+dynamics   have a negligible  effect on the lower-frequency      engine dynamics.      Several                                                   existing real-time
+simulations        do make        this approximation              to engine        volume         dynamics       (refs.     9, 10, 11, and           12). However,
+the characteristicly            high bandwidth              of blade-element         rotor        simulations         requires      a high propulsion-system
+model     bandwidth.         The validity          of the approximation             therefore        requires        a closer      investigation         when applied
+to a small      turboshaft       engine      which      is coupled        to a high-fidelity           helicopter         simulation.
+             The volume         dynamics          approximation           was shown          to be valid        for small         turboshaft       engines      by com-
+parison      of linear     representations            of two nonlinear            digital     simulations,           one of which            modeled        component
+
+
+                                                                                   12
+

@@ -1,0 +1,50 @@
+toreproduceenginedynamicsfor controlsystemdesignpurposes.Mapsof trim characteristicsof thethree
+modelsareprovidedin figures6 through8. In all cases,thereal-timemodeldisplaysan acceptablesteady-
+stateperformance.Figure6 is a plot of gasgeneratorspeedasa function of fuel flow. The steady-state
+operationof thereal-timemodelis boundedby thetwo analysismodelsover therangeof operationexcept
+between81 and86percentof gasgeneratorspeed.In this area,thereal-timemodeltendsto overestimate
+fuel consumptionby asmuchasfive percent.At highergasgeneratorspeeds,thereal-timemodeldisplays
+the characteristicof the GE unbalancedtorquemodel,requiring lessfuel for a given fuel flow than the
+GE status-81model.Becauseof the limits of thedatasuppliedin thereal-timemodelfunctionalrelations,
+the maximum gasgeneratorspeedfor which the model is valid is 100percent. This is adequatefor the
+intendeduseof the model becausethe fuel control systempreventssteady-stateoperationoutsideof this
+range.Figure7 is a plot of horsepowerasa functionof fuel flow. Thereal-timemodeldisplaysagreement
+with thestatus-81modelover theentireoperatingrangeof theengine.Theunbalancedtorquemodelshows
+lessavailablehorsepowerfor a given fuel flow at high powerlevels. Staticpressureat station3, an input
+to thecontrol system,is shownasa functionof gasgeneratorspeedin figure8. The sametrendsshownin
+figure 6 are seen,with the real-timemodel showingcloseragreementwith the unbalancedtorquemodel
+over mostof the rangeof operation.
+        A comparisonwith availabledatafrom theexperimentalengineoperatedby NASA Lewis is shown
+in tables2 and3. Table2 givesthe ambientconditionsandloading for eachtestcondition, andtable 3
+givesthe resultingtrim operatingconditionsfor the engineandthe real-timemodel. The experimental
+engineis a prototypemodelwhich doesnot reproducespecificationengineperformance.Becauseof this,
+compressor-mass-flow   andturbine-energyfunctionsderivedfromthis testenginewereusedin placeof the
+standardfunctionswhich representspecificationperformance.Thesefunctionswere suppliedby NASA
+Lewis.       For the six cases,             the inlet    and exhaust         conditions,      fuel flow,     and load conditions               were     specified
+so that internal          states    could     be compared.          During      the tests,    the dynamometer             load torque         was adjusted          to
+obtain      a specified      power       turbine      speed.      The model       power       turbine     speed     was   allowed         to vary     in order    to
+achieve  trim with the test load torque.   Fair agreement  is seen in the medium-  and high-power    test cases
+(cases 3 through 6). The real-time    model tends to overestimate   power output by a small percentage    in all
+cases.     Internal     temperatures          and pressures          agree very       well.   At lower      power      settings,     agreement         is poorer.
+The model          overestimates         gas generator           speed   by 4 percent         in case     1. Although          the model      is not valid       for
+such low power            turbine      speeds,     the major       difference     seen in these speeds             is caused     by tile difference          in gas
+generator      speeds       and not in the power               turbine   model.
+
+
+                                                                  Dynamic          Response
+
+            Open loop response               was validated         by comparison           with the GE performance-standard                      status-81    sim-
+ulation.     Time      history      simulation      data were provided             by GE for large-step             fuel flow inputs.          The simulated
+load was a simple            model      representing        the dynamometer             used for testing of the NASA-Lewis                        experimental
+engine.      The      load is variable,          based     on a simulated         collective-pitch        control      input which         was      used to trim
+the power       turbine at the des'gn              speed    for a specified        fuel flow.     Because         of differences         in sophistic,_aou       or
+the two simulations                in modeiing      of off-design        power        turbine speeds,       the power          turbine     speeds     were held
+constant by suppressing the NP integration.    Output torque                                     was therefore         used as a measure               of engine
+power. Some results are presented in figures 9 and 10.
+        As shown in figure 9, the two simulations are in close agreement                                      for a step increase from midpower
+to high power. Gas generator speed is overestimated    by 1 to 2 percent;                                     this is reflected in the trim differ-
+ences      between      the real-time         model      and the status-81         model      in figure    6. Trim values          of station 4.1 and 4.5
+
+
+                                                                                 25
+

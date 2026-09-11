@@ -1,0 +1,26 @@
+# source: TM-100991 pdf p.40, Figure 6
+# quantity: GAS GENERATOR SPEED, percent vs FUEL FLOW, lb/hr; series: G.E. STATUS-81 MODEL
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
+# ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
+# points: 18
+# NOT transcribed. Values carry read error.
+wf_pph,ng_pct
+118.8194,67.5965
+157.2839,75.0596
+165.6614,77.8145
+206.0012,83.8799
+236.3580,85.6930
+347.6935,89.3269
+373.7384,90.2212
+413.9539,91.1551
+447.1440,92.0599
+483.9814,92.9827
+525.6465,93.8902
+570.0078,94.7978
+625.1473,95.6899
+686.4992,96.5773
+757.6333,98.4440
+768.0576,99.8036
+835.7255,101.2445
+854.1877,101.7161

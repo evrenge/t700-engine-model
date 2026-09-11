@@ -1,0 +1,68 @@
+Kbl        fraction     of diffuser      bleed     gas which        is used m cool the gas generator
+           turbine      blades
+
+
+Kdamp      power      turbine    speed     damping        coefficient,         ft • Ibi • sec/rad
+
+
+Kdpb       combustor        pressure      drop coefficient,          lb) • sec2 /Ib_             • in 4 , deg R
+
+
+KH2        station     2 enthalpy      coefficient,       Btu/lb_.         deg R
+
+
+K_3_       station     3 enthalpy      coefficient,       Btu/lb,_        • de9 R
+
+
+K_3_       station     3 enthalpy      coefficient,       Btu/Ib,_
+
+
+           station     4.1 enthalpy       coefficient,       Btu/Ib,,         • deg R
+
+
+K_412      station     4.1 enthalpy       coefficient,       Btu/Ib,_
+
+
+KH45       fraction      of station    4.4 enthalpy         used to represent             station     4.5 enthalpy
+
+
+Kp.3       fraction      of total pressure         at station      3 used to represent
+           static     pressure   at station        3
+
+
+KQc,       empirically-determined                 compressor         torque        coefficient
+
+
+KQc2       empirically-determined                 compressor         torque        coefficient
+
+
+KT411      station      4.1 temperature           coefficient,     ib_.    deg R/Btu
+
+
+KT412      station      4.1 temperature           coefficient,     deg R
+
+
+KT45L       station     4.5 temperature           coefficient,     Ib_,    deg R/Btu
+
+
+KT452       station     4.5 temperature           coefficient,     deg R
+
+
+ KT49_      station     4.9 temperature           coefficient,      Ib_ • deg R/ Btu
+
+
+ KT492      station     4.9 temperature           coefficient,      deg R
+
+
+ _TH411     station     4.1 velocity      ratio coefficient,          1 de9         R
+
+
+ KTH412     station     4.1 velocity      ratio coefficient
+
+
+ K'TH451    station     4.5 velocity      ratio     coefficient,      1/deg         R
+
+
+
+                                                                              iv
+

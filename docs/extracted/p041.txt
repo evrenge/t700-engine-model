@@ -1,0 +1,82 @@
+               2C00                      ......................
+
+
+
+
+               1800                      • REAL-TIME                            MODEL
+                                           G.E. UNBALANCED                                      TORQUE                MODEL
+                                                                                                                                                                                                    X
+                                         × G.E. STATUS-81                               MODEL
+                                                                                                                                                                                            U
+                                                                                                                                                                                                A
+               1600
+
+                                                                                                                                                                       x         _
+
+
+               1400
+
+                                                                                                                                                         X
+
+
+
+
+               1200                                                                                                                          x&
+
+
+        r_
+        UJ                                                                                                                     .X
+
+         0 1000
+         0.
+         uJ
+                                                                                                                      X
+         Q_
+         0
+         .I-
+                                                                                                                 X
+         I--
+         u.     800
+         "I-                                                                                          X
+
+
+
+
+                6OO
+
+
+
+                                                                            X
+
+                400
+
+
+
+
+                                                           O
+
+                 200
+
+
+
+
+Z
+i
+
+i                     0
+
+
+
+
+               -200         ....           =    -   ,,6,       -   -    n       .   ,   .   .     l       ....             m        ....             I       .   .      •    1       ....                |    •   •   •   ,
+
+
+                          1O0            200                           300                      400                       500                       600                     7 O0                        800               900
+                                                                                                          FUEL FLOW,                       Ib/hr
+
+
+    Figure 7:T700                  horsepower              vs. fuel flow for three simulation                                                      models            at sea-level                   standard          atmosphere
+    conditions.
+
+                                                                                                                     27
+

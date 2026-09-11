@@ -1,0 +1,68 @@
+Qc         torque    required      by compressor,          ft     • Ibf
+
+
+Q damp     torque    required      by helicopter         gearbox           (gearbox             damping),       ft        • Ibf
+
+
+Q_w        torque    transmitted        to helicopter       gearbox          from             both engines,          ft     • Ibf
+
+
+QcT        torque    output     of gas generator,          ft.     lb!
+
+
+           torque    required      by helicopter         main rotor,             ft     • Ibf
+
+
+QPr        torque    output     of power      turbine,      ft     • Ibf
+
+
+Qreq       torque    required      by external      load with respect                     to power        turbine          speed,    ft   • Ibf
+
+
+Qt_        torque    required      by helicopter         tail rotor,        ft        • lbf
+
+
+
+T1         station     1 temperature,       deg R
+
+
+T2         station     2 temperature,       deg R
+
+
+T3         station     3 temperature,       deg R
+
+
+T41        station     4.1 temperature,        deg R
+
+
+T41,_      station     4.1 temperature        not including              heat-sink             effects,   deg R
+
+
+T 41sg,_   heat-sink      function
+
+
+T45        station     4.5 temperature,        deg R
+
+
+T49        station     4.9 temperature,        deg R
+
+
+           ambient       temperature,       deg R
+
+
+TCT41      empirically        determined      constant           used in station                4.1 heat-sink
+           representation,         Ibm.    sec_ /deg       R_;
+
+
+           temperature        of gas entering          the heat-sink              representation             control         volume
+
+
+           temperature        of gas leaving       the heat-sink                 representation             control         volume
+
+
+           temperature        of exposed       metal     as used in heat-sink                      representation
+
+
+
+                                                                             vi
+

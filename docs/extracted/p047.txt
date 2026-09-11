@@ -1,0 +1,48 @@
+temperatureareslightly underestimatedby the real-timeprogram;this is a characteristicof the real-time
+model which wasfound for all validation cases.Outputtorque,station3 staticpressure,andtemperature
+responsesarein good agreement.
+         Low power engineperformanceis shownin figure 10, which representsa decreasein fuel flow
+to below-idlepower. Gasgeneratordynamicsareaccuratelyrepresented.Otherreal-timemodeloutputs
+display a slightly different dynamiccharacteristic,althoughzerotorqueis reachedfor both simulations
+at approximatelythe sametime. The real-time model is initially lessresponsive. Under a simplifying
+assumption,the real-time heat-sinkmodel constantswere madeindependentof the direction of power
+change.Additional sophisticationof the heat-sinkrepresentationmay bewarranted.
+         Closed-looppropulsionsystemresponsewasvalidatedby incorporatingtheengineandfuel control
+systeminto the real-timeGenHel UH-60A helicoptersimulation.The NASA-Amesversionof this simu-
+lation is detailedin reference13.This simulationcontainsa real-timeblade-elementmainrotor system,a
+Bailey-typetail rotor model,anda rigid-shaftdrive train model with simplifiedrepresentationsof acces-
+sorypower requirements.A time stepof 14msecwasused;this is a typical value for real-timeexecution
+of the blade-elementrotor. In orderto meetthe cycling requirementsof the iteration model,the T700
+programwas updatedtwice for eachrotor routinecycle, or onceevery7 msec.The power-turbine-speed
+degreeof freedomcorrespondsto thatof thedrive train androtor hub,andwasthereforeupdatedevery 14
+msec.Flight testdataobtainedfromreference14wasusedfor correlation.Thisdataconsistsof single-axis
+control inputsto a vehiclewith all stabilityaugmentationdisabled.The amplitudesof theinputsaresmall,
+ typically not morethan 15percentof the controltravel.
+         The correlationof secondaryeffectssuchaspropulsionsystemresponsedependson adequatecor-
+ relationof the vehicleandrotor systemresponses  with the testdata. Althoughtheblade-elementhelicopter
+ simulationis consideredto be a high-fidelity model,differencesdo exist which arereflectedin tile engine
+ andfuel-control-systemresponses.For all comparisons,the modelconfigurationandtestconditionswere
+ setup tomatchthoseof the flight tests.Time historiesof thetest-aircraftcontrolinputswereusedasdirect
+ inputsto thesimulation.Constantbiaseswereaddedto thecontrolinputsto correctfor smalldiscrepancies
+ betweenthe testaircraft andthe simulationtrim positions.Thereforethe simulationbeginseachtransient
+ responsein trim andthe incrementalchangein a controlinput is identicalto thatof the flight test.Details
+ of the simulationcomparisonwith theflight testsaregiven in reference13.
+         An exampleof a single-axiscollective input at high forward speedis shown in figure 11. The
+ aircraft at a light grossweight wastrimmedat anequivalentairspeedof 90kts. Collectivetrim is in good
+ agreementwith thatof the flight test. Powerrequiredby the aircraft is thereforecorrectly representedby
+ the vehiclesimulation.The outputtorqueof bothelaginesis shownby the secondplot in the figure;this is
+ in goodagreementwith testdatafor the initial trim. The trendsdisplayedby therotor speedtime histories
+ arecorrect. The datasuggestthatthe test aircraft containsgreaterload demandcompensationthan the
+ simulation,however,resultingin lessrotor speeddroop after the initial input. Gasgeneratorspeedand
+ outputtorquetime historiesarealsomoreresponsiveto the initial input. After the input, the testvehicle
+ andsimulationtime historiesdivergedin pitch, with the vehiclereachinga 6-degreenose-upattitudeat6
+ seconds,while thesimulaticuachieveda 2-degreenose-upattitude.Theresultof this is a rapidly-changing,
+ mainrotor required-torquewhich preventsthe testvehiclefrom regainingthe trim rotor speed.
+         Figure 12 showssystemresponseto a lateral cyclic control input at anairspeedof 55 knots. The
+ lateralcyclic trim positionis in goodagreementwith the test,while the collectivetrim positionis slightly
+ higherin the simulation. The enginetorqueis thereforehigher. Again, a divergencein pitch attitude
+ betweenthe simulationandtestdatapreventsa direct comparisonat theendof the run. More rotor-speed
+ droop is seenin the testdatain responseto the initial left cyclic input. The torque,gasgeneratorturbine
+
+                                                  33
+

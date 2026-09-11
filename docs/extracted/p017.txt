@@ -1,0 +1,46 @@
+control system,suchascompressordischargestaticpressureandinternalenginetemperatures.Of some-
+what lessimportanceto piloted simulationarethe internalmassflows, which may be usedto determine
+proximity to limits suchascompressorstall.
+         In the availablereal-timemodels,enginedynamicsarerepresentedby experimentallydetermined
+partial derivativesof changesof outputtorquetochangesin turbinespeedsandfuel flow. Suchmodelsare
+unsatisfactorybecauseneededinternalenginestatesmay not bemodeled.In addition,dynamiccharacter-
+istics of the existingmodelshavebeenshownto beincorrectin comparisonwith experimentaldata(ref.4).
+Partial-derivativemodelstend to be valid only for a limited rangeof operatingconditions. Becausethey
+arenot basedon the physicalphenomenawhich theyrepresent,their validity is alwaysin questionwhen
+usedunderconditionsfor which they arenot designed.
+         An acceptablelevel of fidelity is canbe achievedby usingan enginemodel madeup of individ-
+ual enginecomponents,eachof which is modeledbasedon thermodynamiclaws governingthe engine
+cycle. Suchcomponent-typesimulationsareusedby enginemanufacturersto studythe steady-stateand
+transientbehaviorof engines,but they areusually far too complexfor usein real-time digital simula-
+tion. A componentenginemodel which is simplifiedfor real-timeuseis themostpromisingalternativeto
+partial-derivativeenginerepresentations.
+         As part of a real-timesimulationstudyof the effectsof propulsioncontrol on helicopterhandling
+qualities,a current-generationturboshaftenginewasdevelopedfor usewith the SikorskyGen Hel blade-
+elementsimulation. A versionof Gen Hel representativeof the UH-60A Black Hawk wasavailableat
+Ames,soits powerplant,theGeneralElectric (GE)T700,waschosen.In addition,accuratephysicalmod-
+els of the fuel control system,mechanicalactuatorsandlinkages,andthe enginesensorsweredeveloped
+to an equivalentlevel of sophistication.They are necessaryfor a correctrepresentationof closed-loop
+propulsionsystemdynamics,engineprotectioncontrol,andtheeffectsof controlmodification.This paper
+describesthe developmentof a real-time simplified-componentrepresentationof the engine. Models of
+theenginesensors,the fuel controlsystem,andcontrolactuatorsarealsopresented,but withoutextensive
+discussion.Notethat all usesof "rotor" in this paperrefer to the helicoptermainor tail rotor system,and
+not to engineturbinerotors.
+         I would like to expressappreciationto Dr. RobertT. N. Chenof theFlight DynamicsandControls
+Branchfor his aid andadvicein the developmentof linear modelsusedto verify the volumedynamics
+approximation.RichardMcFarlandof theSimulationInvestigationsBranchprovidedexplanationsof real-
+time numericalmethods,hardwareconstraints,andsoftwareinterfacingthatwereinvaluablein developing
+an acceptablereal-time simulationcode. Specialthanksare given to Mr. Dan Gilmore of the General
+Electric Corporation. Mr. Gilmore was of t,emcr.:loushelp in providing the datausedin the validation
+effort, andhissuggestionsfor improvementstoandexpansionof theengineaJ_d      fuelcontrolsystemmodels
+werecritical to obtaininga valid simulation.
+
+
+                          ENGINE                   AND FUEL CONTROL                                    SYSTEM
+          The engine      modeled         "s a T700-GE-700         (fig. 2), a small turboshaft        engine    of the 1600-hp     clas_ _hich
+powers    the UH-60A           Black     hawk      helicopter.   It consists     of a five-stage     axial and a single-stage        centrifugal
+flow compressor;         a low-fuel-pressure,             flowthrough     annular      combustion       chamber;      a two-stage     axial    flow
+gas generator       turbine;     and      a two-stage       independent        power   turbine     (ref. 5).    The   first   two stages      of the
+compressor    use variable-geometry       inlet guide vanes and stator                    vanes, and air is bled from the compressor
+exit to cool the gas generator    turbine. The power turbine, which                       is uncooled, has a coaxial driveshaft which
+extends   forward      through         the front   of the engine     where      it is connected     to the output     shaft assembly.
+

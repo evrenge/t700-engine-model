@@ -1,0 +1,46 @@
+      T45COR
+
+
+
+
+T45                                              T45L                                                 T45EL
+       +++_    T45E             1                                                         1
+
+                         TLGEs + 1                                                    TAU45$ + 1
+
+
+
+                                                                                              TAU45
+
+
+
+
+P45
+                                                wl/
+
+
+
+
+W45
+                                                i_         W45R         __
+
+
+
+                       Figure       C5.- T700        ECU       thermocouple    harness.
+
+
+
+
+      ET45
+                  d      ZK3+ 1          1                 _        T8=+1+ 1                   TSIG
+                  _1   CT9s                                        T10s
+
+
+
+                                Figure       C6.- T45 compensation.
+
+
+
+
+                                                      73
+

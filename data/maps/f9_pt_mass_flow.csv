@@ -1,0 +1,100 @@
+# source: TM-100991 pdf p.64, Figure A9
+# quantity: f9 -- power turbine corrected mass flow (Eq. 33, pdf p.24: W45c = f9(Ps9/P45))
+# method: digitized -- generative glyph fit on the page's own 300 dpi 1-bit scan, no resampling
+# x: Ps9/P45 power turbine pressure ratio (STATIC station 9 over total station 4.5), nondimensional -- NOT P49/P45; Figure A8 on the facing page uses the total ratio P49/P45 over the identical numeric range with a near-identical axis title, and the two must not be cross-indexed (Eq. 33 vs Eq. 32, pdf p.24)
+# y: f9 = W45C, power turbine corrected mass flow, LBM/SEC
+# sx: 1 sigma uncertainty on x, in Ps9/P45 (same units as x); see `uncertainty:` below
+# sy: 1 sigma uncertainty on y, in LBM/SEC (same units as y); see `uncertainty:` below
+# points: 23
+# digitized: 2026-09-11 by tools/digitize_a9.py (reruns and reproduces these rows)
+# supersedes: the 2026-09-10 extraction by tools/digitize.py on a perspective-rectified 300 dpi render
+# note: RE-DIGITIZED 2026-09-11. The 2026-09-10 values came from a per-axis LINEAR calibration anchored
+#   on the two printed frame values, applied to a pixel-rectified render. Two defects. (a) The page
+#   bows: fitted on the interior ticks alone, a linear y map misses the printed frame values by
+#   0.00019/0.00033 and its interior residual is 14.1e-5 rms, where a cubic leaves 3.7e-5 -- an arch of
+#   up to 5 px. (b) The printed straight frame edges image as ARCS -- left sagitta -0.51 px, right
+#   -0.88, top -0.72, bottom +0.43 -- so a homography (or any four-corner map) is wrong by that much.
+# geometry: `pdfimages` pulls the page's own 300 dpi 1-bit CCITT image; nothing is ever resampled. The
+#   four frame edges are fitted sub-pixel as quadratics (rms 0.41-0.74 px; mid-slopes -0.046, -0.136,
+#   +0.342, +0.595 deg -- a genuine quadrilateral, not one rotation), and plot coordinates are the
+#   curvilinear blend between those four arcs. Rotation, keystone and bow are all carried as a map
+#   applied to the measured points, never as a warp applied to pixels.
+# calibration: every printed tick, not just the long ones -- 56 x ticks at 0.01 on each of the bottom
+#   and top edges, 141 (left) and 139 (right) y ticks at 0.001. The fine lattice is labelled through a
+#   cubic fitted to the long ticks (0.05 in x, 0.01 in y), not through a straight line: a straight line
+#   is several pixels out mid-page, which silently discards a contiguous block of 29 good minor ticks.
+#   Each edge is fitted ALONE as a CUBIC in its own normalized coordinate and opposite edges are
+#   blended across the plot.
+# calibration-model-choice: HELD-OUT TEST. y prints a value at BOTH frame edges (0.25, 0.39) and x at
+#   the right edge only (0.85); each axis was fitted on interior ticks alone and asked to predict the
+#   printed edge it was never given.
+#     y left  : linear -> 0.249846 / 0.390282 (miss -0.00015 / +0.00028), interior rms 15.1e-5;
+#               quadratic -> 0.249816 / 0.390252, rms 15.0e-5;
+#               CUBIC   -> 0.250194 / 0.389873 (+0.00019 / -0.00013), rms 6.2e-5.
+#     y right : linear -> 0.249794 / 0.390196, rms 13.0e-5;  CUBIC -> 0.250097 / 0.389846, rms 5.3e-5.
+#     x bottom: linear -> 0.850425 (miss +0.00042), rms 20.6e-5;  quadratic 0.850331 (+0.00033);
+#               CUBIC -> 0.849844 (-0.00016), rms 11.7e-5.
+#     x top   : linear -> 0.850355 (+0.00036), rms 29.9e-5;  CUBIC -> 0.849901 (-0.00010), rms 16.5e-5.
+#   Cubic on both axes: it is the only order that predicts the printed 0.85 to better than 2e-4, and it
+#   cuts the interior residual by 2.4-2.8x on every edge. The long ticks alone give the same answer
+#   (max 0.00042 in x, 0.000012 in y).
+# left-frame-value: the left frame carries NO printed label. The cubic tick fits, which were never told
+#   about it, put it at 0.30076 (bottom edge, all ticks) and 0.30068 (top); on the long ticks alone,
+#   0.30050 and 0.30028. A linear fit gives 0.30038 / 0.29977. That is the first *measurement* of the
+#   0.30 that the 2026-09-10 header inferred from a tick-count argument, and every model agrees with it
+#   to 8e-4 -- under two pixels. 0.30 is used as the left anchor of the final fit.
+# free-structural-check: the 23 abscissae land on the 0.025 lattice 0.300, 0.325, ... 0.850 to a
+#   maximum of 0.00050 (1.51 px), sd 0.00019 (0.56 px), mean +0.00013 (0.4 px) -- and nothing in the
+#   extraction was told to expect that lattice. A linear x map gives sd 0.00033, a quadratic 0.00030;
+#   the cubic 0.00019. That check independently confirms the x model choice.
+# markers: located by a generative model of the local ink -- glyph stroke 1 at -44.96 deg (half-length
+#   15.00 px) UNION stroke 2 at +45.00 deg (15.00 px) UNION the incoming and outgoing joining
+#   half-segments, all four radiating from one point, rendered by 5x5 supersampling and scored
+#   Sum(coverage - ink)^2 over an unmasked 20 px disc, background included. The joining line is a
+#   separate width parameter from the glyph (2.40 px against 3.60) because on this figure it is much
+#   the thinner. The template is global; only the 23 centres are per-point. Frame lines and ticks are
+#   MASKED, never modelled. Independent check: refit every glyph with the joining polyline masked out
+#   of the score entirely -- the centres agree to 0.48 px max, 0.11 px rms.
+# read-at-magnification: marker 1 sits ON the left frame line, with 0.001 minor ticks passing under it
+#   (the protrusion scan reports a false long tick at y = 612.6, which the lattice filter drops);
+#   marker 23 sits ON the right frame line, 25 px above the printed 0.26 long tick. Both frame bands
+#   are masked for those glyphs. The joining polyline is 1 px wide over the flat run and the scan has
+#   BROKEN it in a dozen places -- the curve is therefore found by an 8-connected component of the
+#   CLOSED mask, since "largest component" on the raw ink returns a fragment. Marker glyphs show six
+#   arms, not four: the four stroke ends plus the two joining segments. No marker is split or merged;
+#   23 markers, matching the independent visual count in inventory-appendix-a.md.
+# uncertainty: per-point 1 sigma by quadrature of three named terms, all printed by the tool --
+#   (1) calibration, the polynomial prediction standard error at that point from the tick scatter:
+#       x 0.00003-0.00008, y 0.000006-0.000010;
+#   (2) glyph, the polyline-masked disagreement above times the local scale: x 0.00012-0.00016,
+#       y 0.000021-0.000029;
+#   (3) model, the spread over 8 defensible calibrations (frame arcs order 1 or 2, y order 3 or 4,
+#       edges blended or pooled) combined with the long-tick / all-tick difference:
+#       x 0.00009-0.00042, y 0.000010-0.000024.
+#   Totals: 1 sigma x 0.00015-0.00044 in Ps9/P45, 1 sigma y 0.000024-0.000037 LBM/SEC (0.007-0.011 % of
+#   the value). Columns sx and sy carry them per point.
+# NOT transcribed. Values carry read error; see validation/out/digitize/a9redo/a9_verify.png.
+x,y,sx,sy
+0.30050,0.372143,0.00044,0.000033
+0.32531,0.372244,0.00035,0.000037
+0.34995,0.371927,0.00025,0.000031
+0.37503,0.371284,0.00019,0.000030
+0.40007,0.370281,0.00017,0.000030
+0.42523,0.368920,0.00016,0.000029
+0.45017,0.367209,0.00017,0.000029
+0.47531,0.365145,0.00018,0.000029
+0.50021,0.362729,0.00018,0.000029
+0.52525,0.359961,0.00018,0.000028
+0.55030,0.357013,0.00018,0.000028
+0.57517,0.354672,0.00018,0.000028
+0.60009,0.350989,0.00017,0.000028
+0.62503,0.346061,0.00017,0.000027
+0.64985,0.339994,0.00018,0.000026
+0.67475,0.332926,0.00018,0.000025
+0.69978,0.324955,0.00018,0.000024
+0.72511,0.316076,0.00018,0.000024
+0.75005,0.306423,0.00018,0.000025
+0.77511,0.296117,0.00017,0.000026
+0.80004,0.284948,0.00016,0.000027
+0.82547,0.273386,0.00015,0.000026
+0.85012,0.261455,0.00018,0.000029

@@ -1,0 +1,19 @@
+# source: TM-100991 pdf p.41, Figure 7
+# quantity: SHAFT HORSEPOWER (no unit printed) vs FUEL FLOW, lb/hr; series: G.E. UNBALANCED TORQUE MODEL
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
+# shp: SHAFT HORSEPOWER (no unit printed), axis -200.0 to 2000.0
+# points: 11
+# NOT transcribed. Values carry read error.
+wf_pph,shp
+202.3459,77.9418
+253.4311,203.7436
+312.8940,423.8134
+489.7353,914.0858
+580.0998,1177.0404
+656.5936,1391.3708
+713.5416,1510.3917
+760.1794,1611.6629
+795.0487,1693.0589
+817.8340,1737.9340
+862.1524,1803.6607

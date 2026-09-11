@@ -1,0 +1,41 @@
+                     Table      C.1
+
+   T700 Fuel Control           System       Constants
+ Constant    Value                          Units
+AWFP          0.05909          lb,_ • in 2/lb I • hr.       %
+B6            1.0              nondimensional
+BWFP          -3.927           lb,, • in 2/lbf.      hr
+CB            0.75             %NP
+CE            13.21            % NP
+CH            0.05             % NG
+CLMV          0.03             sec
+CLLDS         0.2              sec
+CNTL          0.025            sec
+CORR          2010 ....        nondimensional
+CR            20.0             nondimensional
+CT2           0.088            sec
+CT7           1.0              sec
+                                      r,,
+
+
+CT9           0.010            sec
+CT12          0.088            aec
+CT13          1.0              sec
+CT14          0.10             sec
+CT16          1.0              sec
+CTPL          0.010            sec
+CTPS3         0.010            sec
+DBIAS         3.25             %NP
+K N D RP      0.25             lb,n . in 2 /lb[     . hr.   %
+NGREF         101.0            %NG
+PS3     HYS   0.375            tb/l in2
+T8            0.40             sec
+T10           0.050            sec
+Tll           0.87             sec
+7'17          0.010            sec
+
+
+
+
+                          69
+

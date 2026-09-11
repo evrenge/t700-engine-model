@@ -1,0 +1,50 @@
+CTPL         lag time constant              for power       turbine       speed     sensor,        sec
+
+CTPS3        lag time constant              for compressor          static-discharge               pressure        sensor,     sec
+
+DBIAS        lower    limit and bias for ECU                   load share         authority,        percent        NP
+
+DWFP         fuel flow command                 for HMU         load-demand              spindle,         lb,_. in 2/Ibf      • hr
+
+DWFPL        fuel    flow command              for HMU         load-demand              spindle      including        dynamics,
+             lb,_ • in 2/Ibf.       hr
+
+ET45         T4.5 error      signal,        deg R
+
+
+HMUSEL       Wf/P,3       demand            after limiting        by idle, acceleration,                 and deceleration
+             cams,    Ib,_ • in2 /Ibf         . hr
+
+KNDRP        droop    line slope,          A(Wf/P,3)           /APCNG,              lbm • ir_ /lbf           . hr • percent
+
+NG           rotational     speed         of compressor           and gas generator,               rpm
+
+NGREF        NG reference          speed       in percent       of design         speed,     percent          NG
+
+P45          total pressure        at power          turbine    inlet, ibf/in       z
+
+PAS          angle    of power           available     spindle,     deg
+
+PCNG         rotational    speed          of compressor           and gas generator               in percent
+             of design     speed,         percent   NG
+
+
+PCNGI        set point    value      of gas generator             speed     determined             by idle schedule,            percent        NG
+
+PCNGHL       gas generator         speed       including       sensor      dynamics         and hysteresis,             percent         NG
+
+PCNP         rotational     speed        of power       turbine     in percent          of design         speed,     percent         NP
+
+PCPRF        reference     rotational         speed     of pc ver turbine            as set by cockpit               control,        percent    NP
+
+PNG          set point    value     of gas generator              speed    determined             by load demand-
+             compensation          circuit,      percent       NG
+
+PS3          compressor         static     discharge       pressure,       Ibf/in    z
+
+PS3    HYS   compressor         discharge-pressure-sensor                   hysteresis,        Ibf/in        2
+
+
+
+                                                                          64
+

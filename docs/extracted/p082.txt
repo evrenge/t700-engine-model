@@ -1,0 +1,21 @@
+ZK5      ECU     governor-rate-compensation        loop gain
+
+ZK7      NP      loop proportional      gain for ECU   governor     rate compensation
+
+ZK8      ECU     load-share-path       gain
+
+ZK9
+         speed    error   trim gain for ECU    governor     rate compensation
+
+ZKIO
+         additional gain loop for ECU governor              rate compensation     for errors    greater
+         than the absolute  value of CB
+
+
+ZLOLIM   ECU     proportional-plus-integral     compensation        integrator   minimum       limit
+
+
+
+
+                                                       68
+

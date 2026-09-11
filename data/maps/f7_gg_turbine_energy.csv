@@ -1,0 +1,183 @@
+# source: TM-100991 pdf p.62, Figure A7
+# quantity: f7 -- gas-generator turbine energy (Eq. 26, pdf p.24: dH_GT = theta41 * f7(P45/P41))
+# method: digitized -- generative glyph fit on the page's own 300 dpi 1-bit scan, no resampling
+# x: P45/P41 gas generator turbine pressure ratio, nondimensional
+# y: f7, gas generator enthalpy drop parameter, BTU/LBM
+# sx: 1 sigma uncertainty on x, in P45/P41 (same units as x); see `uncertainty:` below
+# sy: 1 sigma uncertainty on y, in BTU/LBM (same units as y); see `uncertainty:` below
+# points: 6
+# digitized: 2026-09-11 by tools/digitize_a7.py (reruns and reproduces these rows)
+# supersedes: the 2026-09-11 first redo (quadratic y, homography, major ticks only) and the
+#   2026-09-10 extraction by tools/digitize.py before it
+#
+# WHAT CHANGED, AND WHY. The first redo chose the y axis order on ONE printed frame value
+# (52.5 at the top) and could not tell an even axis correction from an odd one; a quadratic
+# and a quartic both fitted, and they disagreed by up to 0.1 BTU/LBM. This recalibration
+# settles it with three things that redo did not use:
+#   (a) BOTH y frame values. The bottom frame is unlabelled, and the tick lattice fixes it:
+#       measured by a straight line through the ticks alone, the frame spans 13.029 (left)
+#       and 13.033 (right) major steps of 2.5 -- and 130.29 / 130.33 minor steps of 0.25 --
+#       so it is a lattice point and the bottom frame is 20.0 EXACTLY (margin to the wrong
+#       integer 0.97 of a major step). Same argument on x: 14.996 / 15.022 steps of 0.01,
+#       so the unlabelled left frame is 0.20 exactly against the printed 0.35 at the right.
+#   (b) THE MINOR TICKS. 0.25 in y (131 on the left edge, 127 on the right) and 0.002 in x
+#       (76 and 77) -- ten times the data the long ticks give, and enough to fit and TEST an
+#       order-5 axis map where twelve long ticks per edge cannot.
+#   (c) FRAME ARCS, not a homography. See GEOMETRY.
+#
+# RASTER. `pdfimages -list -f 62` shows p.62 is a single 300 dpi 1-bit CCITT image
+# (2544x3300), so every render above 300 dpi is an upsample of that bitmap and can add no
+# detail. This extraction works on the bitmap itself, pulled out with `pdfimages`, and is
+# NEVER resampled: rotation, keystone and page bow are all carried as a coordinate map
+# applied to the measured points, so no interpolation ever touches a datum. (A 900 dpi
+# pdftoppm re-run of the first redo agreed on x to 2e-5 and on the marker rows to 0.13 px,
+# with worse ticks. 300 dpi native wins.)
+#
+# GEOMETRY. The four printed-straight frame edges image as ARCS and are fitted sub-pixel as
+# quadratics in the coordinate along them (rms 0.54-0.89 px over 1046-1999 rows/columns;
+# sagitta -0.44 left, -0.75 right, -0.38 top, -0.14 bottom; mid-slopes -0.552, -0.650,
+# +0.766, +1.018 deg -- a genuine quadrilateral, not one rotation). Plot coordinates are the
+# curvilinear blend between those four arcs (`digitize_native.make_sv`): s = 0 on the left
+# arc and 1 on the right, v = 0 on the bottom and 1 on the top. A homography, i.e. four
+# straight edges, is wrong by the sagitta in mid-page.
+#   left   x = 483.695111 - 0.010660077 y + 3.48246742e-07 y^2
+#   right  x = 2144.79552 - 0.013059707 y + 5.84276608e-07 y^2
+#   top    y = 297.768461 + 0.011835698 x + 5.87046368e-07 x^2
+#   bottom y = 2631.58602 + 0.017181027 x + 2.26212413e-07 x^2
+#
+# CALIBRATION. Every printed tick on all four edges, located by the ink-weighted centroid of
+# the excess run length through the edge. Long ticks are labelled by `label_ticks` (a
+# DISCRETE slot choice from the two frame values, so it cannot leak into the continuous fit
+# that is later tested against them); the fine lattice is then labelled through a cubic
+# fitted to the long ticks, never through the straight line between the corners, which is
+# several pixels out mid-page. y: 131 (left) and 127 (right) ticks at 0.25, every lattice
+# slot from 20.0 to 52.5 filled at most once and none twice; the left edge has all 131.
+# x: 76 and 77 ticks at 0.002, all slots filled exactly once. Marker 1's arms leave two
+# false long ticks on the left edge (y = 604.4, 614.5) and marker 6 leaves three on the
+# right (2324.0, 2329.2, 2339.4); `label_ticks` drops all five on structure, not on count.
+#   Each edge is fitted ALONE and the two are blended across the plot; the fit passes
+#   EXACTLY through both frame values (`fit_anchored`: lo + (hi-lo)t + t(1-t)q(t)) rather
+#   than carrying them as two extra data points among 76 ticks. The frame value is known and
+#   its pixel position comes from a ~1900-row fit, so it is the best-determined datum on the
+#   axis; with the soft anchor the order-3 x map missed the left frame by 2.0 px and marker
+#   1 SITS on that frame.
+#   y = quintic in v, interior tick residual 0.0074 (left) / 0.0080 (right) BTU/LBM rms:
+#     left  y = 20 + 31.914763 v + 1.792026 v^2 + 1.280879 v^3 - 5.945701 v^4 + 3.458034 v^5
+#     right y = 20 + 31.873395 v + 2.074890 v^2 + 1.131781 v^3 - 6.276161 v^4 + 3.696094 v^5
+#   x = cubic in s, residual 0.6e-4 / 0.7e-4:
+#     bottom x = 0.2 + 0.149594 s + 0.000973 s^2 - 0.000567 s^3
+#     top    x = 0.2 + 0.149383 s + 0.003125 s^2 - 0.002508 s^3
+#
+# CALIBRATION-MODEL CHOICE: HELD-OUT FRAME TEST, GUARDED BY LEAVE-ONE-TICK-OUT. Each axis is
+# fitted on the interior ticks ALONE and asked to predict both frame values it was never
+# given; the order chosen is the one with the smallest worst-frame error among orders whose
+# leave-one-tick-out error is within 1.2x of the best (ties within 1.25x to the lower order).
+# y, left edge, 129 interior ticks (right edge in brackets, 125):
+#   order 1: interior rms 0.0333 [0.0402], LOO 0.0338 [0.0408], bottom -0.026 [-0.022], top +0.050 [+0.065]
+#   order 2: interior rms 0.0233 [0.0263], LOO 0.0240 [0.0271], bottom -0.081 [-0.091], top -0.004 [-0.004]
+#   order 3: interior rms 0.0144 [0.0153], LOO 0.0150 [0.0159], bottom -0.029 [-0.032], top -0.055 [-0.062]
+#   order 4: interior rms 0.0086 [0.0089], LOO 0.0090 [0.0093], bottom +0.009 [+0.008], top -0.018 [-0.023]
+#   order 5: interior rms 0.0073 [0.0078], LOO 0.0077 [0.0081], bottom -0.009 [-0.008], top -0.001 [-0.007]
+#   order 6: interior rms 0.0073 [0.0078], LOO 0.0076 [0.0082], bottom -0.012 [-0.010], top -0.004 [-0.008]
+#   Orders 4, 5, 6 pass the LOO guard on both edges; order 5 has the smallest worst-frame
+#   error on both (0.0085 / 0.0081 against 0.0177 / 0.0227 for order 4). ORDER 5.
+#   The QUADRATIC IN USE BEFORE fails: it hits the printed 52.5 (that is what it was chosen
+#   on) and misses the derived 20.0 by 0.081-0.091 BTU/LBM, with three times order 5's
+#   interior residual. On the LONG ticks alone the same test can only reach order 4 (LOO
+#   rejects 5 and 6 on 12 ticks per edge) -- which is why the fine lattice was needed.
+# x, bottom edge, 74 interior ticks (top edge in brackets, 74), errors in units of 1e-4:
+#   order 1: LOO 0.68 [0.73], left -0.02 [+0.20], right -0.41 [+2.51]
+#   order 2: LOO 0.69 [0.72], left +0.14 [+0.64], right -0.24 [+2.96]
+#   order 3: LOO 0.38 [0.36], left +1.71 [+2.32], right -1.80 [+1.24]
+#   order 4: LOO 0.38 [0.36], left +1.51 [+2.15], right -2.00 [+1.07]
+#   order 5: LOO 0.34 [0.36], left +0.90 [+1.86], right -1.39 [+1.38]
+#   Orders 1 and 2 are rejected by the LOO guard (1.8-2.0x the best); among 3, 4, 5 and 6 the
+#   frame errors are a statistical tie (all within 1.26x) so parsimony takes the lowest,
+#   ORDER 3 -- which is also what the parity decomposition says the x bow is.
+# PARITY. Legendre coefficients of the y value function, in page pixels, left edge [right]:
+#   P2 (even) -3.77+-0.11 [-4.83+-0.12], 35 sigma [41]; P3 (odd) -3.52+-0.13 [-4.14+-0.14],
+#   27 [30]; P4 (even) +2.56+-0.15 [+2.71+-0.16], 17 [17]; P5 (odd) +1.13+-0.16 [+1.08+-0.18],
+#   6.9 [6.0]; P6 -0.22+-0.18 [-0.09+-0.19], 1.2 [0.4]. The bow is BOTH even and odd, at
+#   comparable amplitude, which is exactly why no quadratic and no cubic can pass both frame
+#   tests, and why one printed frame value could never have settled the order. On x the same
+#   decomposition gives P3 -1.62+-0.12 [-1.78+-0.12] (14 sigma on both edges) with P2, P4, P5
+#   at 1-4 sigma: a linear map plus a cubic wiggle of +-1.7 px.
+#
+# MARKERS. Six 'x' glyphs, matching inventory-appendix-a.md. Seeded by 6x6 morphological
+# opening (a SHAPE detector: the 3.5 px joining line and every tick are erased, a stroke
+# crossing survives) -- exactly six cores inside the frame, then a 1 px grid search of the
+# glyph model over +-16 px, then the generative fit. Model: stroke1 U stroke2 U incoming
+# half-segment U outgoing half-segment, all four radiating from one point, 5x5 supersampled
+# to a sub-pixel area fraction and scored as sum (coverage - ink)^2 over an unmasked disc of
+# radius 20 px, on BACKGROUND as well as ink. The template is global (the plotter drew the
+# same mark six times): strokes at -44.00 deg / 14.76 px and +46.00 deg / 15.10 px, glyph
+# width 3.46 px, joining-line width 3.52 px. The joining polyline is MODELLED, not avoided:
+# at marker 4 the two adjacent segments differ by 1.0 deg and the glyph's NW and SE arms are
+# entirely inside the line. Frame lines and ticks are MASKED, never modelled, and the mask is
+# SYMMETRIC about the frame line (|d| < 7 px on both sides) so that stripping the inward,
+# ticked half alone cannot pull a frame-sitting centre outward: marker 1 sits on the left
+# frame with a minor tick hidden under it at y = 608.6, marker 6 on the right frame with a
+# minor tick on its NW arm at y ~ 2323. Fitted centres, image px:
+#   m1 (477.82, 608.97)   m2 (637.33, 1180.13)  m3 (691.56, 1272.17)
+#   m4 (746.81, 1327.59)  m5 (801.28, 1384.34)  m6 (2118.71, 2333.44)
+# These agree with the first redo's independently fitted centres to 0.25 px at every point,
+# so this revision moves NOTHING by detection; it is calibration end to end.
+#
+# CHECKS THE EXTRACTION WAS NOT TOLD TO PASS.
+#  1. The six abscissae land on a 0.005 lattice -- 0.200, 0.215, 0.220, 0.225, 0.230, 0.350 --
+#     to max 1.1e-4 (1.20 px), sd 0.6e-4 (0.64 px), mean 0.0e-4. The 1.20 px is marker 6,
+#     which really does sit that far outside the right frame line; the four interior markers
+#     land within 0.65 px.
+#  2. Marker count with no detector: walking the ink along each fitted joining segment in
+#     10 px bins, every excess over the line's own baseline sits at a segment endpoint and
+#     there is no interior excess anywhere, including on the 583 px segment 1 and the 1627 px
+#     segment 5. Six markers, no seventh.
+#  3. Each fitted centre sits mean -0.12 px, sd 0.53, max 1.03 from the joining segments
+#     fitted either side of it from ink 26 px clear of every marker. The near-zero mean
+#     excludes a common-mode glyph bias perpendicular to the curve.
+#  4. Local two-tick interpolation (linear between the two minor ticks that bracket the
+#     point, on each edge, blended) -- bow-free, because it never fits a bow. Chosen model
+#     minus two-tick: -0.002, +0.001, -0.009, +0.001, +0.013, -0.007 BTU/LBM. The quintic is
+#     not wandering between ticks.
+#  5. Refitting each glyph with the joining polyline masked out of the score entirely
+#     instead of modelled moves the centres by at most 0.71 px.
+#
+# UNCERTAINTY, per point, 1 sigma, in data units, by quadrature of three measured terms --
+# calibration (the axis polynomial's prediction standard error at that point, from the tick
+# scatter), glyph (the worst centre disagreement over: polyline masked out entirely, window
+# radius 17/20/23 px, frame-mask width 5.5/7/8.5 px, floored at 0.35 px, times the local
+# scale), and model (the spread over 72 defensible calibrations: frame arcs order 1 or 2,
+# x order 1/3/5, y order 3/4/5, edges blended or pooled, frame values anchored exactly or
+# softly, plus long-tick against all-tick calibration). The model term is deliberately
+# conservative -- it includes y order 3, which the held-out test rejects; over the orders
+# that pass it is 2.7x smaller (y sd max 0.0051 against 0.0139).
+#   x: 4.5e-5 to 8.4e-5 in P45/P41 (0.5 to 0.9 px)
+#   y: 0.0114 to 0.0166 BTU/LBM (0.029 % at the knee, 0.034 % at marker 1, 0.062 % at marker 6)
+# Segment slopes are -526.4, -254.7, -150.8, -156.8 and -108.1 BTU/LBM per unit P45/P41, so on
+# the steep first segment the x uncertainty alone is worth 0.04 BTU/LBM (0.09 %) and it, not
+# the y uncertainty, sets the error of an INTERPOLATED f7 there; past marker 2 it is 0.013
+# BTU/LBM or less and y dominates.
+#
+# MOVEMENT from the first 2026-09-11 redo, in sigma of this extraction:
+#   1  x 0.199937 -> 0.200044 (+1.4)   y 48.2815 -> 48.2596 (-1.3)
+#   2  x 0.214923 -> 0.214956 (+0.4)   y 40.3985 -> 40.4095 (+0.8)
+#   3  x 0.219917 -> 0.219942 (+0.5)   y 39.1268 -> 39.1397 (+1.1)
+#   4  x 0.224969 -> 0.224989 (+0.4)   y 38.3672 -> 38.3785 (+1.0)
+#   5  x 0.229970 -> 0.229971 (+0.0)   y 37.5898 -> 37.5973 (+0.7)
+#   6  x 0.350096 -> 0.350109 (+0.2)   y 24.6064 -> 24.6074 (+0.1)
+# Every move is inside 1.4 sigma. The axis ORDER alone (quadratic -> quintic, everything else
+# held) is worth -0.004, +0.044, +0.042, +0.039, +0.034, -0.068 BTU/LBM; anchoring the
+# derived 20.0 at the bottom frame is worth -0.001, -0.011, -0.011, -0.010, -0.010, +0.028;
+# the fine lattice +0.004 at the knee and the frame arcs -0.002. They partly cancel, which is
+# why the published values move by only a tenth of what the order alone does. The old
+# calibration, rebuilt in full and applied to the old centres, reproduces the superseded CSV
+# to 0.0006 BTU/LBM, so this comparison is like for like.
+#
+# NOT transcribed. Values carry read error; see validation/out/digitize/a7redo/.
+x,y,sx,sy
+0.200044,48.2596,0.000076,0.0166
+0.214956,40.4095,0.000074,0.0135
+0.219942,39.1397,0.000047,0.0114
+0.224989,38.3785,0.000045,0.0116
+0.229971,37.5973,0.000045,0.0115
+0.350109,24.6074,0.000084,0.0152

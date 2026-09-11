@@ -1,0 +1,47 @@
+speed,     and fuel flow time histories                    suggest          that the input causes               an increase           in torque       required         by the main
+rotor in test which is absent in the vehicle                              simulation.           Rotor      speed      is shown         to agree       to within         0.2 percent
+over the duration of the run.
+            An example               of high-power              operation        can be seen in figure                 13, which          is a 1-inch-down                collective
+input     at hover.        In this case,          the collective          trims      do not match            well,     a result        of the simplified               vehicle     sim-
+ulation     of rotor        downwash             impingement             on the fuselage            and      stabilator        when       in hover       (ref.     13). Because
+the simulation             requires       less power,         its torque,        fuel flow, and gas generator                     trim values           are lower         than their
+test data     counterparts.               Trends       in the data          are reproduced              well,   however.              As in all cases,           the simulation
+fuel flow appears              to be more           oscillatory         than the test data.              This is attributed              to the location           of the sensor
+used in the test vehicle;                 it was mounted             upstream           of both engines            and therefore               did not correctly           represent
+the fuel     flow      transients.          As in figure           11, there         is evidence           of greater         load     demand         compensation               in the
+test, as shown          by a slight droop               in rotor        speed     during     the input and also in a more-quickly-responding                                        gas
+generator         speed.
+            Another         high power            case is shown          without        the influences          of the load demand                 compensation             in figure
+14, which          illustrates        the propulsion             system         response        to a pedal         input.      As in all hover                cases,     the engine
+operates      at a slightly            lower      power     output        because        of the incorrect             collective-trim             position.        As shown            by
+the figure,        the pedal          trim is correct.           Rotor      speed       changes         in the test data          appear         to be be greater,           despite
+greater      gas-generator               speed     changes.         Changes            in power        required       by the aircraft              are therefore           probably
+greater.      After     7.5 seconds,              the test vehicle           and the simulation                 had diverged             in pitch,      resulting         in a poor
+rotor     speed     match        after this point.
+            An example               of response        to a large        transient        input    is shown          in figure        15. The test data               for this case
+were      generated         by Sikorsky.            Control       inputs        were     significant        on all four axes,             although        the primary            input
+was a lowering             of collective          from the trim position                at 87 knots to the full-down                     position       in one second.             This
+results     in nearly         zero-G       flight     immediately            after      the input.        Because           the vehicle          stabilator      was      in an off-
+nominal       position,          large     rotor-hub       moments           cause       large-amplitude              first-harmonic              oscillations          in required
+torque.      The      frequency          shown       by the simulation               time history          is correct;        it is equal        to the number             of blades
+times      the rotor       rotational        frequency.           The     frequency         shown        by the test data is not correct.                        It is an aliased
+frequency          caused        by a large         test-data      time step.          Rotor       speed     trends       are shown            to be in good            agreement.
+The evidence            of increased             load-demand            compensation             in the test is again                shown       by a lack of initial             rotor
+overspeed          in the test data.
+            Dynamic           response           of the propulsion           system        is at a level of fidelity              comparable            to that of the blade-
+element       helicopter         simulation.          Propulsion          system        damping         is slightly         greater     than that indicated              by the test
+data, and the load demand                        compensation            is greater        in the test data.           For cases          which      are not influenced                by
+the load demand               compensation,             rotor     speed      variations         appear      to be slightly            larger     in the test data, although
+there is evidence  in some instances                            that changes   in torque required by the vehicle are greater than those
+requ_ed   by the vehicle simulation.                            All mechanical   actuator and sensor nonlinearities were modeled   with
+lags, transport            delays,       and hysteresis          loops      as nrovided          by GE. Better              correlation         may possibly            be attained
+by modification of these simple models.                                  Greater model sophistication may also be necessary.  Additions
+may include an explicit variable-geometry                                 guide vane model with dynamics  and heat-sink model constants
+which are a function  of increasing   and decreasing                                       power.        A small        effective         lag may        be added           with    the
+inclusion of a T45 heat-sink   model.
+
+
+
+
+                                                                                           36
+

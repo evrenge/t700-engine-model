@@ -1,0 +1,66 @@
+TLGE     T4.5-harness           time constant,         sec
+
+
+TMDB     HMU      torque       motor      deadband,          ma
+
+
+TMGN     HMU      torque       motor      sensitivity,        in/ms         • sec
+
+
+TMLG     HMU      torque       motor      linkage      gain,      lb_ • in 2/Ibf          • hr • in
+
+
+TMLVG    HMU      torque       motor      LVDT        feedback         gain, volts/in
+
+
+TMRU     Wf/P,3         trim signal        from torque            motor      based       on ECU        trim signal,
+         lb._ • in 2/Ibf.        hr
+
+
+TORQ45   power      turbine      torque     (identical         to QPT),         ft.     IbI
+
+
+TRQER    sensed     torque      error between            two engines            operating        in parallel,     ft    • Ibf
+
+
+TRQL     sensed     power-turbine            output      torque,       ft -       Ibf
+
+
+TSIG     compensated            T4.5     error signal;         input       to ECU        error selector       logic,    volts
+
+
+W45      power-turbine-inlet              mass flow rate, Ib./hr
+
+
+W45R     power      turbine      flow parameter
+
+
+WF       fuel flow, Ib_/sec
+
+WFIDM    minimum         value        of Wf/P.3          demand        regardless             of all other commands,
+         Ib,_ . in 2/Ibf.        hr
+
+
+WFIRF    set point      value      of Wf / P_3 determined                    by idle schedule,           lb._ • in 2 /lbf       • hr
+
+
+WFMAX    maximum           available       fuel flow; represents                 maximum           aperture
+         in metering          valve,     Ibm/hr
+
+
+WFMIN    minimum         available        fuel flow;         represents         minimum           flow stop
+         in metering          valve,     Ib./hr
+
+
+WFMV      fuel flow required            by HMU;          results       from multiplication              of WffP_3
+          and P.3       via mechanical            linkage,        lb./hr
+
+
+WFPAC    maximum           value       of Wf/P.3         demand            during       acceleration      transients;
+         prevents       compressor          stall, Ib_ • in 2/Ibf.               hr
+
+
+
+
+                                                                           66
+

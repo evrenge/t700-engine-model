@@ -1,0 +1,23 @@
+    STATION                   2            2.4         3    3.1                 4.1     4.4     4.5   4.9
+
+                              I                        IJ                                   I
+i
+
+
+
+                                                              WF
+
+
+
+
+                                    COMPRESSOR             COMBUSTOR           GAS                 POWER
+                                                                            GENERATOR             TURBINE
+
+
+              Figure   3: Primary   components       of a small    turboshaft     engine.
+
+
+
+
+                                                 7
+

@@ -1,0 +1,70 @@
+WFPDC      minimum            value     of Wf/P.3                   demand         during     deceleration          transients;
+           prevents       engine        flameout,             lb.,.     in2/lbf,         hr
+
+
+W F P DC H maximum            limit on Wf / P,3                     demand         during deceleration,              Ib,. . in2 / Ibf • h r
+
+
+WFPDCL     minimum            limit on Wf/P.3                    demand          during       deceleration,          Ib,,,. in2/lbf      • hr
+
+
+WFPDM      commanded             Wf/P.3               signal        before      limiting      selector      logic,     lb.,. in 2/Ibf. hr
+
+WFPRF      maximum            available          Wf/P.3               signal;      set by power          available      spindle,
+           lb,_ . in =/Ibf.            hr
+
+
+WFPTP      Wf / P,3          topping         signal,         lb,, . in 2/lb I • hr
+
+
+WFQPS3     set point         value     of Wf/P,3               determined             by load demand              compensation
+           circuit,     Ib,_ • in 2/Ibf.              hr
+
+
+XCPC       helicopter         collective             pitch     position         in percent       of maximum,            percent
+
+
+X HILIM    torque      motor         maximum               limit,      in/sec
+
+
+XKINTG     ECU        proportional-plus-integral                         compensation               integral-path       gain
+
+
+XKPROP     ECU        proportional-plus-integral                         compensation               proportional-path             gain
+
+
+XLDHYS     load demand               spindle         hysteresis,         deg
+
+
+XLDSA      load demand               spindle         angle,      deg
+
+
+XLDSH      load demand               spindle         angle with hysteresis,                   deg
+
+
+XLOLIM     torque      motor         minimum               limit,     in/sec
+
+
+XQLO       load share          error        input,     percent          NP
+
+
+VHILIM     engine       torque-integrator                    maximum            limit for nonlinear              NP loop gain circuit
+
+
+YLOLIM     engine       torque-integrator                    minimum            limit for nonlinear              NP loop gain circuit
+
+
+ZHILIM     ECU        proportional-plus-integral                         compensation               integrator       maximum          limit
+
+
+ZK1        NP       loop additional              proportional                gain for ECU            governor        rate compensation
+           used during           high power                operation
+
+
+ZK3        ECU        T4.5     compensation-circuit                       gain
+
+
+
+
+                                                                                    67
+

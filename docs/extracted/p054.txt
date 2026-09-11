@@ -1,0 +1,25 @@
+                                                                CONCLUSIONS
+
+            As the maneuvering            envelope           of helicopters        is widened         for increasingly          demanding          mission      tasks,
+the associated       large-amplitude             transients       in aircraft    power      require      high-fidelity       modeling        of the propulsion
+system.      The real-time          digital      simulation        of a small       turboshaft          engine     fills this need        in pilot-in-the-loop
+handling      qualities   investigations              involving       such power          transients.      Applications         include      real-time        studies
+of the effect     of rotor speed        variation        on handling         qualities,     investigations         of new fuel control             and flight con-
+trol methodologies,          and      simulations          of rotorcraft        engine      degradation          and failure.      The model           adequately
+reproduces       trim performance              over      the complete        flight-power         operating        range    as well as dynamics               associ-
+ated    with changing        load      conditions.           Engine     degradation         is easily      modeled         by modifying            compressor        or
+turbine     flow and energy          functions.          The digital      fuel control        system       model     is separate     and may be modified
+or replaced      depending      on user requirements.
+            Validation    results      suggest        that the static      and dynamic          fidelity    of the model         is within    the limits        of the
+fidelity    of current    rotorcraft          simulations.        The modeling            of high-speed          dynamics        which     represent         changes
+of mass      flow between      the internal           control      volumes      was found         to be unnecessary.            Several      refinements         were
+found      to be necessary      to obtain         correct       propulsion       system       response,       however.       These       include     estimates         of
+heat transfer     to the engine        components             downstream         of the combustor,           estimates      of losses      between       the power
+turbine outlet      and the engine            exhaust,      power-turbine-speed              damping,        and sensor       and actuator         dynamics        and
+nonlinearities.
+
+
+
+
+                                                                                  40
+

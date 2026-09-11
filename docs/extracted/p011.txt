@@ -1,0 +1,65 @@
+K'TH452   station      4.5 velocity       ratio     coefficient
+
+
+Kv3       station      3 volume        coefficient,          lbf / in 2 • Ib,_ • deg R
+
+
+KV41      station      4.1 volume        coefficient,             lbf/in    2 • lb,_ • deg R
+
+
+Kv45      station      4.5 volume        coefficient,             lb ff in 2 • lb_ • deg R
+
+
+Kw_       station      4.1 flow coefficient,               Ib,_ • in 2/lbf.           sec
+
+
+M         mass      of metal        that absorbs       heat energy               from       gas; used in heat-sink
+          representation
+
+
+          rotational       speed      of compressor               and gas generator,                 rpm
+
+
+          corrected        compressor           and gas generator                 speed;       a nonphysical         value
+          which      is independent             of inlet conditions,               rpm
+
+
+N G d_,   design       rotational      speed      of the gas generator                  and compressor,            rpm
+
+
+NP        rotational       speed      of power        turbine          and output           shaft,   rpm
+
+
+N P,_.    design       rotational      speed      of power             turbine    and output          shaft,   rpm
+
+P1        station      1 total pressure,          Ibf/in      2
+
+P2        station      2 total pressure,          Ibf/in      2
+
+P3        station      3 total pressure,          lbf/in      2
+
+P41       station      4.1 total pressure,           Ibl/in        2
+
+
+P45       station      4.5 total pressure,           Ibf/ir_
+
+P49       station      4.9 total pressure,           Ibi/in        2
+
+
+P_.,b     ambient        pressure,      lbf /in 2
+
+
+P_3       station      3 static     ?ressure;       a fuel-control-system                    parameter,        Ibf/in   2
+
+
+P.9       station      9 static     pressure,       Ibf/in     2
+
+
+Pad       standard-day            pressure,       Ibf / in 2
+
+
+Q QCC     torque     required        for helicopter           accessory           power,       ft.    Ibf
+
+
+                                                                                  V
+

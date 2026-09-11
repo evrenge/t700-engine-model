@@ -1,0 +1,58 @@
+a wide rangeof operation. Whenappliedto a largeturbofanengine,the differencefrom a full iteration
+methodwaslessthanonepercentfor severerampinputs(ref. 11). However,the userhasno controlover
+theamountof error which is produced.Also, achangeof timestepwill directly affectthemagnitudeof the
+error. An alternativeapproachwhich allows theuserto specifythe level of acceptableerror wastherefore
+employed.
+
+                                                         Real-Time Iteration                          Solution
+
+             Thereal time iteration               solution      presented      here was found                    to produce            acceptable       transient       response
+while     executing         in real time on a high-speed                  computer.         It has been                  executed        successfully        in conjunction
+with    the Gen        Hel     UH-60A           simulation       using      a CDC         7600        computer                and     an Ames-developed                real-time
+operating       system.
+             A fixed-point         iteration     was used to solve the nonlinear                          algebraic           equations.        Because      multiple     passes
+are required         to determine        elements        of the Jacobian            for quadratic               convergence             methods,        they were found            to
+involve more computation                      than linearly      convergent          methods.             The equations                were expressed           recursively        in
+the form
+
+
+                                                                         x(,_) = f(x(_l)              )                                                                         (69)
+
+The     iteration      solution      is unique      and convergent            provided           that the Lipschitz                   condition
+
+
+                                                    If(x(_,))        -    f(x(+)l          g Llx(_,)                -        z(+l                                               (70)
+
+is satisfied        with a value of the Lipschitz               constant,     L, less than 1. Convergence                              of the iteration       was controlled
+with the use of the successive                    overrelaxation          method.         For each iteration,                       the value     of pressure       state x was
+modified       by its previous          value.
+
+
+                                                      x(,,) = x(_l)          + R ' [f(a:(,_))               -     x(_l)]                                                        (71)
+
+             Values     of the relaxation           parameter,           R, less than        1 cause             slower         convergence,          resulting       in greater
+stability.     A value        of R was chosen            to allow    monotonic            convergence                   over the operating           range      of the engine.
+             Two nested           algebraic      loops    are present        in the representation                       of pressures           P3   and P41.         The outer
+loop arises          from    the calculation         of compressor            mass        flow which               is indirectly           a function      of pressure           P3.
+The inner loop is a result               of the interdependence               of pressures                across        the combustor.            The coupled         equations
+are given by
+
+
+                                               t53 = 0 = Kv3          •T3     • (WA3             -    WA3bt             - WA31)                                                 (72)
+
+
+                                               P'41 = 0 = Kv4_              • T41     • (WA31              + Wf          -     W41)                                             (73)
+
+             Because         the calculation         of compressor            flows       involves              a significant           amount       of computation,              the
+outer    loop was separated              from      the inner loop by assuming                        that the mass              flow entering        the combustor              for a
+given     interval      is approximately            equal     to the mass flow leaving                      the compressor                 in the previous          interval.
+
+
+                                                         WA31(,_)         ,_ WA3(,_)         -       WA3b_(,___)                                                                (74)
+
+
+
+
+                                                                                     22
+                                                                                                                                                                                        i
+

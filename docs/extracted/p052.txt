@@ -1,0 +1,99 @@
+                   3 f                                         i            i                         _                                i                           i                                 i
+
+
+
+
+                      2                                 SIKORSKY GEN HEL WITH T700 AND GEARBOX                                                                                    (AMES VERSION)
+          E                                             1982 USAAEFA UH-60A TEST DATA
+                      1
+          .J          0
+          C3      -1
+          uJ
+          o.      -2
+                  -3                     __J                   =        J                         i                                    i          _                    .....                         1   ....                -
+
+
+
+
+     P3
+      I
+
+
+                 5O
+      x
+                 45
+      J_
+                 40
+      N,-
+
+
+                 35
+      O          30
+      rr
+      O          25
+                 20                                                     4                         t                        •       |       ....                I               ....              i       .      i   i    i       t
+
+
+      O
+
+                 97                                        i            I                         I       '   •   "'       "       I                           !                                 t
+
+
+      uJ"
+      Z          96
+
+      _C         95
+                                ......         _I_/1_
+
+
+
+                 94
+      uJ
+                 93
+      03
+      <_         92                                                     i        1,1,=                                 _                                   1                                     !
+      t3
+
+
+               1200                                                     =                     i                                    f                       i
+
+
+
+
+      _        1100
+      -- 1000
+      J
+          900
+
+                800
+
+          w     700
+          >
+               600                                                                                                                                     J                                     i                                   i
+
+
+
+
+               102
+      d
+      w
+      '"
+      o.       101
+      03
+      n-
+      O         100
+      O
+      rr         99
+      Z
+
+      <_         98                        1              _L        4                     1                                    J                       !                  .              t
+
+
+                          2.0                            4.0                             6.0                                                          8.0                                                               10.0
+                                                                                TIME,                     sec
+
+Figure 14: Closed-loop response                         of engine, fuel control system, and blade-element                                                                             helicopter                        simulation
+to a pedal input at hover.
+
+                                                                                38
+

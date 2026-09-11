@@ -1,0 +1,72 @@
+        4.00
+
+
+
+
+        3.50
+
+
+
+
+        3.00
+
+
+
+
+ I--
+ a,.
+I,.I.
+        2:50
+
+u.I
+
+
+
+<
+
+_ 2.00
+w
+Z
+J
+
+z
+_- 1.50
+o.
+0
+
+
+0
+J
+
+,J
+w 1.00
+lk
+
+
+
+
+          .5O
+
+
+
+
+               0
+
+
+
+
+                             •    !    .
+         -.50                                   •   I   ,    .   .        I     I     I   I    I   I    I
+
+
+                   i90           440              490                         540                      590             640
+                                             INLET TEMPERATURE,                T2, deg R
+
+
+               Figure C24.- T700 real-tlme   model function          JP/./blrl--HMU           topping line schedule.
+
+
+
+
+                                                            81
+

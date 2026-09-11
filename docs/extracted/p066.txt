@@ -1,0 +1,38 @@
+7.00
+
+
+
+
+6.50
+
+
+
+
+5.00
+
+
+
+
+4.50
+
+
+
+
+4.00: •
+
+
+
+
+3.50 I
+
+       65            7O           75            80             85           90            95          10(
+                            CORRECTED       GAS GENERATOR           SPEED, NGc, %
+
+
+    Figure   A11.-   T700   real-time   model   function   fh,--station   4.1 heat-sink   constant.
+
+
+
+
+                                                     52
+

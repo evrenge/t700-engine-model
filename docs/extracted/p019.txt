@@ -1,0 +1,54 @@
+                                                             ORIGINAE              PkiG-'_ IS
+                                                             OF POOR              QUALITY
+
+
+             The TT00           fuel control          system         provides       power         modulation         for speed       control,        overtemperature                 pro-
+tection,      and load         sharing       between         engines         for multiple-engine               installations.         It consists        of a hydromechan-
+ical control          unit (HMU)              for fuel       metering          as a function           of schedules          of gas generator                speed       and power
+demand,        and an electrical              control        unit (ECU)           which      performs         isochronous           power-turbine             speed       governing
+and overtemperature                   protection           fief. 6). The HMU                consists      of a high pressure              vane      pump       and mechanical
+cams       which       impose        acceleration,           deceleration,           topping,        and idle schedules              as functions            of inlet tempera-
+ture and gas generator                    speed.      A feed-forward               compensation             of load demand               is achieved           by adjusting           the
+set point       as a function             of the helicopter                 collective       control      position.        The      compressor              variable       geometry
+is also controlled              as a function              of inlet temperature               and gas generator               speed.        The      ECU       provides          output
+shaft      speed-control            by driving          a torque        motor       in the HMU              based      on a power-turbine-speed                        error     signal.
+The torque            motor     adjusts       the HMU            fuel demand             downward,           so that an electrical                system      failure      results     in
+maximum            power.       Power         turbine       inlet temperature              is also monitored;             fuel flow is reduced                 when       it exceeds
+limits.     Load       sharing       is also provided;               fuel flow is adjusted               if torque      is determined             to be lower           than that of
+another       engine         operating        in parallel.
+             The      drive     train      which        transmits        power       to the helicopter               requires       a high        gear-ratio          transmission
+which       reduces       the engine           shaft speed           to a level usable            by the rotor          system.      It transfers           power       to the main
+rotor,     tail rotor,       and     accessory          loads.       Because       power         requirements           of a helicopter            are zero during             certain
+conditions         such as autorotation,                   power      from each engine              must also pass through                  a clutch        which       disengages
+the engine         from       the gearbox           if transmission             speed      exceeds       that of the engine              shaft.
+
+
+
+                                                                      ENGINE                     MODEL
+
+             Gas turbine            engines        convert       heat energy          into useful         work      by expanding             gases       and forcing           them    to
+rotate     turbines.         A typical        free-turbine            turboshaft         engine     consists        of four major           components:             the compres-
+sor, the combustor,                 the gas generator,                and the power           turbine.        Chemical          energy      is converted            to heat in the
+combustor.            Heat     causes       the expansion              of gas which           rotates       the gas generator             turbine.          The gas generator
+is directly        linked      to the compressor,                   which     compresses           atmospheric           gas for use in the combustor.                         Energy
+which       is not consumed               by the gas generator                  is extracted         by the power          turbine       as the expanding                gases pass
+through       it. The power              turbine,       which        is also called         the free or independent                 turbine,        is not connected              to the
+other      rotating      components.             Because            of this, a turboshaft            engine       can operate        from full to zero power                     levels
+while      maintaining             a specified        output         shaft speed.          Any description             of the operating             point     of a free-turbine
+turboshaft         engine       is therefore          dependent          on 'Se speeds             of both the gas generator                    and the power            turbines.
+             The      four     major       components               are separated           by fluid mixing             volumes,         each      of which           is associated
+with      flow passages             within       the engine           where       thermodynamic               states     are quantifiable.               States       of the gas in
+each control           volume        are expressed             in terms         of pressure,        temperature,           and mass         flow.     They        are determined
+as functions           of energy          transfer         across     each      component.           Equations          describe         each     component             in terms       of
+the state       of the component,                   thermodynamic                 states    upstream          and      downstream           of the component,                    energy
+applied       to or taken          from     the. component,                 and efficiencies         of energy          transfer.      Conservation             of m_s           " us _"_
+to determine            the values          of      nass     flows      into and out of each                  control      volume.           Dynamics             of the rotating
+components             are modeled            by relating            changes       of angular          rotation      of a given        component              to its moment            of
+inertia      and the applied             torque.        A load from an external                    source      is required        to determine           power         turbine       (and
+output       shaft)      speed.         Losses       associated          with      fluid dynamic            or mechanical             processes           are represented              by
+single-      or multivariable              functions         based      on previously-derived                  or empirical         data.       Inputs      consist      of ambient
+temperature            and pressure           at the inlet,          pressure      at the exhaust,            fuel flow, and load torque.
+
+
+                                                                                             5
+

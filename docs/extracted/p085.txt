@@ -1,0 +1,74 @@
+TORQ45
+
+                SPEED TRIM
+          _I    LOAD SHARE
+
+
+                XQLO   I .0,1.
+PC          1                                                                                           SPDSF
+                                 GOVERNOR        RATE joru_j                         GOVERNOR
+        CTPL$ + 1
+                                 COMPENSATION            I-_                         DYNAMICS
+
+PCPRF
+                                                                                                               MAXIMUM
+                                                                                                                ERROR
+                                           T45REF                                                            SELECTOR           ._..S._P
+                                                                                                                                      DSS
+
+
+
+T45         r THERMOCOUPLE                                                                                                             PROPORTIONAl.]        SPDG
+                 HARNESS
+                                 T45EL     +_-         ET45         _             TEMPERATURE
+                                                                                  COMPENSATION          TSIG       T                   PLUS INTEGRALJ-_-_(_
+          -J    DYNAMICS
+                                                                                                                                       COMPENSATION I
+
+
+
+                                   Figure C1.- TT00 electrical                                control   unit (ECU).
+
+
+
+
+                                                                                                        TRQL
+         TORQ45 1
+         ENGINE         _    TLls1 + 1                         ._                 TL2s1 + 1
+
+
+
+
+                                                                             TRQL
+
+                                                                    ENGINE              2
+
+                                                                                                        TRQER
+                                            ONE ENGINE
+                                         IMPLEMENTATION
+
+
+                                                 J,
+
+                                                                                                   DBIAS
+
+
+
+
+                                                                                                                                             XQLO    ,,..=
+                                   CT7s                                                                                                     ENGINE
+                                                                                                                       I   T17s + 1
+                                                                        -..,..,
+
+
+                                                                    DBIAS
+
+
+
+                                         Figure       C2.- T700                    ECU load-share          speed       trim.
+
+
+
+
+                                                                                      71
+

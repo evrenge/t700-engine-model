@@ -1,0 +1,13 @@
+# source: TM-100991 pdf p.60, Figure A5
+# quantity: f5 -- impeller tip leakage and turbine cooling-bleed fraction, B3 = f5(WA2c)
+# method: digitized -- marker centroids from a rendered page image
+# x: WA2C station 2 corrected mass flow, lbm/sec
+# y: B3 bleed fraction, nondimensional
+# points: 3
+# digitized: 2026-09-10 by tools/digitize.py
+# note: 300 dpi render, perspective-rectified with tools/rectify_page.py so the printed frame is axis-parallel (raw scan keystones ~16 px). Calibration is a least-squares fit to every printed major tick plus the frame lines: 10 in x (3..12 by 1) residual <=1.9 px, 19 in y (0.0860..0.0770 by 0.0005) residual <=5.6 px. Density mode, window 21, min-fill 0.55; count stable at 3 over 0.50-0.55, at 0.45 a fourth appears where the right-hand marker arm crosses the frame line. ROI extended past both vertical frame lines to catch the markers printed ON them at WA2c=3 and 12. 3 markers, matching the inventory count. Exact settings: --roi 481,342,2177,2657 --min-fill 0.55 --calib "498.11:3.0,2155.09:12.0,2664.20:0.0770,327.96:0.0860" on validation/out/digitize/a5r-060.png.
+# NOT transcribed. Values carry read error; see the verify overlay.
+x,y
+3.01027,0.0850907
+8.30604,0.0845899
+12.0104,0.0778945

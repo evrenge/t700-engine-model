@@ -1,0 +1,80 @@
+  N,3t_r_,3_
+           AerOnc_JlC S ,_ncl
+                                                                Report            Documentation                    Page
+  _c_e    AdrT_n,Slral_rl
+
+
+ I, Report     No.                                                                                                             3. Recipient's        Catalog    No.
+
+
+    NASA TM-100991                                              I   2. Government     Accession     No.
+
+ 4. Title    and Subtitle                                                                                                      5. Report      Date
+
+
+                                                                                                                                   July       1988
+    A High Fidelity Real-Time Simulation
+    of a Small Turboshaft  Engine                                                                                              6. Performing         Organization     Code
+
+
+
+
+ 7. Author(s)                                                                                                                  8. Performing         Organization       Report    No.
+
+
+                                                                                                                                   A-88151
+    Mark G. Ballin                                                                                                             10. Work     Unit No.
+
+
+                                                                                                                                   505-61-51
+ 9. Performing        Organization       Name      and Address
+                                                                                                                               11. Contract     or Grant       No.
+
+    Ames Research                    Center
+    Moffett          Field, California               94035
+                                                                                                                               13. Type     of Report     and Period      Covered
+
+12. Sponsoring         Agency        Name   and Address
+                                                                                                                                   Technical          Memorandum
+    National Aeronautics  and Space Administration                                                                             14. Sponsoring        Agency      Code
+    Washington,  D.C. 20546-0001
+
+15. Supplementary            Notes
+
+
+    Point        of contact:             Mark G. Ballin, Ames Research Center,                             MS 211-2,       Moffett       Field,      California         94035
+                                         (415) 694-6115   or FTS 464-6115
+
+
+
+16. Abstract
+
+
+               A high-fidelity                component-type               model        and     real-time       digital     simulation          of the General                   Electric
+T700-GE-700      turboshaft     engine were developed   for use with current generation                                                        real-time  blade-element
+rotor helicopter   simulations.      A control system model based on the specification                                                        fuel control system used
+in the UH-60A                    Black      Hawk         helicopter      is also presented.               The modeling        assumptions              and real-time               digital
+implementation                    methods          particular       to the simulation           of small turboshaft            engines        are described.              The valid-
+ity of the simulation                    is demonstrated               by comparison             with analysis-oriented              simulations               developed           by the
+manufacturer,                   available     test data,        and flight-test         time histories.
+
+
+
+
+17. Key Words          (Suggested        by Author(s))                                              18. Distribution   Statement
+
+
+       Helicopter                                                                                         Unclassified      - Unlimited
+       Flight simulation
+       Turboshaft   engine
+       Controls                                                                                                          Subject     Category         - 08
+                                                                                                                                                                22.   Price
+19. Security      Classif.      (of this report)                "[ 20. Security   Classif.   (of this page)
+                                                                /
+                                                                                                                               21, No.
+                                                                                                                                          89
+                                                                                                                                           of pages
+                                                                                                                                                                         A05
+       Unclassified                                                    /Jnclassi fied
+NASA     FORM        1626 OCT 86
+

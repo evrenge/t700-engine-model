@@ -1,0 +1,43 @@
+                           National Aeronautics and
+                           Space Administration                                                                                          N/ A
+                           Ames Research Center
+                           Moffett Field, California 94035
+
+
+
+
+Reply   to   At'In   of:
+                             Shelley          J. Scarlch
+
+                             M/S    241-13
+
+
+
+
+                             ERRATA
+
+                             RE:        NASA       TM   100991
+
+                             A High-Fidellty               Real-Time       Simulation       of a Small     Turboshaft      Engine
+                             Mark       G.    Ballin
+
+                             July       1988
+
+
+
+                             On    p.    2,       figure   i, a correction         should     be noted.
+
+                             In    the       upper      middle   portion     of   the   figure,   GAS     INDUCED   FLAP    REGRESSIVE
+
+                             should          be    CONTROL-SYSTEM-INDUCED           FLAP    REGRESSIVE.
+
+
+
+
+                             Yours,
+
+
+
+
+                             Publications
+

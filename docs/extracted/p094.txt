@@ -1,0 +1,51 @@
+                                                                                SYMBOL          1:   T45L = 1260.0 deg R
+                                                                                SYMBOL          2:   T45L = 1660.0 deg R
+                                                                                SYMBOL          3:   T45L = 2060.0 deg R
+                                                                                SYMBOL          4:   T45L = 2460.0 deg R
+
+
+
+
+  ¢;
+  ,,d"
+  _4
+  <
+  )-
+
+
+  Z
+  ,<
+  t--
+  (n
+  z
+  0
+  uJ
+  =E
+  I--
+  r,-3
+  0
+  (n
+  z
+  uJ
+  u)
+
+
+
+
+                                                                                          =I=        I      .   i   =     I      ,   I.     I
+
+
+         10   ............................
+                               2                4       6; ...................................
+                                                                             8                 10           12                   14               16
+                                                POWER TURBINE FLOW PARAMETER,                            W45R
+
+
+
+Figure    C23.-        T700         real-time     model    function     FEcl--ECU          thermocouple                 sensor       time   constant.
+
+
+
+
+                                                                         8O
+

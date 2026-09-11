@@ -1,0 +1,287 @@
+# source: TM-100991 pdf p.56, Figure A1
+# quantity: f1 -- compressor mass flow.  WA2c = f1(Ps3/P2, NGc), Eq. 7, pdf p.22
+# method: digitized -- plot-symbol centroids, calibrated on the native 300 dpi scan
+#
+# THIS IS A 2-D MAP.  Columns:
+#   ngc_pct        parameter: corrected gas generator speed NGC, percent.  INDEPENDENT.
+#                  Value as printed in the in-plot SYMBOL legend for that speed line.
+#   ps3_p2         x axis, as printed: 'COMPRESSOR STATIC PRESSURE RATIO, PS3/P2'.
+#                  Compressor static pressure ratio, nondimensional.  INDEPENDENT.
+#   wa2c_lbm_per_s y axis, as printed: 'STATION 2 CORRECTED MASS FLOW, WA2C, LBM/SEC'.
+#                  Station 2 corrected mass flow, lbm/sec.  DEPENDENT = f1.
+#   k              index of the symbol along its own speed line, 0..6 (see below).
+#   symbol         the digit printed as the plot marker for that speed line, 1..11.
+# Rows are grouped by speed line and ordered by increasing ps3_p2 within it.
+#
+# Structure of a speed line (11 lines x 7 points = 77):
+#   k=0  left end of the FLAT LEFT EXTENSION -- a horizontal solid segment at constant
+#        WA2c running from PS3/P2 ~= 1 rightward to the first sloped symbol.  It is part
+#        of the function, not decoration: f1 is constant in PS3/P2 below the knee, so a
+#        consumer must keep k=0 and k=1 as two breakpoints of one flat segment.
+#        All eleven k=0 points sit on one printed vertical dotted construction line.
+#   k=1  the knee: right end of the flat extension and first symbol of the sloped run.
+#        Its wa2c is taken from the fitted flat segment (rms 0.4-1.2 px at 600 dpi over
+#        21-171 samples; 0.20-0.57 px over 38-318 samples refitted on the native scan),
+#        not from the glyph, because the segment locates it an order of magnitude
+#        better.  k=0 and k=1 are the two ends of that one fitted segment, so their
+#        wa2c differ only by its residual slope: under 0.005 lbm/sec.  Treat the pair
+#        as one flat segment.
+#   k=2..6  the remaining five symbols on the sloped run, WA2c falling with PS3/P2.
+#
+# Speed lines, exactly as printed in the in-plot legend:
+#   SYMBOL  1:  65% NGC     SYMBOL  7:  92% NGC
+#   SYMBOL  2:  80% NGC     SYMBOL  8:  94% NGC
+#   SYMBOL  3:  82% NGC     SYMBOL  9:  96% NGC
+#   SYMBOL  4:  85% NGC     SYMBOL 10:  98% NGC
+#   SYMBOL  5:  87% NGC     SYMBOL 11: 100% NGC
+#   SYMBOL  6:  89% NGC
+#
+# CALIBRATION  (recalibrated 2026-09-11; the marker pixels are unchanged from the
+# 2026-09-10 extraction and are documented further down)
+#   Geometry is measured on the page's OWN raster and never on a render.  `pdfimages
+#   -list` shows p.56 is a single 300 dpi 1-bit CCITT image (2544x3300), so any higher
+#   dpi is an upsample.  The four frame lines are fitted sub-pixel in that bitmap:
+#     left   x =   454.171 +0.000871 y   (+0.050 deg)
+#     right  x =  2114.615 -0.000184 y   (-0.011 deg)
+#     top    y =   403.614 +0.002610 x   (+0.150 deg)
+#     bottom y =  2495.231 +0.007479 x   (+0.428 deg)
+#   Four different slopes, i.e. a genuine quadrilateral, not one rotation.  It is
+#   carried as a HOMOGRAPHY applied to the measured points -- the four frame corners
+#   map to the corners of a unit square (u,v) -- so no interpolation ever touches the
+#   data.  The previous run warped the pixels instead; see RASTER BRIDGE below.
+#
+#   THE AXIS MAP IS A CUBIC IN (u,v), NOT A LINE.  The scan bows: the y minor-tick
+#   spacing runs 42.4 px near the top frame, 41.2 px in the middle and 42.1 px near
+#   the bottom, a smooth swing worth +-3 px against a straight line.  The model is
+#   chosen by a test the figure gives away free and that the fit is never told:
+#   BOTH axes print their end values AT the frame lines (0 and 20 in x; 2 and 12 in
+#   y), so a fit made on the interior ticks alone -- 19 minor ticks per edge in x,
+#   49 per edge in y, all four edges measured -- has four numbers left to predict.
+#
+#     axis  model      tick-fit rms   predicts the two printed frame values to
+#     x     linear        0.80 px      -2.38 px  and  -0.95 px      FAIL
+#     x     quadratic     0.63 px      -1.09 px  and  +0.32 px      pass
+#     x     CUBIC         0.46 px      +0.48 px  and  -1.24 px      pass  <- used
+#     x     quintic       0.38 px      -1.26 px  and  +0.82 px      pass
+#     y     linear        1.94 px      -4.00 px  and  +3.71 px      FAIL
+#     y     quadratic     1.94 px      -4.36 px  and  +3.35 px      FAIL
+#     y     CUBIC         0.91 px      +0.79 px  and  -1.79 px      pass  <- used
+#     y     quintic       0.74 px      -1.05 px  and  +1.10 px      pass
+#
+#   On y the QUADRATIC IS WORTHLESS -- identical to the line, because the bow is odd,
+#   not even.  Cubic is the lowest order that works, and it halves the tick residual.
+#   Having passed, the chosen model is refitted with the four printed frame values
+#   included as anchors:
+#     PS3/P2(u) = [-2.36056838e-01  4.52965369e-01  1.97755404e+01  1.25435115e-03]
+#     WA2C(v)   = [-0.43286134  0.64188405  9.78276224  2.00224296]
+#   (numpy polynomial order, highest power first; u = 0 at the left frame line and 1
+#   at the right, v = 0 at the bottom frame line and 1 at the top.)
+#
+#   THE OLD FRAME-vs-TICK DISAGREEMENT IS RESOLVED, AND IT WAS OUR MODEL, NOT THE
+#   PAGE.  The 2026-09-10 header said 'the tick lattice and the frame lines genuinely
+#   disagree ... nothing on the page resolves it', on the evidence that a linear tick
+#   fit implies a y scale 0.33 % short of the frame span.  It reproduces here (0.37 %
+#   on the un-warped scan) and it is an artefact of forcing a straight line through a
+#   bowed lattice: fit only the FIVE TICKS NEAREST each frame line and extrapolate,
+#   and the lattice predicts all four printed frame values to 1.41 px or better
+#   (x: -0.06, -1.41, -0.07, -0.38; y: +0.61, +0.55, -0.64, +1.16).  Locally the
+#   ticks and the frame agree everywhere.  Neither of the two old calibrations was
+#   right: the frame lines were right, and the all-ticks fit was right about the data
+#   and wrong about the model.  The x = 10 major tick really does sit 1.9 px right of
+#   the frame midpoint (that part was a correct measurement, not a warp artefact).
+#   The printed vertical construction line now reads PS3/P2 = 0.9907, against 0.974
+#   under the old linear fit and 0.998 under a frame-lines-only calibration.  It is
+#   still not asserted to be exactly 1.0 -- the report does not print that -- but the
+#   cubic moves it most of the way there without ever being told to.
+#
+# RASTER BRIDGE  (why marker pixels from a 600 dpi render may be calibrated on the
+# 300 dpi scan)
+#   The markers are still measured on validation/out/digitize/a1r_600-056.png, because
+#   the 2x upsample's interpolated grey edges are what resolve SYMBOL 1's six
+#   overprinting markers -- at native 300 dpi they are 7-13 px apart under a ~10 px
+#   glyph and a morphological opening cannot separate them.  The rectified frame is a
+#   rectangle by construction, so a rectified pixel maps to (u,v) exactly.  That the
+#   two rasters share one (u,v) is MEASURED, not assumed: twelve structures visible in
+#   both -- the printed vertical construction line and the eleven flat extensions --
+#   were located independently in each and agree to 0.25 px (rms 0.12 px)
+#   in native pixels.  Re-running the density-peak estimator directly on the native
+#   bitmap likewise reproduces the 600 dpi marker centres to <=1.0 px in x and <=0.7 px
+#   in y on the 48 markers of the single-digit curves.  The pixel warp is therefore
+#   worth a quarter pixel here, and the geometry it would have cost is now avoided.
+#
+# HOW EACH SPEED LINE WAS SEPARATED AND DIGITIZED  (unchanged from 2026-09-10)
+#   Per-curve ROIs were not needed and were not used: at 600 dpi each speed line -- its
+#   flat extension, its joining polyline and all seven of its digit markers -- is a
+#   single 8-connected ink component, and the eleven components are disjoint (so are
+#   they at native 300 dpi).  Labelling separates the family exactly, including curves
+#   2-4 in the crowded lower left, which an ROI band cannot do.  The six dotted
+#   cross-plot lines and the vertical dotted line are separate small components and
+#   were masked out before measuring any symbol.  Speed lines identified by y order,
+#   top (SYMBOL 11) to bottom (SYMBOL 1).
+#   Symbol position estimators, one per curve, chosen by the shape of that curve's digit:
+#     SYMBOL 2-9   local ink-density peak on the component mask: window 33 px, min-sep 27,
+#                  min-fill 0.30.  Six peaks on the sloped run for every one of the eight.
+#     SYMBOL 10    the enclosed bowl of the '0' (fill-holes), shifted by the measured
+#                  -21.9 px from bowl centre to string centre.  That offset is read off
+#                  this curve's own left endpoint, where the true x is known.
+#     SYMBOL 11    the two '1' strokes, found by vertical morphological opening (33x1) and
+#                  paired by y; string centre = pair midpoint.  One pair overprints the
+#                  next and was split by its stroke height (86 px = two 44 px strokes).
+#     SYMBOL 1     vertical morphological opening only.  See ACCURACY -- this is the one
+#                  curve whose markers overprint each other.
+#   A bounding-box refinement of the density peaks was tried and REJECTED: it is unbiased
+#   on the isolated left-endpoint glyphs but where two markers are within a glyph width it
+#   merges or clips their column runs and moves them up to 10 px, destroying the spacing
+#   regularity and worsening the construction-line check.  The seeds are used unrefined.
+#   A generative glyph model (the method that replaced density mode on Figure A7) was
+#   considered and NOT built: A7's marker is one two-stroke cross drawn six times, so one
+#   template serves; A1's markers are eleven different digit strings 12-18 px wide at
+#   native 300 dpi with the joining line running through them, so it would need eleven
+#   templates and would be fitting shape to 3-4 ink pixels per stroke.  The check below
+#   shows the existing estimator is already unbiased against printed ink, so there was
+#   nothing for it to win.
+#
+# ATTRIBUTION CHECK (this is a 2-D map: a point on the wrong speed line is worse than a
+# missing point).  The figure prints six dotted construction lines, each joining the k-th
+# symbol of all eleven speed lines.  For every k and every adjacent pair of speed lines,
+# the straight link between the two extracted symbols was tested against the printed dots:
+# median distance to the nearest dot, sampled along the link.  All 60 links score 6.1-9.8
+# px (dot half-spacing is ~7 px).  Deliberately wrong pairings (k of one line to k+1 of the
+# next) score 16-23 px on the separated curves.  No link fails.  Every one of the 77 points
+# is attributed to a speed line and an index confirmed by printed ink, including SYMBOL 1.
+# The marker pixels did not move in this recalibration, so this check is unchanged and was
+# re-run to confirm it.
+#
+# ACCURACY  (measured against the figure's own internal ground truths, never used to
+# adjust the estimator; all pixel figures are native 300 dpi)
+#   1. The eleven k=0 markers sit on one printed vertical dotted line (96 dots, its own
+#      position good to 0.20 px).  The density estimator on the eight single-digit
+#      left-endpoint glyphs returns +2.42 px right of it, sd 1.44 px.  That offset does
+#      NOT propagate to the sloped markers and is not corrected: cutting the outgoing
+#      flat line out of the window changes it by 0.00 px, so it is not one-sided line
+#      ink, and the sloped-marker test in 3 finds no such displacement.  The output does
+#      not use the estimator for k=0 anyway; it uses the construction line, which is why
+#      every k=0 row carries the same PS3/P2.
+#   2. Each k=1 knee must sit at its own flat-extension level.  Knee glyph y minus that
+#      fitted level: -3.80..+3.49 px, sd 2.35 px = 0.011 in WA2c.  (k=1's WA2c in the
+#      output is the fitted level, not the glyph, so this measures the estimator that IS
+#      used for k=2..6.)
+#   3. Every sloped marker should lie on its printed construction line.  Those lines are
+#      CURVED, so they were fitted locally: for each marker, the dots 15-55 px away along
+#      the line on both sides, marker excluded, total least squares.  47 of the 66 sloped
+#      markers have enough dots.  Perpendicular offset: mean +0.19 px, sd 2.54 px
+#      (2.15 px after removing the per-k chord sagitta), range -5.14..+6.71.  Solving the
+#      47 offsets for a COMMON x displacement of the whole family returns -0.09 px: the
+#      density-peak estimator has no measurable x bias where it is actually used.
+#
+# UNCERTAINTY, 1 sigma, per point.  Three measured terms in quadrature:
+#   estimator  from checks 1-3 above
+#   calibration  the spread of the OTHER models that passed the held-out test, around
+#                the chosen cubic, evaluated AT the 77 points (x: anchored quadratic,
+#                quartic, quintic; y: quartic and quintic -- the y quadratic failed
+#                and does not count): 0.0061 in PS3/P2, 0.0032 in WA2c
+#   raster       the rectified-vs-native bridge, 0.25 px
+#
+#     rows                     1sig ps3_p2   1sig wa2c
+#     k=0, all speed lines        0.007       0.0037
+#     k=1, SYMBOL 2..11           0.031       0.0037
+#     k=2..6, SYMBOL 2..11        0.031       0.0117
+#     k=1, SYMBOL 1               0.079       0.0037
+#     k=2..6, SYMBOL 1            0.079       0.0117
+#
+#   SYMBOL 1 (65% NGC) is the weakest: its six sloped markers span only 0.59 in PS3/P2
+#   for a glyph ~0.12 wide, so they overprint into one ink mass.  The six '1' strokes
+#   are still individually resolved and every one is on a printed construction line, but
+#   its x carries 6.5 px rather than 2.5.
+#
+# WHAT MOVED FROM THE 2026-09-10 VALUES (all of it calibration; no marker pixel moved)
+#   ps3_p2:  the eleven k=0 rows  +0.017 (0.974 -> 0.991), which is 2.4 sigma;
+#            the 66 sloped rows   -0.011 .. +0.007, at most 0.35 sigma.
+#   wa2c:    -0.0098 .. +0.0104, i.e. -0.215 % .. +0.115 %.  On the 22 k=0/k=1 rows,
+#            whose y comes from a fitted line and is therefore the most precisely
+#            located quantity on the figure, that is up to 2.8 sigma; on the 55 glyph
+#            rows it is at most 0.89 sigma.  The sign of the move follows the bow, not
+#            the data: rows above WA2c ~ 7.0 moved up by 0.003-0.010, rows between 4.5
+#            and 6.8 moved down by 0.001-0.010, and SYMBOL 1 near 3.0 barely moved.
+#            Nobody would have found that pattern by looking at the extracted numbers.
+#   NOT transcribed. Values carry read error; see validation/out/digitize/a1_zoom_c*.png.
+# points: 77 (11 speed lines x 7)
+# digitized: 2026-09-10, recalibrated 2026-09-11, by tools/digitize_a1.py; rerunnable
+ngc_pct,ps3_p2,wa2c_lbm_per_s,k,symbol
+100,0.991,10.1084,0,11
+100,16.716,10.1078,1,11
+100,17.215,10.0859,2,11
+100,17.621,10.0453,3,11
+100,18.024,9.9801,4,11
+100,18.326,9.9025,5,11
+100,18.516,9.8029,6,11
+98,0.991,9.6580,0,10
+98,15.788,9.6552,1,10
+98,16.291,9.6229,2,10
+98,16.696,9.6016,3,10
+98,17.094,9.5356,4,10
+98,17.390,9.4459,5,10
+98,17.590,9.3164,6,10
+96,0.991,8.9949,0,9
+96,14.394,8.9916,1,9
+96,14.896,8.9583,2,9
+96,15.301,8.9343,3,9
+96,15.700,8.8553,4,9
+96,15.991,8.7762,5,9
+96,16.190,8.6779,6,9
+94,0.991,8.2785,0,8
+94,12.799,8.2774,1,8
+94,13.304,8.2699,2,8
+94,13.686,8.2051,3,8
+94,14.097,8.1570,4,8
+94,14.394,8.0393,5,8
+94,14.593,7.9600,6,8
+92,0.991,7.6451,0,7
+92,11.398,7.6408,1,7
+92,11.900,7.6377,2,7
+92,12.312,7.5920,3,7
+92,12.699,7.5150,4,7
+92,12.983,7.4332,5,7
+92,13.165,7.3129,6,7
+89,0.991,6.7329,0,6
+89,9.498,6.7295,1,6
+89,10.091,6.6919,2,6
+89,10.596,6.6221,3,6
+89,10.986,6.5306,4,6
+89,11.289,6.4055,5,6
+89,11.476,6.3285,6,6
+87,0.991,6.2860,0,5
+87,8.416,6.2844,1,5
+87,8.924,6.2804,2,5
+87,9.304,6.2203,3,5
+87,9.613,6.1625,4,5
+87,9.915,6.0808,5,5
+87,10.118,6.0134,6,5
+85,0.991,5.8802,0,4
+85,7.416,5.8757,1,4
+85,7.739,5.8452,2,4
+85,8.017,5.8019,3,4
+85,8.259,5.7322,4,4
+85,8.494,5.6481,5,4
+85,8.715,5.5064,6,4
+82,0.991,5.2788,0,3
+82,6.315,5.2740,1,3
+82,6.605,5.2425,2,3
+82,6.834,5.2041,3,3
+82,7.039,5.1418,4,3
+82,7.238,5.0411,5,3
+82,7.401,4.9357,6,3
+80,0.991,4.7579,0,2
+80,5.634,4.7596,1,2
+80,5.857,4.7275,2,2
+80,6.044,4.7179,3,2
+80,6.261,4.6797,4,2
+80,6.460,4.6175,5,2
+80,6.671,4.5028,6,2
+65,0.991,3.1348,0,1
+65,3.158,3.1328,1,1
+65,3.248,3.1332,2,1
+65,3.408,3.1157,3,1
+65,3.531,3.0943,4,1
+65,3.657,3.0418,5,1
+65,3.753,2.9651,6,1

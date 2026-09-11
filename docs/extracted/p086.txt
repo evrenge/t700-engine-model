@@ -1,0 +1,50 @@
+SPDER
+
+                                                                          "1   CT14s + 1
+
+
+
+
+                                                                                   V
+
+
+
+
+                                                                                           +   SPDS1
+
+
+
+        CR   4                                              CORR
+                                YHILIM
+
+
+
+TRQL
+
+
+
+
+                              YLOLIM
+
+
+
+                 Figure    C3.- T700     ECU    governor    rate compensation.
+
+
+
+
+             SPDS1                                                                SPDSF
+                                                     v
+                      _l      T11s+1
+                              CT2s + 1     I               CT12s    + 1
+
+
+
+
+                     Figure    C4.- T700       ECU   governor      dynamics.
+
+
+
+
+                                                72
+

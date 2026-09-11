@@ -1,0 +1,16 @@
+# source: TM-100991 pdf p.66, Figure A11
+# quantity: f_hs -- station 4.1 heat-sink constant, T41SGN = f_hs(NGc)
+# method: digitized -- marker centroids from a rendered page image
+# x: NGC corrected gas generator speed, percent
+# y: T41SGN heat-sink constant (no unit given on the figure or in the nomenclature)
+# points: 6
+# digitized: 2026-09-10 by tools/digitize.py
+# note: 300 dpi render, perspective-rectified with tools/rectify_page.py so the printed frame is axis-parallel (raw scan keystones ~15 px). Calibration is a least-squares fit to every printed major tick plus the frame lines: 8 in x (65..100 by 5) residual <=0.8 px, 19 in y (8.00..3.50 by 0.25) residual <=5.4 px. Density mode, window 21, min-fill 0.40; count stable at 6 over 0.35-0.45. ROI extended past both vertical frame lines to catch the markers printed ON them at NGc=65 and 100. 6 markers, matching the inventory count. Free check: x recovers 65.0, 70.0, 75.1, 80.1, 85.0, 100.0 and y recovers 4.00, 4.00, 5.75, 6.20, 7.50, 7.50 -- the report plots this function on round breakpoints and the tool was never told to expect them. Exact settings: --roi 456,317,2153,2628 --min-fill 0.40 --calib "473.25:65.0,2132.25:100.0,2639.29:3.5,299.57:8.0" on validation/out/digitize/a11r-066.png.
+# NOT transcribed. Values carry read error; see the verify overlay.
+x,y
+64.9947,4.00062
+69.9947,4.00062
+75.1108,5.75467
+80.1002,6.20473
+85.0158,7.49719
+99.9736,7.49719

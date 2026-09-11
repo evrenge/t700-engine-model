@@ -1,0 +1,23 @@
+# source: TM-100991 pdf p.58, Figure A3
+# quantity: f3 -- seal-pressurization bleed fraction, B1 = f3(NGc)
+# method: digitized -- marker centroids from a rendered page image
+# x: NGC corrected gas generator speed, percent
+# y: B1 bleed fraction, nondimensional
+# points: 13
+# digitized: 2026-09-10 by tools/digitize.py
+# note: 300 dpi render, perspective-rectified with tools/rectify_page.py so the printed frame is axis-parallel: the raw scan keystones ~10 px and digitize.py axes mis-locates the frame on this page (it returns top=362, bottom=2826 against a measured 313, 2672 -- 0.009 in B1). Calibration is a least-squares fit to every printed major tick plus the frame lines: 8 in x (65..100 by 5) residual <=0.9 px, 15 in y (0.12..-0.02 by 0.01) residual <=5.7 px. Density mode, window 21, min-fill 0.45; count stable at 13 over 0.40-0.50. ROI extended past both vertical frame lines to catch the markers printed ON them at NGc=65 and 100. 13 markers, from a marker-by-marker recount at 4x zoom; the inventory estimate of ~17 is too high. Free check: the 13 x values land on integer NGc to within 0.09. Note the printed 0.11 y tick LABEL sits ~19 px (0.0011) below its own tick mark on this page -- the plateau reads 0.109 against the tick, not 0.110 against the label. Exact settings: --roi 455,325,2153,2660 --min-fill 0.45 --calib "467.12:65.0,2132.13:100.0,2667.25:-0.02,315.22:0.12" on validation/out/digitize/a3r-058.png.
+# NOT transcribed. Values carry read error; see the verify overlay.
+x,y
+65.0605,0.108942
+78.0725,0.10912
+79.0605,0.108525
+80.08,0.106204
+81.0785,0.102454
+82.0454,0.097811
+83.0544,0.0892992
+84.0004,0.0738827
+85.0094,0.0500735
+87.0274,0.0131692
+88.0154,0.0022765
+89.0244,-0.00010442
+99.9973,1.46257e-05

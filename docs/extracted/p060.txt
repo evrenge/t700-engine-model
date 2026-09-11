@@ -1,0 +1,71 @@
+              0.0860                              ,                                           ,                                         ,
+
+
+
+
+              0.0850"
+
+
+
+
+              0.0840
+
+
+
+
+              0.0830
+
+
+
+
+         eo
+
+
+     z" 0.0820
+     0
+     I--
+     ¢J
+     <_
+     tY-
+     u.
+
+     uJ
+     uJ       0.0810
+     _J
+     CO
+
+
+
+
+              0.0800
+
+
+
+
+              0.0790
+
+
+
+
+              0.0780
+
+
+
+                        i
+
+
+              0 0770
+                            ........          |       .........           i   .........       1 .........      i   .........        i       .........   !   .........   i    .....       i   i   i   i   I   .........
+
+
+                                             4                                                6                                     8                                   10                                                12
+                                                                     STATION              2 CORRECTED                          MASS F LOW, WA2c, Ibm/sec
+
+
+Figure        A5.- TT00                real-time                  model            function          fs--impeller                tip leakage            and turbine                  cooling-bleed                       fraction.
+
+
+
+
+                                                                                                              46
+

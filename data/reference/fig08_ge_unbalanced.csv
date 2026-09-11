@@ -1,0 +1,15 @@
+# source: TM-100991 pdf p.42, Figure 8
+# quantity: STATION 3 STATIC PRESSURE, psia vs GAS GENERATOR SPEED, percent; series: G.E. UNBALANCED TORQUE MODEL
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
+# ps3_psia: STATION 3 STATIC PRESSURE, psia, axis 40.0 to 280.0
+# points: 7
+# NOT transcribed. Values carry read error.
+ng_pct,ps3_psia
+75.8168,70.8056
+79.2524,77.3946
+88.0549,128.8090
+90.9801,155.0051
+95.8642,201.0301
+100.7711,240.8616
+101.7518,243.7998

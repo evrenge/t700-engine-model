@@ -1,0 +1,51 @@
+                WFIDM                  WFPAC                        WFPDC
+
+
+           J---_
+WFPDM
+
+
+           -I !:                   J                                               HMUSEL
+                                                                                        L_
+
+
+
+
+            SELECT                     SELECT                  SELECT
+                MAX                     MIN                         MAX
+
+
+                      Figure   C 18.- Limit     selector   logic.
+
+
+
+
+        WFMAX
+
+
+
+                                                                     e-0.015   s
+                       CLMVs + 1
+
+                                                                    TRANSPORT
+   WFMIN                                                              DELAY
+
+
+
+                 Figure    C19.-   Fuel flow metering        valve.
+
+
+
+
+                                                                                             m
+
+
+
+
+                                                                                                 i
+
+
+
+
+                                        78
+

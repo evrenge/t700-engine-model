@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "t700"
+version = "0.0.1"
+description = "Python replication of NASA TM-100991 (Ballin, 1988): real-time T700-GE-700 turboshaft engine and fuel control model"
+requires-python = ">=3.11"
+# The model core depends on NumPy and nothing else. This is a hard architecture
+# constraint, not a preference -- see CLAUDE.md.
+dependencies = ["numpy>=2.0"]
+
+[project.optional-dependencies]
+# Digitizing, plotting, and validation analysis. NEVER imported from src/t700/.
+tools = ["matplotlib>=3.8", "scipy>=1.11", "control>=0.10"]
+# control: linear-systems analysis for the Appendix B validation line -- state-space
+# objects, eigenvalues, step responses, comparing our extracted A/B matrices against
+# the report's published ones. Analysis only; never imported from src/t700/.
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "validation"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tools", "tests", "validation"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

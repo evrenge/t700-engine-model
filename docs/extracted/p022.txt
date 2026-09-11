@@ -1,0 +1,54 @@
+userequiredsomesimplification of the equations.                                     Model           constants         and    plots     of mass-flow           and energy
+functions       which        are specific       to the T700-GE-700              engine       are presented             in Appendix           A.
+            Pressure         and    temperature         stagnation       effects     have          been     found      to roughly        offset      the aircraft        inlet
+losses      over      most    of the     aircraft      flight    envelope.         Total     pressure          P2      and   temperature             T2   are    therefore
+estimated          to be equal      to the static       ambient      conditions.
+
+
+                                                                        P2    = P 1=         Pa_b                                                                         (1)
+                                                                        T2 = T 1 = T_b                                                                                    (2)
+             Station     2 enthalpy         is calculated        from    station    2 temperature.
+
+
+                                                                        H2 = KH2 • T2                                                                                     (3)
+             Static     pressure      at station      3 is represented         as a linear          function         of the total pressure.
+
+
+                                                                        /:',3 = Kp,3         • P3                                                                         (4)
+
+            The       gas-generator         turbine     speed     is corrected       by the square              root of a nondimensional                     temperature
+parameter.
+
+                                                                                      T2
+                                                                              02 = m                                                                                      (5)
+                                                                                      Ta,_
+                                                                                         NG
+                                                                          NG,=           _                                                                                (6)
+
+             On the actual          engine,      two stages       of the compressor                 contain     variable-angle              stator   vanes      to achieve
+rapid    compressor           acceleration          without     stall and to optimize               fuel consumption.                Vane     position       is controlled
+by the HMU              as a function           of T2     and NG.            In order        to minimize              complexity        of the real-time              model,
+corrected          compressor         airflow       is determined        from      a performance                map      which       is a function           of corrected
+station-3      static    pressure       and corrected           gas generator       speed          only.    This assumes             that for any instant            in time,
+the variable-geometry                 stator    vanes     are in the nominal               design         position      for a given          operating       point     of the
+compressor.
+
+
+
+                                                                 WA2_        = fl k P2         ' NG_                                                                      (7)
+
+                                                                                      P2
+                                                                             62 = --                                                                                      (8)
+                                                                                      Pad
+                                                                                               l
+                                                                     W A2 = WA2c               _O z                                                                       (9)
+
+             Temperature           and enthalpy         changes       from    stations       2 to 3 are determined                   as a function        of the change
+of pressure         across     the compressor           component.
+
+
+                                                                                             ( P,3 )                                                                    (10)
+                                                                     T3=T2.f2\p2/
+
+                                                                   H3    = Kar3, T3 + K_32                                                                              (11)
+

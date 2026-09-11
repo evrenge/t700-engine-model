@@ -1,0 +1,35 @@
+SPDSS
+                                                                              SPDSP
+                                                                                      v
+
+                                                                                          CT16s + 1
+                                                     ZHILIM
+
+
+          =r XKPROP
+
+             XKINTG   I
+
+
+
+                                               ZLOLIM
+
+
+
+        Figure   C7.- T700   ECU    proportional         plus integral   (P+I) compensation.
+
+
+
+
+                                   •.o_ Io___lz_o_,_
+                                                   180
+
+
+
+                          Figure   C8.- P+I integrator         limit logic.
+
+
+
+
+                                               74
+

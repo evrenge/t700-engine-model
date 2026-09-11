@@ -1,0 +1,78 @@
+              107.5                        ,    .....    _         .....
+
+
+              105.0
+
+
+      P- 102.5
+      EL
+      O
+
+            - 100.0
+      O
+      _J
+      u.. 97.5
+      .,,,J                                                                                 LINEAR     PERTURBATION          MODEL
+      LU                                                                                    6 DOF
+      EL 95.0                                                                               5 DOF
+
+
+              92.5                                       i         ,             i            t            _            J    ....
+
+
+
+
+              101.0
+
+
+
+      z_
+       - 100.5               ,1," i
+      a
+      w
+      LI.I
+      Q,.                 //I,'       1
+      O')
+      LU
+      z 100.0
+
+
+      I--
+      u_ 99.5
+
+
+
+
+               99.0
+
+
+
+              102.0
+
+
+
+      o"
+      ILl
+      ILl
+      a. 101.0
+      LU
+      z
+
+
+      I---
+      cc 100.0
+      u.I
+
+      0
+
+
+
+               99.0
+                      0                   2.0           4.0       6.0           8.0         10.0         12,0         14.0           16.0
+                                                                           TIME,      sec
+
+Figure 5: Linear model responses                        at a high-power    flight condition       with and without station 4.1 heat-sink
+model.
+
+                                                                           2O
+

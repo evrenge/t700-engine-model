@@ -1,0 +1,62 @@
+       For a further comparison,athird linearmodelwascreatedby eliminatingthe statescorresponding
+to thevolume dynamicsin the five-degree-of-freedom   model. Orderreductionwasperformedby setting
+thestatederivatives/63, P41, and P45 to zero and solving the equations for the remaining two states.
+            Stability       derivatives       were     extracted          from the nonlinear              simulations         by suppressing               all integrations
+after trimming           the simulation           at a desired          operating      condition.         Each     state or control          was then individually
+perturbed       and      the effects        of its change         were determined                 in the state derivatives               at the input         of each       inte-
+grator.     The central-difference                  extraction         method       that was used             perturbs      each     state or control            variable         in
+both positive         and negative          directions.        A perturbation           step-size         of plus or minus            two percent           of equilibruim
+conditions        was       considered        to be adequate              based      on the rotor          speed        deviations       experienced            by current-
+generation        helicopters.           During       the derivative            extraction         process,      the rotor         was    allowed          to reach       a new
+equilibrium          after each      perturbation            to eliminate         dynamics          of the rotor         blade      lag degree-of-freedom.                   The
+rotor     was allowed           to rotate     an exact-integer             number       of revolutions            between        extractions,            resulting      in rotor
+blade     azimuths        which     were unchanging                for each extraction.              In this way, first harmonic                 changes         of required
+torque      which       occur     in blade-element            rotor simulations              were     eliminated          from      the linear      model.
+            For a linear          representation          of the dynamics              of the applied            load,     the small-perturbation                    extraction
+method       was applied           to the Gen        Hel UH-60A               blade-element           helicopter         simulation.         A model          consisting          of
+two linear        elements         was used.        A derivative           representing           the change           of load torque        with respect             to power
+turbine      speed       was used to model             steady-state           change        of torque      with a change             of rotor      speed.       The      change
+of load torque           with respect         to power        turbine      acceleration           was also needed            to model        the rotor inertia            which
+manifests       itself      as a shear      force    transient         at the rotor hub lag-hinge.
+
+
+                                                                         aQ"eq-aNP               + aQ"eq aN_P                                                               (55)
+                                                          aQ,,_        = ONP                       ON---P
+
+            The      term       Q,-eq is defined        as load         or "required"            torque    with respect            to power        turbine       speed.       All
+vehicle      simulation          load contributions              are included        in the required            torque      term.
+
+
+                                                             Q,cq = Q,_, + Qt, + Q_cc + Qd_,_v                                                                              (56)
+
+            Engine        output     torque     is assumed          to be a linear           function      of NP,         the other      states,     and the fuel flow,
+W   f"
+
+
+
+
+                                                                  OQ,,_                 Do                         OQ,,_
+                                            AQ,,_      = _         _          AXj+      ONP                        _                                                        (57)
+
+where       x/represents           the remaining          four     states.     For the two-degree-of-freedom                         model       extraction,          x/repre-
+sents     the gas-generator-turbine                  speed     state.
+            Coefficients           of the NP         equation          were    determined           by relating          the change       in angular           speed      to the
+net torque.
+
+
+                                                                 AA/P      = (t, Qe_         -    aQreq)/J                                                                  (58)
+
+            The moment              of inertia, J, is the sum of inertias of the power turbine,                                       drive train,          and rotor hub.
+Rotor      blade inertias          are not included in J; effects of these inertias are reflected                                     in the _              term. A linear
+                                                                                                                                                   _NP
+
+equation      may be written              for A/VP        in terms        of the extracted           derivatives         and the state perturbations.
+
+
+
+                              1               1 _         OQ_,_ Axj +
+           a ff P =           '°-qm           S            a x----_   --f \ -ff-ffff                      ON P j a N P +                            AW y                    (59)
+                          1 + 7 one                                                                                                   JOWI
+
+                                                                                       14
+

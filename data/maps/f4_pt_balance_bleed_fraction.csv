@@ -1,0 +1,13 @@
+# source: TM-100991 pdf p.59, Figure A4
+# quantity: f4 -- power-turbine-balance bleed fraction, B2 = f4(WA2c)
+# method: digitized -- marker centroids from a rendered page image
+# x: WA2C station 2 corrected mass flow, lbm/sec
+# y: B2 bleed fraction, nondimensional
+# points: 3
+# digitized: 2026-09-10 by tools/digitize.py
+# note: 300 dpi render, perspective-rectified with tools/rectify_page.py so the printed frame is axis-parallel (raw scan keystones ~12 px). Calibration is a least-squares fit to every printed major tick plus the frame lines: 10 in x (3.0..12.0 by 1.0) residual <=2.0 px, 11 in y (0.0108..0.0088 by 0.0002) residual <=3.4 px. Density mode, window 21, min-fill 0.55; count stable at 3 over 0.50-0.65, below 0.50 the y tick-label edges and the left frame line leak in. ROI extended past both vertical frame lines to catch the markers printed ON them at WA2c=3 and 12. 3 markers, matching the inventory count. Exact settings: --roi 609,306,2312,2622 --min-fill 0.55 --calib "628.09:3.0,2290.01:12.0,2631.56:0.0088,293.66:0.0108" on validation/out/digitize/a4r-059.png.
+# NOT transcribed. Values carry read error; see the verify overlay.
+x,y
+3.00493,0.0105709
+5.01405,0.00899895
+12.0054,0.00899766

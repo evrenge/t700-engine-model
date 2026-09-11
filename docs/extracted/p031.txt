@@ -1,0 +1,61 @@
+                           Trim                Mode       5-DOF         Model           2-DOF        Model        Reduced-Order
+                         Condition                                                                                 5-DOF        Model
+                                                NG                -2.66                        -2.69                      -2.81        ......
+                                                NP               -0.565                        -0.565                    -0.565
+                                  1              P3
+                                                P41
+                                                P45              -3060.
+
+                                                NG                -2.08                        -2.23                      -2.16
+                                                NP               -0.446                        -0.446                    -0.446
+                                2                P3               -52.2
+                                                P41              -4640.
+                                                P45              -4040.
+                                                NG               -1.75                         -1.82                      -1.83
+                                                NP               -0.357                        -0.357                    -0.357
+                                 3               P3              -52.6
+                                                P41              -4430.
+                                                P45              -4530.
+
+
+
+            Table    1: Eigenvalues            of two extracted         perturbation           models        and the reduced-order               model.
+
+
+
+                                                                   T41                rls+     1
+                                                                  --          =                                                                                  (63)
+                                                                  T41,,,              Ks     + 1
+
+for small      perturbations          about    trim.   The temperature            with no dynamics,                T41,.j,      is a function        of the other
+five states.     For extraction         from     the nonlinear      simulation,              T41    dynamics       may be expressed               in the form
+
+
+                                              AT;_I    = --1AT41            + --AT41,..,              + 1AT41,_                                                  (64)
+                                                            r2                7-2                       7-2
+where
+
+
+                                                                        OT41..,                    OT41,,,    a WI
+                                                 AT41,_     = _           O:_i        Axi +         OWl
+
+
+
+
+                                                                        OT41,_                     OT41,_     A l,Vf
+                                                 ,',T,fl,,, =                                 + Owi
+
+         During       derivative         extraction,      T41     was     held    fixed        at the trim value          and the change             in Y'_,l     was
+determined        for each     state pe-turbation.         The time constants                 rl and "rEare those            values        corresponding        to the
+trim operating       condition.         The six-degree-of-freedom                  linear      representation          is equal       to
+
+
+                                                                                                                                                                 (65)
+
+where
+
+
+
+
+                                                                                 17
+

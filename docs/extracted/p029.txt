@@ -1,0 +1,55 @@
+The resultingelementsof the stateandcontrolmatricesfor the power-turbinespeedstateare
+                                                                                   B .Q,.__
+                                                                                     axj
+                                                                A2j       =       -_,j                  = 1,3       -    5                                                        (60)
+                                                                               J + aNP
+
+
+                                                                          A2,2      =      ONe     --     ONP                                                                     (61)
+                                                                                              j + aQ_m
+                                                                                                        BNP
+
+
+
+                                                                                 b2 =            aw¢                                                                              (62)
+
+
+            Although             it is not a complete               model      of the dynamics                  of the rotor          and drive         train,     this linear     load
+representation           is adequate           to model       the large-scale             changes         of required            power      about     a trim flight condition.
+Because       the rotor          system        and drive train          are modeled              with a single           degree       of freedom,          the effects       of blade
+lagging      and first harmonic                 variations      in required             torque     are not represented.                  It is usable       over the full range
+of the helicopter             simulation,         and is therefore             useful      in illustrating              the changes         of engine       dynamics         over the
+operating     envelope   of the aircraft.
+            A comparison    of the simulation                          and the linear            models        for a high-power              flight condition             is shown       in
+figure      4. Both        the complete            five-degree-of-freedom                      and the two-degree-of-freedom                             perturbation          models
+are good       representions             of engine         response.          Errors      associated            with changes           in trim are small,             and transient
+responses           of internal       engine      states     are reproduced              well.     The reduced-order                  linear     model         response      is nearly
+identical      to that of the extracted                    linear      models.          Note     that higher-order                dynamics          can be seen in the sim-
+ulation      power        turbine       response.          This is a result            of neglecting              rotor-blade         lag dynamics             and the effects           of
+rotor     azimuthal          variation         in the linear        rotor-load          representation.
+            Appendix             B gives       the extracted           small-perturbation                 models         for three       typical      flight     conditions.       Ref-
+erence      1 suggests           that high-power             conditions           correspond             to a more           linear    engine       response,        resulting       in a
+more      accurate        linear      model.      For the T700            implementation,                  low power             response       was found           to be quite      lin-
+ear, at least to power                levels     corresponding              to the UH-60A                 bucket        speed     (trim condition              2 of Appendix         B).
+At lower power               levels     which      occur     in a near-autorotative                     descent      flight condition           (trim condition            3), engine
+response           is slightly      less linear.
+            Eigenvalues               of the linear        models        for three         trim conditions                are shown          in table      1. The      five-degree-
+of-freedom            extracted        model      consists      of five stable,            nonoscillatory               modes.        The power           turbine     state is com-
+pletely      decoupled            from     the other         states.      TI'= neglected                 dynamics            of the      simplified       load      representation
+therefore          have no effect         on the gas-generator                   turbine       or volume           dynamics.          Three      modes,          corresponding           to
+the pressure           states,     are outside        the bandwidth               of interest           for the modeling              of rotor        and propulsion           system
+dynamics.            These       modes     are well above              the second          drive-train            torsional        mode      and the rotor           blade     first in-
+plane     elastic      mode        of a typical      helicopter.          Also, the reduced-order                       two-state        model      eigenvalues           are seen to
+be in good           agreement           with those        of the extracted              two-state            model.         The volume          dynamics           approximation
+is therefore          considered          to be valid for real-time                 and nonreal-time                    engine     dynamic          modeling.
+
+
+                                                           Effects          of Heat-Sink                   Dynamics
+
+            Inclusion         of station 4.1 heat-sink                  effects     in the small perturbation                      model       requires        the addition       of an
+extra     state.     This state, gas temperature                     at station 4.1, is related                   to temperature            without       heat-sink        dynamics
+by
+
+
+                                                                                           15
+

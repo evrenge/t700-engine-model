@@ -1,0 +1,49 @@
+T2   I   _1_                          WFIRF
+
+
+
+
+                                                                     WFIDM
+                                                           L,,
+                                                           v\    )       -_
+
+PCNGHL
+
+
+
+                 Figure     C20.-   idle schedule.
+
+
+
+
+               T2
+               PCNGHL
+                                                WFPAC
+
+
+
+
+           Figure   C21.-     Acceleration     schedule.
+
+
+
+
+                               BWFP
+                                               WFPDCH
+
+
+                                                           WFPDC
+           AWFP
+
+                                              -4:r
+                                              WFPDCL
+
+
+
+           Figure   C22.-     Deceleration     schedule.
+
+
+
+
+                                79
+

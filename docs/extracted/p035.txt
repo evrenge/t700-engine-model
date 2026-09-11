@@ -1,0 +1,51 @@
+                                                     Real-Time                  Modeling                Considerations
+
+             The     requirement            for real-time         operation             imposes          severe       requirements             on a component               model      and
+its program           structure.        Real-time           component               models         are by necessity              simplified        from       more       sophisticated
+component            simulations            which      are used         for design            or analysis          purposes.           Although         the simplified            compo-
+nent model           is based         on the physics           of each process                  within      the engine           cycle,       any detail        which       is found        to
+have     no significant            effect     on operation            or response             must be removed                 in order        to minimize         computing          time.
+The digital          implementation              of a real-time               model       is constrained              by the intended             use of the model                and the
+capabilities         of the processor               used.     Typical          restrictions          that have          been      used in previous               real-time         models
+are the use of third-order                    polynomial          curve         fits for nonlinear              functions,            the use of integer             exponents         and
+square       roots     only, and allowing                no iteration           between            time steps         (ref.     12). Furthermore,               because       complete
+rotorcraft         simulations         involve        considerable             computational               demands,            only a small         percentage            of the avail-
+able     computation             time can be devoted                    to the propulsion                  system.         On the positive              side,     the increasingly
+higher       computational             capabilities         of state-of-the-art                 hardware          allows        some      of the more           severe     restrictions
+to be relaxed.              Present     implementation                 restrictions            at Ames        require          a minimum           amount         of multiple-pass
+coding       or iteration        and the use of the Ames                       simulation-standard                    function        table     processor        routines      as much
+as possible.           Also,       Ames       host computers                 are operated            asynchronous                to peripheral          hardware           such     as the
+image-generation                computers.           The time-step               size is determined                 for a given          simulation         depending          on com-
+puter    speed       and the amount             of peripheral              computer           system     loading.        Simulations            must therefore            be designed
+to be independent                of time step size, the only specifiable                               restrictions           being    maximum            or minimum              allowed
+values.
+             The omission              of dynamic            states        results     in sets of coupled                algebraic         equations          which       describe       the
+pressures       at each station             in terms     of pressures            at the other          stations.       Because         the equations            are not linear,       they
+may not be solved                analytically.           A real-time             simulation            must    therefore          solve       the equations          using     iteration
+methods        unless        a form of preprocessing                    is used.        However,           excessive           amounts         of iteration       must      be avoided
+to limit computational                  demands.            Iteration         also results          in poor        computational              efficiency        because       the time-
+step size must be chosen                    based     on the number              of iterations           needed       for the most extreme                 transient       conditions.
+             Two      previously            used methods              rely     on a one-pass             iteration        scheme          to achieve        the necessary            com-
+putational         efficiency.         They     employ         fixed-point             iteration        with a form            of convergence              technique.         Once       the
+convergence            has been verified              as adequate,             the iteration         loop is eliminated                and the updated               values    are used
+in the following               time interval.          A method              used      at NASA          Lewis        was developed               from      hybrid      computer          ap-
+plications         (refs.     9 and 10). Convergence                       of the iteration          is forced         by inserting           a first-order       lag with a small
+time constant               between     previously           calculated              values     and values            to be used in the next time                      interval.       The
+lag may be expressed                   in the z-domain                as
+
+                                                                               Xn+ 1                 K z
+                                                                                         --                                                                                          (68)
+                                                                                 •n            z -- e -Kat
+
+where the convergence       gain, K, is variable, with higher values resulting   in faster                                                              convergence           but with
+lower margins of stability.    While having the advantages   of simplicity and efficiency,                                                              the method          wc foun¢ _
+to give       poor     results        under     1 trge power-transient                    operation           as experienced               by small         turboshaft        engines.
+Stability      is also lowered              under      low-power             conditions.
+             The     second        method       (refs.      11 and         12) refines         the one-step           iteration        procedure         by using         a redundant
+continuity         equation        to obtain        a mass-flow              error     term.       This term is then multiplied                     by a coefficient              derived
+from     a set of predetermined                  partial      derivatives.             The resulting            value         is used in the next time interval                      as an
+acceptable         estimate        of mass flow. The method                          has the advantages                of speed        of calculation           and stability        over
+
+
+                                                                                              21
+

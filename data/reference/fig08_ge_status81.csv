@@ -1,0 +1,25 @@
+# source: TM-100991 pdf p.42, Figure 8
+# quantity: STATION 3 STATIC PRESSURE, psia vs GAS GENERATOR SPEED, percent; series: G.E. STATUS-81 MODEL
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
+# ps3_psia: STATION 3 STATIC PRESSURE, psia, axis 40.0 to 280.0
+# points: 17
+# NOT transcribed. Values carry read error.
+ng_pct,ps3_psia
+81.2113,82.2656
+82.1940,87.2401
+84.1728,98.9279
+85.1462,106.5581
+87.0594,131.7285
+88.0290,141.8605
+89.0099,148.3674
+89.9633,159.3518
+90.9450,168.1309
+91.9078,178.0795
+92.9027,187.8713
+93.8719,198.3476
+94.8529,210.8766
+95.8404,223.3443
+97.8106,235.2481
+98.7947,238.7848
+99.7861,240.7533

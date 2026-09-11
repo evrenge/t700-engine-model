@@ -1,0 +1,55 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pdftotext *)",
+      "Bash(pdfinfo *)",
+      "Bash(pdftoppm *)",
+      "Bash(pdfimages *)",
+      "Bash(python3 *)",
+      "Bash(pytest *)",
+      "Bash(ruff *)",
+      "Bash(distrobox enter t700-dev *)",
+      "Bash(distrobox list)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(find *)",
+      "Bash(jq *)"
+    ],
+    "ask": [
+      "Bash(rm -rf *)"
+    ],
+    "deny": [
+      "Bash(git push *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "ruff format",
+            "timeout": 30,
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path // empty' | { read -r f || exit 0; case \"$f\" in *.py) ;; *) exit 0;; esac; RUFF=$(command -v ruff || echo \"$HOME/.local/bin/ruff\"); [ -x \"$RUFF\" ] || exit 0; \"$RUFF\" check -q --fix \"$f\"; \"$RUFF\" format -q \"$f\"; } 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "statusMessage": "fast tests",
+            "timeout": 120,
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path // empty' | { read -r f || exit 0; case \"$f\" in */t700/*.py|*/tests/*.py) ;; *) exit 0;; esac; PT=$(command -v pytest || echo \"$HOME/.local/bin/pytest\"); [ -x \"$PT\" ] || exit 0; \"$PT\" tests -q -x --no-header; } 2>&1 || true"
+          }
+        ]
+      }
+    ]
+  }
+}

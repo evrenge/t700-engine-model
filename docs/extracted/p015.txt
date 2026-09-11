@@ -1,0 +1,46 @@
+                                             A HIGH FIDELITY REAL-TIME SIMULATION
+                                                OF A SMALL TURBOSHAFTENGINE
+
+                                                                          Mark G. Ballin
+
+                                                                     AmesResearchCenter
+
+
+
+                                                                        SUMMARY
+
+             A high-fidelity            component-type               model      and     real-time       digital       simulation          of the General            Electric
+T700-GE-700             turboshaft         engine       were      developed       for use with current                   generation       real-time       blade-element
+rotor     helicopter        simulations.        A control          system      model       based     on the specification                fuel control       system      used
+in the UH-60A            Black      Hawk       helicopter         is also presented.            The modeling               assumptions          and real-time        digital
+implementation              methods        particular      to the simulation            of small turboshaft                engines       are described.        The valid-
+ity of the simulation              is demonstrated             by comparison            with analysis-oriented                  simulations         developed         by the
+manufacturer,          available        test data, and flight-test              time histories.
+
+
+
+                                                                  INTRODUCTION
+
+             The accurate         representation            of propulsion          system       performance              and dynamic           response      to changing
+load conditions             is becoming        an important            component           in experimental            handling-qualities              investigations         of
+rotorcraft.        A high level         of sophistication            in modeling        of the powerplant,                 drive train,      and all power          require-
+ments      of the vehicle         is necessary          to achieve      an accurate         representation          of vehicle        performance          and dynamic
+response,         especially      for such demanding                 mission       tasks      as nap-of-the-earth              flight.     It is also      important       for
+simulations          of off-design          vehicle       configurations          and      in exploring          expanded            mission       requirements         for a
+particular        vehicle.      A real-time           representation          of the propulsion              system       is required       for piloted        simulation.
+Piloted       simulation       enables       efficient      determination          of requirements               made       on the propulsion             system     as well
+as the response             of the pilot      to the interaction          of the propulsion             system           with thc vehicle.
+              High-fidelity       propulsion           system      modeling       is particularly           necessary        in the investigation           of integrated
+flight    and propulsion           controls      for rotorcraft.          As shown          in figure        1, much        dynamic        interaction       between      the
+rotor,    drive train, and propulsion                   system     takes place        at or below       the once-per-revolution                  frequency         of the ro-
+tor (ref. 1). The present               generation        of real-time         blade-element          rotor helicopter           simulations          such as Sikorsky
+Gen HeI (ref. 2) can accurately                        model      individual       blade      dynamics          up to the one-per-revolution                    frequency.
+A real-time         model       which      correctly       represents        propulsion-system                dynamic        response        at a high bandwidth               is
+therefore         necessary.       In addition,          advanced       propulsion-control                  strategies      may involve            monitoring        or esti-
+mation        of internal      engine       states,     so an accurate          internal      representation              of the engine         is required,       necause
+the load demand              of rotorcraq        propulsion          systems      typically        varies     from zero power              to full power,       the model
+must      be valid     over     the full power            range     of the actual        engine.       It must        also be valid         over      a complete       range
+of ambient         operating       conditions.           Engine      parameters         of primary          importance         to real-time         handling       qualities
+investigations          include       the output         torque    and dynamics            of the gas turbines,               both of which           are necessary        for
+pilot     sound     cuing      as well as for modeling               of power         output.      Also important             are parameters           used by the fuel
+

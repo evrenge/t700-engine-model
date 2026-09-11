@@ -1,0 +1,64 @@
+       As describedin reference7, acritical velocityparameteris usedto calculateanenthalpychangepa-
+rameterfor thegasgeneratorturbineasafunctionof pressureratio only. Actual enthalpydropis calculated
+by multiplying this parameterby the squaredcritical velocityratio. Exit enthalpyis thendetermined.
+
+                                                       O41 -          KTH41_T41              +      KTH412                                                          (25)
+
+                                                                                                 ( P45'_
+                                                          A HGT          =    041    • f7        k,_]
+                                                                                                                                                                    (26)
+
+                                                             H44         = H4!          -        a H6,,r                                                            (27)
+
+        Over the normal             operating   range        of the engine,                 a choked            nozzle    equation      is adequate      to calculate
+the mass flow.
+
+                                                                                                 P41
+                                                              W41            = Kw6,r/ff._41                                                                         (28)
+
+           At station    4.5, gases      from   the station           4.4 and cooling-bleed                        flow    from      the compressor       are mixed
+before     passing through     the power turbine.             The enthalpy    of the mixed                           gases    is proportional         to enthalpy       at
+station    4.4. Temperature      is then determined            from enthalpy.
+
+
+                                                                  H45        = KH45 H44                                                                          (29)
+
+                                                        T45       =     KT451       H45          + Kras_                                                         (30)
+
+           A power-turbine     enthalpy   drop parameter    is determined                                      as a function of pressure          ratio across       the
+turbine,    as described   for the gas-generator   turbine.   In addition,                                     mass flow is determined           as a function         of
+pressure     ratio only.
+
+
+                                                       045    =    K'TH4517"45               +     KTH452                                                        (31)
+
+                                                                                   (P49)
+                                                         _Her           = 045 • fs kff-45/                                                                       (32)
+
+
+                                                                                  (P,9)
+                                                              W45,           = f9 \_]                                                                            (33)
+
+                                                                                             P45
+                                                              W45            = W45,                                                                             (34)
+
+           Station   4.9 enthalpy      and temperature             are determined                       from    the change    in enthalpy       across    the power
+turbine,
+
+
+                                                             H49        = H45          - A HIT                                                                  (35)
+
+                                                       T49        = Kr491 H49                + Kr492                                                            (36)
+
+           Station   4.9 pressure      is deiermined         from a nonlinear                     function        map of gas generator          speed     (provided
+by GE).
+
+
+                                                                       P,9 = Po,,b                                                                              (37)
+
+                                                         P49          = P,9         • flo (NGc)                                                                 (38)
+
+
+
+                                                                                10
+

@@ -1,0 +1,23 @@
+# source: TM-100991 pdf p.41, Figure 7
+# quantity: SHAFT HORSEPOWER (no unit printed) vs FUEL FLOW, lb/hr; series: REAL-TIME MODEL -- Ballin's model, the replication target
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
+# shp: SHAFT HORSEPOWER (no unit printed), axis -200.0 to 2000.0
+# points: 15
+# NOT transcribed. Values carry read error.
+wf_pph,shp
+223.7373,148.4817
+254.6750,242.3624
+269.7779,292.9622
+333.8007,495.0738
+351.8307,553.4765
+409.9692,716.7763
+439.7873,805.2445
+471.9527,899.2607
+503.8415,995.2780
+542.2966,1110.9328
+588.7596,1243.4394
+640.1520,1381.5229
+701.7326,1542.2432
+749.8872,1662.2075
+800.8044,1789.0727

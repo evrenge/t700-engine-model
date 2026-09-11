@@ -1,0 +1,73 @@
+               280           ....                      •   • ,..............
+
+
+
+
+                                                • REAL-TIME  MODEL
+                                                  G.E. UNBALANCED  TORQUE                            MODEL
+                                                x G.E. STATUS-81                   MODEL
+               24O                                                                                                                                                                        x /,,
+                                                                                                                                                                                      x
+                                                                                                                                                                                    x _
+
+
+                                                                                                                                                                     X
+                                                                                                                                                                                A
+
+
+                                                                                                                                                             X
+
+
+
+                2OO                                                                                                                                                  A
+                                                                                                                                                        x
+         ._m
+         K                                                                                                                                          x
+
+         n,-
+                                                                                                                                                X
+
+         u.I
+                                                                                                                                        X•
+         o.
+                160
+         f-                                                                                                                        XO
+                                                                                                                                        A
+
+                                                                                                                           X
+         P3
+         z                                                                                                         X       $
+         o
+         p.
+         <_                                                                                                   X
+                                                                                                              •A
+
+
+                120
+
+
+
+
+                                                                                                •x
+
+
+                                                                                         •x
+                                                                                    •x
+                 8O
+
+
+
+
+                 40
+                               ....         •   ....           .....|   ....         l   ....        m    _   .        .       .   I     ....                    I       ....              l    ....      -
+
+
+                        65                 70                 75                    80               85                            90                        95                           100            105
+                                                                               GAS GENERATOR             SPEED, percent
+
+
+Figure         8:T700            station   3 static-pressure                    vs. gas-generator             speed                for three                simulation                    models       at sea-level
+standard         atmosphere            conditions.
+
+                                                                                                28
+

@@ -1,0 +1,77 @@
+        _Z'std    standard       atmosphere         temperature       at sea-level,              deg R
+
+
+        W41       station     4.1 mass flow rate of combustion                       gases,       Ib.Jsec
+
+
+        W45       station     4.5 mass      flow rate of combustion                  gases,       Ib,_/sec
+
+
+        W45c      corrected       station   4.5 mass      flow rate of combustion                     gases,    Ib.Jsec
+
+
+    7   WA2       station     2 mass-flow        rate of atmospheric             gas, lb,_/sec
+
+
+        WA24bt    station     2.4 bleed     flow of atmospheric               gas, lb.,/sec
+
+
+        WA2c      corrected       station   2 mass-flow          rate of atmospheric                gas, Ib._/sec
+
+
+        WA3       station      3 mass flow rate of atmospheric                   gas, lb,_/sec
+
+
+        WA31      station      3.1 mass flow rate of atmospheric                      gas, Ib_,/sec
+
+
+        WA3bz     diffuser      bleed   discharge       flow,     Ib._/sec
+
+
+        w:        fuel flow, lb._/sec
+
+
+         wg       mass flow rate of gas into heat-sink                      representation            control    volume
+
+
+         62       ratio of inlet pressure            to sea-level      pressure
+
+
+         A H6"r   gas-generator-turbine              enthalpy       drop,     Btu/lb._
+
+
+         AHpr     power       turbine    enthalpy      drop,     Btu/Ib,_
+
+
+                  combustor         efficiency
+I
+z
+
+
+
+         71       heat-sink       lead time constant            for a trim operating               condition;
+|
+                   used in small-perturbation              representation,                 sec
+!
+!
+i
+
+J
+                  heat-sink       lag time constant         for a trim operating                  condition;
+i
+l                  used in small-perturbation              representation,                 sec
+|
+I
+         02       ratio      of inlet temperature         to standard-day              temperature
+
+
+         041       station     4.1 squared-critical-velocity                 ratio
+
+
+         045       station     4.5 squared-critical-velocity                 ratio
+
+
+
+
+                                                                                     vii
+

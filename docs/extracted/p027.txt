@@ -1,0 +1,61 @@
+volumesusing the quasi-steadyapproximation. The other                                          simulation        contained       full volume        dynamics.
+Because      of nonlinear       turbine-efficiency         and mass-flow              relationships,          the dynamic       response       of a turboshaft
+engine    may generally          not be described         linearly.       However,           a linear   model      which       is accurate      for small   per-
+turbations      about     one   operating     point    is useful      in evaluating            the open-loop         engine      response       to a fuel-flow
+input.
+          The    linear    perturbation       models      were      extracted         from    the complete         nonlinear         digital   simulation    and
+a reduced-order    nonlinear   simulation               which contained  the volume dynamics   approximation.     Because the
+station 4.1 heat-sink    approximation                 was added to both models as a linear lead-lag representation,     it was
+not included       in the analysis.         The resulting         five degrees:of-freedom                represented          were     pressures    at stations
+3, 4.1, and 4.5 and the two turbine                  speeds.      In state-equation            form,
+
+
+                                                                       = A5          + bW!                                                                  (54)
+
+where
+
+
+
+                                                                                 NP
+                                                                    "_=         P3
+                                                                                 P41
+                                                                                 P45
+
+
+
+                                                          0t¢_._¢ aN...__c a_¢¢               a,,¢¢     o,v;¢
+                                                          one     aNP      aP3                ap4_      _'_
+
+                                                           #_tp       o_¢P       i2_¢P        a_P       ONP
+                                                          aNG         0NP            0P3      0P41      0P45
+
+
+                                               A
+                                                           0/_3       0/_3           OP3      0/_3      OP3
+                                                                      aNP            aP3      OP41
+
+
+
+                                                          ONG         c_NP        OP3         aP41      OP_
+
+
+                                                          0P45        0P45       _P_5         OP;_5     OPt5
+                                                          ONC         ONP         OP3         aP41      0P45
+
+
+
+
+                                                                                 ON____P
+
+
+
+
+                                                                                 0P45
+                                                                                 0wl
+
+The model containing      the nonlinear                volume       dynamics           approximation            is represented         by the two turbine-
+speed degrees-of-freedom.
+
+
+                                                                                13
+

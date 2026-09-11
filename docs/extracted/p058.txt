@@ -1,0 +1,85 @@
+      0.12             .........                                            ,            ,                 -,
+
+
+
+
+       0.11
+
+
+
+      0.10
+
+
+
+
+      0.09
+
+
+
+
+      0.08
+
+
+
+
+      0.07
+
+
+
+
+      0.06
+z"
+0
+k-
+
+,_    0.05
+e_
+U.
+
+a
+w
+uJ    0.04
+,d
+I10
+
+
+
+
+      0.03
+
+
+
+
+      0.02
+
+
+
+
+       0.01
+
+
+
+
+      0.00
+
+
+
+
+      -0.01
+
+
+
+
+      -0.02            1           •   •   •   _J   ....    _   i           1            i   . _.L
+
+                      7O                                        80                      90                             100
+                                       CORRECTED           GAS GENERATOR        SPEED, NGc, %
+
+
+         Figure A3.- T700 real-time                 model function f3--seal-pressurization           bleed fraction.
+
+
+
+
+                                                                     44
+

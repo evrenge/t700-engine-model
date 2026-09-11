@@ -1,0 +1,35 @@
+# source: TM-100991 pdf p.42, Figure 8
+# quantity: STATION 3 STATIC PRESSURE, psia vs GAS GENERATOR SPEED, percent; series: REAL-TIME MODEL -- Ballin's model, the replication target
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
+# ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
+# ps3_psia: STATION 3 STATIC PRESSURE, psia, axis 40.0 to 280.0
+# points: 27
+# NOT transcribed. Values carry read error.
+ng_pct,ps3_psia
+70.3470,61.8925
+71.3425,63.4298
+73.3350,67.8400
+74.3307,69.8774
+75.3243,71.9592
+76.3071,74.0622
+77.2875,76.1276
+78.2642,78.2729
+79.2448,80.4834
+80.2224,82.8426
+81.2106,88.6203
+82.1886,94.6333
+83.1768,99.9373
+84.1695,106.1876
+85.1437,113.3496
+87.0728,128.8399
+88.0435,136.4284
+89.0202,142.6582
+89.9951,150.7956
+90.9679,158.9438
+91.9395,167.0838
+92.9214,175.6303
+94.8771,194.2324
+95.8575,205.0840
+96.8356,215.7935
+97.8162,227.6461
+99.7754,244.9043

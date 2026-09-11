@@ -1,0 +1,58 @@
+       4                                      HELICOPTER        MANUFACTURER                                                          -I
+       -41._
+                  PERFORMANCE
+
+                          HANDLING         QUALITIES                     =
+                            AUTOMATIC           FLIGHT      CONTROLS
+
+                                                                                             DYNAMICS                                 -t
+                                                                                     ROTOR
+                                                                                     AI      FLAP/LAG
+                                                                                        R/GROUND   RESONANCE
+                                                                                                       ROTOR        ROTOR
+
+
+        ROTOR/AIRFRAME                     PITCH/           GAS
+                                                            INDUCED                 IRST
+                                                                                                       BLADE
+                                                                                                       FIRST
+                                                                                                                    BLADE
+                                                                                                                     FIRST
+
+
+
+
+               i                                                 H
+                                                                                                       ELASTIC      ELASTIC
+                         ROLL              COUPLING         REGRESSIVE              END     G          FLAPPING     EDGEWISE
+
+
+
+
+                                                                                                  4/MR REV
+                        DRIVE
+                                lJ
+                                 SYSTEM/FUEL
+                        CONTROL "HUNTING"                                U t
+                                                               ROTOR/DRIVE
+                                                                                1/MR REV
+                                                                                                  AERO.
+                                                                                                   EXCITA-
+                                                                                                                    ROTOR/DRIVE
+                                                                                                                    SYSTEM
+                        FREQUENCY                              SYSTEM
+                                                               FIRST                               TION             SECOND
+                  ROTOR/DRIVE          TRAIN                                                                        TORSION
+
+                  TORSIONAL          SYSTEM                    TORSION
+
+
+                        ENGINE       MANUFACTURER                        _I
+
+       __,__.l,             1    •     I    I 1 ill              I       i      I   I   I I ill                 I     i      i    I
+  .1               .2                 .5              1          2                  5             10           20                50
+                                                          FREQUENCY,     Hz
+
+
+Figure         1: Modal    frequencies        of interest    in engine       and fuel-control      design      and modeling           (ref. 3).
+
