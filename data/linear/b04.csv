@@ -1,0 +1,52 @@
+# source: TM-100991 pdf p.69, Figure B4
+# quantity: 5-DOF small-perturbation linear model at trim condition 2 (level 80 kt) -- state-space matrices A, b
+# model: 5-DOF small-perturbation linear model, trim condition 2 (level 80 kt)
+# heat_sink: off  [pdf p.67: the heat-sink model is in the 3- and 6-DOF models]
+# states: NG,NP,P3,P41,P45   ordering: printed [pdf p.27]
+# input: Wf, fuel flow, lbm/sec  (Table B.1 quotes trim fuel flow in lbm/hr)
+# form: xdot = A x + b Wf
+# columns:
+#   matrix -- which matrix the value belongs to: A, b
+#   row    -- state whose derivative this row is, one of the states above
+#   col    -- state being perturbed; empty for the column vectors b
+#   value  -- the element itself, in the report's printed 0.NNNNE+N form
+# units: A(i,j) = d(xi_dot)/d(xj); b(i) = d(xi_dot)/d(Wf); d(i) = xi per (lbm/sec)
+# method: transcribed -- printed numbers read from the page image, each element at
+#   least twice from independent crops. Not digitized; these are not plot reads,
+#   so they carry no read error, only the report's 4-significant-figure rounding.
+# values: written exactly as the report prints them, in 0.NNNNE+N form
+# points: 30
+# transcribed: 2026-09-11, from docs/notes/inventory-appendix-b.md
+# note: A(2,1) = +0.1283E-1 is positive here, unlike trim 1; re-checked at 2x zoom, no
+#   minus sign. The repeated mantissa 2551 in A(2,4) and A(5,3) is genuine.
+matrix,row,col,value
+A,NG,NG,-0.3659E+1
+A,NG,NP,0.0000E+0
+A,NG,P3,-0.6173E+3
+A,NG,P41,0.1107E+4
+A,NG,P45,-0.1548E+4
+A,NP,NG,0.1283E-1
+A,NP,NP,-0.4461E+0
+A,NP,P3,-0.2898E+2
+A,NP,P41,0.2551E+2
+A,NP,P45,0.1825E+3
+A,P3,NG,0.6340E+0
+A,P3,NP,0.0000E+0
+A,P3,P3,-0.4090E+3
+A,P3,P41,0.3899E+3
+A,P3,P45,0.0000E+0
+A,P41,NG,0.0000E+0
+A,P41,NP,0.0000E+0
+A,P41,P3,0.3898E+4
+A,P41,P41,-0.4287E+4
+A,P41,P45,0.0000E+0
+A,P45,NG,0.8461E+0
+A,P45,NP,0.0000E+0
+A,P45,P3,-0.2551E+3
+A,P45,P41,0.9497E+3
+A,P45,P45,-0.4038E+4
+b,NG,,0.8411E+5
+b,NP,,0.4888E+4
+b,P3,,0.0000E+0
+b,P41,,0.1882E+6
+b,P45,,0.4221E+5

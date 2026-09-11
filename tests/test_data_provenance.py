@@ -100,14 +100,47 @@ def test_declared_point_count_matches_the_rows(path: Path):
     assert len(rows) == n, f"{path.name}: header says {n} points, file holds {len(rows)}"
 
 
+def _is_number(v: str) -> bool:
+    try:
+        float(v)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 @pytest.mark.parametrize("path", data_files(), ids=lambda p: p.name)
 def test_values_are_finite_numbers(path: Path):
+    """Numeric columns hold finite numbers, and no column mixes numbers with text.
+
+    Originally this required *every* column to be numeric, which assumed every data file
+    is a curve or a map. `data/linear/` is neither: Appendix B's matrices are stored long,
+    `matrix,row,col,value`, where three columns are labels (`A`, `NG`, `P41`) and one is
+    the number. Requiring those to parse as floats tested the schema, not the data.
+
+    So the rule is now per column rather than per cell, and it is **stronger** than what
+    it replaces: a column must be entirely numeric or entirely non-numeric. A *mixed*
+    column -- a stray `N/A`, a truncated write, a header row duplicated into the body --
+    is the failure this is really guarding against, and the old form reported it as an
+    unhandled ValueError rather than as a finding.
+    """
     with path.open() as fh:
         rows = list(csv.DictReader(ln for ln in fh if not ln.startswith("#")))
-    for i, row in enumerate(rows):
-        for key, val in row.items():
-            f = float(val)
-            assert f == f and abs(f) != float("inf"), f"{path.name} row {i}: {key}={val}"
+    if not rows:
+        pytest.skip(f"{path.name} holds no rows")
+
+    for key in rows[0]:
+        vals = [r[key] for r in rows]
+        numeric = [_is_number(v) for v in vals]
+        if any(numeric) and not all(numeric):
+            bad = [(i, v) for i, (v, ok) in enumerate(zip(vals, numeric, strict=True)) if not ok]
+            pytest.fail(
+                f"{path.name}: column {key!r} mixes numbers and text; first offenders {bad[:3]}"
+            )
+        if not all(numeric):
+            continue  # a label column, e.g. the state names in data/linear/
+        for i, v in enumerate(vals):
+            f = float(v)
+            assert f == f and abs(f) != float("inf"), f"{path.name} row {i}: {key}={v}"
 
 
 def test_f10_is_stored_as_printed_not_inverted():

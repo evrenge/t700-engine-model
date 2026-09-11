@@ -1,0 +1,37 @@
+# source: TM-100991 pdf p.75, Figure B11
+# quantity: 3-DOF small-perturbation linear model at trim condition 3 (descent 80 kt) -- state-space matrices A, b, d
+# model: 3-DOF small-perturbation linear model, trim condition 3 (descent 80 kt)
+# heat_sink: on  [pdf p.67: the heat-sink model is in the 3- and 6-DOF models]
+# states: NG,NP,T41   ordering: INFERRED, not printed -- see inventory-appendix-b.md 2.4
+# input: Wf, fuel flow, lbm/sec  (Table B.1 quotes trim fuel flow in lbm/hr)
+# form: zdot = A z + b Wf ; x = C z + d Wf, with C = [I] printed literally
+# columns:
+#   matrix -- which matrix the value belongs to: A, b or d
+#   row    -- state whose derivative this row is, one of the states above
+#   col    -- state being perturbed; empty for the column vectors b and d
+#   value  -- the element itself, in the report's printed 0.NNNNE+N form
+# units: A(i,j) = d(xi_dot)/d(xj); b(i) = d(xi_dot)/d(Wf); d(i) = xi per (lbm/sec)
+# method: transcribed -- printed numbers read from the page image, each element at
+#   least twice from independent crops. Not digitized; these are not plot reads,
+#   so they carry no read error, only the report's 4-significant-figure rounding.
+# values: written exactly as the report prints them, in 0.NNNNE+N form
+# points: 15
+# transcribed: 2026-09-11, from docs/notes/inventory-appendix-b.md
+# note: A(1,1) = -0.7428E+0 has exponent +0, not +1 as at trims 1 and 2. The OCR text layer
+#   misassigns this element to row 2; the image is unambiguous.
+matrix,row,col,value
+A,NG,NG,-0.7428E+0
+A,NG,NP,0.0000E+0
+A,NG,T41,0.1217E+2
+A,NP,NG,0.4617E+0
+A,NP,NP,-0.3567E+0
+A,NP,T41,0.1130E+1
+A,T41,NG,0.1659E-1
+A,T41,NP,0.0000E+0
+A,T41,T41,-0.8819E+0
+b,NG,,0.9056E+5
+b,NP,,0.8540E+4
+b,T41,,-0.3507E+4
+d,NG,,0.0000E+0
+d,NP,,0.0000E+0
+d,T41,,0.7076E+4

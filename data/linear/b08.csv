@@ -1,0 +1,73 @@
+# source: TM-100991 pdf p.72, Figure B8
+# quantity: 6-DOF small-perturbation linear model at trim condition 1 (hover) -- state-space matrices A, b, d
+# model: 6-DOF small-perturbation linear model, trim condition 1 (hover)
+# heat_sink: on  [pdf p.67: the heat-sink model is in the 3- and 6-DOF models]
+# states: NG,NP,P3,P41,P45,T41   ordering: printed [pdf p.32]
+# input: Wf, fuel flow, lbm/sec  (Table B.1 quotes trim fuel flow in lbm/hr)
+# form: zdot = A z + b Wf ; x = C z + d Wf, with C = [I] printed literally
+# columns:
+#   matrix -- which matrix the value belongs to: A, b or d
+#   row    -- state whose derivative this row is, one of the states above
+#   col    -- state being perturbed; empty for the column vectors b and d
+#   value  -- the element itself, in the report's printed 0.NNNNE+N form
+# units: A(i,j) = d(xi_dot)/d(xj); b(i) = d(xi_dot)/d(Wf); d(i) = xi per (lbm/sec)
+# method: transcribed -- printed numbers read from the page image, each element at
+#   least twice from independent crops. Not digitized; these are not plot reads,
+#   so they carry no read error, only the report's 4-significant-figure rounding.
+# values: written exactly as the report prints them, in 0.NNNNE+N form
+# points: 48
+# transcribed: 2026-09-11, from docs/notes/inventory-appendix-b.md
+# note: A(6,6) = +0.7785E+3 is POSITIVE, read three times from independent 300-dpi crops.
+#   Row 6 is F1^-1 F2 row 6, a difference of terms of order 2e5 giving order 1e3, so
+#   the printed 4 digits carry about +-50 absolute in A(6,3) and A(6,4). Perturbing
+#   those two within their printed rounding moves the slow mode from -0.99 to +7.3.
+#   COMPARE ELEMENT BY ELEMENT ONLY -- do not compare eigenvalues of any 6-DOF model.
+matrix,row,col,value
+A,NG,NG,-0.4474E+1
+A,NG,NP,0.0000E+0
+A,NG,P3,-0.1419E+3
+A,NG,P41,0.9129E+3
+A,NG,P45,-0.2942E+4
+A,NG,T41,0.1049E+2
+A,NP,NG,-0.2444E-1
+A,NP,NP,-0.5650E+0
+A,NP,P3,0.0000E+0
+A,NP,P41,-0.7748E+1
+A,NP,P45,0.2321E+3
+A,NP,T41,0.7867E+0
+A,P3,NG,0.7524E+0
+A,P3,NP,0.0000E+0
+A,P3,P3,-0.4230E+3
+A,P3,P41,0.4071E+3
+A,P3,P45,0.0000E+0
+A,P3,T41,0.0000E+0
+A,P41,NG,0.0000E+0
+A,P41,NP,0.0000E+0
+A,P41,P3,0.5252E+4
+A,P41,P41,-0.5653E+4
+A,P41,P45,0.0000E+0
+A,P41,T41,0.2229E+2
+A,P45,NG,0.1063E+1
+A,P45,NP,0.0000E+0
+A,P45,P3,0.0000E+0
+A,P45,P41,0.5445E+3
+A,P45,P45,-0.3063E+4
+A,P45,T41,0.5123E+1
+A,T41,NG,-0.2659E+2
+A,T41,NP,0.0000E+0
+A,T41,P3,0.1984E+6
+A,T41,P41,-0.2118E+6
+A,T41,P45,0.0000E+0
+A,T41,T41,0.7785E+3
+b,NG,,0.5533E+5
+b,NP,,0.4147E+4
+b,P3,,0.0000E+0
+b,P41,,0.1316E+6
+b,P45,,0.2701E+5
+b,T41,,0.4600E+7
+d,NG,,0.0000E+0
+d,NP,,0.0000E+0
+d,P3,,0.0000E+0
+d,P41,,0.0000E+0
+d,P45,,0.0000E+0
+d,T41,,0.5271E+4
