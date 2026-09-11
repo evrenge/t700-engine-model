@@ -342,6 +342,7 @@ def extract(
     dof: DOF | str = DOF.FIVE,
     ambient: Ambient = STANDARD_DAY,
     j_load: float = 0.0,
+    dq_req_dnp: float = 0.0,
     rel_step: float = 1e-5,
 ) -> LinearModel:
     """Extract one of the five linear models about a converged trim.
@@ -351,8 +352,15 @@ def extract(
             meaningless Jacobian, and the whole point of a linear model is its derivatives.
         wf_pps: the trim fuel flow, lbm/sec.
         dof: which of the five.
-        j_load: load inertia added to J_PT [Eq. 46]. Zero means the bare power turbine,
-            which is why the NP mode is not comparable -- see the module docstring.
+        j_load: load inertia added to J_PT [Eq. 46]. Zero means the bare power turbine.
+        dq_req_dnp: slope of the load torque with power turbine speed, ft*lbf per rpm.
+            `Q_req` is an **input** to this model [Eq. 47], supplied by Gen Hel; holding
+            it constant means asserting `dQreq/dNP = 0`, which is not a neutral default
+            but a statement that the rotor does not resist a speed change. It does. This
+            completes the load specification rather than altering the engine: nothing in
+            `engine.frame` changes, only what `Q_req` is at a perturbed NP. Recovered
+            from Appendix B as +0.019471 / +0.015869 / +0.012950 at the three trims
+            (open question #6); trim-dependent, so there is no single constant to store.
 
     The input column `b` is `d(x-dot)/d(Wf)`, differenced about the same trim.
     """
@@ -365,8 +373,14 @@ def extract(
         )
     amb = ambient
     full0 = trim_result.state.as_array()
-    qreq = frame(trim_result.state, wf_pps, amb, j_load=j_load).q_pt_ftlbf
+    qreq0 = frame(trim_result.state, wf_pps, amb, j_load=j_load).q_pt_ftlbf
     np_rpm = float(full0[1])
+
+    def qreq_at(np_now: float) -> float:
+        """Load torque at a perturbed NP. Flat unless `dq_req_dnp` is supplied."""
+        return qreq0 + dq_req_dnp * (np_now - np_rpm)
+
+    qreq = qreq0  # the trim value, for the paths that do not perturb NP
 
     if dof in HEAT_SINK:
         f0 = frame(trim_result.state, wf_pps, amb, j_load=j_load)
@@ -377,22 +391,21 @@ def extract(
             z0 = np.array([*full0, t41_0])
 
             def f_deriv(z, wf):
-                return _full_deriv(z[:5], wf, amb, qreq, j_load, z[5])
+                return _full_deriv(z[:5], wf, amb, qreq_at(z[1]), j_load, z[5])
 
             def f_t41ns(z, wf):
-                return _full_frame(z[:5], wf, amb, qreq, j_load, z[5]).t41_ns_degR
+                return _full_frame(z[:5], wf, amb, qreq_at(z[1]), j_load, z[5]).t41_ns_degR
         else:
             z0 = np.array([full0[0], full0[1], t41_0])
             p_guess = full0[2:]
 
             def f_deriv(z, wf):
-                return _quasi_steady_deriv(z[:2], p_guess, wf, amb, qreq, j_load, z[2])[0]
+                return _quasi_steady_deriv(z[:2], p_guess, wf, amb, qreq_at(z[1]), j_load, z[2])[0]
 
             def f_t41ns(z, wf):
-                p = _solve_pressures(z[0], z[1], p_guess, wf, amb, qreq, j_load, z[2])
-                return _full_frame(
-                    np.array([z[0], z[1], *p]), wf, amb, qreq, j_load, z[2]
-                ).t41_ns_degR
+                q = qreq_at(z[1])
+                p = _solve_pressures(z[0], z[1], p_guess, wf, amb, q, j_load, z[2])
+                return _full_frame(np.array([z[0], z[1], *p]), wf, amb, q, j_load, z[2]).t41_ns_degR
 
         return _extract_heat_sink(
             dof, f_deriv, f_t41ns, z0, wf_pps, rel_step, taus, STATES[dof], np_rpm
@@ -400,7 +413,7 @@ def extract(
 
     if dof is DOF.FIVE:
         A = _central_jacobian(
-            lambda x: _full_deriv(x, wf_pps, amb, qreq, j_load), full0, 5, rel_step
+            lambda x: _full_deriv(x, wf_pps, amb, qreq_at(x[1]), j_load), full0, 5, rel_step
         )
         hw = rel_step * max(abs(wf_pps), 1e-6)
         b = (
@@ -414,7 +427,7 @@ def extract(
         # the equations for the remaining two states" [pdf p.28]. The algebra itself is
         # not printed; this is the standard residualization and is checkable against
         # Table 1 column 5.
-        m5 = extract(trim_result, wf_pps, DOF.FIVE, amb, j_load, rel_step)
+        m5 = extract(trim_result, wf_pps, DOF.FIVE, amb, j_load, dq_req_dnp, rel_step)
         A11, A12 = m5.A[:2, :2], m5.A[:2, 2:]
         A21, A22 = m5.A[2:, :2], m5.A[2:, 2:]
         b1, b2 = m5.b[:2], m5.b[2:]
@@ -426,7 +439,7 @@ def extract(
     s0, p0 = full0[:2], full0[2:]
 
     def g(s):
-        d, _ = _quasi_steady_deriv(s, p0, wf_pps, amb, qreq, j_load)
+        d, _ = _quasi_steady_deriv(s, p0, wf_pps, amb, qreq_at(s[1]), j_load)
         return d
 
     A = _central_jacobian(g, s0, 2, rel_step)

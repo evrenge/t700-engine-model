@@ -405,3 +405,50 @@ def test_the_t41_row_ng_element_carries_the_f1_error_on_top(trim_no: int):
             f"the row; got {r_ng:.3f} against a row mean of {np.mean(others):.3f}"
         )
     assert 0.75 < r_ng < 1.05, f"trim {trim_no} A(T41,NG) ratio {r_ng:.3f}"
+
+
+# --------------------------------------------------- the load-torque slope, and its limits
+
+DQ_REQ_DNP = {1: 0.019471, 2: 0.015869, 3: 0.012950}
+"""dQreq/dNP, ft*lbf per rpm, recovered from Appendix B's NP diagonal (open question #6).
+
+**Recovered from the elements it then corrects.** Supplying it is completing the load
+specification, as `j_load` was -- Q_req is an input [Eq. 47] and holding it constant
+asserts that the rotor does not resist a speed change, which is false. But it is not
+independent evidence of agreement, and the test below says so rather than claiming a win.
+"""
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_supplying_the_load_slope_closes_the_np_diagonal_circularly(trim_no: int):
+    """It closes, and the closure is circular. Both halves are asserted deliberately.
+
+    With `dQreq/dNP` supplied the NP diagonal matches; without it, it sits ~52 % low. That
+    is worth locking in as a regression guard on the plumbing -- the slope must actually
+    reach `Q_req` and nowhere else -- while being explicit that it demonstrates nothing
+    about the engine, since the number came from this very element.
+
+    The non-circular part is the *structure*: the slope must move the NP diagonal and
+    leave every other element untouched, because Q_req enters only dNP/dt and depends only
+    on NP. That is a real check and it is the second half of this test.
+    """
+    wf = wf_pps_from_pph(WF_PPH[trim_no])
+    r = trim.solve(wf, NP_RPM, AMB)
+    ref = ab.find(5, trim_no)
+    bare = extract(r, wf, DOF.FIVE, AMB, j_load=c.J_LOAD_UH60A)
+    fixed = extract(r, wf, DOF.FIVE, AMB, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[trim_no])
+
+    before = (abs(bare.A[1, 1]) - abs(ref.A[1, 1])) / abs(ref.A[1, 1]) * 100.0
+    after = (abs(fixed.A[1, 1]) - abs(ref.A[1, 1])) / abs(ref.A[1, 1]) * 100.0
+    assert before < -45.0, f"NP diagonal was {before:+.1f} % without the slope"
+    assert abs(after) < 1.0, f"NP diagonal is {after:+.1f} % with it"
+
+    # The structural half: nothing else may move.
+    for i in range(5):
+        for j in range(5):
+            if (i, j) == (1, 1):
+                continue
+            assert fixed.A[i, j] == pytest.approx(bare.A[i, j], rel=1e-9), (
+                f"d({S[i]})/d({S[j]}) moved; Q_req enters only dNP/dt and depends only on NP"
+            )
+    assert np.allclose(fixed.b, bare.b, rtol=1e-9)
