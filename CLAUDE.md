@@ -29,6 +29,7 @@ with `distrobox enter t700-dev --`.
 | Find which page holds a term | `grep -rin "<term>" docs/extracted/` |
 | Read that page (the real source) | `pdftoppm -f NN -l NN -r 200 -png docs/ballin-tm100991.pdf /tmp/p` |
 | Compare model against the report | `/validate` |
+| Prove every digitized file is current | `bash tools/reproduce_all.sh` |
 
 Pre-rendered page images already exist for pp.8-15 and pp.55-101 as
 `docs/extracted/p-0NN.png`.
@@ -159,6 +160,7 @@ in a long session, so mechanize any that proves to matter.
 | Gas properties only via `t700.thermo` | **live** — `tests/test_imports.py` fails any module outside `thermo/` that names a `K_H*`/`K_T*`/`K_TH*` constant |
 | Core is deterministic | **live** — `tests/test_imports.py` bans clocks and RNGs structurally; `tests/test_determinism.py` checks it behaviourally |
 | No force-push | `permissions.ask`. A plain `git push` was denied outright until 2026-09-11, when the remote was created and publishing was authorized; force-push still prompts |
+| Never hand-edit a generated data file | **live** — `bash tools/reproduce_all.sh` reruns every digitizer and diffs; a hand-added note is silently wiped by the next rerun, which happened once to the Figure 9 defect annotations. Put it in the tool. |
 | Python stays formatted and linted | PostToolUse hook: `ruff check --fix` then `ruff format` |
 
 Those tests are written and passing as of 2026-09-10, so three rules that were wishes

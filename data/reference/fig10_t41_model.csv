@@ -5,6 +5,8 @@
 # value: T41, axis range 1500.0 to 2500.0, no unit printed on the figure
 # points: 732
 # x tick check: worst interior major tick off by 0.0449 s
+# defect: the final sample at t=4.92510 s sits 0.467 s after its predecessor, against a median sample interval of 0.00300 s -- 156x. It is a re-acquisition artifact, not data.
+#   Kept rather than deleted, per the provenance rule: consumers must window it out. validation/ stops at t < 4.6 for this reason. See open question #48.
 # NOT transcribed. Values carry read error.
 t_s,value
 0.05992,2196.96970

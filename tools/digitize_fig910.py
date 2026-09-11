@@ -372,6 +372,30 @@ def main() -> int:
                             f"# sample lattice: pitch {info['pitch']:.2f} px "
                             f"= {x_of(p.left + info['pitch']) - T_LO:.4f} s\n"
                         )
+                    # A trailing sample far separated from the rest of the trace is a
+                    # digitizer artifact, not data -- the walker re-acquires ink at the
+                    # right-hand end of the panel (a frame line, a legend rule, a stray
+                    # glyph) and emits it as one more point. Detected here rather than
+                    # annotated by hand afterwards, because a hand-added note to a
+                    # generated file does not survive the next rerun. Found on Figure 9's
+                    # T41 and TORQ45 panels; see docs/notes/open-questions.md #48.
+                    ts = np.array([x_of(px) for px, _ in pts])
+                    if ts.size > 8:
+                        gaps = np.diff(ts)
+                        med = float(np.median(gaps))
+                        if med > 0 and gaps[-1] > 10.0 * med:
+                            fh.write(
+                                f"# defect: the final sample at t={ts[-1]:.5f} s sits "
+                                f"{gaps[-1]:.3f} s after its predecessor, against a median "
+                                f"sample interval of {med:.5f} s -- "
+                                f"{gaps[-1] / med:.0f}x. It is a re-acquisition artifact, "
+                                f"not data.\n"
+                            )
+                            fh.write(
+                                "#   Kept rather than deleted, per the provenance rule: "
+                                "consumers must window it out. validation/ stops at "
+                                "t < 4.6 for this reason. See open question #48.\n"
+                            )
                     fh.write("# NOT transcribed. Values carry read error.\n")
                     fh.write("t_s,value\n")
                     for px, py in pts:
