@@ -1351,3 +1351,47 @@ Frame windows for all eight pages are in the session notes and are re-derivable 
 seconds; they are deliberately not pasted here, because the ones for C25 and C26 are
 wrong and the next attempt should recompute them with a fixed locator rather than inherit
 a known-bad table.
+
+
+## Appendix C — final state, 2026-09-12
+
+**Seven of the eight scheduling functions are extracted.** `data/schedules/` holds
+`F_HM1` through `F_HM6` from the single-curve path and `F_EC1` from the multi-curve one.
+
+### The frame locator, rebuilt
+
+The earlier attempt failed because the horizontal frames on these scans are **tilted and
+broken at the same time**, which defeats any row-wise measure: A11's bottom frame descends
+ten rows across the plot and no single row holds more than half of it. Rows are now summed
+**after shearing** the page by a trial slope, the best slope wins, and the outermost
+qualifying rows are taken rather than the strongest -- A6's flat data curve is solid where
+its frame is broken and wins any strength contest. The threshold is coverage of the plot
+width, which a footer rule cannot reach.
+
+Worst deviation from an independently verified box: **3.1 px over all fifteen figure
+pages**. `find_frame_box` carries the four failures that shaped it in its docstring.
+
+### C23, and why it is traced rather than read
+
+C23's markers are printed digits, and at its right-hand knot all four **overprint into a
+single 462 px blob** that no opening separates. But its four curves never cross, so the
+n-th ink run from the top IS the n-th curve and identity follows from rank -- no OCR, and
+checkable, because a column that does not yield exactly four runs is rejected.
+
+314 of 411 columns resolve all four. Sweeping the one free parameter -- the gap at which
+two runs are called separate -- over 3 to 6 px moves every value by at most **0.05 in
+TAU45, about 1 % of the axis range**, and that measured sensitivity is recorded in the
+file in place of a per-point sigma, which a traced centre does not honestly support.
+
+### C30 is not extracted, and the reason is structural
+
+Its seven curves **cross**, around PCNGHL 88-92, where curve 4 runs above 5, 6 and 7. Rank
+is therefore not identity, and the measurement agrees: only **70 of 410 columns resolve
+seven separate runs**, and those lie outside the bundle. Each curve also drops to
+WFPAC = 1 at its own speed, so the knots differ per curve and no shared abscissa list
+describes them.
+
+What it needs is per-curve **tracking** -- following each line through a crossing by
+direction rather than by order -- with the printed digits used to seed and to check the
+identities. That is a different algorithm, not a parameter of this one. `digitize_appc_multi.py`
+refuses the figure with that message rather than producing something plausible.

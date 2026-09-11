@@ -1,0 +1,55 @@
+# source: TM-100991 pdf p.94, Figure C23
+# quantity: F_EC1 -- ECU thermocouple sensor time constant (Fig. C5, pdf p.87: TAU45 = F_EC1(T45L, W45R))
+# method: digitized -- the curves are TRACED column by column and ranked in y,
+#   not read from their printed digit markers. The digits identify which curve a
+#   point belongs to, and on this page they overprint where the curves converge --
+#   at C23's right-hand knot all four merge into a single 462 px blob even at a 5x5
+#   opening. But the curves are ordered by the parameter at every abscissa and never
+#   cross, so the n-th ink run from the top IS the n-th curve, and the identity
+#   follows from rank without reading a 10 px digit off a 1988 scan.
+#   322 of 411 sampled columns resolved all 4 curves;
+#   the knots below are taken from resolved columns only.
+# t45l: T45L curve parameter, deg R
+# w45r: W45R power turbine flow parameter, nondimensional
+# tau45_s: TAU45 sensor time constant, sec
+# points: 20
+# digitized: 2026-09-12 by tools/digitize_appc_multi.py -- reruns and reproduces
+#   this file exactly
+# RASTER. pdf p.94 is a single 300 dpi 1-bit CCITT image (2544x3300);
+#   this works on that bitmap directly and never resamples it.
+# CALIBRATION. Frame, tick lattice and axis polynomials come from
+#   tools/digitize_a6810.py unchanged, so this figure is calibrated exactly as the
+#   thirteen single-curve figures are.
+#   x: order 1, interior-tick residual 0.01905 over 14 ticks
+#   y: order 2, interior-tick residual 0.003656 over 8 ticks
+# UNCERTAINTY is not reported per point: a traced run centre is a weaker estimator
+#   than the generative glyph fit the single-curve figures use, and no honest
+#   per-point sigma was derived for it. What WAS measured is the sensitivity to the
+#   one free parameter of the trace, the gap at which two ink runs are called
+#   separate. Sweeping it over 3, 4, 5 and 6 px moves every value by at most 0.05 in
+#   y -- about 1 per-cent of the axis range -- and most by far less. The largest
+#   movers are the two lowest curves at the knots where they converge, which is
+#   where a gap threshold is doing the most work and where the figure itself is
+#   least legible.
+# NOT transcribed. Values carry read error.
+t45l,w45r,tau45_s
+1260,1.0000,5.00707
+1660,1.0000,4.20214
+2060,1.0000,3.65853
+2460,1.0000,3.41299
+1260,2.5000,3.96240
+1660,2.5000,3.25462
+2060,2.5000,2.97036
+2460,2.5000,2.78222
+1260,6.5000,2.53944
+1660,6.5000,2.35712
+2060,6.5000,2.17953
+2460,6.5000,2.09301
+1260,10.0000,2.21074
+1660,10.0000,2.00408
+2060,10.0000,1.94773
+2460,10.0000,1.88666
+1260,15.0000,1.99744
+1660,15.0000,1.81638
+2060,15.0000,1.76049
+2460,15.0000,1.72759
