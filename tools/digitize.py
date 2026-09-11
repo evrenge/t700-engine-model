@@ -433,9 +433,12 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--threshold", type=float, default=0.55)
     m.add_argument("--min-area", type=int, default=6)
     m.add_argument("--max-area", type=int, default=600)
-    m.add_argument("--mode", choices=("blob", "density"), default="density",
-                   help="density: markers lying on a joining line (most figures). "
-                        "blob: isolated markers only")
+    m.add_argument(
+        "--mode",
+        choices=("blob", "density"),
+        default="density",
+        help="density: markers lying on a joining line (most figures). blob: isolated markers only",
+    )
     m.add_argument("--window", type=int, default=21, help="density: marker width in px")
     m.add_argument("--min-fill", type=float, default=0.16, help="density: peak threshold")
     m.add_argument("--min-sep", type=int, default=14, help="density: min point spacing px")
@@ -456,9 +459,12 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--threshold", type=float, default=0.55)
     e.add_argument("--min-area", type=int, default=6)
     e.add_argument("--max-area", type=int, default=600)
-    e.add_argument("--mode", choices=("blob", "density"), default="density",
-                   help="density: markers lying on a joining line (most figures). "
-                        "blob: isolated markers only")
+    e.add_argument(
+        "--mode",
+        choices=("blob", "density"),
+        default="density",
+        help="density: markers lying on a joining line (most figures). blob: isolated markers only",
+    )
     e.add_argument("--window", type=int, default=21, help="density: marker width in px")
     e.add_argument("--min-fill", type=float, default=0.16, help="density: peak threshold")
     e.add_argument("--min-sep", type=int, default=14, help="density: min point spacing px")
