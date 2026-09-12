@@ -18,12 +18,11 @@ public domain). Everything here is derived from it.
 
 | | |
 |---|---|
-| Gas generator speed vs Table B.1 | **±0.13 %** across three trim conditions |
-| Shaft power vs Table B.1 | **±0.05 %** at hover and level, −0.73 % at descent |
+| **Table B.1's full printed state** | **rms 0.21 % over 21 numbers** — Ps3 0.31 %, P41 0.30 %, P45 0.25 %, T45 0.16 %, NG 0.13 %, T41 0.08 %, shp 0.77 % |
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.1-7.5 % of each panel's excursion, mean 3.8 %** |
 | Appendix B, 297 printed elements | zero structure exact; P3/P41 block <1.5 %; `b` 0.1 % |
-| Tests | 779 passing, with lint and formatting clean |
+| Tests | 783 passing, with lint and formatting clean |
 
 Phases 0–4 of `SCOPE.md` are complete: the report is ingested, the data captured, and the
 engine trims and runs transients in **either of the two configurations Ballin published**

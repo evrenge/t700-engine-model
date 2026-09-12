@@ -27,8 +27,9 @@ from dataclasses import dataclass
 
 import pytest
 
+from t700 import constants as c
 from t700 import trim
-from t700.engine import Ambient
+from t700.engine import Ambient, frame
 from t700.units import wf_pps_from_pph
 
 # Tolerances from SCOPE.md. Ours, declared, not derived from the report.
@@ -302,3 +303,105 @@ def test_the_sweep_refuses_past_the_maps_top_speed_line():
     assert not cold[0].trustworthy, (
         "a sweep starting above ~700 lbm/hr has no valid point to continue from"
     )
+
+
+# ------------------------------------------------- the rest of Table B.1, long unused
+
+STATE_B1 = {
+    # [TM-100991 pdf p.67, Table B.1] the printed engine state at each trim.
+    # Ps3, P41, T41, P45 and T45 are printed there and were unused by this project until
+    # 2026-09-12 -- fifteen numbers, including the one quantity with a 13x gain on the
+    # transient (open question #47).
+    "hover": dict(ps3=176.34, p41=174.28, t41=2292.0, p45=37.42, t45=1632.0),
+    "level 80 kt": dict(ps3=142.13, p41=140.26, t41=2102.0, p45=30.66, t45=1501.0),
+    "descent 80 kt": dict(ps3=114.27, p41=112.77, t41=1982.0, p45=25.54, t45=1424.0),
+}
+
+STATE_TOL_PCT = 0.5
+"""Tolerance on the printed station pressures and temperatures.
+
+Measured worst deviations are Ps3 0.31 %, P41 0.30 %, P45 0.25 %, T45 0.16 % and T41
+0.08 %, so 0.5 % is a ratchet a little above the worst rather than a target. Note the
+printed T41 and T45 carry only four significant figures with a trailing decimal point --
+"2292." -- so a quarter of a degree is the printing resolution at T41 and the agreement
+there is at that limit."""
+
+
+@pytest.mark.parametrize("case", CASES, ids=lambda c: c.name)
+def test_the_printed_station_state_matches(case: TrimCase):
+    """Ps3, P41, T41, P45 and T45 against Table B.1 -- fifteen numbers never checked.
+
+    This closes the largest evidence gap the project had. Until now the trim comparison
+    used three quantities per condition (speed, shaft power, shaft torque) while Table
+    B.1 prints eight, and the five unused ones are exactly the ones the transient work
+    needed: open question #47 spent a long time asking whether our Ps3 was right at low
+    power, comparing it against a digitized Figure 10 trace that sits 3 to 6 % from the
+    report's own Figure 8 -- while a printed Ps3 sat in Table B.1 the whole time.
+
+    It is also the anchor that settled the f1 interpolation question. Scored on all
+    twenty-one printed numbers, the shipped constant-pressure-ratio blend gives an rms
+    deviation of 0.211 % against 0.244 % for interpolation along Figure A1's own beta
+    lines -- so the structurally tidier construction is measurably worse here, and is not
+    shipped. See open question #52.
+    """
+    want = STATE_B1[case.name]
+    r = _solve(case)
+    amb = Ambient(case.p_amb_psia, case.t_amb_degR)
+    f = frame(r.state, wf_pps_from_pph(case.wf_pph), amb, q_req_ftlbf=r.q_req_ftlbf)
+    got = {
+        "ps3": c.K_PS3 * r.state.p3_psia,
+        "p41": r.state.p41_psia,
+        "t41": f.t41_degR,
+        "p45": r.state.p45_psia,
+        "t45": f.t45_degR,
+    }
+    for key, printed in want.items():
+        dev = 100.0 * (got[key] - printed) / printed
+        assert abs(dev) < STATE_TOL_PCT, (
+            f"{case.name} {key}: printed {printed}, ours {got[key]:.3f}, {dev:+.3f} %"
+        )
+
+
+def test_the_printed_state_is_self_consistent_under_a_forced_pressure():
+    """Imposing the printed Ps3 and integrating recovers the printed P41, P45 and NG.
+
+    A different kind of check from the one above, and a stronger one. P3 stops being a
+    state and becomes an input held at Table B.1's printed Ps3; NG, P41 and P45 then
+    integrate from a deliberately displaced start, seven percent low. If the printed
+    state is a genuine equilibrium of these equations, the run must find it.
+
+    It does, to four significant figures on both pressures -- P41 174.288 / 140.261 /
+    112.764 against the printed 174.28 / 140.26 / 112.77, and P45 37.424 / 30.651 /
+    25.531 against 37.42 / 30.66 / 25.54. That is what licenses the forced-Ps3
+    experiments in open question #47 to be read as attribution rather than as an
+    artifact of an ill-posed reduction.
+    """
+    from scipy.integrate import solve_ivp
+
+    from t700.engine import State
+
+    for case in CASES:
+        want = STATE_B1[case.name]
+        wf = wf_pps_from_pph(case.wf_pph)
+        r = _solve(case)
+        amb = Ambient(case.p_amb_psia, case.t_amb_degR)
+        p3_forced = want["ps3"] / c.K_PS3
+
+        def rhs(_t, y, p3=p3_forced, wf=wf, qreq=r.q_req_ftlbf, amb=amb, npr=case.np_rpm):
+            f = frame(State(y[0], npr, p3, y[1], y[2]), wf, amb, q_req_ftlbf=qreq)
+            return [f.dng_dt, f.dp41_dt, f.dp45_dt]
+
+        y0 = [case.ng_rpm * 0.93, want["p41"] * 0.93, want["p45"] * 0.93]
+        sol = solve_ivp(rhs, (0.0, 200.0), y0, method="BDF", rtol=1e-10, atol=1e-10)
+        ng, p41, p45 = (float(v) for v in sol.y[:, -1])
+
+        for label, got, printed in (
+            ("NG", ng, case.ng_rpm),
+            ("P41", p41, want["p41"]),
+            ("P45", p45, want["p45"]),
+        ):
+            dev = 100.0 * (got - printed) / printed
+            assert abs(dev) < STATE_TOL_PCT, (
+                f"{case.name}: with Ps3 forced to its printed value, {label} settles at "
+                f"{got:.3f} against the printed {printed}, {dev:+.3f} %"
+            )
