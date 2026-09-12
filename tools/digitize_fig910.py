@@ -260,7 +260,7 @@ def snap_to_lattice(pts: np.ndarray, pitch_hint: float = 33.0) -> tuple[np.ndarr
 
 
 def trace_line(
-    ink: np.ndarray, p: Panel, marks: np.ndarray, clear: float = 9.0, margin: int = 20
+    ink: np.ndarray, p: Panel, marks: np.ndarray, clear: float = 9.0, margin: int = 16
 ) -> np.ndarray:
     """Follow the solid model trace, one sample per column, markers masked out.
 
@@ -270,11 +270,41 @@ def trace_line(
     height mixes the trace with the ticks and drags every sample toward the panel centre,
     which read Figure 9's 400 lbm/hr level as 344.
 
+    Its value is **measured, not guessed**. Scanning the inward protrusion of ink attached
+    to the top and bottom frame of all twelve panels, ticks reach at most 13 px at the 99th
+    percentile (the two larger readings, 26 and 21 px, are places where the trace itself
+    touches a frame). It was 20 px, and that was too much: Figure 9's PCNG trace settles at
+    98.79 %, which lands on row 1177.0 of a panel whose top is 1157 -- exactly the old
+    window edge. The trace was clipped out of those columns and the only ink left in them
+    was a GE `+` marker at 96.95, so the tracer read the marker as the curve and drew a
+    notch into the last 0.4 s of every PCNG overlay. 16 px clears the ticks and keeps the
+    trace.
+
     The single-thin-run test removes the **legend**. It sits inside a panel in the right
     half of the page, so from about t = 2 s onward the column mean was averaging the trace
     with legend text -- the level read 775.6 correctly at t = 1.6 s and 453.6 at t = 4.6 s
     on a line that never moves. A column of the bare trace is one run of a few pixels;
     anything else is not the trace.
+
+    ## The spikes, and why they were ours
+
+    Until 2026-09-12 this function filtered the runs *before* counting them:
+    `runs = [r for r in runs if r.size <= 6]` and then `if len(runs) != 1`. That discards
+    a long run instead of rejecting the column, so a column carrying BOTH a long run and
+    a short one passed, and the short one won.
+
+    That is exactly the geometry of these panels. The GE `+` markers are drawn **on** the
+    model line, and each one's vertical bar has a slightly detached top. A column through
+    such a bar holds a long run -- the bar merged with the line -- plus a short, separate
+    run at the bar's top. The long run was thrown away and the sample was taken 40 px
+    above the trace, which on the T45 panel is 61 deg R. Those were the vertical spikes in
+    every overlay plot, and they were reported as a data defect of the scan (open question
+    #51) when they were a defect of this loop.
+
+    The fix is one line: count the runs **before** filtering. A column of the bare trace
+    has exactly one run and it is thin; anything else -- a marker, a crossing, legend
+    text, or a near-vertical segment of the trace itself -- is skipped, leaving a gap
+    rather than a wrong sample.
     """
     pts = []
     for x in range(p.left + margin, p.right - margin):
@@ -283,9 +313,8 @@ def trace_line(
         if ys.size == 0:
             continue
         runs = np.split(ys, np.flatnonzero(np.diff(ys) > 1) + 1)
-        runs = [r for r in runs if r.size <= 6]
-        if len(runs) != 1:
-            continue  # legend text, a marker, or a crossing -- not the bare trace
+        if len(runs) != 1 or runs[0].size > 6:
+            continue  # legend text, a marker, a crossing, or a near-vertical segment
         y = float(runs[0].mean()) + p.top + margin
         if marks.size:
             near = marks[np.abs(marks[:, 0] - x) < clear]
@@ -347,6 +376,17 @@ def main() -> int:
                 if pts.shape[0] == 0:
                     continue
                 path = REF / f"fig{fig:02d}_{p.key}_{kind}.csv"
+                ts_all = np.array([x_of(px) for px, _ in pts])
+                dropped: list[int] = []
+                if ts_all.size > 8:
+                    _g = np.diff(ts_all)
+                    _m = float(np.median(_g))
+                    if _m > 0:
+                        _big = np.flatnonzero(_g > 50.0 * _m)
+                        if _big.size:
+                            _cut = int(_big[-1]) + 1
+                            if len(ts_all) - _cut <= 8:
+                                dropped = list(range(_cut, len(ts_all)))
                 with path.open("w") as fh:
                     fh.write(f"# source: TM-100991 pdf p.{page}, Figure {fig}, panel {p.label}\n")
                     what = (
@@ -365,41 +405,51 @@ def main() -> int:
                         f"# value: {p.label}, axis range {p.v_lo} to {p.v_hi}, "
                         f"no unit printed on the figure\n"
                     )
-                    fh.write(f"# points: {pts.shape[0]}\n")
+                    fh.write(f"# points: {pts.shape[0] - len(dropped)}\n")
                     fh.write(f"# x tick check: worst interior major tick off by {terr:.4f} s\n")
                     if kind == "reference":
                         fh.write(
                             f"# sample lattice: pitch {info['pitch']:.2f} px "
                             f"= {x_of(p.left + info['pitch']) - T_LO:.4f} s\n"
                         )
-                    # A trailing sample far separated from the rest of the trace is a
-                    # digitizer artifact, not data -- the walker re-acquires ink at the
-                    # right-hand end of the panel (a frame line, a legend rule, a stray
-                    # glyph) and emits it as one more point. Detected here rather than
-                    # annotated by hand afterwards, because a hand-added note to a
-                    # generated file does not survive the next rerun. Found on Figure 9's
-                    # T41 and TORQ45 panels; see docs/notes/open-questions.md #48.
-                    ts = np.array([x_of(px) for px, _ in pts])
-                    if ts.size > 8:
+                    # The plotted curve ends before the panel does, and past its end the
+                    # walker re-acquires ink -- a frame line, a legend rule, a stray glyph
+                    # -- and emits it as more "samples". They are not data, and they were
+                    # what put a dip in every Figure 9 PCNG overlay.
+                    #
+                    # The separation is unambiguous, which is why this can be a rule and
+                    # not a judgment: measured over all twelve panels, every artifact sits
+                    # behind an x-gap of **more than 130x** the median sample interval,
+                    # while every legitimate continuation of a curve sits behind a gap of
+                    # 20-25x. The threshold is set at 50x, in the empty middle.
+                    #
+                    # Dropped, not annotated-and-kept as before. The earlier note said
+                    # "consumers must window it out", and three of them did not: the
+                    # overlay plots, the whole-curve metric and the shape metrics each had
+                    # to grow their own filter, and one of those filters was itself wrong
+                    # for a while. Provenance is preserved by recording here exactly what
+                    # was removed and why -- which is what the rule below writes.
+                    ts = ts_all
+                    if dropped:
                         gaps = np.diff(ts)
                         med = float(np.median(gaps))
-                        if med > 0 and gaps[-1] > 10.0 * med:
-                            fh.write(
-                                f"# defect: the final sample at t={ts[-1]:.5f} s sits "
-                                f"{gaps[-1]:.3f} s after its predecessor, against a median "
-                                f"sample interval of {med:.5f} s -- "
-                                f"{gaps[-1] / med:.0f}x. It is a re-acquisition artifact, "
-                                f"not data.\n"
-                            )
-                            fh.write(
-                                "#   Kept rather than deleted, per the provenance rule: "
-                                "consumers must window it out. validation/ stops at "
-                                "t < 4.6 for this reason. See open question #48.\n"
-                            )
+                        cut = dropped[0]
+                        fh.write(
+                            f"# dropped: {len(dropped)} trailing sample(s) at "
+                            f"t = {', '.join(f'{ts[i]:.5f}' for i in dropped)} s, behind an "
+                            f"x-gap of {gaps[cut - 1] / med:.0f}x the median sample interval "
+                            f"({med:.5f} s). The curve ends at t={ts[cut - 1]:.5f} s with "
+                            f"value {v_of(pts[cut - 1][1]):.5f}; the dropped samples read "
+                            f"{', '.join(f'{v_of(pts[i][1]):.2f}' for i in dropped)}. "
+                            f"Re-acquired ink past the end of the plotted curve, not data. "
+                            f"See open question #48.\n"
+                        )
                     fh.write("# NOT transcribed. Values carry read error.\n")
                     fh.write("t_s,value\n")
-                    for px, py in pts:
-                        fh.write(f"{x_of(px):.5f},{v_of(py):.5f}\n")
+                    keep = set(range(len(pts))) - set(dropped)
+                    for i, (px, py) in enumerate(pts):
+                        if i in keep:
+                            fh.write(f"{x_of(px):.5f},{v_of(py):.5f}\n")
             print(
                 f"  {p.label:7} model {line.shape[0]:5d} pts | "
                 f"reference {marks.shape[0]:3d} | x tick worst {terr:.4f} s"

@@ -46,7 +46,11 @@ UNTRUSTED = {(10, "torq45")}
 
 
 def _split_strays(x, y):
-    """Drop off-curve samples. Same three rules as `plot_validation._split_strays`."""
+    """Drop off-curve samples. One rule, matching `plot_validation._split_strays`.
+
+    The trailing-sample and trailing-block rules that used to live here are gone: the
+    digitizer drops re-acquired ink at source as of 2026-09-12. See that function.
+    """
     dy = np.abs(np.diff(y))
     nz = dy[dy > 0]
     quantum = float(np.median(nz)) if nz.size else 1.0
@@ -58,19 +62,6 @@ def _split_strays(x, y):
             continue
         if abs(y[i] - np.median(nb)) > 6 * quantum:
             bad[i] = True
-    dt = np.diff(x)
-    if dt.size and dt[-1] > 10 * np.median(dt):
-        bad[-1] = True
-    late = x > 0.7 * x.max()
-    keep = late & ~bad
-    if keep.sum() > 10:
-        spread = abs(np.subtract(*np.percentile(y[keep], [75, 25])))
-        if spread < 10 * quantum:
-            plateau = float(np.median(y[keep]))
-            k = len(y) - 1
-            while k >= 0 and abs(y[k] - plateau) > 6 * quantum:
-                bad[k] = True
-                k -= 1
     return x[~bad], y[~bad]
 
 

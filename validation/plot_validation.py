@@ -80,30 +80,29 @@ def _load(name: str, xk: str, yk: str):
 def _split_strays(x, y):
     """Separate a digitized reference trace into curve and off-curve samples.
 
-    Returns `(xc, yc, xs, ys)` -- the curve, then the strays. **Nothing is discarded
-    silently and nothing is smoothed**: the strays are returned so they can be drawn,
-    because they are a measured property of our own digitization (open question #51:
-    61 off-curve samples in 6,632) and hiding them would misrepresent how well the
-    reference is known.
+    Returns `(xc, yc, xs, ys)` -- the curve, then the strays. **Nothing is smoothed and
+    nothing is discarded silently**: the strays are returned so they can be drawn and
+    counted, because they are a measured property of our own digitization.
 
-    Two rules, both conservative:
+    One rule, and it is deliberately the only one: a sample more than six pixel quanta
+    from the median of its eight neighbours, in a locally flat neighbourhood. The
+    flatness guard is what keeps a genuine near-vertical segment of the trace, where a
+    large jump IS the data, out of the count.
 
-    * a sample flagged by the digitizer's own `# defect:` header is not data -- the tool
-      says so in the file. Five traces carry one: a trailing sample re-acquired hundreds
-      of median intervals after its predecessor.
-    * a sample more than six pixel quanta from the median of its four neighbours, *and*
-      in a locally flat neighbourhood. The flatness guard is what keeps the genuine
-      near-vertical step edge -- where a large jump is the data -- out of the count.
+    This used to carry two more rules -- a trailing sample, and a trailing block that
+    left a settled plateau -- because `tools/digitize_fig910.py` kept re-acquired ink
+    past the end of the plotted curve and annotated it instead of dropping it. It drops
+    it as of 2026-09-12, so those rules are gone, and removing them was not tidying: the
+    trailing-block rule had begun condemning the last sixteen **genuine** samples of
+    Figure 10's T41 trace, where the curve really does flatten at 1659 deg R. Three
+    consumers had each grown their own copy of that filter, and one of them was wrong.
+    One rule, in the tool.
     """
-    if x is None or len(x) < 6:
+    if x is None or len(x) < 10:
         return x, y, np.zeros(0), np.zeros(0)
     dy = np.abs(np.diff(y))
     nz = dy[dy > 0]
     quantum = float(np.median(nz)) if nz.size else 1.0
-    # A 9-sample window (four neighbours each side) rather than five: the strays come in
-    # runs, and the longest observed is four contiguous samples -- the plunge at the end
-    # of Figure 9's PCNG trace, where four samples sit at 90.3 while the curve is at 98.8.
-    # A five-sample window cannot outvote a run that long.
     half = 4
     bad = np.zeros(len(x), dtype=bool)
     for i in range(half, len(y) - half):
@@ -112,31 +111,6 @@ def _split_strays(x, y):
             continue
         if abs(y[i] - np.median(nb)) > 6 * quantum:
             bad[i] = True
-    dt = np.diff(x)
-    if dt.size and dt[-1] > 10 * np.median(dt):
-        bad[-1] = True
-
-    # A trailing BLOCK, not just a trailing sample. The digitizer's `# defect:` rule
-    # catches a single re-acquired point; Figure 9's PCNG trace ends with four of them,
-    # at 90.33 where the settled plateau is 98.73. The rule that covers both: once a
-    # trace has settled, a contiguous run reaching the end of the record and sitting
-    # more than six quanta off the plateau is re-acquisition, because a settled trace
-    # cannot leave its plateau at the very end and simply stop there.
-    # The guard matters: the rule presumes the trace has SETTLED. Figure 10's PCNG is
-    # still decaying at the end of the record, and without this check the rule found no
-    # plateau and condemned 92 perfectly good samples.
-    late = x > 0.7 * x.max()
-    keep = late & ~bad
-    # Interquartile range, not peak-to-peak: the strays are exactly what we are trying
-    # to detect, so letting them into the flatness measure blocks their own detection.
-    spread = np.subtract(*np.percentile(y[keep], [75, 25])) if keep.sum() else 0.0
-    if keep.sum() > 10 and abs(spread) < 10 * quantum:
-        plateau = float(np.median(y[keep]))
-        k = len(y) - 1
-        while k >= 0 and abs(y[k] - plateau) > 6 * quantum:
-            bad[k] = True
-            k -= 1
-
     return x[~bad], y[~bad], x[bad], y[bad]
 
 
