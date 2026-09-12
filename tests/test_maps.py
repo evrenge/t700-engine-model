@@ -249,3 +249,19 @@ def test_conditioning_leaves_the_csv_alone():
         "the CSV should still carry the raw digitized value, including its negative "
         "excursion -- conditioning belongs at load, not in data/"
     )
+
+
+def test_f1_cross_line_ordering_holds_as_digitized():
+    """More corrected speed passes more corrected flow at a given pressure ratio.
+
+    This is the one physical constraint on `f1` that is *not* conditioned, and the reason
+    is that the digitized map already obeys it everywhere. Asserting it here keeps that
+    claim honest: if a re-digitization ever breaks the ordering, this fails rather than
+    being silently repaired at load. See open question #44 on the principle.
+    """
+    m = maps.f1()
+    lo = max(float(line.x.min()) for line in m.lines)
+    hi = min(float(line.x.max()) for line in m.lines)
+    for pr in np.linspace(lo, hi, 40):
+        flows = [float(line(pr)) for line in m.lines]
+        assert np.all(np.diff(flows) >= 0.0), f"speed lines cross at Ps3/P2 = {pr:.4f}"

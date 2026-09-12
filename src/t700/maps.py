@@ -136,17 +136,36 @@ class SpeedMap:
         return z0 + w * (z1 - z0)
 
 
-def load_speed_map(filename: str, name: str, param: str, xcol: str, ycol: str) -> SpeedMap:
-    """Load a 2-D map whose rows are grouped by a parameter column."""
+def load_speed_map(
+    filename: str,
+    name: str,
+    param: str,
+    xcol: str,
+    ycol: str,
+    phys: Physics | None = None,
+) -> SpeedMap:
+    """Load a 2-D map whose rows are grouped by a parameter column.
+
+    `phys` conditions each speed line separately, which is the only sense a per-line
+    constraint has: the lines do not share breakpoints. The reported move is the largest
+    over all lines.
+    """
     path = DATA_DIR / filename
     _, cols, header = _read_csv(path)
     src = next((h[len("# source:") :].strip() for h in header if h.startswith("# source:")), "")
     params = np.unique(cols[param])
     lines = []
+    moved = 0.0
     for p in params:
         m = cols[param] == p
         order = np.argsort(cols[xcol][m])
-        lines.append(Curve(name=f"{name}@{p:g}", x=cols[xcol][m][order], y=cols[ycol][m][order]))
+        line = Curve(name=f"{name}@{p:g}", x=cols[xcol][m][order], y=cols[ycol][m][order])
+        if phys is not None:
+            line, d = condition(line, phys)
+            moved = max(moved, d)
+        lines.append(line)
+    if phys is not None:
+        CONDITIONING[name] = moved
     return SpeedMap(name=name, params=params, lines=lines, source=src)
 
 
@@ -266,7 +285,23 @@ def f1() -> SpeedMap:
     frame, which is why Ballin opened it.
     """
     return load_speed_map(
-        "f1_compressor_mass_flow.csv", "f1", "ngc_pct", "ps3_p2", "wa2c_lbm_per_s"
+        "f1_compressor_mass_flow.csv",
+        "f1",
+        "ngc_pct",
+        "ps3_p2",
+        "wa2c_lbm_per_s",
+        phys=Physics(
+            nonnegative=True,
+            monotone="dec",
+            why="Along one speed line a compressor passes less corrected flow as it works "
+            "against a higher pressure ratio -- that descent toward surge is what the "
+            "characteristic is. Two of the 66 digitized segments rise instead, by 4e-4 "
+            "and 1.7e-3 lbm/sec on lines spanning 0.17 and 0.26, which is pen width. "
+            "The cross-line ordering physics also requires -- more corrected speed "
+            "passes more corrected flow at a given ratio -- is NOT imposed, because the "
+            "digitized map already satisfies it at every one of 40 sampled ratios; "
+            "`tests/test_maps.py` asserts that rather than conditioning it away.",
+        ),
     )
 
 
