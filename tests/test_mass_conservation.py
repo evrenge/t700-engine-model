@@ -218,3 +218,106 @@ def test_the_balances_open_during_a_transient_and_close_again():
         "the residual should fall by more than an order of magnitude between the step "
         "and 2.4 s later"
     )
+
+
+# ------------------------------------------------------------------- energy, not just mass
+
+
+@pytest.mark.parametrize("wf_pph", TRIMS_PPH)
+def test_eq_39_is_an_exact_two_stream_work_balance(wf_pph: float):
+    """Eq. 39's 0.71/0.29 split is not a fudge factor -- it places the bleed port.
+
+    The report calls it "an empirically determined function" for the compressor
+    interstage bleed [pdf p.25] and prints `K_QC1 = 0.71`, `K_QC2 = 0.29`. They sum to
+    exactly 1, and that is the tell. Writing W24 for the station 2.4 bleed and h24 for
+    its enthalpy, the physical two-stream work is
+
+        WA3*(h3 - h2) + W24*(h24 - h2) = WA3*h3 + W24*h24 - WA2*h2
+
+    since WA3 + W24 = WA2, while Eq. 39 with K_QC1 + K_QC2 = 1 is
+
+        WA2*K_QC1*h3 + WA3*K_QC2*h3 - WA2*h2 = WA3*h3 + W24*K_QC1*h3 - WA2*h2
+
+    The two are equal **if and only if h24 = K_QC1*h3 = 0.71 h3**. So the equation is an
+    exact energy accounting that puts the station 2.4 port where the enthalpy is 71 % of
+    compressor discharge -- which works out at 36-49 % of the enthalpy RISE above inlet,
+    increasing with power. Verified here to 5e-13.
+    """
+    wf = wf_pps_from_pph(wf_pph)
+    sweep = trim.sweep(list(range(130, int(wf_pph) + 1, 5)) + [wf_pph])
+    r = [q for q in sweep if q.trustworthy][-1]
+    f = frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
+
+    w24 = f.wa2_pps * (f.b1 + f.b2)
+    h24 = c.K_QC_1 * f.h3
+    eq39 = f.wa2_pps * (c.K_QC_1 * f.h3 - f.h2) + f.wa3_pps * c.K_QC_2 * f.h3
+    two_stream = f.wa3_pps * (f.h3 - f.h2) + w24 * (h24 - f.h2)
+
+    assert c.K_QC_1 + c.K_QC_2 == pytest.approx(1.0, abs=1e-12), (
+        "the decomposition only holds if the two coefficients sum to one"
+    )
+    assert abs(eq39 - two_stream) / eq39 < 1e-11, (
+        f"Eq. 39 gives {eq39:.6f} Btu/s and the two-stream balance {two_stream:.6f}; "
+        f"they must agree, and they do only because h24 = 0.71 h3"
+    )
+
+
+@pytest.mark.parametrize("wf_pph", TRIMS_PPH)
+def test_the_combustor_energy_balance_closes(wf_pph: float):
+    """Eq. 21 is an energy balance and must close: WA31*h3 + eta_b*Wf*HVF = W41*h41ns.
+
+    Eq. 21 is written as `h41ns = (h3 + eta_b*FAR*HVF)/(1 + FAR)`. Multiplying through by
+    `WA31*(1 + FAR) = WA31 + Wf = W41` recovers the balance, so this checks that our FAR
+    and the station 4.1 mass balance are mutually consistent, not just the algebra.
+    """
+    wf = wf_pps_from_pph(wf_pph)
+    sweep = trim.sweep(list(range(130, int(wf_pph) + 1, 5)) + [wf_pph])
+    r = [q for q in sweep if q.trustworthy][-1]
+    f = frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
+
+    into = f.wa31_pps * f.h3 + f.eta_b * wf * c.HVF
+    out = f.w41_pps * f.h41_ns
+    assert abs(into - out) / into < 1e-11, f"combustor energy: in {into:.6f}, out {out:.6f} Btu/s"
+
+
+@pytest.mark.parametrize("wf_pph", TRIMS_PPH)
+def test_station_4_5_mixing_loses_energy_as_the_report_specifies(wf_pph: float):
+    """Eq. 29 does NOT conserve energy, by construction, and this records how much.
+
+    The report is explicit: *"At station 4.5, gases from the station 4.4 and cooling-bleed
+    flow from the compressor are mixed before passing through the power turbine. The
+    enthalpy of the mixed gases is proportional to enthalpy [at] station 4.4"*
+    [pdf p.24] -- so Eq. 29 is `h45 = K_H45 * h44`, a single multiplicative fraction and
+    not a flow-weighted mix of the two streams. A flow-weighted mix would give
+
+        h45 = (W41*h44 + B3*K_bl*WA2*h3) / W45
+
+    and the coefficient that would produce it is **0.974 to 0.979** across the five trims,
+    strikingly constant, against the printed **0.9623**. So the printed value sits 1.1 to
+    1.7 % below an energy-conserving mix, and that deficit is the entire reason the
+    engine's overall energy balance does not close.
+
+    Reproduced as printed, per CLAUDE.md, and asserted rather than corrected: the band
+    below fails if the deficit ever changes, whether by our error or by a re-reading of
+    `K_H45`. It affects only the power turbine -- h45 feeds T45, theta45, dH_PT and W45 --
+    so it does not touch the gas generator dynamics of open question #47.
+    """
+    wf = wf_pps_from_pph(wf_pph)
+    sweep = trim.sweep(list(range(130, int(wf_pph) + 1, 5)) + [wf_pph])
+    r = [q for q in sweep if q.trustworthy][-1]
+    f = frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
+
+    returned = f.b3 * c.K_BL * f.wa2_pps
+    h45_mixed = (f.w41_pps * f.h44 + returned * f.h3) / f.w45_pps
+    deficit = (f.h45 - h45_mixed) / h45_mixed
+    equivalent = h45_mixed / f.h44
+
+    assert -0.020 < deficit < -0.010, (
+        f"station 4.5 energy deficit is {100 * deficit:+.2f} % at {wf_pph} lbm/hr; "
+        f"on record is -1.1 to -1.7 %. The energy-conserving coefficient here is "
+        f"{equivalent:.4f} against the printed K_H45 = {c.K_H45}."
+    )
+    assert 0.970 < equivalent < 0.982, (
+        f"the flow-weighted equivalent of K_H45 is {equivalent:.4f}; on record is "
+        f"0.974-0.979 across the trims"
+    )

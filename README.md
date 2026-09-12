@@ -23,7 +23,7 @@ public domain). Everything here is derived from it.
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.1-7.5 % of each panel's excursion, mean 3.8 %** |
 | Appendix B, 297 printed elements | zero structure exact; P3/P41 block <1.5 %; `b` 0.1 % |
-| Tests | 763 passing, with lint and formatting clean |
+| Tests | 778 passing, with lint and formatting clean |
 
 Phases 0–4 of `SCOPE.md` are complete: the report is ingested, the data captured, and the
 engine trims and runs transients in **either of the two configurations Ballin published**
@@ -145,7 +145,7 @@ pressure ratio we nearly inverted.
   simulation, which this report consumes and does not contain. That was Ballin's boundary
   too.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **47 logged, 31 closed, 5 partly closed, 11 open**. **Nine of the eleven are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining three, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and three are work we have not done: linearizing the discrete real-time map, Figure C30's seven crossing curves, and cleaning the off-curve samples out of the Figure 9/10 traces so transient *shape* can be compared at all.
+Open questions are tracked in `docs/notes/open-questions.md` — **48 logged, 32 closed, 5 partly closed, 11 open**. **Nine of the eleven are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining three, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and three are work we have not done: linearizing the discrete real-time map, Figure C30's seven crossing curves, and cleaning the off-curve samples out of the Figure 9/10 traces so transient *shape* can be compared at all.
 
 ## Running it
 
