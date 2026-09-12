@@ -77,6 +77,69 @@ def _load(name: str, xk: str, yk: str):
     return x[o], y[o]
 
 
+def _split_strays(x, y):
+    """Separate a digitized reference trace into curve and off-curve samples.
+
+    Returns `(xc, yc, xs, ys)` -- the curve, then the strays. **Nothing is discarded
+    silently and nothing is smoothed**: the strays are returned so they can be drawn,
+    because they are a measured property of our own digitization (open question #51:
+    61 off-curve samples in 6,632) and hiding them would misrepresent how well the
+    reference is known.
+
+    Two rules, both conservative:
+
+    * a sample flagged by the digitizer's own `# defect:` header is not data -- the tool
+      says so in the file. Five traces carry one: a trailing sample re-acquired hundreds
+      of median intervals after its predecessor.
+    * a sample more than six pixel quanta from the median of its four neighbours, *and*
+      in a locally flat neighbourhood. The flatness guard is what keeps the genuine
+      near-vertical step edge -- where a large jump is the data -- out of the count.
+    """
+    if x is None or len(x) < 6:
+        return x, y, np.zeros(0), np.zeros(0)
+    dy = np.abs(np.diff(y))
+    nz = dy[dy > 0]
+    quantum = float(np.median(nz)) if nz.size else 1.0
+    # A 9-sample window (four neighbours each side) rather than five: the strays come in
+    # runs, and the longest observed is four contiguous samples -- the plunge at the end
+    # of Figure 9's PCNG trace, where four samples sit at 90.3 while the curve is at 98.8.
+    # A five-sample window cannot outvote a run that long.
+    half = 4
+    bad = np.zeros(len(x), dtype=bool)
+    for i in range(half, len(y) - half):
+        nb = np.delete(y[i - half : i + half + 1], half)
+        if np.ptp(nb) > 3 * quantum:
+            continue
+        if abs(y[i] - np.median(nb)) > 6 * quantum:
+            bad[i] = True
+    dt = np.diff(x)
+    if dt.size and dt[-1] > 10 * np.median(dt):
+        bad[-1] = True
+
+    # A trailing BLOCK, not just a trailing sample. The digitizer's `# defect:` rule
+    # catches a single re-acquired point; Figure 9's PCNG trace ends with four of them,
+    # at 90.33 where the settled plateau is 98.73. The rule that covers both: once a
+    # trace has settled, a contiguous run reaching the end of the record and sitting
+    # more than six quanta off the plateau is re-acquisition, because a settled trace
+    # cannot leave its plateau at the very end and simply stop there.
+    # The guard matters: the rule presumes the trace has SETTLED. Figure 10's PCNG is
+    # still decaying at the end of the record, and without this check the rule found no
+    # plateau and condemned 92 perfectly good samples.
+    late = x > 0.7 * x.max()
+    keep = late & ~bad
+    # Interquartile range, not peak-to-peak: the strays are exactly what we are trying
+    # to detect, so letting them into the flatness measure blocks their own detection.
+    spread = np.subtract(*np.percentile(y[keep], [75, 25])) if keep.sum() else 0.0
+    if keep.sum() > 10 and abs(spread) < 10 * quantum:
+        plateau = float(np.median(y[keep]))
+        k = len(y) - 1
+        while k >= 0 and abs(y[k] - plateau) > 6 * quantum:
+            bad[k] = True
+            k -= 1
+
+    return x[~bad], y[~bad], x[bad], y[bad]
+
+
 def sheet_function_tables() -> None:
     """Every digitized map, with its knots. A physical function should look like one."""
     names = ["f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f_hs"]
@@ -186,21 +249,33 @@ def sheet_ps3() -> None:
     plt.close(fig)
 
 
-def sheet_transient() -> None:
-    """Figure 9's fuel step, our real-time model against Ballin's own trace."""
+def sheet_transient(fig_no: int = 9, wf_hi: float = 775.0, t_step: float = 0.539) -> None:
+    """One fuel-step figure: our real-time model, Ballin's own trace, and the GE reference.
+
+    Three series, and only one of them is the target. **Ballin's trace is what we must
+    match**; the GE markers are the hardware reference he was himself validating against,
+    plotted because they show how large a disagreement is ordinary between two models of
+    this engine -- never as a thing to move toward. See `test_ge_reference.py`.
+
+    Run with the **heat sink on**, which these figures were [docs/notes/heat-sink-
+    configuration.md]. Until 2026-09-12 this sheet omitted the flag and so plotted the
+    5-DOF model against a 6-DOF figure -- the same category error open question #47
+    records, left in the plotting script after being fixed in the tests.
+    """
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
     f0 = frame(r0.state, wf0, AMB)
-    hi = wf_pps_from_pph(775.0)
-    st = realtime.from_trim(r0, f0.wa31_pps)
+    hi = wf_pps_from_pph(wf_hi)
+    st = realtime.from_trim(r0, f0.wa31_pps, f0)
     tr = realtime.run(
         st,
-        lambda t: wf0 if t < 0.539 else hi,
+        lambda t: wf0 if t < t_step else hi,
         AMB,
         duration_s=5.0,
         dt=0.007,
         q_req_ftlbf=f0.q_pt_ftlbf,
         integrate_np=False,
+        heat_sink=True,
     )
 
     panels = [
@@ -213,25 +288,41 @@ def sheet_transient() -> None:
     fig, axes = plt.subplots(1, 5, figsize=(19, 4.2))
     fig.patch.set_facecolor("white")
     for ax, (key, ours, lab) in zip(axes, panels, strict=True):
-        x, y = _load(f"fig09_{key}_model.csv", "t_s", "value")
-        if x is not None:
-            ax.plot(x, y, color=BALLIN, lw=2.5, alpha=0.85, label="Ballin", zorder=2)
-        xg, yg = _load(f"fig09_{key}_reference.csv", "t_s", "value")
+        x, y = _load(f"fig{fig_no:02d}_{key}_model.csv", "t_s", "value")
+        xc, yc, xs, ys = _split_strays(x, y)
+        if xc is not None:
+            ax.plot(xc, yc, color=BALLIN, lw=2.5, alpha=0.85, label="Ballin", zorder=2)
+        if len(xs):
+            ax.plot(
+                xs,
+                ys,
+                "o",
+                mfc="none",
+                mec=BALLIN,
+                ms=5,
+                mew=1.0,
+                alpha=0.5,
+                label=f"off-curve ({len(xs)})",
+                zorder=5,
+            )
+        xg, yg = _load(f"fig{fig_no:02d}_{key}_reference.csv", "t_s", "value")
         if xg is not None:
             ax.plot(xg, yg, "+", color=GE, ms=7, mew=1.4, label="GE reference", zorder=3)
         ax.plot(tr["t"], ours, color=OURS, lw=2, label="our model", zorder=4)
         _style(ax, "time, s", lab, key.upper())
         ax.set_xlim(0, 5)
-    axes[0].legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="lower right")
+    axes[0].legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
+    direction = "increase" if wf_hi > 400.0 else "decrease"
     fig.suptitle(
-        "Figure 9 - fuel step 400 to 775 lbm/hr, NP integration suppressed",
+        f"Figure {fig_no} - fuel step {direction} 400 to {wf_hi:.0f} lbm/hr, "
+        f"heat sink on, NP integration suppressed",
         color=INK,
         fontsize=13,
         x=0.055,
         ha="left",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.93))
-    fig.savefig(OUT / "transient-fig9.png", dpi=130)
+    fig.savefig(OUT / f"transient-fig{fig_no}.png", dpi=130)
     plt.close(fig)
 
 
@@ -335,16 +426,19 @@ def sheet_residuals() -> None:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    for fn in (
-        sheet_function_tables,
-        sheet_trim_sweep,
-        sheet_ps3,
-        sheet_transient,
-        sheet_eigenvalues,
-        sheet_residuals,
+    # Both transient figures. Figure 10 is the step DOWN to below-idle power and was
+    # long the worst disagreement in the project; it is plotted so that stays visible.
+    for fn, args in (
+        (sheet_function_tables, ()),
+        (sheet_trim_sweep, ()),
+        (sheet_ps3, ()),
+        (sheet_transient, (9, 775.0, 0.539)),
+        (sheet_transient, (10, 125.0, 0.545)),
+        (sheet_eigenvalues, ()),
+        (sheet_residuals, ()),
     ):
-        fn()
-        print(f"  {fn.__name__}")
+        fn(*args)
+        print(f"  {fn.__name__}{args if args else ''}")
     print(f"\n  written to {OUT}")
     return 0
 
