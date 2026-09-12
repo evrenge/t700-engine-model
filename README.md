@@ -23,7 +23,7 @@ public domain). Everything here is derived from it.
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transient, Figures 9 and 10 | Fig. 9 settles within 1.6 % except torque at 3.6 %; Fig. 10 settles within 3.4 % on temperature, down from 17.4 % |
 | Appendix B, 297 printed elements | zero structure exact; P3/P41 block <1.5 %; `b` 0.1 % |
-| Tests | 627, with lint and formatting clean |
+| Tests | 729 passing, with lint and formatting clean |
 
 Phases 0–4 of `SCOPE.md` are complete: the report is ingested, the data captured, and the
 engine trims and runs transients in **either of the two configurations Ballin published**
