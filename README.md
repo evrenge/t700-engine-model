@@ -116,7 +116,7 @@ pressure ratio we nearly inverted.
   simulation, which this report consumes and does not contain. That was Ballin's boundary
   too.
 
-Open questions are tracked in `docs/notes/open-questions.md` — 43 logged, 19 closed.
+Open questions are tracked in `docs/notes/open-questions.md` — **46 logged, 30 closed, 4 partly closed, 12 open**. Nine of the twelve are things the report simply does not print: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder.
 
 ## Running it
 
