@@ -3,15 +3,10 @@
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig910.py
 # t_s: time, seconds (shared axis, 0 to 5.0)
 # value: TORQ45, axis range 0.0 to 400.0, no unit printed on the figure
-# points: 362
+# points: 357
 # x tick check: worst interior major tick off by 0.1555 s
-# dropped: 1 trailing sample(s) at t = 4.90413 s, behind an x-gap of 153x the median sample interval (0.00300 s). The curve ends at t=4.44578 s with value 379.39394; the dropped samples read 194.55. Re-acquired ink past the end of the plotted curve, not data. See open question #48.
 # NOT transcribed. Values carry read error.
 t_s,value
-0.04793,186.06061
-0.05093,186.06061
-0.10785,185.45455
-0.11684,185.45455
 0.12882,185.45455
 0.13182,186.06061
 0.13481,185.45455
@@ -369,4 +364,3 @@ t_s,value
 2.25285,20.60606
 2.25584,20.60606
 2.25884,20.60606
-4.44578,379.39394

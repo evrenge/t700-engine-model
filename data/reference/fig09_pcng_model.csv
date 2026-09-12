@@ -3,7 +3,7 @@
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig910.py
 # t_s: time, seconds (shared axis, 0 to 5.0)
 # value: PCNG, axis range 80.0 to 100.0, no unit printed on the figure
-# points: 666
+# points: 664
 # x tick check: worst interior major tick off by 0.0263 s
 # dropped: 4 trailing sample(s) at t = 4.85338, 4.85637, 4.85937, 4.86236 s, behind an x-gap of 131x the median sample interval (0.00299 s). The curve ends at t=4.46140 s with value 98.88218; the dropped samples read 90.33, 90.33, 90.36, 90.33. Re-acquired ink past the end of the plotted curve, not data. See open question #48.
 # NOT transcribed. Values carry read error.
@@ -87,8 +87,6 @@ t_s,value
 0.48773,90.87613
 0.49072,90.87613
 0.49372,90.87613
-0.55057,91.05740
-0.55356,91.08761
 0.55955,91.32931
 0.56254,91.38973
 0.56553,91.48036

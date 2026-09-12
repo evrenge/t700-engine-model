@@ -88,6 +88,48 @@ class Panel:
     v_hi: float
 
 
+GLYPH_BAR_MIN_PX = 14
+GLYPH_BAR_MAX_PX = 34
+GLYPH_BAR_MAX_WID_PX = 20
+"""Bounds on a `+` glyph's vertical stroke, in native-scan pixels.
+
+Measured across the five marker-bearing panels of Figure 9: the strokes run 19-25 px
+tall (median 21). Widths run 4-6 px where the bar stands alone but reach 17 px where it
+merges with its own horizontal arm, so the width bound is 20: at 10 it rejected eight real
+markers on Figure 9's Ps3 panel and two on Figure 10's T41. The outliers at 85-212 px
+are the trace's own steep segments, which the upper bound is there to exclude."""
+
+LATTICE_MAX_GAP = 2.5
+"""How many lattice pitches an end detection may sit from its neighbour before it is
+not a sample. The genuine series is contiguous: across the ten marker-bearing panels the
+largest internal gap is one pitch, and the single isolated detection sits at five."""
+
+TRACE_MAX_STEP_PX = 8
+TRACE_BACKBONE_MIN = 10
+TRACE_LINK_MIN = 3
+TRACE_LINK_SLOPE_PX = 5.0
+TRACE_LINK_OFFSET_PX = 5.0
+"""Continuity constraints on the model trace.
+
+The trace is one connected thin line, so between ADJACENT columns it moves at most a few
+pixels; a jump of more than `TRACE_MAX_STEP_PX` between neighbouring columns is not the
+trace, and splits the candidates into blocks.
+
+A minimum block LENGTH was tried first and is wrong. Blocks are only about 14 columns
+long -- the markers sit every 33 px and the mask around each removes some 18 columns -- so
+a threshold anywhere near that length throws away real trace. It threw away Figure 9's T41
+peak, a legitimate 7-column block holding the 2790 degR maximum, which is the single most
+quoted number in the whole comparison.
+
+So blocks are linked by SLOPE instead. Blocks of `TRACE_BACKBONE_MIN` columns or more are
+the backbone; a shorter block joins it if its endpoint reaches an accepted block's
+endpoint at no more than `TRACE_LINK_SLOPE_PX` per column plus a fixed
+`TRACE_LINK_OFFSET_PX`. The peak block connects at 1.8 px per column. Glyph debris does
+not: it is 4-6 columns wide and sits tens of pixels off the curve, needing 8 px per column
+or more. The step riser needs no special case -- the levels either side of it are both
+backbone, so both are kept without ever having to link across it."""
+
+
 def longest_run(col: np.ndarray) -> int:
     best = cur = 0
     for v in col:
@@ -181,12 +223,11 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     return out
 
 
-def marker_centres(ink: np.ndarray, p: Panel, bar: int = 7, margin: int = 20) -> np.ndarray:
+def marker_centres(ink: np.ndarray, p: Panel, bar: int = 7, margin: int = 16) -> np.ndarray:
     """Find `+` glyph centres inside a panel.
 
     A `+` is the only thing on the page with **both** a horizontal stroke and a vertical
-    one at the same place. That is the whole discriminator, and it is what makes this
-    robust:
+    one at the same place. That is the discriminator:
 
     * the model trace where it runs flat has horizontal extent but no vertical extent;
     * the model trace where it runs steep has vertical extent but no horizontal extent;
@@ -197,27 +238,50 @@ def marker_centres(ink: np.ndarray, p: Panel, bar: int = 7, margin: int = 20) ->
     long horizontal runs. Requiring both strokes removes that entire class of false
     positive.
 
-    `margin` then removes the other class. Every frame carries **tick marks**, and a tick
-    crossing its own frame line presents a vertical stroke and a horizontal stroke at the
-    same place -- indistinguishable from a glyph by the test above. The ticks protrude
-    about 10 px at 300 dpi, so the interior is taken 20 px inside every frame.
+    `margin` removes the other class. Every frame carries **tick marks**, and a tick
+    crossing its own frame line presents a vertical and a horizontal stroke at the same
+    place -- indistinguishable from a glyph by the test above. Ticks reach 13 px at the
+    99th percentile across all twelve panels, so 16 px inside every frame clears them.
+
+    ## The centre comes from the VERTICAL stroke, and that is the fix
+
+    Until 2026-09-12 the centre was the centre of mass of `horiz & vert`. Where a marker
+    sits **on** the model line -- which is most of them, since Ballin plotted the GE data
+    against his own curve -- the horizontal stroke in that intersection *is the model
+    line*, so the centre of mass was pulled onto the line and the GE sample inherited the
+    model's value. That is the "GE data accounted as Ballin" half of the contamination:
+    on Figure 10, three PCNG markers, and one each on Ps3, T41, T45 and TORQ45, read the
+    model curve to within a pixel.
+
+    The vertical stroke belongs only to the glyph: a `+`'s bar is symmetric about its
+    centre, and where the bar merges with the line the merged run is still centred on the
+    glyph. So the centre is taken from the vertical blob alone, with the horizontal stroke
+    kept only as a presence test.
+
+    The height bounds are measured, not guessed. Across the five marker-bearing panels of
+    Figure 9 the vertical strokes run 19-25 px (median 21) and 4-6 px wide; the outliers
+    at 85-212 px are the trace's own steep segments, which is what the upper bound excludes.
     """
-    sub = ink[p.top + margin : p.bottom - margin, p.left + margin : p.right - margin]
+    lo, hi = p.top + margin, p.bottom - margin
+    x0, x1 = p.left + margin, p.right - margin
+    sub = ink[lo:hi, x0:x1]
     horiz = ndimage.binary_opening(sub, structure=np.ones((1, bar)))
     vert = ndimage.binary_opening(sub, structure=np.ones((bar, 1)))
-    both = ndimage.binary_dilation(horiz & vert, structure=np.ones((3, 3)))
-    lab, n = ndimage.label(both, structure=np.ones((3, 3)))
+    horiz_near = ndimage.binary_dilation(horiz, structure=np.ones((5, 5)))
+    lab, n = ndimage.label(vert, structure=np.ones((3, 3)))
     if n == 0:
         return np.zeros((0, 2))
     pts = []
     for i, sl in enumerate(ndimage.find_objects(lab), start=1):
         hgt = sl[0].stop - sl[0].start
         wid = sl[1].stop - sl[1].start
-        if wid > 3 * bar or hgt > 3 * bar:
-            continue  # a crossing of two long strokes, not a glyph
+        if not (GLYPH_BAR_MIN_PX <= hgt <= GLYPH_BAR_MAX_PX) or wid > GLYPH_BAR_MAX_WID_PX:
+            continue  # a steep segment of the trace, or a frame artifact -- not a bar
         blob = lab[sl] == i
+        if not (blob & horiz_near[sl]).any():
+            continue  # a bare vertical stroke with no arm is not a glyph
         cy, cx = ndimage.center_of_mass(blob)
-        pts.append((cx + sl[1].start + p.left + margin, cy + sl[0].start + p.top + margin))
+        pts.append((cx + sl[1].start + x0, cy + sl[0].start + lo))
     return np.array(sorted(pts)) if pts else np.zeros((0, 2))
 
 
@@ -256,7 +320,26 @@ def snap_to_lattice(pts: np.ndarray, pitch_hint: float = 33.0) -> tuple[np.ndarr
         want = phase + sl * pitch
         keep.append(cand[np.argmin(np.abs(cand[:, 0] - want))])
     out = np.array(sorted(keep, key=lambda q: q[0]))
-    return out, {"slots": len(out), "pitch": pitch, "dropped": len(pts) - len(out)}
+
+    # The series is sampled contiguously, so a detection separated from the rest by
+    # several empty slots is not a sample. Exactly one exists across the ten
+    # marker-bearing panels: Figure 10's T45 carries a blob five pitches past the end of
+    # the series, reading 1795.6 where the series ends at 1290.9, and it drew a lone `+`
+    # floating above that panel in every overlay. Trimmed from both ends, because the
+    # reason is symmetric.
+    n_trim = 0
+    while out.shape[0] > 5 and out[-1, 0] - out[-2, 0] > LATTICE_MAX_GAP * pitch:
+        out = out[:-1]
+        n_trim += 1
+    while out.shape[0] > 5 and out[1, 0] - out[0, 0] > LATTICE_MAX_GAP * pitch:
+        out = out[1:]
+        n_trim += 1
+    return out, {
+        "slots": len(out),
+        "pitch": pitch,
+        "dropped": len(pts) - len(out),
+        "trimmed": n_trim,
+    }
 
 
 def trace_line(
@@ -305,8 +388,23 @@ def trace_line(
     has exactly one run and it is thin; anything else -- a marker, a crossing, legend
     text, or a near-vertical segment of the trace itself -- is skipped, leaving a gap
     rather than a wrong sample.
+
+    ## Why thinness is not enough, and continuity is
+
+    Counting the runs fixed the spikes that sat 40 px off the trace, but not all of them:
+    a glyph's detached bar-top is itself a thin single run in its column, and so is a
+    scrap of legend rule. Those survived, and on Figure 9's TORQ45 and Figure 10's T45
+    they put samples on the GE curve at the very end of the record, where a local
+    smoothness test cannot see them either because there is no "local" left.
+
+    The trace is a **connected** line, which is a far stronger property than thinness. So
+    the candidates are split wherever adjacency breaks -- a skipped column, or a jump
+    larger than the trace can make in one column -- and the blocks are then linked by
+    slope, from a backbone of the long ones outward. See the constants above for why
+    linking by slope and not by block length: a length threshold discarded Figure 9's
+    T41 peak.
     """
-    pts = []
+    cand = []
     for x in range(p.left + margin, p.right - margin):
         col = ink[p.top + margin : p.bottom - margin, x]
         ys = np.flatnonzero(col)
@@ -320,8 +418,52 @@ def trace_line(
             near = marks[np.abs(marks[:, 0] - x) < clear]
             if near.size and np.min(np.abs(near[:, 1] - y)) < clear:
                 continue
-        pts.append((x, y))
-    return np.array(pts) if pts else np.zeros((0, 2))
+        cand.append((x, y))
+    if not cand:
+        return np.zeros((0, 2))
+
+    # Continuity. A thin single run at a plausible y is still not proof: a glyph's
+    # detached bar-top presents exactly that, and so does a scrap of legend rule. The
+    # trace is a CONNECTED line, so split the candidates wherever adjacency breaks --
+    # either a skipped column or a jump larger than the trace can make in one column --
+    # and keep only blocks long enough to be trace rather than glyph.
+    blocks: list[list[tuple[int, float]]] = [[cand[0]]]
+    for (x0, y0), (x1, y1) in zip(cand, cand[1:], strict=False):
+        if x1 - x0 == 1 and abs(y1 - y0) <= TRACE_MAX_STEP_PX:
+            blocks[-1].append((x1, y1))
+        else:
+            blocks.append([(x1, y1)])
+
+    accepted = [len(b) >= TRACE_BACKBONE_MIN for b in blocks]
+    if not any(accepted):  # no backbone: take the longest block and nothing else
+        accepted[max(range(len(blocks)), key=lambda i: len(blocks[i]))] = True
+
+    def links(a: list, b: list) -> bool:
+        """Do two blocks join with a slope the trace could actually have?"""
+        (xa, ya), (xb, yb) = (a[-1], b[0]) if a[0][0] < b[0][0] else (a[0], b[-1])
+        dx = max(abs(xb - xa), 1)
+        return abs(yb - ya) <= TRACE_LINK_SLOPE_PX * dx + TRACE_LINK_OFFSET_PX
+
+    changed = True
+    while changed:  # grow outward from the backbone until nothing more attaches
+        changed = False
+        for i, b in enumerate(blocks):
+            if accepted[i]:
+                continue
+            for j in (i - 1, i + 1):
+                if (
+                    0 <= j < len(blocks)
+                    and accepted[j]
+                    and len(b) >= TRACE_LINK_MIN
+                    and links(blocks[j], b)
+                ):
+                    accepted[i] = True
+                    changed = True
+                    break
+
+    kept = [q for b, ok in zip(blocks, accepted, strict=True) if ok for q in b]
+    kept.sort()
+    return np.array(kept) if kept else np.zeros((0, 2))
 
 
 def calibrate(ink: np.ndarray, p: Panel) -> tuple:
