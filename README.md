@@ -21,9 +21,9 @@ public domain). Everything here is derived from it.
 | Gas generator speed vs Table B.1 | **±0.13 %** across three trim conditions |
 | Shaft power vs Table B.1 | **±0.05 %** at hover and level, −0.73 % at descent |
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
-| Fuel-step transient, Figures 9 and 10 | Fig. 9 settles within 1.6 % except torque at 3.6 %; Fig. 10 settles within 3.4 % on temperature, down from 17.4 % |
+| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 5.6-15.8 % of each panel's excursion, mean 9.8 %** |
 | Appendix B, 297 printed elements | zero structure exact; P3/P41 block <1.5 %; `b` 0.1 % |
-| Tests | 729 passing, with lint and formatting clean |
+| Tests | 740 passing, with lint and formatting clean |
 
 Phases 0–4 of `SCOPE.md` are complete: the report is ingested, the data captured, and the
 engine trims and runs transients in **either of the two configurations Ballin published**
@@ -105,27 +105,39 @@ pressure ratio we nearly inverted.
 
 ## Known gaps
 
-- **Figure 10's disagreement was ours, and it is mostly fixed.** Until 2026-09-12 the two
-  pressure iterations ran to `tol=1e-10` with a cap of 40 passes. The report prints its own
-  criterion twice on pdf p.37 — 0.1 percent, in up to ten passes for P3/P41 and eight for P45 —
-  so we were converging seven orders of magnitude harder than Ballin. That makes the pressures
-  reach equilibrium inside a single frame where his relaxed toward it across several, which
-  sharpens every transient and, on a fuel cut, lets the engine plunge deeper than his. Adopting
-  the printed criterion: Figure 10's NGc minimum **70.94 → 74.64 %** against Ballin's 74.2 %,
-  settled T41 **+11.5 → +3.2 %**, settled T45 **+17.4 → +3.4 %**. Steady state is untouched, as
-  it must be — a fixed point is a fixed point — and a trimmed engine still sits still to 1.9e-16.
-- **Figure 9's peak is still ~4 % high, and arrives too early.** T41 peaks at +3.98 % with an
-  overshoot 1.73× Ballin's, and at t+14 ms against his t+30 ms. Five physical hypotheses were
-  tested and eliminated: the heat-sink time constants (a lead-lag with unit DC gain cannot create
-  an overshoot, only scale one, and Eq. 50 was re-read off the raster and is exactly as
-  implemented); the volume dynamics (integrating Eqs. 42–47 rather than solving them algebraically
-  agrees to 0.11 % at settle and makes the spike *worse*); the frame size (refining dt the
-  overshoot converges upward); the input (Ballin's own Wf panel steps in 0.000 s); and the
-  function-table clamping (relaxing every clamp in turn moves the peak by at most 7.1 °R of 112,
-  because `f6` is a two-point near-constant table and `f9` is flat at its clamped end). What would
-  close it is the one thing p.37 does *not* print: how many passes were actually taken per frame.
-  A single fixed pass gives t+21 ms and an overshoot of +145.9 °R against Ballin's +116.3 — but
-  adopting a count chosen to fit the figure would be tuning, so it is recorded in #25, not shipped.
+- **The transients are the weak part, and the honest figure is ~10 %, not ~3 %.** Measured
+  over the whole record rather than at three points, and normalised by each panel's own
+  excursion: Figure 9 runs 6.4–11.4 % RMS, Figure 10 5.6–15.8 %, mean 9.8 %, with single-point
+  excursions to 64 % of range. The earlier three-point comparison — pre-step plateau, own
+  extremum, settled level — was chosen because those need no time alignment, but it cannot see
+  a wrong settling time or a wrong path, and it reported several times better than the truth.
+  `validation/test_whole_curve.py` now tracks it with a ratchet.
+- **Part of the Figure 9 gap is the report disagreeing with itself.** At 775 lbm/hr four of
+  Ballin's own datasets state the same condition: Figure 6 gives 99.69 %NG against Figure 9's
+  98.79, Figure 8 gives Ps3 244.2 against 234.9, Figure 7 gives 1724.8 shp against 1641.0 —
+  spreads of 0.9 %, 3.8 % and 4.9 %. We sit inside that spread on all three. Figures 8 and 9
+  are mutually consistent (Figure 8 evaluated at Figure 9's own settled speed agrees to 0.6 %);
+  it is Figure 6 that carries the offset, which is what open question #46 already recorded.
+- **Six hypotheses tested and eliminated** for Figure 9's remaining ~4 % peak error: the
+  heat-sink time constants (a lead-lag with unit DC gain cannot create an overshoot, and Eq. 50
+  was re-read off the raster and is exactly as implemented); the volume dynamics (integrating
+  Eqs. 42–47 agrees to 0.11 % at settle and makes the spike *worse*); the frame size; the input
+  shape (Ballin's Wf panel steps in 0.000 s); the function-table clamping (≤7.1 °R of 112,
+  because `f6` is a two-point near-constant table and `f9` is flat at its clamped end); and
+  host-frame sampling of his plot (≤9.5 °R). What *did* move it was our own solver tolerance —
+  see below.
+- **One real fix: the printed convergence criterion.** Both pressure iterations ran to
+  `tol=1e-10` with a cap of 40 passes; the report states 0.1 percent in up to ten passes for
+  P3/P41 and eight for P45 (pdf p.37). We were converging seven orders harder than Ballin,
+  which makes the pressures reach equilibrium inside one frame where his relaxed across
+  several. Adopting what is printed moved Figure 10's NGc minimum from 70.94 to 74.64 % against
+  his 74.2 %. Steady state is untouched — a fixed point is a fixed point.
+- **The sharpest open target is Figure 10's late decay, and it correlates with the map.** While
+  NGc is above 80 %, where Figure A1 prints speed lines every 2–3 points, our decay rate matches
+  Ballin's to 7 %. Below 80 %, where the only bracket is the **15-point [65, 80] hole**, the
+  ratio jumps to 1.44 and grows to 1.68. A shape-preserving cubic across the speed lines was
+  the obvious candidate and it makes things worse (1.52 → 1.86), so the correlation is
+  established and the mechanism is not.
 - **Table B.1 and Figures 6–7 disagree with each other**, by up to 5.5 % on shaft power at
   low power. We track Table B.1, which is printed numbers rather than a plot.
 - Figures 11–15 are **not reproducible** — they need the Gen Hel UH-60A blade-element

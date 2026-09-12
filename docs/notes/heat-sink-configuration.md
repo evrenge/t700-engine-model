@@ -55,8 +55,18 @@ printed facts support it, and one measurement does:
 4. Figure 9's T41 panel shows a spike decaying to a lower settled value. A `T41 = T41ns`
    run has **no mechanism** to produce that decay — the shape itself is the lead-lag.
 
-Our own measurement agrees: switching the heat sink on closes 65 % of the T41 peak error
-against Figure 9, 65 % of T45, and 90 % of TORQ45.
+**Settled by measurement, 2026-09-12, and it is not close.** The earlier line here quoted
+three-point errors, which flatter. Integrating the error over the whole record instead,
+normalised by each panel's own excursion, heat sink **on** wins on **every one of the nine
+comparable panels** of Figures 9 and 10:
+
+| | mean whole-curve RMS | worst panel |
+|---|---|---|
+| heat sink **on** | **9.8 %** | Fig. 10 T45, 15.8 % |
+| heat sink off | 18.5 % | Fig. 10 PCNG, 30.6 % |
+
+Figure 10's PCNG alone goes from 30.6 % to 5.6 %. `validation/test_whole_curve.py` asserts
+the margin so the inference stays measured rather than argued, and fails if it reverses.
 
 **Caution on one sentence.** [pdf p.20] also says "No modeling of compressor surge,
 heat-sink losses, or exhaust pressure losses was attempted." That refers to the
