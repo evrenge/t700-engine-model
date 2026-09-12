@@ -21,7 +21,7 @@ public domain). Everything here is derived from it.
 | Gas generator speed vs Table B.1 | **±0.13 %** across three trim conditions |
 | Shaft power vs Table B.1 | **±0.05 %** at hover and level, −0.73 % at descent |
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
-| Fuel-step transient, Figure 9 | endpoints within 0.9–3.9 %; T41 overshoot 1.67× Ballin's, down from 3.41× |
+| Fuel-step transient, Figures 9 and 10 | Fig. 9 settles within 1.6 % except torque at 3.6 %; Fig. 10 settles within 3.4 % on temperature, down from 17.4 % |
 | Appendix B, 297 printed elements | zero structure exact; P3/P41 block <1.5 %; `b` 0.1 % |
 | Tests | 627, with lint and formatting clean |
 
@@ -105,32 +105,34 @@ pressure ratio we nearly inverted.
 
 ## Known gaps
 
-- **The peak combustor temperature is 4.4 % high, and no physical hypothesis for it
-  survives.** On Figure 9 everything agrees pre-step to 0.7 % and at settle to 1.6 %, but the
-  T41 and T45 *peaks* come out +4.4 %, an overshoot above settle of 1.83× and 2.10× Ballin's.
-  Five candidates have been tested and eliminated: the heat-sink time constants (a lead-lag
-  with unit DC gain cannot create an overshoot, only scale one — and matching Ballin needs
-  5.7× the uncertainty we actually have, in the wrong direction); the volume dynamics
-  (integrating Eqs. 42–47 instead of solving them algebraically agrees to 0.11 % at settle and
-  makes the spike *worse*); the 7 ms frame (refining dt to 0.44 ms the overshoot converges
-  upward); the input (Ballin's own Wf panel steps in 0.000 s); and the function-table clamping
-  of #45 (relaxing every clamp in turn moves the peak by at most 7.1 °R of 112). Ballin's own
-  PCNG, Ps3 and TORQ45 do not overshoot at all, and neither do ours — there is no ringing in
-  either model. What is left is a 4.4 % error in one quantity, at a fuel-air ratio 126 % beyond
-  the tabulated range, and **the precision needed to pursue it does not exist in our reference
-  data yet**: the Figure 9/10 traces carry 61 off-curve samples in 6,632, and their six panels
-  disagree by 48 ms about when the step happened, against a peak that arrives 9 ms after it.
-  That is our work, not the report's — open question #51.
-- **Figure 10 is a separate failure and larger.** At 125 lbm/hr our settled T41 is +11.5 % and
-  T45 +17.4 %. That is a steady-state error far below Table B.1's lowest trim, not a dynamics
-  error. Ballin's T41 falls to 1659 °R and stays there; ours falls to 1609 and recovers 244 °R.
+- **Figure 10's disagreement was ours, and it is mostly fixed.** Until 2026-09-12 the two
+  pressure iterations ran to `tol=1e-10` with a cap of 40 passes. The report prints its own
+  criterion twice on pdf p.37 — 0.1 percent, in up to ten passes for P3/P41 and eight for P45 —
+  so we were converging seven orders of magnitude harder than Ballin. That makes the pressures
+  reach equilibrium inside a single frame where his relaxed toward it across several, which
+  sharpens every transient and, on a fuel cut, lets the engine plunge deeper than his. Adopting
+  the printed criterion: Figure 10's NGc minimum **70.94 → 74.64 %** against Ballin's 74.2 %,
+  settled T41 **+11.5 → +3.2 %**, settled T45 **+17.4 → +3.4 %**. Steady state is untouched, as
+  it must be — a fixed point is a fixed point — and a trimmed engine still sits still to 1.9e-16.
+- **Figure 9's peak is still ~4 % high, and arrives too early.** T41 peaks at +3.98 % with an
+  overshoot 1.73× Ballin's, and at t+14 ms against his t+30 ms. Five physical hypotheses were
+  tested and eliminated: the heat-sink time constants (a lead-lag with unit DC gain cannot create
+  an overshoot, only scale one, and Eq. 50 was re-read off the raster and is exactly as
+  implemented); the volume dynamics (integrating Eqs. 42–47 rather than solving them algebraically
+  agrees to 0.11 % at settle and makes the spike *worse*); the frame size (refining dt the
+  overshoot converges upward); the input (Ballin's own Wf panel steps in 0.000 s); and the
+  function-table clamping (relaxing every clamp in turn moves the peak by at most 7.1 °R of 112,
+  because `f6` is a two-point near-constant table and `f9` is flat at its clamped end). What would
+  close it is the one thing p.37 does *not* print: how many passes were actually taken per frame.
+  A single fixed pass gives t+21 ms and an overshoot of +145.9 °R against Ballin's +116.3 — but
+  adopting a count chosen to fit the figure would be tuning, so it is recorded in #25, not shipped.
 - **Table B.1 and Figures 6–7 disagree with each other**, by up to 5.5 % on shaft power at
   low power. We track Table B.1, which is printed numbers rather than a plot.
 - Figures 11–15 are **not reproducible** — they need the Gen Hel UH-60A blade-element
   simulation, which this report consumes and does not contain. That was Ballin's boundary
   too.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **47 logged, 29 closed, 4 partly closed, 14 open**. **Nine of the fourteen are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining five, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and three are work we have not done: linearizing the discrete real-time map, Figure C30's seven crossing curves, and cleaning the off-curve samples out of the Figure 9/10 traces so transient *shape* can be compared at all.
+Open questions are tracked in `docs/notes/open-questions.md` — **47 logged, 30 closed, 5 partly closed, 12 open**. **Nine of the twelve are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining three, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and three are work we have not done: linearizing the discrete real-time map, Figure C30's seven crossing curves, and cleaning the off-curve samples out of the Figure 9/10 traces so transient *shape* can be compared at all.
 
 ## Running it
 

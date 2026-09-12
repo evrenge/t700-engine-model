@@ -44,6 +44,7 @@ can decide between them -- see `tools/` and the transient validation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Final
 
 import numpy as np
 
@@ -119,6 +120,25 @@ class FrameOut:
     far: float
 
 
+# --------------------------------------------------------------------------- solver stopping rules
+
+TOL_PRESSURE: Final = 1.0e-3
+"""Relative convergence tolerance for both pressure iterations. [pdf p.37]
+
+Printed twice on that page: the P3/P41 sweep converges "with less than 0.1 percent
+error", and for P45 "eight iterations resulted in an error equal to less than 0.1
+percent of the steady-state value". 0.1 percent is 1e-3.
+"""
+
+MAX_ITER_P3_P41: Final = 10
+"""Pass cap for the P3/P41 sweep. [pdf p.37]  "up to ten iterations may be required",
+cross-checked by the printed operation count: 11 operations a pass x 10 = 110."""
+
+MAX_ITER_P45: Final = 8
+"""Pass cap for the P45 iteration. [pdf p.37]  "Eight iterations resulted in an error
+equal to less than 0.1 percent of the steady-state value"."""
+
+
 def _inner_pressure_loop(
     p3: float,
     p41: float,
@@ -126,8 +146,8 @@ def _inner_pressure_loop(
     theta41: float,
     wa31: float,
     wf: float,
-    tol: float = 1e-10,
-    max_iter: int = 40,
+    tol: float = TOL_PRESSURE,
+    max_iter: int = MAX_ITER_P3_P41,
 ) -> tuple[float, float, int]:
     """The P3/P41 fixed-point sweep, Eqs. 76 and 78.
 
@@ -135,6 +155,21 @@ def _inner_pressure_loop(
     then P41 from the P3 just computed -- not a simultaneous solve. T3 and theta_41 are
     held fixed across the sweep, which is what makes it eleven arithmetic operations a
     pass; they are recomputed once per frame outside this function.
+
+    **The stopping rule is the report's, not ours.** Until 2026-09-12 this ran to
+    `tol=1e-10` with a cap of 40 -- seven orders of magnitude tighter than the report,
+    and invented. It is printed: *"up to ten iterations may be required for convergence
+    with less than 0.1 percent error, resulting in a total of 110 arithmetic
+    operations"* [pdf p.37]. Eleven operations a pass times ten passes is the 110, which
+    pins the cap at ten independently of the sentence.
+
+    It is not a detail. Converging harder than Ballin did makes the pressures reach
+    equilibrium within one frame where his relaxed toward it across several, which
+    sharpens every transient: on the Figure 9 step, tightening from the printed rule to
+    1e-10 moves the T41 overshoot from +184.9 to +195.7 degR against Ballin's +116.3.
+    Steady state is untouched -- a fixed point is a fixed point -- so no trim moves.
+    See open question #25 for what is still not printed: how many passes were actually
+    taken per frame, which is worth another 40 degR.
     """
     it = 0
     while it < max_iter:
@@ -156,10 +191,15 @@ def _p45_loop(
     wa2: float,
     theta45: float,
     ps9: float,
-    tol: float = 1e-10,
-    max_iter: int = 40,
+    tol: float = TOL_PRESSURE,
+    max_iter: int = MAX_ITER_P45,
 ) -> tuple[float, int]:
     """P45 by its own iteration, Eq. 80.
+
+    Same correction as the P3/P41 sweep, and the report is equally explicit for this one:
+    *"Eight iterations resulted in an error equal to less than 0.1 percent of the
+    steady-state value"* [pdf p.37], measured under "an instantaneous step in fuel flow
+    from flight idle to full power" -- which is Figure 9's own test case.
 
     The numerator is constant over the iteration, as the report notes -- only the f9
     lookup changes, which is why a pass costs "one function-table lookup and four
@@ -242,6 +282,7 @@ def step(
     integrate_np: bool = True,
     lag_whole_flow: bool = True,
     heat_sink: bool = False,
+    tol: float = TOL_PRESSURE,
 ) -> tuple[RTState, FrameOut]:
     """Advance one engine frame.
 
@@ -295,7 +336,9 @@ def step(
     theta41 = thermo.theta41_from_t41(t41)  # (25)
 
     # --- the two pressure solves ------------------------------------------------------
-    p3, p41, inner_iters = _inner_pressure_loop(st.p3_psia, st.p41_psia, t3, theta41, wa31, wf_pps)
+    p3, p41, inner_iters = _inner_pressure_loop(
+        st.p3_psia, st.p41_psia, t3, theta41, wa31, wf_pps, tol=tol
+    )
     w41 = c.K_WGT * p41 / np.sqrt(theta41)  # (28)
 
     ps9 = p2  # (37)
@@ -307,7 +350,7 @@ def step(
     t45 = thermo.t45_from_h45(h45)  # (30)
     theta45 = thermo.theta45_from_t45(t45)  # (31)
 
-    p45, p45_iters = _p45_loop(st.p45_psia, w41, b3, wa2, theta45, ps9)
+    p45, p45_iters = _p45_loop(st.p45_psia, w41, b3, wa2, theta45, ps9, tol=tol)
 
     dh_pt = theta45 * float(maps.f8()(p49 / p45))  # (32)
     w45 = float(maps.f9()(ps9 / p45)) * p45 / np.sqrt(theta45)  # (33), (34)

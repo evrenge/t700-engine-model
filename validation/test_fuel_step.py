@@ -66,9 +66,13 @@ INITIAL_TOL_PCT = 1.5
 """The trim is the same physics the steady-state tests already check, so it should agree
 tightly -- this is really a check that the figures' own y calibration is sound."""
 
-FINAL_TOL_PCT = {9: 5.0, 10: 20.0}
-"""Figure 10 gets a much looser bound, and deliberately: see
-`test_step_down_runs_off_the_bottom_of_the_maps`, which measures why."""
+FINAL_TOL_PCT = {9: 5.0, 10: 8.0}
+"""Figure 10 still gets a looser bound, but far less loose than it needed before.
+
+It was 20.0 while the settled T41 ran +11.5 % and T45 +17.4 %. Adopting the report's own
+printed convergence criterion [pdf p.37] brought those to +3.2 % and +3.4 %, and the
+worst remaining panel is Ps3 at +6.9 %. **Tightened, never widened** -- and this pair
+belongs in `SCOPE.md` per CLAUDE.md rather than inline here."""
 
 
 UNTRUSTED = {(10, "torq45")}
@@ -174,32 +178,41 @@ def test_step_up_stays_inside_the_compressor_map():
 
 
 def test_step_down_runs_off_the_bottom_of_the_maps():
-    """Figure 10 disagrees far more, and this measures why rather than asserting it.
+    """Figure 10 still extrapolates at the bottom of its data -- but it now largely agrees.
 
-    The step to 125 lbm/hr drives NGc down to about 71 %, against a compressor map whose
-    lowest speed line is 65 %, and drives the fuel-air ratio to 0.005 against an `f6`
-    table that starts at 0.010. The model spends the whole late transient extrapolating
-    at the bottom of its own data, so the 9-16 % deviations there are a statement about
-    the digitized envelope, not about the equations.
+    This test used to explain a 9-16 % disagreement. That disagreement was mostly ours:
+    until 2026-09-12 the pressure iterations ran to `tol=1e-10`, seven orders tighter
+    than the 0.1 percent the report prints [pdf p.37]. Converging harder than Ballin did
+    let the engine plunge further on a fuel cut. Adopting the printed criterion moved the
+    NGc minimum from 70.94 % to **74.64 %**, against Ballin's own 74.2 %, the settled T41
+    from +11.5 % to +3.2 %, and T45 from +17.4 % to +3.4 %.
+
+    What survives is the extrapolation itself, a real caveat on any Figure 10 number that
+    must keep being reported: NGc bottoms at 74.6 %, so `f1`'s 65 % line is still the
+    lower bracket and is asked for pressure ratios outside its own range, and the
+    fuel-air ratio falls to 0.0053 against an `f6` table starting at 0.00999.
 
     Figure 10's reference data is also the weaker of the two: its `WFPH` settles 4.35 %
-    from the value its caption states, against 0.23 % for Figure 9, and its `TORQ45` panel
-    yielded only 16 markers against 45 elsewhere and is not used.
+    from the value its caption states, against 0.23 % for Figure 9, and its `TORQ45`
+    panel yielded only 16 markers against 45 elsewhere and is not used.
     """
     maps.reset_clamps()
     tr = _run(10, 125.0, 0.545)
     ngc = 100.0 * tr["ng"] / c.NG_DES
     rep = maps.clamp_report()
 
-    # 70.94 % with the heat sink on, against 67.64 % without it -- the lead-lag slows the
-    # decay, so the engine no longer plunges as deep, and Ballin's own trace bottoms at
-    # 74.2 %. Still below the 75 % where `f1` has real speed lines either side, so the
-    # extrapolation argument below survives; it is simply less severe than it was.
-    assert ngc.min() < 72.0, "the step down should still reach the bottom of the speed range"
+    # Ballin's trace bottoms at 74.2 %; ours at 74.64 %. The window is tight on both
+    # sides on purpose -- too deep was the old defect, and too shallow would mean the
+    # fuel cut is no longer being followed at all.
+    assert 73.5 < ngc.min() < 76.0, (
+        f"NGc bottoms at {ngc.min():.2f} %, against Ballin's 74.2 %; the printed 0.1 "
+        f"percent convergence criterion [pdf p.37] is what puts it there"
+    )
     assert tr["far"].min() < 0.010, "and below f6's tabulated fuel-air ratio"
     assert rep.get("f1@65", 0) > 100, (
-        "the lowest compressor speed line should be heavily extrapolated here; if it is "
-        "not, the explanation for Figure 10's disagreement needs revisiting"
+        "f1's 65 % line is the lower bracket below 80 % NGc and is asked for pressure "
+        "ratios outside its own range; if that stops happening, the extrapolation "
+        "caveat on every Figure 10 number needs revisiting"
     )
     maps.reset_clamps()
 

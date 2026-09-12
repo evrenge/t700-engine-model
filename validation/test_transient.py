@@ -44,6 +44,15 @@ def test_the_opened_iteration_converges_as_the_step_shrinks():
     This is the test that decided open question #22. The equation as *printed* lags only
     the bleed and does not converge at all; the prose reading -- the whole compressor exit
     flow taken from the previous interval -- halves its error when the step is halved.
+
+    **`tol` is set to machine precision here on purpose, and that is not a widened
+    tolerance -- it is the opposite.** This is a numerical-convergence experiment: it
+    asks whether the scheme is a discretization of a continuous system, which is only
+    answerable when the time step is the *only* error source. Since 2026-09-12 the
+    shipped default is the report's printed 0.1 percent [pdf p.37], and at small dt that
+    tolerance floor dominates the dt error, so a refinement study run at the default
+    measures the solver rather than the discretization. Replication runs use the default;
+    this experiment does not.
     """
     st0, wf0, qreq = _seed(400.0)
     stepfn = lambda t: wf0 if t < 0.5 else wf_pps_from_pph(775.0)  # noqa: E731
@@ -59,6 +68,7 @@ def test_the_opened_iteration_converges_as_the_step_shrinks():
             dt=dt_ms / 1000.0,
             q_req_ftlbf=qreq,
             integrate_np=False,
+            tol=1e-12,
         )
         vals.append(tr["ng"][-1])
 
