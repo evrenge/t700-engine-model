@@ -105,11 +105,25 @@ pressure ratio we nearly inverted.
 
 ## Known gaps
 
-- **The transient is still too sharp**, though much less so. T41 now overshoots by 1.67×
-  Ballin's figure, down from 3.41×. Two thirds of that gap was the station 4.1 heat-sink
-  model (Eqs. 48–53) — and part of it was our own error: Figures 9 and 10 were generated
-  with the heat sink *on*, so comparing our 5-DOF model against them was a category
-  mistake rather than an incomplete model. The remaining 1.67× is unexplained.
+- **The peak combustor temperature is 4.4 % high, and no physical hypothesis for it
+  survives.** On Figure 9 everything agrees pre-step to 0.7 % and at settle to 1.6 %, but the
+  T41 and T45 *peaks* come out +4.4 %, an overshoot above settle of 1.83× and 2.10× Ballin's.
+  Five candidates have been tested and eliminated: the heat-sink time constants (a lead-lag
+  with unit DC gain cannot create an overshoot, only scale one — and matching Ballin needs
+  5.7× the uncertainty we actually have, in the wrong direction); the volume dynamics
+  (integrating Eqs. 42–47 instead of solving them algebraically agrees to 0.11 % at settle and
+  makes the spike *worse*); the 7 ms frame (refining dt to 0.44 ms the overshoot converges
+  upward); the input (Ballin's own Wf panel steps in 0.000 s); and the function-table clamping
+  of #45 (relaxing every clamp in turn moves the peak by at most 7.1 °R of 112). Ballin's own
+  PCNG, Ps3 and TORQ45 do not overshoot at all, and neither do ours — there is no ringing in
+  either model. What is left is a 4.4 % error in one quantity, at a fuel-air ratio 126 % beyond
+  the tabulated range, and **the precision needed to pursue it does not exist in our reference
+  data yet**: the Figure 9/10 traces carry 61 off-curve samples in 6,632, and their six panels
+  disagree by 48 ms about when the step happened, against a peak that arrives 9 ms after it.
+  That is our work, not the report's — open question #51.
+- **Figure 10 is a separate failure and larger.** At 125 lbm/hr our settled T41 is +11.5 % and
+  T45 +17.4 %. That is a steady-state error far below Table B.1's lowest trim, not a dynamics
+  error. Ballin's T41 falls to 1659 °R and stays there; ours falls to 1609 and recovers 244 °R.
 - **Table B.1 and Figures 6–7 disagree with each other**, by up to 5.5 % on shaft power at
   low power. We track Table B.1, which is printed numbers rather than a plot.
 - Figures 11–15 are **not reproducible** — they need the Gen Hel UH-60A blade-element
