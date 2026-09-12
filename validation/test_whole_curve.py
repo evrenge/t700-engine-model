@@ -273,3 +273,68 @@ def test_the_printed_p45_tolerance_admits_a_false_equilibrium_below_flight_idle(
         f"and must agree, which is the evidence that the false root is a tolerance "
         f"artifact and not a disagreement between the two formulations"
     )
+
+
+# --------------------------------------------------------- why the transient cannot be tightened
+
+
+def test_ps3_has_about_thirteenfold_leverage_on_the_speed_derivative():
+    """The structural reason open question #47 cannot be closed from the report.
+
+    `dNG/dt` is the difference of two nearly equal torques, so a small error in station 3
+    static pressure is hugely amplified. Ps3 enters twice and both routes pull the same
+    way: `T3 = T2*f2(Ps3/P2)` (Eq. 10) into the compressor torque (39), and
+    `WA31 = sqrt(P3(P3 - P41)/(K_dpb T3))` (Eq. 18) into the whole core flow -- and Eq. 18
+    is the strong one, because P41 tracks P3 closely so a small move in P3 moves the
+    pressure *drop* by much more.
+
+    Measured at 76 %NG on the Figure 10 chop: substituting Ballin's plotted Ps3, which
+    differs from ours by 2.2 %, changes `dNG/dt` by 29 %. A gain near thirteen.
+
+    That is why the remaining deceleration disagreement is not localisable. Every input
+    has been verified against Ballin's own printed data -- WA31 to 0.8 % with no map in
+    the loop, Ps3 to 1.7 % dynamically and 1.0 % against Figure 8, `f2` digitized to
+    0.025 % per point with knots every 1.0 in pressure ratio, `f3` confirmed against
+    Figure A3, Eq. 39 shown to be an exact two-stream balance -- and 1 to 2 % on Ps3,
+    which is as well as a digitized figure can be read, *is* 15 to 30 % on the derivative.
+
+    Constructive proof of the attribution: pinning Ps3 to Ballin's own trace and
+    integrating removes the low-speed deficit entirely, taking the rate ratio at 76 %NG
+    from 1.29 to 1.00. It also breaks the high-speed end, 1.01 to 0.87 at 86 %NG, because
+    there our computed Ps3 is the more accurate of the two. So Ps3 accounts for the whole
+    residual in both directions, and neither reading is good enough to do better.
+
+    This test pins the leverage itself, so the argument stays measured.
+    """
+    wf0 = wf_pps_from_pph(400.0)
+    r0 = trim.solve(wf0, c.NP_DES, AMB)
+    f0 = frame(r0.state, wf0, AMB)
+    st = realtime.from_trim(r0, f0.wa31_pps, f0)
+    tr = realtime.run(
+        st,
+        lambda t: wf0 if t < OUR_STEP else wf_pps_from_pph(125.0),
+        AMB,
+        duration_s=5.0,
+        dt=0.007,
+        q_req_ftlbf=f0.q_pt_ftlbf,
+        integrate_np=False,
+        heat_sink=True,
+    )
+    pcng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
+    i = int(np.argmin(np.abs(pcng - 76.0)))
+
+    from t700.engine import State
+
+    def dng_with_ps3(ps3: float) -> float:
+        s = State(tr["ng"][i], tr["np"][i], ps3 / c.K_PS3, tr["p41"][i], tr["p45"][i])
+        return frame(s, tr["wf"][i], AMB, q_req_ftlbf=f0.q_pt_ftlbf, t41_degR=tr["t41"][i]).dng_dt
+
+    ps3 = c.K_PS3 * tr["p3"][i]
+    base = dng_with_ps3(ps3)
+    perturbed = dng_with_ps3(ps3 * 1.01)
+    gain = abs((perturbed - base) / base) / 0.01
+
+    assert 8.0 < gain < 20.0, (
+        f"dNG/dt gain on Ps3 measures {gain:.1f} at 76 %NG; on record is about 13. If this "
+        f"has moved a long way, the error budget in open question #47 needs redoing."
+    )
