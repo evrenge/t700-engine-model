@@ -82,9 +82,11 @@ class RTState:
     """The opened compressor mass-flow iteration's memory (Eq. 74). Its initialization is
     not stated anywhere in the report -- open question #23."""
 
-    hs_lag_degR: float = 0.0
-    """Eq. 50's lead-lag memory, deg R. Unused when `heat_sink=False`. See `_heat_sink`
-    for why the memory is this and not T41 itself."""
+    hs_tm_degR: float = 0.0
+    """Station 4.1 **metal** temperature, deg R -- Eq. 48's state. Unused when
+    `heat_sink=False`; zero means "not seeded" and `_heat_sink` then starts it at
+    equilibrium. See `_heat_sink` for why the state is this and not Eq. 50's lead-lag
+    memory."""
 
     t41_carry_degR: float = 0.0
     """Previous frame's T41, deg R. This is the report's **sixth state** [pdf p.29,
@@ -222,13 +224,13 @@ def _p45_loop(
 
 def _heat_sink(
     t41_ns_degR: float,
-    lag_degR: float,
+    tm_degR: float,
     t41_prev_degR: float,
     w41_prev_pps: float,
     ngc_pct: float,
     dt: float,
 ) -> tuple[float, float]:
-    """Advance Eq. 50's lead-lag one frame. Returns `(T41, next memory)`.
+    """Advance the station 4.1 heat sink one frame. Returns `(T41, next metal temp)`.
 
     ```
     T41       (M c_pm/(h A_m) - M c_pm/(W_g c_pg)) s + 1
@@ -243,17 +245,40 @@ def _heat_sink(
     Write `tau_a` for Eq. 51 and `tau_b` for Eq. 53, so Eq. 50 is
     `((tau_a - tau_b) s + 1) / (tau_a s + 1)`.
 
-    **There is no metal-temperature state.** `T_m` appears only in Eqs. 48-49 and is
-    eliminated when those collapse into Eq. 50; the lead-lag carries the metal's thermal
-    inertia implicitly. The report is explicit that the extra state is "gas temperature at
-    station 4.1" [pdf p.29]. Adding a `T_m` state would not reproduce Appendix B.
+    ## The state is the METAL temperature, and that choice is load-bearing
 
-    ## Why the memory is `x` and not T41
+    Eq. 50 is a *collapse* of the two printed heat-transfer equations [pdf p.25]:
 
-    Realized as `T41 = k*T41_ns + x` with `x' = (-x + (1-k)*T41_ns)/tau_a` and
-    `k = 1 - tau_b/tau_a`. Substituting gives back Eq. 50 exactly, and it avoids
-    differentiating the input, which a fixed-step explicit frame cannot do cleanly. The
-    report's state T41 is recovered algebraically as `k*T41_ns + x`, so nothing is lost.
+    ```
+    c_pm M dT_m/dt      = h A_m (T_gi - T_m)                        (48)
+    c_pg W_g (T_gi-T_go) = c_pm M dT_m/dt                            (49)
+    ```
+
+    With `T_gi = T41_ns` and `T_go = T41`, those are exactly
+
+    ```
+    dT_m/dt = (T41_ns - T_m) / tau_a
+    T41     = T41_ns - (tau_b/tau_a) * (T41_ns - T_m)
+    ```
+
+    which is what this function integrates. **The collapse into Eq. 50 is only valid for
+    CONSTANT coefficients**, and Eqs. 51 and 53 make `tau_a` and `tau_b` functions of T41
+    and W41. Until 2026-09-12 this function carried Eq. 50's lead-lag memory `x` instead,
+    with `T41 = k*T41_ns + x`. Substituting the above shows `x = (tau_b/tau_a) * T_m`, so
+    **`x` has `k` baked into it**: every time the coefficients move, the stored `x` refers
+    to the old `k` and is stale. On a fuel step, where `k` swings from 0.62 to 0.67 inside
+    a few frames, that stale memory amplified the T41 excursion beyond the `k` that Eq. 50
+    prescribes -- our Figure 9 peak ran +3.64 % and our Figure 10 minimum -2.99 %, and the
+    T41 error at matched NGc reached 160 deg R.
+
+    Integrating `T_m` has no such artifact: the state is a physical temperature and means
+    the same thing whatever the coefficients do. It is identical to the lead-lag whenever
+    they are constant, so nothing that depends on the constant-coefficient case moves --
+    Appendix B and Table 1 are untouched, and the DC gain stays exactly 1.
+
+    The report's *linear* models carry "gas temperature at station 4.1" as the sixth state
+    [pdf p.29] and that is still what Appendix B reproduces; the choice here is only about
+    which realization the nonlinear frame integrates, and Eqs. 48-49 are the printed one.
 
     ## Two properties worth stating, because they are load-bearing
 
@@ -266,10 +291,10 @@ def _heat_sink(
     """
     tau_a = c.TC_T41 * t41_prev_degR**0.5 / w41_prev_pps**0.8  # (51)
     tau_b = float(maps.f_hs()(ngc_pct)) / w41_prev_pps  # (52), (53)
-    k = 1.0 - tau_b / tau_a
-    t41 = k * t41_ns_degR + lag_degR
-    lag_next = lag_degR + dt * (-lag_degR + (1.0 - k) * t41_ns_degR) / tau_a
-    return t41, lag_next
+    tm = tm_degR if tm_degR > 0.0 else t41_ns_degR  # unseeded: start at equilibrium
+    t41 = t41_ns_degR - (tau_b / tau_a) * (t41_ns_degR - tm)  # (48) with (49)
+    tm_next = tm + dt * (t41_ns_degR - tm) / tau_a  # (48)
+    return t41, tm_next
 
 
 def step(
@@ -327,11 +352,11 @@ def step(
     h41_ns = (h3 + eta_b * far * c.HVF) / (1.0 + far)  # (21)
     t41_ns = thermo.t41_from_h41(h41_ns)  # (22)
     if heat_sink:
-        t41, hs_lag = _heat_sink(
-            t41_ns, st.hs_lag_degR, st.t41_carry_degR, st.w41_carry_pps, ngc_pct, dt
+        t41, hs_tm = _heat_sink(
+            t41_ns, st.hs_tm_degR, st.t41_carry_degR, st.w41_carry_pps, ngc_pct, dt
         )  # (48)-(53)
     else:
-        t41, hs_lag = t41_ns, st.hs_lag_degR  # (23), no heat-sink representation
+        t41, hs_tm = t41_ns, st.hs_tm_degR  # (23), no heat-sink representation
     h41 = thermo.h41_from_t41(t41)  # (24)
     theta41 = thermo.theta41_from_t41(t41)  # (25)
 
@@ -370,7 +395,7 @@ def step(
         )  # (46), (47)
 
     carry = wa31 if not lag_whole_flow else (wa3 - wa3_bl)
-    nxt = RTState(ng, np_, p3, p41, p45, float(carry), hs_lag, t41, float(w41))
+    nxt = RTState(ng, np_, p3, p41, p45, float(carry), hs_tm, t41, float(w41))
     out = FrameOut(
         inner_iters=inner_iters,
         p45_iters=p45_iters,
@@ -397,19 +422,28 @@ def from_trim(result, wa31_pps: float, frame: Frame | None = None) -> RTState:
 
     Pass `frame` -- the `engine.frame` evaluated at the same trim -- to seed the
     heat-sink carries as well. Required for `heat_sink=True` runs; harmless otherwise.
-    The seed follows the same principle: at equilibrium Eq. 50 has unit gain, so
-    T41 = T41_ns and the lag memory is whatever holds that identity, `(1-k)*T41_ns`.
+    The seed follows the same principle: at equilibrium Eq. 48's right-hand side is zero,
+    so the metal sits at the gas temperature and T41 = T41_ns by Eq. 49. One line, and it
+    needs no coefficients at all -- which is itself a small argument for this realization
+    over the lead-lag memory it replaced, whose seed had to be computed from `tau_a` and
+    `tau_b`.
     """
     s = result.state
     if frame is None:
         return RTState(s.ng_rpm, s.np_rpm, s.p3_psia, s.p41_psia, s.p45_psia, wa31_pps)
 
     t41 = frame.t41_ns_degR
-    w41 = frame.w41_pps
-    tau_a = c.TC_T41 * t41**0.5 / w41**0.8  # (51)
-    tau_b = float(maps.f_hs()(frame.ngc_pct)) / w41  # (52), (53)
-    lag = (tau_b / tau_a) * t41  # = (1 - k) * T41_ns, the memory that holds T41 = T41_ns
-    return RTState(s.ng_rpm, s.np_rpm, s.p3_psia, s.p41_psia, s.p45_psia, wa31_pps, lag, t41, w41)
+    return RTState(
+        s.ng_rpm,
+        s.np_rpm,
+        s.p3_psia,
+        s.p41_psia,
+        s.p45_psia,
+        wa31_pps,
+        t41,  # metal temperature: at equilibrium it sits at the gas temperature (48)
+        t41,
+        frame.w41_pps,
+    )
 
 
 def run(

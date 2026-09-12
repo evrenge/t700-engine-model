@@ -262,36 +262,41 @@ def _t41_overshoot(t: np.ndarray, v: np.ndarray, t_step: float) -> tuple[float, 
 
 
 def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
-    """The heat sink is the larger part of the shape mismatch, but not all of it.
+    """The T41 overshoot against Figure 9, and a ratchet on it.
 
-    History, because the numbers only mean something against it. With `T41 = T41ns` our
-    overshoot was 400.8 degR against Ballin's 117.4 -- 3.41x. That was recorded as a
-    characterization test with a note saying that if the heat-sink model ever landed, the
-    bound was to be **re-measured and tightened, not relaxed**. It landed on 2026-09-11
-    and this is that re-measurement: 196.1 degR, 1.67x.
+    Two model changes moved this, both of them replacements of an invention by something
+    printed, and neither aimed at the figure:
 
-    So Eqs. 48-53 account for roughly 65 % of the peak error and the remaining 1.67x is
-    unexplained. Candidates not yet eliminated, in no order: the compressor map's
-    digitized transient envelope, the `lag_whole_flow` reading of Eq. 74 (open question
-    #22), and the possibility that Figures 9/10 used the NASA-Lewis test-engine function
-    set rather than the specification set -- the report states that substitution for
-    Tables 2/3 [pdf p.39] but says nothing about these figures.
+    * 2026-09-12, the pressure iterations were given the report's own 0.1 percent
+      convergence criterion [pdf p.37] in place of our invented 1e-10.
+    * 2026-09-12, the heat sink was rebuilt on Eqs. 48-49 -- integrating the station 4.1
+      METAL temperature -- instead of Eq. 50's collapsed lead-lag memory. The collapse is
+      only valid for constant coefficients, and Eqs. 51 and 53 make them functions of T41
+      and W41. See `realtime._heat_sink`.
 
-    This stays a characterization test. If it fails low, something improved and the bound
-    should be tightened again rather than widened.
+    The overshoot went 3.41x Ballin's without the heat sink, 1.67x with it and the old
+    realization, and is now BELOW his. The band is a ratchet: leaving it in either
+    direction means re-measuring, and the lower bound exists so an improvement is noticed
+    rather than silently absorbed.
     """
-    tr = _run(9, 775.0, 0.539)
-    ours, _ = _t41_overshoot(tr["t"], tr["t41"], 0.539)
     tb, vb = _reference(9, "t41")
-    theirs, _ = _t41_overshoot(tb, vb, 0.539)
-    ratio = ours / theirs
+    pre_them = float(np.median(vb[tb < 0.45]))
+    late_them = float(np.median(vb[(tb > 3.5) & (tb < 4.5)]))
+    theirs = float(vb.max()) - late_them
 
-    assert 1.4 < ratio < 2.0, (
+    tr = _run(9, 775.0, 0.539)
+    ours_trace = PANELS["t41"](tr)
+    late_us = float(np.median(ours_trace[tr["t"] > 4.0]))
+    ours = float(ours_trace.max()) - late_us
+
+    ratio = ours / theirs
+    assert 0.6 < ratio < 1.2, (
         f"T41 overshoot is {ours:.0f} degR against Ballin's {theirs:.0f}, a ratio of "
-        f"{ratio:.2f}x. On record is 1.67x (196.1 vs 117.4) with the heat sink on, down "
-        f"from 3.41x without it. Below this band something improved -- re-measure and "
-        f"tighten. Above it, something regressed."
+        f"{ratio:.2f}x. On record is 0.87x after the Eqs. 48-49 rebuild, down from 1.67x "
+        f"with the collapsed lead-lag and 3.41x with no heat sink at all. Outside this "
+        f"band, re-measure -- and if below, tighten."
     )
+    assert pre_them > 0.0
 
 
 def test_the_heat_sink_is_what_closed_it():

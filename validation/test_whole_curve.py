@@ -158,13 +158,16 @@ def test_the_heat_sink_configuration_is_the_better_fit():
     )
 
 
-WHOLE_CURVE_RMS_CEILING_PCT = 17.0
+WHOLE_CURVE_RMS_CEILING_PCT = 8.0
 """Ceiling on any single panel's whole-curve RMS, as a percent of its own excursion.
 
-**This is a ratchet, not a tolerance.** It is set just above the worst panel measured
-(Figure 10's T45 at 15.8 %) so that a regression fails while an improvement is free. It
-does not mean 17 % is acceptable -- it is not; see open question #47. Lower it whenever
-the model improves, and never raise it. Belongs in `SCOPE.md` per CLAUDE.md.
+**This is a ratchet, not a tolerance.** Set just above the worst panel measured, so a
+regression fails while an improvement is free. Lower it whenever the model improves, and
+never raise it. Belongs in `SCOPE.md` per CLAUDE.md.
+
+History, each step a replacement of an invention by something printed:
+17.0 (worst panel 15.8 %) -> **8.0** (worst 7.0 %) when the heat sink was rebuilt on
+Eqs. 48-49. Mean over the nine panels went 9.78 % -> 3.63 %.
 """
 
 
@@ -189,9 +192,7 @@ def test_figure_10_has_not_settled_by_the_end_of_its_record():
 
     Every "settled" number reported for Figure 10 before 2026-09-12 was measured over
     t = 4.0-4.6 s. Neither trace is settled there: Ballin's PCNG is still falling at
-    -2.45 %NG/s and ours at -1.46 %NG/s. Run out to 60 s, ours reaches 66.89 %NG, which
-    is our own differential trim's 67.04 % -- so the two formulations do agree, and the
-    apparent 12 % gap between them was this mistake, not a defect.
+    -2.45 %NG/s and ours at -1.46 %NG/s.
     """
     r0 = trim.solve(WF0, c.NP_DES, AMB)
     f0 = frame(r0.state, WF0, AMB)
@@ -200,7 +201,7 @@ def test_figure_10_has_not_settled_by_the_end_of_its_record():
         st,
         lambda t: WF0 if t < OUR_STEP else wf_pps_from_pph(125.0),
         AMB,
-        duration_s=60.0,
+        duration_s=6.0,
         dt=0.007,
         q_req_ftlbf=f0.q_pt_ftlbf,
         integrate_np=False,
@@ -208,7 +209,6 @@ def test_figure_10_has_not_settled_by_the_end_of_its_record():
     )
     t = np.asarray(tr["t"])
     pcng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
-
     window = (t >= 3.5) & (t <= 4.5)
     slope = float(np.polyfit(t[window], pcng[window], 1)[0])
     assert slope < -1.0, (
@@ -216,11 +216,69 @@ def test_figure_10_has_not_settled_by_the_end_of_its_record():
         f"nothing measured in that window may be called a settled value"
     )
 
-    late = t > 50.0
-    settled = float(np.median(pcng[late]))
+
+def test_the_printed_p45_tolerance_admits_a_false_equilibrium_below_flight_idle():
+    """At 125 lbm/hr the printed 0.1 percent P45 criterion settles on a false root.
+
+    Found 2026-09-12 while rebuilding the heat sink, and it is a property of the pressure
+    solve rather than of the heat sink. Run the Figure 10 chop out past ~25 s -- twenty
+    times Ballin's 4.5 s of record -- and the real-time frame settles at **75.7 %NG with
+    T41 1617 degR**, while the differential model trims at **67.0 %NG, T41 1762**. Two
+    roots, and the frame picks the wrong one.
+
+    It is the P45 *tolerance*, not the pass cap, and tightening only that fixes it:
+
+    | P45 tol | cap | settles at |
+    |---|---|---|
+    | 1e-3 (printed) | 8 | 75.745 %NG |
+    | 1e-3 (printed) | 20 | 75.745 %NG |
+    | 1e-6 | 40 | 66.895 %NG |
+    | 1e-10 | 200 | 66.895 %NG |
+
+    **The printed criterion is kept.** 125 lbm/hr is below flight idle, and the report
+    states that fuel control below flight-idle power was one of the features eliminated
+    from the real-time model [pdf p.38] -- so this condition is outside the envelope the
+    criterion was chosen for, and `f9` is being asked for pressure ratios outside its
+    table 136,704 times in a 200 s run there. A loose tolerance on a clamped, therefore
+    nearly flat, iteration function is exactly how a false fixed point appears. Open
+    question #45.
+
+    This test pins the behaviour so it stays known rather than being rediscovered, and
+    checks the diagnosis: with P45 converged tightly, the two formulations agree.
+    """
+    r0 = trim.solve(WF0, c.NP_DES, AMB)
+    f0 = frame(r0.state, WF0, AMB)
+
+    def settle(tol: float) -> float:
+        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        tr = realtime.run(
+            st,
+            lambda t: WF0 if t < OUR_STEP else wf_pps_from_pph(125.0),
+            AMB,
+            duration_s=120.0,
+            dt=0.007,
+            q_req_ftlbf=f0.q_pt_ftlbf,
+            integrate_np=False,
+            heat_sink=True,
+            tol=tol,
+        )
+        t = np.asarray(tr["t"])
+        return 100.0 * float(np.median(np.asarray(tr["ng"])[t > 110.0])) / c.NG_DES
+
     trims = [r for r in trim.sweep(list(range(400, 120, -25)) + [125.0]) if r.trustworthy]
     differential = 100.0 * trims[-1].state.ng_rpm / c.NG_DES
-    assert abs(settled - differential) / differential < 0.01, (
-        f"the real-time frame settles at {settled:.2f} %NG and the differential model "
-        f"trims at {differential:.2f} %; these are the same physics and must agree"
+
+    printed = settle(realtime.TOL_PRESSURE)
+    assert abs(printed - 75.7) < 0.5, (
+        f"under the printed criterion the 125 lbm/hr run settles at {printed:.2f} %NG; "
+        f"the false root on record is 75.75 %. If this has moved, re-derive the table "
+        f"in this docstring."
+    )
+
+    converged = settle(1e-9)
+    assert abs(converged - differential) / differential < 0.01, (
+        f"with P45 converged the real-time frame settles at {converged:.2f} %NG and the "
+        f"differential model trims at {differential:.2f} %; these are the same physics "
+        f"and must agree, which is the evidence that the false root is a tolerance "
+        f"artifact and not a disagreement between the two formulations"
     )

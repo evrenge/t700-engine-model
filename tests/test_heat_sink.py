@@ -75,8 +75,11 @@ def test_high_frequency_gain_is_one_minus_tau_ratio():
     tau_b = float(maps.f_hs()(ngc)) / w41  # (52), (53)
     k = 1.0 - tau_b / tau_a
 
-    x0 = (tau_b / tau_a) * 2200.0  # memory holding T41 = T41_ns at the old level
-    stepped, _ = _heat_sink(2200.0 * 1.5, x0, t41_prev, w41, ngc, 0.007)
+    # The state is the METAL temperature (Eq. 48), which at the old level sits AT the gas
+    # temperature. That is the whole seed -- it needs no coefficients, unlike the lead-lag
+    # memory it replaced, which had to be (tau_b/tau_a)*T41.
+    tm0 = 2200.0
+    stepped, _ = _heat_sink(2200.0 * 1.5, tm0, t41_prev, w41, ngc, 0.007)
     jump = (stepped - 2200.0) / (2200.0 * 1.5 - 2200.0)
     assert jump == pytest.approx(k, rel=1e-9)
     assert 0.0 < k < 1.0, f"k={k} is outside (0,1); the lead-lag is not attenuating"
