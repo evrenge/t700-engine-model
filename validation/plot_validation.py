@@ -9,6 +9,7 @@ percentages cannot:
     4  transient-fig9.png    does the step response follow Ballin's own trace?
     5  eigenvalues.png       do the dynamics match Table 1's printed modes?
     6  residuals.png         where does the remaining disagreement sit?
+    7  phase-plane.png       does the engine take Ballin's path through the state space?
 
 Lives in `validation/`, so Matplotlib is allowed here and nowhere near `src/t700/`.
 
@@ -398,6 +399,90 @@ def sheet_residuals() -> None:
     plt.close(fig)
 
 
+def sheet_phase_plane() -> None:
+    """Ps3 against NG, with the time axis thrown away.
+
+    Every time-domain comparison against Figures 9 and 10 carries three errors at once:
+    the state, the rate, and the unprinted step time (open question #17). Plotting one
+    state variable against another discards the last two, leaving only the thermodynamic
+    path the engine takes through its own state space.
+
+    The grey line is the steady-state locus -- Figure 8. The two transients leave it in
+    opposite directions, and they have to: an accel drives T41 above its equilibrium value
+    at that speed, so the choked station 4.1 nozzle needs a higher P41 to pass the flow and
+    Ps3 runs high; a chop does the reverse. A transient compared against that grey line at
+    matched speed will always show a several-percent "error" that is not one, which is
+    exactly the mistake open question #53 records.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.8))
+    fig.patch.set_facecolor("white")
+
+    ng8, ps8 = _load("fig08_realtime.csv", "ng_pct", "ps3_psia")
+
+    for ax, (fig_no, wf_hi, t_step, title) in zip(
+        axes,
+        (
+            (9, 775.0, 0.539, "Figure 9  accel 400 -> 775 lbm/hr"),
+            (10, 125.0, 0.545, "Figure 10  chop 400 -> 125 lbm/hr"),
+        ),
+        strict=True,
+    ):
+        tb_n, vb_n = _load(f"fig{fig_no:02d}_pcng_model.csv", "t_s", "value")
+        tb_p, vb_p = _load(f"fig{fig_no:02d}_ps3_model.csv", "t_s", "value")
+
+        wf0 = wf_pps_from_pph(400.0)
+        r0 = trim.solve(wf0, c.NP_DES, AMB)
+        f0 = frame(r0.state, wf0, AMB)
+        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        tr = realtime.run(
+            st,
+            lambda t, lo=wf0, hi=wf_pps_from_pph(wf_hi), ts=t_step: lo if t < ts else hi,
+            AMB,
+            duration_s=5.0,
+            dt=0.007,
+            q_req_ftlbf=f0.q_pt_ftlbf,
+            integrate_np=False,
+            heat_sink=True,
+        )
+        our_n = 100.0 * tr["ng"] / c.NG_DES
+        our_p = c.K_PS3 * tr["p3"]
+
+        lo = min(our_n.min(), vb_n.min()) - 1.5
+        hi = max(our_n.max(), vb_n.max()) + 1.5
+        m8 = (ng8 > lo) & (ng8 < hi)
+        ax.plot(
+            ng8[m8],
+            ps8[m8],
+            color=MUTED,
+            lw=1.4,
+            ls=(0, (5, 3)),
+            label="steady-state locus (Fig. 8)",
+            zorder=2,
+        )
+
+        mb = tb_n > t_step
+        ax.plot(
+            vb_n[mb],
+            np.interp(tb_n[mb], tb_p, vb_p),
+            color=BALLIN,
+            lw=2.0,
+            label="Ballin, Figs. 9/10",
+            zorder=3,
+        )
+        mo = tr["t"] > t_step
+        ax.plot(our_n[mo], our_p[mo], color=OURS, lw=2.0, label="ours", zorder=4)
+        ax.plot(
+            our_n[0], our_p[0], "o", color=INK, ms=5, zorder=5, label="the shared trim"
+        )
+
+        _style(ax, "gas generator speed, percent", "station 3 static pressure, psia", title)
+        ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="upper left")
+
+    fig.tight_layout()
+    fig.savefig(OUT / "phase-plane.png", dpi=130)
+    plt.close(fig)
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     # Both transient figures. Figure 10 is the step DOWN to below-idle power and was
@@ -410,6 +495,7 @@ def main() -> int:
         (sheet_transient, (10, 125.0, 0.545)),
         (sheet_eigenvalues, ()),
         (sheet_residuals, ()),
+        (sheet_phase_plane, ()),
     ):
         fn(*args)
         print(f"  {fn.__name__}{args if args else ''}")

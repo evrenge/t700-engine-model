@@ -196,6 +196,43 @@ as ours**. Provisionally, and only for quantities the report shows in a reproduc
 Transient tolerances are floored by the digitizing error of the source figure, which
 Phase 1 records per figure.
 
+### The figures' own read error, measured rather than estimated
+
+**Added 2026-09-12.** Figures 9 and 10 contain one panel whose true value is printed:
+`WFPH` is the *input*, and both of its levels are stated in the caption ("from 400 to 775"
+and "from 400 to 125 lbm per hour"). Digitizing a panel whose answer is known measures the
+read error of those figures directly:
+
+| Figure | level | printed | digitized | error |
+|---|---|---|---|---|
+| 9 | pre-step | 400.0 | 407.30 | **+1.83 %** |
+| 9 | post-step | 775.0 | 777.04 | +0.26 % |
+| 10 | pre-step | 400.0 | 406.69 | **+1.67 %** |
+| 10 | post-step | 125.0 | 125.48 | +0.38 % |
+
+So **any deviation below about 1.8 % against Figures 9-10 is at or under the read error of
+the reference itself** and must not be chased. This is the first read-error figure in the
+project that is measured against a known value rather than propagated from tick spacing.
+
+### Comparing a transient to a steady-state figure
+
+**A transient trace must not be compared against a steady-state locus at matched speed.**
+Figures 6-8 are equilibrium sweeps; Figures 9-10 are transients. During a chop, fuel is
+cut, T41 falls, and the choked station 4.1 nozzle then passes the same flow at a lower
+P41 -- so Ps3 sits *below* its equilibrium value at that NG, by construction. Ballin's own
+Figure 10 line sits 2.3-7.0 % below his own Figure 8, and his Figure 9 accel sits up to
+3.9 % *above* it. Those are the physics, not a defect in either figure.
+
+The valid comparisons are (a) trace against trace, (b) settled state against the sweep, and
+(c) **the phase plane** -- Ps3 against NG, which discards the time axis and with it the
+unprinted step time (open question #17). Tolerances for the last two, ours:
+
+| Comparison | Tolerance | Basis |
+|---|---|---|
+| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | measured 0.59 % worst on Fig. 9, 2.15 % on Fig. 10 |
+| Settled state vs the Fig. 6-8 sweep | +/-3 % | the gas-path P,T row above |
+| Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | five of six panels agree to 0.62 % |
+
 ### Two things not to do
 
 - **Table 3 (pdf p.44) is not a validation target.** It looks like the best steady-state

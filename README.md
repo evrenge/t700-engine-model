@@ -22,7 +22,7 @@ public domain). Everything here is derived from it.
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.1-7.5 % of each panel's excursion, mean 3.8 %** |
 | Appendix B, 297 printed elements | zero structure exact; P3/P41 block <1.5 %; `b` 0.1 % |
-| Tests | 783 passing, with lint and formatting clean |
+| Tests | 793 passing, with lint and formatting clean |
 
 Phases 0–4 of `SCOPE.md` are complete: the report is ingested, the data captured, and the
 engine trims and runs transients in **either of the two configurations Ballin published**
@@ -98,9 +98,14 @@ recorded, never silently corrected:
   refining the time step, the prose reading converges first-order and the printed reading
   converges to nothing.
 
-And two that looked like report defects and were **ours**: a torque threshold that seemed
-absurd until we noticed we had read rotor-hub torque as engine torque, and an exhaust
-pressure ratio we nearly inverted.
+And three that looked like report defects and were **ours**: a torque threshold that seemed
+absurd until we noticed we had read rotor-hub torque as engine torque; an exhaust pressure
+ratio we nearly inverted; and a 3–6 % "inconsistency" between Figures 8 and 10 that came
+from comparing a decelerating engine against an equilibrium locus. A chop *must* run below
+that locus — fuel is cut, T41 falls, and the choked station 4.1 nozzle then passes the same
+flow at a lower P41. Ballin's own Figure 10 sits 2.3–7.0 % below his own Figure 8, and his
+Figure 9 accel sits up to +3.9 % above it. Both signs are required, and he ties the two
+figures together himself on pdf p.39.
 
 ## Known gaps
 
@@ -115,12 +120,28 @@ pressure ratio we nearly inverted.
   and is identical whenever the coefficients are constant, so Appendix B, Table 1 and every
   trim are untouched. Whole-curve RMS, mean over nine panels: **9.8 % → 3.6 %**; worst panel
   15.8 % → 7.0 %; the Figure 9 T41 overshoot 1.67× Ballin's → **0.87×**.
-- **Part of the remaining Figure 9 gap is the report disagreeing with itself.** At 775 lbm/hr
-  four of Ballin's own datasets state the same condition: Figure 6 gives 99.69 %NG against
-  Figure 9's 98.79, Figure 8 gives Ps3 244.2 against 234.9, Figure 7 gives 1724.8 shp against
-  1641.0 — spreads of 0.9 %, 3.8 % and 4.9 %. We sit inside that spread on all three. Figures
-  8 and 9 are mutually consistent (Figure 8 read at Figure 9's own settled speed agrees to
-  0.6 %); it is Figure 6 that carries the offset, which open question #46 already recorded.
+- **What looked like the report disagreeing with itself at 775 lbm/hr was an unsettled
+  transient, and we match both sides of it.** Figure 6 gives 99.69 %NG against Figure 9's
+  98.88, Figure 8 gives Ps3 244.2 against 235.3, Figure 7 gives 1724.8 shp against 1648.2 —
+  spreads of 0.82, 3.77 and 4.64 %. But **Ballin's Figure 9 trace is still climbing at
+  +0.142 %NG/s when its record ends** at t = 4.46 s, so the two figures never described the
+  same instant. Our own model reproduces 51 / 39 / 62 % of each spread purely as settling,
+  and matches the sweep to −0.26 / −1.92 / −0.91 % *and* the transient to +0.15 / +0.30 /
+  +0.81 % at the same time — which a real contradiction would forbid.
+- **The transient error is localised to the torque balance, and the torque balance is at the
+  noise floor.** Comparing Ps3 against NG instead of against time discards the unprinted step
+  time and the rate, leaving the thermodynamic path through the state space: **ours matches
+  Ballin's to 0.59 % on Figure 9 and to 1.07 % over 78–90 %NG on Figure 10**, and the
+  off-equilibrium excursion tracks in sign and shape. So nothing is left in the compressor
+  map, the pressure solution, the mass balance, or the heat sink. `dNG/dt` at matched NG then
+  agrees to 3.3 % over 82–88 %NG and falls to 0.75× at 76 % — where the net torque is
+  **7.5 % of the turbine torque it is the difference of**, so 1 % on either term moves the
+  rate by 13.3 %. The 25 % rate deficit is ~1.9 % on a torque, under the read error below.
+- **These figures' read error is measured, not estimated.** Figures 9–10 carry one panel whose
+  true value is printed — `WFPH` is the input and the caption states both levels — so
+  digitizing it measures the error directly: **+1.83 % and +1.67 % at the 400 lbm/hr level**,
+  0.26 and 0.38 % at the far levels. Deviations under ~1.8 % against these figures are under
+  the reference's own error and are not chased.
 - **Seven hypotheses were tested and eliminated on the way there**, and the list is worth
   keeping because each cost real work: the heat-sink time constants (a lead-lag with unit DC
   gain cannot create an overshoot, and Eqs. 50–53 were all re-read off the raster); the volume
@@ -144,7 +165,7 @@ pressure ratio we nearly inverted.
   simulation, which this report consumes and does not contain. That was Ballin's boundary
   too.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **48 logged, 32 closed, 5 partly closed, 11 open**. **Nine of the eleven are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining three, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and three are work we have not done: linearizing the discrete real-time map, Figure C30's seven crossing curves, and cleaning the off-curve samples out of the Figure 9/10 traces so transient *shape* can be compared at all.
+Open questions are tracked in `docs/notes/open-questions.md` — **49 logged, 33 closed, 5 partly closed, 11 open**. **Nine of the eleven are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining three, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and three are work we have not done: linearizing the discrete real-time map, Figure C30's seven crossing curves, and cleaning the off-curve samples out of the Figure 9/10 traces so transient *shape* can be compared at all.
 
 ## Running it
 
