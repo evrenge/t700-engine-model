@@ -22,16 +22,17 @@ public domain). Everything here is derived from it.
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.0–7.6 % of each panel's excursion, mean 3.8 %** over nine panels |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
-| Tests | 795 passing, 3 skipped, lint and formatting clean |
+| Tests | 801 passing, 3 skipped, lint and formatting clean |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
 Ballin published** — with or without the station 4.1 heat-sink model.
 
-**The fuel control system (Phase 5) is not built**, but its data nearly is: 73 of Appendix
-C's constants are transcribed and **7 of its 8 scheduling functions are digitized** under
-`data/schedules/`. What remains is Figure C30 (`F_HM7`, whose seven curves cross — open
-question #50) and the 22 block diagrams, which are the bulk of the phase.
+**The fuel control system (Phase 5) is not built, but all of its data now is**: 73 of
+Appendix C's constants are transcribed and **all eight scheduling functions are digitized**
+under `data/schedules/`. What remains is the 22 block diagrams — and a decision, because
+the report's only closed-loop figures need the Gen Hel simulation, so Phase 5 will have no
+figure to validate against.
 
 ## What is actually in here
 
@@ -49,7 +50,7 @@ src/t700/        the model. NumPy and the standard library, nothing else
   control/       Appendix C's 73 constants. The control system itself is Phase 5
   thermo/        gas properties behind one interface
 data/maps/       11 component maps, digitized from printed figures
-data/schedules/  7 of Appendix C's 8 scheduling functions (C30 remains)
+data/schedules/  all 8 of Appendix C's scheduling functions
 data/linear/     the 297 printed Appendix B matrix elements
 data/reference/  transient and sweep traces to validate against
 tools/           the digitizers; each reproduces its CSV byte for byte
@@ -198,9 +199,25 @@ required, and he ties the two figures together himself on pdf p.39.
 - Figures 11–15 are **not reproducible** — they need the Gen Hel UH-60A blade-element
   simulation, which this report consumes and does not contain. That was Ballin's boundary
   too.
+- **Figure C30 took a third method after two failed, and the failures are the useful part.**
+  `F_HM7`'s seven curves cross, so the rank-in-y rule that identifies every other multi-curve
+  figure does not apply. Reading the printed digits fails: the curve runs through each glyph
+  as a bar that correlates about equally with all seven templates (30 of 97 confident), and
+  stripping the bar off first destroys the glyph, because any annulus wide enough to fit the
+  local curve direction also reaches the neighbouring curves. Tracing through the crossings
+  fails too: a one-to-one column tracer follows the geometry well but at a crossing the
+  minimum-displacement assignment is not necessarily the true one. What works is noticing
+  that **the curves are exact polylines between their markers** — a straight line from
+  (96.76, 3.78) to (104, 1.97) predicts curve 4's ink to ±0.02 WFPAC at four intermediate
+  columns — so the figure is described by its vertices and the job is to find those. One
+  systematic error fell out of it: a run centre measured *at* a marker is the glyph's
+  centroid, not the line's, and digits are not vertically symmetric — curve 7 read **0.03
+  WFPAC high at every marker**. Fitting each segment from glyph-free columns and
+  intersecting adjacent fits removed it. Segment-on-ink coverage **0.9850** over 185
+  segments is the acceptance test, and the tool fails below 0.98.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **49 logged, 33 closed, 5 partly
-closed, 11 open**.
+Open questions are tracked in `docs/notes/open-questions.md` — **49 logged, 34 closed, 5 partly
+closed, 10 open**.
 
 **Seven of the eleven are things the report simply does not print**, and no amount of work
 closes them: the initialization rule for the opened iteration (#23), the integration algorithm
@@ -208,10 +225,10 @@ closes them: the initialization rule for the opened iteration (#23), the integra
 (#33), the power turbine speed behind Figures 6–8 (#35) and behind Figures 9–10 (#36), and the
 fuel-step time (#37).
 
-The other four are work, not gaps in the source: **#45** the model running outside its own
+The other three are work, not gaps in the source: **#45** the model running outside its own
 digitized envelope on the 775 lbm/hr step; **#46** the Table B.1 against Figure 7 low-power
-disagreement; **#49** linearizing the discrete real-time map; **#50** Figure C30's seven
-crossing curves, which Phase 5 needs.
+disagreement; and **#49** linearizing the discrete real-time map. (**#50**, Figure C30's
+seven crossing curves, closed on 2026-09-13 — see below.)
 
 ## Running it
 

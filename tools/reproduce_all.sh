@@ -44,7 +44,8 @@ failed=0
 # Entries are "<tool> [args]". `digitize_appc_multi` takes the figure key as an argument
 # and only c23 has committed output -- c30 is open question #50 and the tool refuses it.
 for entry in "digitize_a1" "digitize_a2" "digitize_a6810" "digitize_a7" "digitize_a9" \
-             "digitize_appc_multi c23" "digitize_fig678" "digitize_fig910"; do
+             "digitize_appc_multi c23" "digitize_c30" "digitize_fig678" \
+             "digitize_fig910"; do
     set -- $entry
     t=$1
     shift

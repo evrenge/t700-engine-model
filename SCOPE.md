@@ -83,8 +83,9 @@ digitized. (This line said `data-inventory.md` until 2026-09-12; no such file wa
 written -- the inventories were split per appendix instead.)
 *Gate:* we know precisely what data the report gives and what it withholds.
 
-**Phase 1 — Capture the data.** **COMPLETE for the engine; 7 of Appendix C's 8 control
-schedules are captured, Fig. C30 remains.**
+**Phase 1 — Capture the data.** **COMPLETE.** All eleven engine maps and **all eight**
+Appendix C scheduling functions are captured; Fig. C30 (`F_HM7`), the last and hardest,
+landed 2026-09-13 (open question #50).
 Transcribe Appendix A constants and function tables; digitize the mass-flow and energy
 function plots and any component maps into `data/` as CSV with provenance headers.
 Digitize the report's result figures into `data/reference/` as validation traces, with a
@@ -114,16 +115,19 @@ mass-flow iteration. Reproduce the report's time-step sensitivity (0.1% at 10 ms
 test — matching the *error behaviour*, not just the answer.
 *Gate:* open-loop response has the report's shape and time constants.
 
-**Phase 5 — Control system.** **NOT STARTED**, but its data is nearly in hand.
+**Phase 5 — Control system.** **NOT STARTED, but its data is complete.**
 `src/t700/control/constants.py` holds **73** constants (57 from Table C.1 plus 16 read off
 the figures; the other 3 of the 76 read from the report live in `t700.constants` and
-`t700.units`). **7 of the 8 scheduling functions are digitized** and committed under
-`data/schedules/` -- F_EC1 and F_HM1 through F_HM6. **Fig. C30 (`F_HM7`, the HMU
-acceleration fuel limit) is the one that remains**, and it is hard for a stated reason:
-its seven curves cross around PCNGHL 88-92 %, so the rank-in-y curve assignment that
-worked for C23 fails there (open question #50; `tools/digitize_appc_multi.py` documents
-the measurement). **The 22 block diagrams are unimplemented** -- that is the bulk of the
-phase.
+`t700.units`). **All 8 scheduling functions are digitized** and committed under
+`data/schedules/` -- F_EC1 and F_HM1 through F_HM7. **What remains is the 22 block
+diagrams**, which are the whole of the phase.
+
+*Gate warning, worth deciding before starting rather than after:* the report's only
+closed-loop figures are 11-15, and those need the Gen Hel UH-60A simulation, which is out
+of scope by construction. So **Phase 5 will have no figure to validate against.** Its
+checks have to be structural -- does each block diagram reproduce as drawn -- plus the
+report's one printed closed-loop number, the 0.2 % rotor-speed agreement on Fig. 12
+[pdf p.50].
 Appendix C, implemented and closed around the engine.
 *Gate:* closed-loop transients match the report's figures.
 
