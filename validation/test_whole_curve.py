@@ -6,7 +6,8 @@ Until 2026-09-12 the transient comparison measured three points per panel -- the
 plateau, each trace's own extremum, and the settled level. Those are the quantities that
 need no time alignment, which is why they were chosen, but they cannot see a wrong
 settling time or a wrong path between the points, and they made the agreement look several
-times better than it is. Against Figure 9 they reported 1-4 %; the whole curve is 6-11 %.
+times better than it is. Against Figure 9 they reported 1-4 %; the whole curve is 2.4-5.3 %
+(it was 6-11 % when this was written, before the heat sink was rebuilt on Eqs. 48-49).
 
 So this integrates the error over the whole record, normalised by the excursion each panel
 actually makes so the numbers are comparable between panels and between figures.
@@ -122,8 +123,9 @@ def test_the_heat_sink_configuration_is_the_better_fit():
     if the heat sink is running in the figure under discussion.
 
     This is the measurement behind that inference, and it is not close: heat sink on wins
-    on **every one of the nine comparable panels**, and the mean whole-curve RMS is 9.8 %
-    against 18.5 %. Figure 10's PCNG alone goes from 30.6 % to 5.6 %.
+    on **every one of the nine comparable panels**, and the mean whole-curve RMS is
+    **3.79 %** against **19.12 %**. Figure 10's PCNG alone goes from 30.55 % to 2.35 %,
+    and the worst panel off is Figure 10's T45 at 34.53 %.
     """
     means = {}
     for heat_sink in (True, False):
@@ -157,8 +159,9 @@ regression fails while an improvement is free. Lower it whenever the model impro
 never raise it. Belongs in `SCOPE.md` per CLAUDE.md.
 
 History, each step a replacement of an invention by something printed:
-17.0 (worst panel 15.8 %) -> **8.0** (worst 7.0 %) when the heat sink was rebuilt on
-Eqs. 48-49. Mean over the nine panels went 9.78 % -> 3.63 %.
+17.0 (worst panel 15.8 %) -> **8.0** (worst panel now 7.62 %, Figure 10's T45) when the
+heat sink was rebuilt on Eqs. 48-49. Mean over the nine panels went 9.78 % -> **3.79 %**,
+range 1.96-7.62 %.
 """
 
 

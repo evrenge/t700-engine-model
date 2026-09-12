@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import datetime as _dt
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -281,6 +280,7 @@ def write_csv(
     x_label: str,
     y_label: str,
     note: str = "",
+    calibrated: str,
 ) -> None:
     """Write data points with the provenance header CLAUDE.md requires.
 
@@ -289,7 +289,7 @@ def write_csv(
     in the file is the point.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    stamp = _dt.date.today().isoformat()
+    stamp = calibrated
     with path.open("w", newline="") as fh:
         for line in (
             f"# source: {REPORT} pdf p.{pdf_page}, Figure {figure}",

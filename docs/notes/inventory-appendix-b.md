@@ -63,7 +63,11 @@ definitions below come from the main text and the nomenclature, cited per item.
       ⎩ T41 ⎭
 ```
 
-This is the only place in the report where a linear-model state vector is written out.
+**Corrected 2026-09-12.** This said "the only place in the report where a linear-model
+state vector is written out". It is not: the **5-DOF** vector `{NG, NP, P3, P41, P45}` is
+displayed below Eq. 54 on pdf p.27. This is the only place the *6-DOF* vector is written
+out, which is the claim that was meant. `body-realtime.md` filed the correction and it was
+never applied here.
 
 ### 2.2 The 5-DOF state vector — confirmed
 

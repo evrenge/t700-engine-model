@@ -403,7 +403,7 @@ def sheet_phase_plane() -> None:
     """Ps3 against NG, with the time axis thrown away.
 
     Every time-domain comparison against Figures 9 and 10 carries three errors at once:
-    the state, the rate, and the unprinted step time (open question #17). Plotting one
+    the state, the rate, and the unprinted step time (open question #37). Plotting one
     state variable against another discards the last two, leaving only the thermodynamic
     path the engine takes through its own state space.
 
@@ -431,12 +431,13 @@ def sheet_phase_plane() -> None:
         tb_p, vb_p = _load(f"fig{fig_no:02d}_ps3_model.csv", "t_s", "value")
 
         wf0 = wf_pps_from_pph(400.0)
+        wf1 = wf_pps_from_pph(wf_hi)
         r0 = trim.solve(wf0, c.NP_DES, AMB)
         f0 = frame(r0.state, wf0, AMB)
         st = realtime.from_trim(r0, f0.wa31_pps, f0)
         tr = realtime.run(
             st,
-            lambda t, lo=wf0, hi=wf_pps_from_pph(wf_hi), ts=t_step: lo if t < ts else hi,
+            lambda t, lo=wf0, hi=wf1, ts=t_step: lo if t < ts else hi,
             AMB,
             duration_s=5.0,
             dt=0.007,
@@ -471,9 +472,7 @@ def sheet_phase_plane() -> None:
         )
         mo = tr["t"] > t_step
         ax.plot(our_n[mo], our_p[mo], color=OURS, lw=2.0, label="ours", zorder=4)
-        ax.plot(
-            our_n[0], our_p[0], "o", color=INK, ms=5, zorder=5, label="the shared trim"
-        )
+        ax.plot(our_n[0], our_p[0], "o", color=INK, ms=5, zorder=5, label="the shared trim")
 
         _style(ax, "gas generator speed, percent", "station 3 static pressure, psia", title)
         ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="upper left")

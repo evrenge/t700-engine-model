@@ -454,7 +454,10 @@ represent specification T700 performance" — is saying the same thing.)
 
 ## 3. Every accuracy and fidelity statement, quoted exactly
 
-Ordered by page. These replace the provisional tolerances in `SCOPE.md`.
+Ordered by page. These are the report's **only** numeric accuracy statements, and they
+*supplement* rather than replace `SCOPE.md`'s table -- see §3's closing paragraph, which
+says so explicitly. (This line read "These replace the provisional tolerances in
+`SCOPE.md`", contradicting that paragraph 84 lines later.)
 
 ### Integration / numerics
 

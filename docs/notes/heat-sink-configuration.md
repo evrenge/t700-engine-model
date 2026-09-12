@@ -62,10 +62,14 @@ comparable panels** of Figures 9 and 10:
 
 | | mean whole-curve RMS | worst panel |
 |---|---|---|
-| heat sink **on** | **9.8 %** | Fig. 10 T45, 15.8 % |
-| heat sink off | 18.5 % | Fig. 10 PCNG, 30.6 % |
+| heat sink **on** | **3.79 %** | Fig. 10 T45, 7.62 % |
+| heat sink off | 19.12 % | Fig. 10 T45, 34.53 % |
 
-Figure 10's PCNG alone goes from 30.6 % to 5.6 %. `validation/test_whole_curve.py` asserts
+Figure 10's PCNG alone goes from 30.55 % to 2.35 %. (Re-measured 2026-09-12. This table
+read 9.8 / 18.5 % with the worst-off panel named as PCNG; the "on" row moved when the heat
+sink was rebuilt on Eqs. 48-49, the "off" row when the Figure 9/10 traces were re-digitized,
+and the worst panel off is T45, not PCNG. The conclusion -- on wins on all nine -- is
+unchanged and the margin is now far larger.) `validation/test_whole_curve.py` asserts
 the margin so the inference stays measured rather than argued, and fails if it reverses.
 
 **Caution on one sentence.** [pdf p.20] also says "No modeling of compressor surge,
@@ -83,7 +87,17 @@ heat sink is off.
 
 `T_m` appears only in Eqs. 48-49 [pdf p.25] and is **eliminated** when those two equations
 collapse into the transfer function Eq. 50 [pdf p.26]. The lead-lag carries the metal's
-thermal inertia implicitly. A model carrying a `T_m` state will not reproduce Appendix B.
+thermal inertia implicitly, and **Appendix B's sixth state is the gas temperature**, so the
+linear models must be built on `T41`, not on `T_m`.
+
+**This paragraph used to end "A model carrying a `T_m` state will not reproduce Appendix B."
+That is false, and it is the one sentence here that could undo correct work.** The two are
+not alternatives. `src/t700/linear.py` builds the linear models on the gas-temperature
+state, exactly as p.29 requires, while the *nonlinear* real-time frame integrates the metal
+temperature per Eqs. 48-49 (`RTState.hs_tm_degR`) -- which is what the report prints and
+what removed the transient artifact, since Eq. 50's collapse is only valid for constant
+coefficients and Eqs. 51/53 make sure they are not. All 297 Appendix B elements and Table
+1's eigenvalues reproduce with that arrangement in place.
 
 State vectors, both printed:
 
@@ -99,21 +113,25 @@ Eq. 50 has **unit DC gain** by construction, so at equilibrium `T41 = T41_ns` re
 of the switch. Every Table B.1 trim comparison is therefore valid for both configurations
 simultaneously, and no trim result in this repository can be improved — or damaged — by
 flipping it. `tests/test_heat_sink.py::test_heat_sink_is_inert_at_steady_state` measures
-this rather than trusting the algebra: the two configurations agree to ~1e-15 relative.
+this rather than trusting the algebra: the two configurations agree to better than 1e-12
+relative, against the test's own 1e-9 bound. (Stated as "~1e-15" until 2026-09-12; measured
+2e-14 to 3e-13 depending on how long the frame is run before the comparison.)
 
 ## Consequences for our comparisons
 
 * **Table 1 is the right target for our 5-DOF model** and the wrong target for a
   heat-sink-enabled one. Our existing eigenvalue comparison was correctly configured.
 * **Figures 9 and 10 must be run heat-sink on.** Comparing our 5-DOF output against them
-  was mis-targeted, which is the leading explanation for transients that ran 1.4-3.5x
-  too fast.
+  was mis-targeted, and that was about **two thirds** of the transient error (open question
+  #47). The rest was two further defects, both since fixed: an invented `tol=1e-10` on the
+  pressure iterations where the report prints 0.1 percent in ten and eight passes, and
+  carrying Eq. 50's collapsed lead-lag instead of integrating Eqs. 48-49. The Figure 9 T41
+  overshoot went 3.41x -> 1.67x -> **0.87x** across those three steps.
 * **The report prints no 3-DOF or 6-DOF eigenvalues anywhere.** If we want them we must
   compute them from the B7-B12 matrices ourselves.
 
 ## Not checked
 
-* Whether the Appendix B numeric matrices reproduce Table 1's eigenvalues.
 * Whether Appendix C's fuel control couples to the heat sink.
 * Which compressor/turbine function set produced Figures 9/10. The report says the
   NASA-Lewis test-engine functions replaced the specification functions for the Tables 2/3

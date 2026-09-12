@@ -42,7 +42,7 @@ the slope jump across the 85 line is -27.1 % against +7.6 % across the 89 line.
 Signs check out too. At level we sit 2.8 % *above* the 89 line and use the segment above,
 whose slope is 7.6 % steeper than the one below: our `|A(1,1)|` comes out too large,
 -3.935 against Ballin's -3.659, i.e. -7.5 %. At descent we use a segment 27 % shallower
-than the one below: `|A(1,1)|` too small, -3.282 against -3.696, i.e. +11.2 %.
+than the one below: `|A(1,1)|` too small, -3.291 against -3.696, i.e. +11.0 %.
 
 ## Why neither candidate fix works
 
@@ -74,7 +74,8 @@ would be fitting, not modelling.
 
 The residual is a property of **how finely the report printed its function tables**, not
 of our equations. Supporting evidence: the trim *values* match Table B.1 to 0.13 % on NG
-and 0.05 % on shaft power while the *derivatives* run 5-25 % out, which is precisely the
+and 0.05 % on shaft power at hover and level (-0.72 % at descent, the honest worst case)
+while the *derivatives* run 5-25 % out, which is precisely the
 signature of an interpolation mismatch and not of a wrong equation. The zero structure
 matches exactly, the P3 and P41 volume derivatives agree to under 1.5 %, and `b` agrees to
 0.1 % wherever inertia does not enter.
@@ -121,7 +122,7 @@ not equally determined:
   with the six row elements agreeing to 0.74 % at hover. An independent estimator, the
   feedthrough `d`, gives 0.6712 / 0.6450 / 0.6182.
 
-**Ours is 0.6378 / 0.6084 / 0.5810 -- uniformly 7.3 % low**, ratio 0.932 / 0.926 / 0.927.
+**Ours is 0.6384 / 0.6090 / 0.5817 -- uniformly 7.3 % low**, ratio 0.932 / 0.926 / 0.927.
 The uniformity is the evidence: a structural error would not be constant across three
 flight conditions.
 
@@ -131,7 +132,7 @@ Equivalently our `tau_b/tau_a` is about 14 % too high, and
 
 so the candidates are `f_hs` (digitized, Fig. A11) and `TC_T41 = 0.29` (transcribed,
 Table A.1). **They cannot be separated on this data**: all three trims land on `f_hs`'s
-flat top -- NGc 93.2 %, 89.1 % and 85.2 %, and the plateau runs 85 % to 100 % at 7.497 --
+flat top -- NGc 93.2 %, 89.1 % and 85.2 %, and the plateau runs 85 % to 100 % at 7.48482 --
 so `f_hs` is the same number at every one of them and is indistinguishable from a constant.
 Separating them needs a trim below 85 % NGc, and the report gives none.
 

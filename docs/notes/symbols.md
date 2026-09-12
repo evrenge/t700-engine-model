@@ -62,7 +62,7 @@ Two order oddities are the report's, not transcription errors:
 | c_pg | `cpg` | specific heat of gas; used in heat-sink representation | *not given* | pdf p.9 |
 | c_pm | `cpm` | specific heat of metal; used in heat-sink representation | *not given* | pdf p.9 |
 | FAR | `far` | ratio of fuel to atmospheric gas in combustor | – (ratio) | pdf p.9 |
-| h | `h` | convective heat transfer coefficient; used in heat-sink representation | *not given* | pdf p.9 |
+| h | `h_conv` | convective heat transfer coefficient; used in heat-sink representation | *not given* | pdf p.9 |
 | H2 | `h2_btulbm` | station 2 enthalpy | Btu/lb_m | pdf p.9 |
 | H3 | `h3_btulbm` | station 3 enthalpy | Btu/lb_m | pdf p.9 |
 | H41 | `h41_btulbm` | station 4.1 enthalpy | Btu/lb_m | pdf p.9 |
@@ -102,7 +102,7 @@ Two order oddities are the report's, not transcription errors:
 | K_V41 | `kv41` | station 4.1 volume coefficient | lb_f/in²·lb_m·deg R | pdf p.11 |
 | K_V45 | `kv45` | station 4.5 volume coefficient | lb_f/in²·lb_m·deg R | pdf p.11 |
 | K_WGT | `kwgt` | station 4.1 flow coefficient | lb_m·in²/lb_f·sec | pdf p.11 |
-| M | `m` | mass of metal that absorbs heat energy from gas; used in heat-sink representation | *not given* | pdf p.11 |
+| M | `m_metal` | mass of metal that absorbs heat energy from gas; used in heat-sink representation | *not given* | pdf p.11 |
 | NG | `ng_rpm` | rotational speed of compressor and gas generator | rpm | pdf p.11 |
 | NG_c | `ngc_rpm` | corrected compressor and gas generator speed; a nonphysical value which is independent of inlet conditions | rpm | pdf p.11 |
 | NG_des | `ngdes_rpm` | design rotational speed of the gas generator and compressor | rpm | pdf p.11 |
@@ -183,9 +183,14 @@ size the 1988 phototypesetting and the 2009 scan barely resolve. Read at 300 dpi
   9 rather than 2 or 0. Confidence: good but not certain. Candidates, in order: **9**, then 2.
   The denominator matches the `lb_m` denominator glyph exactly, so it is **5**.
 
-So: `lb_m^(4/5) · sec^(9/5) / deg R^(1/2)`, with the `9` the one character that could still
-be wrong. Confirm against the heat-sink equations (pdf pp.23–24) and the Appendix A value
-before this constant is used dimensionally. No other cell in the nomenclature was ambiguous.
+So: `lb_m^(4/5) · sec^(9/5) / deg R^(1/2)`. **Settled 2026-09-12 (open question #4): the
+glyph is unambiguously a 9 at 600 dpi, and the printed units are therefore the report's own
+defect, not a scan artefact.** Eq. 51 [pdf p.26] reads `M c_pm/(h A_m) = TC_T41·sqrt(T41) /
+W41^(4/5)`, whose left side is a time, so `TC_T41` must carry `sec^(1/5)`; the printed
+`sec^(9/5)` cannot be made consistent with the equation that uses it at any value of the
+constant. The heat-sink equations are pdf **pp.25-26** (Eqs. 48-49 on p.25, Eqs. 50-53 on
+p.26) -- this note cited pp.23-24. The value 0.29 is unaffected. No other cell in the
+nomenclature was ambiguous.
 
 ## Corrections to earlier placeholder rows in this file
 
@@ -201,17 +206,21 @@ Python name. Both are fixed above:
 
 ## Name-collision notes
 
-CLAUDE.md records `NP` → `np_` as "the one collision". Transcribing the full list turns up
-three more single-letter names worth deciding on before component code is written — flagged
-here, not silently renamed:
+**Decided, and CLAUDE.md's naming table now carries all four.** This section was written
+before Phase 1 as a recommendation; it is kept for the reasoning, and the table rows above
+use the decided names. Transcribing the full list turned up three single-letter names beyond
+`NP` → `np_`:
 
 - `h` (convective heat transfer coefficient) sits one character from `h2`, `h3`, `h41`
   (enthalpies). A local `h` in a thermo routine will read as an enthalpy to anyone skimming.
 - `m` (mass of heat-sink metal) is the conventional loop/mass variable name.
 - `j` (moment of inertia) is the conventional loop index.
 
-Recommend `h_conv`, `m_metal`, and keeping `j_ftlbfs2` / `jgt_ftlbfs2` etc. always suffixed
-so bare `j` never appears. Raise before Phase 1 rather than deciding it here.
+Resolved as `h_conv`, `m_metal`, and inertias always suffixed so bare `j` never appears
+(the code uses `J_GT`, `J_PT`, `J_LOAD_UH60A`). `h_conv` and `m_metal` do not appear in
+`src/` because the quantities themselves never do: Eqs. 51 and 53 give their *groupings*
+(`M c_pm/(h A_m)` and `M c_pm/(W_g c_pg)`) directly as time constants, so the individual
+factors are never needed.
 
 ## Station numbering
 

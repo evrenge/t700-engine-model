@@ -78,10 +78,13 @@ explicitly accepted.
 **Phase 0 — Ingest the report.** **COMPLETE.**
 Per-page text extracted (done). Remaining: verify the nomenclature against rendered page
 images into `docs/notes/symbols.md`; inventory every figure and table in
-`docs/notes/data-inventory.md` with whether it is transcribable or must be digitized.
+`docs/notes/inventory-appendix-{a,b,c}.md` with whether it is transcribable or must be
+digitized. (This line said `data-inventory.md` until 2026-09-12; no such file was ever
+written -- the inventories were split per appendix instead.)
 *Gate:* we know precisely what data the report gives and what it withholds.
 
-**Phase 1 — Capture the data.** **COMPLETE for the engine; Appendix C's 8 control schedules remain.**
+**Phase 1 — Capture the data.** **COMPLETE for the engine; 7 of Appendix C's 8 control
+schedules are captured, Fig. C30 remains.**
 Transcribe Appendix A constants and function tables; digitize the mass-flow and energy
 function plots and any component maps into `data/` as CSV with provenance headers.
 Digitize the report's result figures into `data/reference/` as validation traces, with a
@@ -102,25 +105,43 @@ tolerance.
 
 **Phase 4 — Dynamics.** **COMPLETE**, including the station 4.1 heat-sink model as a
 switch (Eqs. 48–53), so the engine runs in either configuration Ballin published. Shape
-now compared, not just endpoints: T41 overshoot is 1.67× his against 3.41× before the heat
-sink landed.
+now compared, not just endpoints: the Figure 9 T41 overshoot is **0.87× his**, having gone
+3.41× -> 1.67× when the heat sink landed as Eq. 50's lead-lag and 1.67× -> 0.87× when it was
+rebuilt on the printed Eqs. 48-49. (This line reported 1.67× as the present state until
+2026-09-12.)
 Five-state integration at the report's frame rate, including the opened compressor
 mass-flow iteration. Reproduce the report's time-step sensitivity (0.1% at 10 ms) as a
 test — matching the *error behaviour*, not just the answer.
 *Gate:* open-loop response has the report's shape and time constants.
 
-**Phase 5 — Control system.** **NOT STARTED.** 76 constants transcribed; 8 schedules and 22 block diagrams remain.
+**Phase 5 — Control system.** **NOT STARTED**, but its data is nearly in hand.
+`src/t700/control/constants.py` holds **73** constants (57 from Table C.1 plus 16 read off
+the figures; the other 3 of the 76 read from the report live in `t700.constants` and
+`t700.units`). **7 of the 8 scheduling functions are digitized** and committed under
+`data/schedules/` -- F_EC1 and F_HM1 through F_HM6. **Fig. C30 (`F_HM7`, the HMU
+acceleration fuel limit) is the one that remains**, and it is hard for a stated reason:
+its seven curves cross around PCNGHL 88-92 %, so the rank-in-y curve assignment that
+worked for C23 fails there (open question #50; `tools/digitize_appc_multi.py` documents
+the measurement). **The 22 block diagrams are unimplemented** -- that is the bulk of the
+phase.
 Appendix C, implemented and closed around the engine.
 *Gate:* closed-loop transients match the report's figures.
 
 **Phase 6 — Validation.** **SUBSTANTIALLY COMPLETE**, and the remaining gaps are in the
-source rather than the work. Done: Table B.1 trims (±0.13 %NG, ±0.05 % shp); Table 1
-eigenvalues; **all 297 Appendix B elements, element by element, across all five linear
-models**; the steady-state sweeps of Figures 6–8 across their full range; Figures 9–10
+source rather than the work. Done: Table B.1's full printed state, 21 numbers at rms
+0.20 % (worst: shp −0.72 % at the descent trim, NG +0.13 % at level); Table 1
+eigenvalues; **all 297 Appendix B elements loaded and structurally checked across the
+four DOF variants Appendix B prints**, of which roughly 150 carry a numeric per-element
+comparison -- the 2-DOF and 5-DOF models fully, the 3-DOF and 6-DOF through their T41
+row/column, `d`, and the structural zeros. The 3-DOF and 6-DOF `b` vectors (27 elements)
+are not compared to anything. `DOF.REDUCED_FIVE` has **no** Appendix B figure, so "all
+five linear models" was wrong: the printed elements come from four; the steady-state sweeps of Figures 6–8 across their full range; Figures 9–10
 transients in the configuration they were actually generated in.
 
 Not done, with reasons: Figures 11–15 need Gen Hel and are out of scope by construction;
-the GE reference series on Figures 6–8 is digitized but uncompared; and Phase 5 below.
+and Phase 5 below. (The GE reference series on Figures 6-8 was listed here as
+"digitized but uncompared" until 2026-09-12; `validation/test_ge_reference.py` compares
+all three series and is explicit that agreeing with GE is not evidence of anything.)
 Two independent lines:
 1. *Figure reproduction* — regenerate the report's result figures; `/validate` reports
    every deviation.
@@ -174,10 +195,10 @@ report, and most of them are deviations he *accepted*, not accuracy he *met*:
 | Claim | Value | Scope | pdf p. |
 |---|---|---|---|
 | Max inter-step error | 0.1% | sets the 10 ms step cap | 38 |
-| Fuel consumption overestimate | =<5% | only 81-86% NG | 38-39 |
-| NG overestimate, hardware case | 4% | lowest-power case only | 44 |
-| NG overestimate, open-loop step | 1-2% | Figs. 9-10 | 45-46 |
-| Rotor speed agreement | 0.2% | Fig. 12 only | 47 |
+| Fuel consumption overestimate | =<5% | only 81-86% NG | 39 |
+| NG overestimate, hardware case | 4% | lowest-power case only | 39 |
+| NG overestimate, open-loop step | 1-2% | Figs. 9-10 | 39 |
+| Rotor speed agreement | 0.2% | Fig. 12 only | 50 |
 | Eigenvalue mismatch called "good" | 4% | Table 1 comparison | 29 |
 | NG validity ceiling | 100% | above this the model is not claimed | 38 |
 
@@ -193,45 +214,98 @@ as ours**. Provisionally, and only for quantities the report shows in a reproduc
 | Torque / SHP | +/-3% | +/-3% | ours, undeclared by the report |
 | Appendix B matrix elements | +/-5% per element | -- | his own 4% "good agreement" |
 
+**Three of those page citations were wrong until 2026-09-12** and pointed at the figures
+being discussed rather than at the sentence: the 4 % and the 1-2 % were cited to pp.44 and
+45-46, and the 0.2 % to p.47. All three of the first two live in one paragraph of **p.39**,
+read off the raster; the 0.2 % is on **p.50**. `docs/notes/body-validation.md` had them
+right, which is the argument for citing the notes rather than re-deriving a page number.
+
 Transient tolerances are floored by the digitizing error of the source figure, which
 Phase 1 records per figure.
 
-### The figures' own read error, measured rather than estimated
+### The figures' own read error, measured rather than estimated -- and in percent of FULL SCALE
 
-**Added 2026-09-12.** Figures 9 and 10 contain one panel whose true value is printed:
-`WFPH` is the *input*, and both of its levels are stated in the caption ("from 400 to 775"
-and "from 400 to 125 lbm per hour"). Digitizing a panel whose answer is known measures the
-read error of those figures directly:
+**Added 2026-09-12, corrected the same day.** Figures 9 and 10 contain one panel whose true
+value is printed: `WFPH` is the *input*, and both of its levels are stated in the caption
+("from 400 to 775" and "from 400 to 125 lbm per hour"). Digitizing a panel whose answer is
+known measures the read error of those figures directly:
 
-| Figure | level | printed | digitized | error |
+| Figure | level | printed | digitized | % of value | **% of full scale** |
+|---|---|---|---|---|---|
+| 9 | pre-step | 400.0 | 407.30 | +1.83 % | **+0.97 %** |
+| 9 | post-step | 775.0 | 777.04 | +0.26 % | +0.27 % |
+| 10 | pre-step | 400.0 | 406.69 | +1.67 % | **+1.34 %** |
+| 10 | post-step | 125.0 | 125.48 | +0.38 % | +0.10 % |
+
+**The right-hand column is the one to use.** `calibrate()` in `tools/digitize_fig910.py`
+maps pixel rows to values by a straight line between the two frame rows, so a read error
+is a *pixel offset* -- a fixed fraction of the panel's span, not of whatever value it lands
+on. The 1.83 % is large only because 400 sits low on a 250-1000 axis. Converted through
+each panel's own span, the floor is:
+
+| panel | Fig. 9 span | floor | Fig. 10 span | floor |
 |---|---|---|---|---|
-| 9 | pre-step | 400.0 | 407.30 | **+1.83 %** |
-| 9 | post-step | 775.0 | 777.04 | +0.26 % |
-| 10 | pre-step | 400.0 | 406.69 | **+1.67 %** |
-| 10 | post-step | 125.0 | 125.48 | +0.38 % |
+| WFPH | 750 | +1.83 % | 500 | +1.67 % |
+| PS3 | 200 | +1.24 % | 200 | +1.70 % |
+| **PCNG** | 20 | **+0.21 %** | 40 | **+0.59 %** |
+| T41 | 1000 | +0.44 % | 1000 | +0.61 % |
+| T45 | 1000 | +0.62 % | 1000 | +0.85 % |
+| TORQ45 | 400 | +2.22 % | 400 | +2.91 % |
 
-So **any deviation below about 1.8 % against Figures 9-10 is at or under the read error of
-the reference itself** and must not be chased. This is the first read-error figure in the
-project that is measured against a known value rather than propagated from tick spacing.
+This file briefly said "any deviation below about 1.8 % against Figures 9-10 is at or under
+the read error". That is **wrong, and wrong in the permissive direction on the channel that
+matters most**: on PCNG the floor is 0.21 %, nine times tighter, and PCNG is what most of
+the project's headline transient agreements are quoted on. On TORQ45 it is too tight.
+
+The evidence for the pixel-offset model is a prediction, not an argument. Figures 9 and 10
+read the *same* 400 lbm/hr trim on axes of different span, so their disagreement is pure
+read error: calibrating only on the two WFPH panels predicts **+0.340 %NG** on PCNG against
+a measured **+0.340**, and +0.73 psia on PS3 against a measured +0.59. A percent-of-value
+model cannot produce that. Pinned by
+`validation/test_figure_consistency.py::test_the_read_error_is_a_pixel_offset_not_a_fraction_of_value`.
+
+Two limits of the measurement, both real. It is a *pre-step* offset: Figure 10's WFPH
+post-step level, whose truth is exactly 125, drifts from +3.7 % at t = 0.9 s to -7.4 % at
+t = 4.4 s -- a panel skew of about -0.8 %FS/s that the digitizer does not deskew, so the
+mean lands at +0.38 % only by cancellation. And the model predicts PCNG, PS3 and T41 but
+not T45 or TORQ45, the latter being independently known-bad reference data.
 
 ### Comparing a transient to a steady-state figure
 
 **A transient trace must not be compared against a steady-state locus at matched speed.**
 Figures 6-8 are equilibrium sweeps; Figures 9-10 are transients. During a chop, fuel is
 cut, T41 falls, and the choked station 4.1 nozzle then passes the same flow at a lower
-P41 -- so Ps3 sits *below* its equilibrium value at that NG, by construction. Ballin's own
-Figure 10 line sits 2.3-7.0 % below his own Figure 8, and his Figure 9 accel sits up to
-3.9 % *above* it. Those are the physics, not a defect in either figure.
+P41 -- so Ps3 sits *below* its equilibrium value at that NG, by construction. Over its full
+record Ballin's own Figure 10 line runs **-1.68 % to -8.73 %** against his own Figure 8, and
+his Figure 9 accel runs **-1.43 % to +7.35 %**. Those are the physics, not a defect in
+either figure. (Ranges corrected 2026-09-12: "2.3-7.0 %" and "up to 3.9 %" were values at
+four sampled instants, quoted as if they were the extremes.)
+
+The effect is **quasi-steady, not a pressure lag** -- the pressures are fast and the spool
+is slow. Pinning NG on the steady locus and cutting fuel to 125 lbm/hr, the algebraic
+pressure solution alone gives -5.9 / -9.3 / -12.0 / -15.5 % at 78 / 82 / 86 / 90 %NG, and
+the choked-nozzle scaling sqrt(theta41) predicts -6.3 / -10.2 / -13.8 / -17.1 %. No other
+path (T3 = T2*f2(PR), the bleed schedules) comes close, and the sign cannot reverse.
 
 The valid comparisons are (a) trace against trace, (b) settled state against the sweep, and
 (c) **the phase plane** -- Ps3 against NG, which discards the time axis and with it the
-unprinted step time (open question #17). Tolerances for the last two, ours:
+unprinted step time (open question #37). Tolerances for the last two, ours:
 
 | Comparison | Tolerance | Basis |
 |---|---|---|
-| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | measured 0.59 % worst on Fig. 9, 2.15 % on Fig. 10 |
+| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | measured 0.59 % worst on Fig. 9, 1.07 % on Fig. 10 over the 78-90 %NG grid the test asserts; 2.15 % at 76 %NG, the last point of his record, which the test does not check |
 | Settled state vs the Fig. 6-8 sweep | +/-3 % | the gas-path P,T row above |
-| Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | five of six panels agree to 0.62 % |
+| Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | five of six panels agree to 0.54 % worst (t45); the sixth, torq45, disagrees by 4.84 % and is excluded as bad reference data |
+| Fig. 9/10 initial trim vs the figure | +/-1.5 % | `test_fuel_step.INITIAL_TOL_PCT`; this is the same physics the steady tests already check |
+| Fig. 9/10 settled state vs the figure | +/-5 % (fig 9), +/-8 % (fig 10) | `test_fuel_step.FINAL_TOL_PCT`; tightened from 20 % when the printed convergence criterion replaced an invented tolerance, never widened |
+| Whole-curve RMS, normalised by each panel's excursion | **8 % ratchet** | `test_whole_curve.WHOLE_CURVE_RMS_CEILING_PCT`. Not a tolerance -- set just above the worst measured panel so a regression fails and an improvement is free. Lower it when the model improves; never raise it. Current: mean 3.79 %, range 1.96-7.62 % over nine panels |
+| Table B.1's printed station state | +/-0.5 % | `test_trim_points.STATE_TOL_PCT`. Much tighter than the +/-3 % gas-path row because these are printed *numbers*, with no read error of ours in them at all |
+| Figures 9/10 read error | +/-1.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS`, measured on the WFPH panel -- see the section above, and note the currency |
+
+**Every tolerance any test asserts is in this file.** Five were inline in test files until
+2026-09-12, two of them carrying their own docstring note saying they belonged here. A
+tolerance that lives only beside the assertion it governs is one nobody compares against
+its siblings, which is how two tests come to bound the same quantity differently.
 
 ### Two things not to do
 
@@ -258,12 +332,19 @@ helicopter simulation, which this report does not contain.
 | 6 | 40 | NG vs Wf, 3 models | ~30 |
 | 7 | 41 | SHP vs Wf, 3 models | ~30 |
 | 8 | 42 | Ps3 vs NG, 3 models | ~30 |
-| 9 | 45 | fuel step up, 400 -> 775 lbm/hr, 5 panels | ~230 |
-| 10 | 46 | fuel step down, 400 -> 125 lbm/hr, 5 panels | ~230 |
+| 9 | 45 | fuel step up, 400 -> 775 lbm/hr, **6** panels | ~4,100 |
+| 10 | 46 | fuel step down, 400 -> 125 lbm/hr, **6** panels | ~3,870 |
 | 11-15 | 48-53 | closed-loop UH-60A vs flight test | not reproducible |
 
-All five are marker-based, so they digitize by point extraction rather than curve tracing.
-Budget ~550 reference points. See `docs/notes/digitizing-recipe.md`.
+**Corrected 2026-09-12.** This table was a pre-Phase-1 estimate and had never been
+updated against what was actually captured. Two things it got wrong beyond the counts:
+Figures 9 and 10 have **six** panels each, not five (the sixth, `WFPH`, is the input --
+and it is the panel that later gave the only *measured* read error in the project, above);
+and they are **not** marker-based. Figures 6-8 and the `+` reference series of 9-10 are
+marker series that digitize by point extraction, but Ballin's own model output on 9-10 is
+a **continuous line, curve-traced** at 600-740 samples per panel, which is where the
+whole-curve shape comparison comes from. Actual total: **~8,100** reference points, not
+~550. See `docs/notes/digitizing-recipe.md`.
 
 ## Admitted limits that become ours
 
@@ -279,6 +360,6 @@ in the first place.
 
 ## Open questions
 
-Tracked in `docs/notes/open-questions.md` -- 37 rows, numbering deliberately
+Tracked in `docs/notes/open-questions.md` -- 49 rows, numbering deliberately
 non-contiguous (see the note at the top of that file). Anything the report does not answer
 goes there rather than into the code as a guess.

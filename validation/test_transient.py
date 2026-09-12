@@ -17,11 +17,12 @@ from t700.units import wf_pps_from_pph
 AMB = Ambient(14.696, 518.67)
 
 
-def _seed(wf_pph: float):
+def _seed(wf_pph: float, lag_whole_flow: bool = True):
     wf = wf_pps_from_pph(wf_pph)
     r = trim.solve(wf, 20895.0, AMB)
     f = frame(r.state, wf, AMB)
-    return realtime.from_trim(r, f.wa31_pps), wf, f.q_pt_ftlbf
+    st = realtime.from_trim(r, f.wa31_pps, f, lag_whole_flow=lag_whole_flow)
+    return st, wf, f.q_pt_ftlbf
 
 
 def test_a_trimmed_engine_sits_still():
@@ -81,33 +82,100 @@ def test_the_opened_iteration_converges_as_the_step_shrinks():
         )
 
 
-def test_the_printed_reading_of_eq_74_does_not_converge():
-    """Records *why* the prose reading was chosen, as an executable fact.
+def test_both_readings_of_eq_74_converge_to_the_same_limit():
+    """**Both** readings of Eq. 74 are consistent discretizations. Open question #22.
 
-    If this ever starts passing convergence, open question #22 must be reopened.
+    This test used to assert the opposite -- that the equation *as printed* "converges to
+    nothing" -- and #22 was closed on it, with the report recorded as contradicting
+    itself. That was our bug, not the report's.
+
+    Eq. 74 as printed [pdf p.36] lags the **bleed**: `WA31(n) = WA3(n) - WA3_bl(n-1)`. The
+    implementation carried `WA31` in that branch instead of `WA3_bl`, making the recurrence
+    `WA31(n) = WA3(n) - WA31(n-1)` -- an involution whose only fixed point is `WA3/2`.
+    Everything else is a period-2 oscillation, so a *trimmed* engine did not even sit still
+    there (T41ns alternated ~10600 / ~2200 degR), and no convergence conclusion drawn from
+    it could mean anything. The carry is now the bleed, and the two readings are simply two
+    different one-frame lags of the same opened loop.
+
+    Measured at t = 1.0 s after a 400 -> 775 lbm/hr step, refining dt from 8 ms to 0.25 ms:
+
+        prose    44024.0  43924.7  43880.1  43860.7  43851.5  43847.1
+        printed  44045.1  43936.6  43885.5  43863.3  43852.8  43847.7
+
+    Both halve their successive difference as dt halves -- first order, as an explicit
+    Euler frame with a one-step lag must be -- and they agree to **0.6 rpm (0.0014 %)** at
+    the finest step. At the report's own 7 ms they differ by about 0.05 %.
+
+    The shipped model uses the prose reading, and that has not changed: it is the reading
+    whose own words describe opening the loop ("the mass flow entering the combustor for a
+    given interval is approximately equal to the mass flow leaving the compressor in the
+    previous interval"). But it is chosen because the prose says so, **not** because the
+    printed equation fails.
     """
-    _, wf0, qreq = _seed(400.0)
-    stepfn = lambda t: wf0 if t < 0.5 else wf_pps_from_pph(775.0)  # noqa: E731
+    limits = {}
+    for lag in (True, False):
+        vals = []
+        for dt_ms in (8.0, 4.0, 2.0, 1.0, 0.5, 0.25):
+            st, wf0, qreq = _seed(400.0, lag_whole_flow=lag)
+            tr = realtime.run(
+                st,
+                lambda t, w=wf0: w if t < 0.5 else wf_pps_from_pph(775.0),
+                AMB,
+                duration_s=1.0,
+                dt=dt_ms / 1000.0,
+                q_req_ftlbf=qreq,
+                integrate_np=False,
+                lag_whole_flow=lag,
+                tol=1e-10,
+            )
+            vals.append(float(np.interp(1.0, tr["t"], tr["ng"])))
+        diffs = np.abs(np.diff(vals))
+        assert np.all(np.diff(diffs) < 0), (
+            f"lag_whole_flow={lag}: successive differences {diffs} are not shrinking, so "
+            f"this reading is not converging. If it is the printed one, #22's retraction "
+            f"is wrong and the original verdict stands."
+        )
+        ratios = diffs[:-1] / diffs[1:]
+        assert 1.7 < np.median(ratios) < 2.6, (
+            f"lag_whole_flow={lag}: error ratios {ratios} are not first order"
+        )
+        limits[lag] = vals[-1]
 
-    vals = []
-    for dt_ms in (4.0, 2.0, 1.0, 0.5):
-        st, _, _ = _seed(400.0)
+    gap = abs(limits[True] - limits[False]) / limits[True] * 100.0
+    assert gap < 0.01, (
+        f"the two readings converge to different limits ({limits[True]:.1f} against "
+        f"{limits[False]:.1f} rpm, {gap:.4f} %). They are two lags of one loop and should "
+        f"agree in the limit; a real gap would mean one of them is not Eq. 74."
+    )
+
+
+def test_a_trimmed_engine_sits_still_in_both_readings_of_eq_74():
+    """The check that would have caught the carry bug immediately.
+
+    Neither reading of Eq. 74 changes the *equilibrium* -- at steady state the lagged
+    quantity equals its own current value, whichever quantity it is. So a trimmed engine
+    must sit still in both branches. Before the carry was fixed, the printed branch
+    oscillated with a period of two frames and never sat anywhere.
+    """
+    for lag in (True, False):
+        st, wf0, qreq = _seed(400.0, lag_whole_flow=lag)
         tr = realtime.run(
             st,
-            stepfn,
+            lambda t, w=wf0: w,
             AMB,
-            duration_s=1.0,
-            dt=dt_ms / 1000.0,
+            duration_s=2.0,
+            dt=0.007,
             q_req_ftlbf=qreq,
             integrate_np=False,
-            lag_whole_flow=False,
+            lag_whole_flow=lag,
         )
-        vals.append(tr["ng"][-1])
-
-    diffs = np.abs(np.diff(vals))
-    assert not np.all(np.diff(diffs) < 0), (
-        "the printed reading of Eq. 74 now appears to converge -- reopen question #22"
-    )
+        drift = abs(tr["ng"][-1] / tr["ng"][0] - 1.0) * 100.0
+        spread = float(tr["t41"].max() - tr["t41"].min())
+        assert drift < 1e-6, f"lag_whole_flow={lag}: NG drifts {drift:.2e} % over 2 s"
+        assert spread < 1.0, (
+            f"lag_whole_flow={lag}: T41ns spans {spread:.1f} degR at a fixed fuel flow, "
+            f"so the carried quantity does not match what the branch expects"
+        )
 
 
 def test_fuel_step_moves_the_engine_the_right_way():

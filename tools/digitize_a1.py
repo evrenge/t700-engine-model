@@ -46,7 +46,6 @@ SciPy and PIL. Nothing here is imported by src/t700/.
 from __future__ import annotations
 
 import csv
-import datetime
 import os
 import subprocess
 from pathlib import Path
@@ -814,7 +813,14 @@ overlay()
 # ---------------------------------------------------------------- 8. output
 os.makedirs("data/maps", exist_ok=True)
 out = "data/maps/f1_compressor_mass_flow.csv"
-stamp = datetime.date.today().isoformat()
+# The date the calibration was last established -- NOT the date this script runs.
+# Stamping `date.today()` here made the output a function of the clock, so
+# `tools/reproduce_all.sh` reported a diff on f1 on every day after the file was
+# committed. A gate that always cries wolf gets ignored, which is worse than no gate:
+# this is the most load-bearing map in the project (the only 2-D one, and Ps3 has ~13x
+# leverage on dNG/dt). Bump this literal when the calibration actually changes, and say
+# in the commit message what moved.
+RECALIBRATED = "2026-09-11"
 UL = float(np.polyval(CX, float(to_uv_rect(XV, 0.0)[0])))
 HDR = [
     "# source: TM-100991 pdf p.56, Figure A1",
@@ -1028,7 +1034,7 @@ HDR = [
     "#            Nobody would have found that pattern by looking at the extracted numbers.",
     "#   NOT transcribed. Values carry read error; see validation/out/digitize/a1_zoom_c*.png.",
     "# points: 77 (11 speed lines x 7)",
-    f"# digitized: 2026-09-10, recalibrated {stamp}, by tools/digitize_a1.py; rerunnable",
+    f"# digitized: 2026-09-10, recalibrated {RECALIBRATED}, by tools/digitize_a1.py; rerunnable",
 ]
 with open(out, "w", newline="") as fh:
     for line in HDR:

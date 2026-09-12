@@ -176,7 +176,10 @@ exactly: *which variable* the 0.1 percent is measured on (`WA31`? `P3`? `NG`?), 
 is relative to the instantaneous value or to a steady-state value (B says "of the
 steady-state value" explicitly; C says nothing), and under what transient it was evaluated
 (A and B both name "the most extreme conditions" / "flight idle to full power"; C does
-not). Open question #24 (which variable the 0.1 % is measured on).
+not). Open question #24 -- **closed 2026-09-12**: the referent is the *response*, frame to
+frame, and the mechanism is named in the same sentence. This paragraph is kept because the
+three sub-questions above it are still the right ones to have asked, but it should no longer
+be read as "we cannot reproduce this".
 
 A and B are *measurements of worst-case iteration counts*, not runtime policy. Note the
 arithmetic in A: 11 operations per pass ("a total of eleven arithmetic operations required
@@ -912,14 +915,19 @@ and in the results (pp.45–53), which are another agent's range. Concretely usa
 
 - **Claim 3 is a test, not a tolerance**, and it is the one `SCOPE.md` Phase 4 already
   asks for: run the model at Δt and Δt/2 and assert the frame-to-frame difference metric
-  stays under 0.1 % at Δt = 10 ms. It cannot be turned into a validation tolerance on a
-  state until we know which variable it was measured on (open question #24 — the 0.1 % error metric).
+  stays under 0.1 % at Δt = 10 ms. **Still not implemented** -- `validation/test_transient.py`
+  checks the convergence *order* at 4/2/1/0.5 ms, not the 0.1 % at 10 ms that `SCOPE.md`
+  Phase 4 asks for. (#24 is closed, so the referent is no longer the obstacle: it is the
+  frame-to-frame response.)
 - Claim 7 quantifies, indirectly, how much of a mismatch Ballin was willing to call "good
   agreement" on a *mode*: **up to about 4 %**. That is a defensible tolerance for the
   eigenvalue comparison, and it is looser than `SCOPE.md`'s guessed ±5 % per matrix
   element is tight.
-- Nothing here justifies changing the ±1 %/±2 % state tolerances in `SCOPE.md`; leave them
-  until pp.38–53 are read.
+- Nothing here justified changing the state tolerances in `SCOPE.md` at the time. **Both
+  halves of that sentence are now spent**: pp.38-54 were read (`body-validation.md`), and
+  `SCOPE.md`'s tolerance table was rewritten from the report on 2026-09-10 -- it has no
+  ±1 % row any more. The ±5 %/element figure is no longer "guessed" either; SCOPE now
+  attributes it to Ballin's own 4 % "good agreement".
 
 ---
 

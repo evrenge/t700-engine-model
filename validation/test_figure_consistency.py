@@ -41,9 +41,20 @@ AMB = Ambient(14.696, 518.67)
 PHASE_PLANE_TOL_PCT = 2.5
 BOTH_SIDES_TOL_PCT = 3.0
 SHARED_TRIM_TOL_PCT = 1.5
-READ_ERROR_CEILING_PCT = 2.5
+READ_ERROR_CEILING_PCT_FS = 1.6
 """All four declared in `SCOPE.md`; none is derived from the report, which states no
-transient tolerance at all."""
+transient tolerance at all.
+
+The last one is expressed **as a fraction of each panel's full scale**, which is the only
+currency it can honestly be quoted in -- see `PANEL_SPAN` below."""
+
+# Full-scale span of each panel's y axis, from `tools/digitize_fig910.py`'s PANEL_RANGES.
+# `calibrate()` there maps pixels to values by a straight line between the two frame rows,
+# so a read error is a *pixel* offset: a fixed fraction of the span, not of the value.
+PANEL_SPAN = {
+    9: dict(wfph=750.0, ps3=200.0, pcng=20.0, t41=1000.0, t45=1000.0, torq45=400.0),
+    10: dict(wfph=500.0, ps3=200.0, pcng=40.0, t41=1000.0, t45=1000.0, torq45=400.0),
+}
 
 # [pdf p.43, Table 2] NASA-Lewis test conditions. The only non-standard ambient printed
 # in the report -- and it belongs to Table 3, not to Figures 9-10. Kept here because
@@ -99,19 +110,62 @@ def _run(wf_hi_pph: float, t_step: float, duration_s: float = 5.0):
 def test_the_figures_own_read_error_is_measured_not_estimated(fig: int):
     """The WFPH panel's true value is printed, so digitizing it measures our read error.
 
-    This is the floor under every other comparison against these two figures. It comes
-    out at 1.67-1.83 % at the 400 lbm/hr level -- which is larger than several deviations
-    that have been treated as findings in this project.
+    **In percent of full scale, not percent of value.** That distinction was got wrong
+    once and it matters more than the measurement: `calibrate()` in
+    `tools/digitize_fig910.py` maps pixel rows to values by a straight line between the
+    two frame rows, so the error is a pixel offset -- a fixed fraction of the panel's
+    *span*. Quoted as a fraction of the value it happens to sit on, the same pixel offset
+    reads +1.83 % at 400 on a 250-1000 axis and +0.21 % on the 80-100 PCNG axis. The
+    project briefly carried the 1.83 % as a universal floor "under which deviations are
+    not chased", which is roughly nine times too permissive on PCNG -- the channel most
+    of its headline agreements are quoted on.
+
+    `test_the_read_error_is_a_pixel_offset_not_a_fraction_of_value` is the evidence for
+    the %FS model; this test just pins the magnitude.
     """
     lo, hi, t_step = WFPH_PRINTED[fig]
+    span = PANEL_SPAN[fig]["wfph"]
     t, v = _trace(f"fig{fig:02d}_wfph_model.csv")
     pre = v[t < t_step - 0.05].mean()
     post = v[t > t_step + 0.35].mean()
     for got, want, lbl in ((pre, lo, "pre-step"), (post, hi, "post-step")):
-        dev = 100.0 * (got / want - 1.0)
-        assert abs(dev) < READ_ERROR_CEILING_PCT, (
-            f"fig {fig} WFPH {lbl}: printed {want}, digitized {got:.2f}, {dev:+.2f} % -- "
-            f"the digitizer has drifted; this panel's answer is known exactly"
+        dev_fs = 100.0 * (got - want) / span
+        assert abs(dev_fs) < READ_ERROR_CEILING_PCT_FS, (
+            f"fig {fig} WFPH {lbl}: printed {want}, digitized {got:.2f}, "
+            f"{dev_fs:+.3f} % of the {span:.0f} full scale "
+            f"({100 * (got / want - 1.0):+.2f} % of value) -- the digitizer has drifted; "
+            f"this panel's answer is known exactly"
+        )
+
+
+def test_the_read_error_is_a_pixel_offset_not_a_fraction_of_value():
+    """Two figures read one state, so their difference is pure read error. Predict it.
+
+    Figures 9 and 10 are both trimmed at 400 lbm/hr, and their y axes have different
+    spans. If the error is a pixel offset then the offset measured on each figure's WFPH
+    panel -- the only panel whose truth is printed -- predicts the disagreement on every
+    other panel, after conversion through that panel's own span. If the error were a
+    fraction of value, it could not.
+
+    On PCNG the prediction is exact: **+0.340 %NG predicted, +0.340 measured.** That is
+    the whole case for the %FS model, and it is why the floor on PCNG is ~0.2 % rather
+    than the 1.8 % this project briefly quoted. T45 and TORQ45 are not predicted, and
+    TORQ45 is independently known to be bad reference data.
+    """
+    off_fs = {}
+    for fig in (9, 10):
+        lo, _, t_step = WFPH_PRINTED[fig]
+        t, v = _trace(f"fig{fig:02d}_wfph_model.csv")
+        pre = v[t < t_step - 0.05].mean()
+        off_fs[fig] = (pre - lo) / PANEL_SPAN[fig]["wfph"]
+
+    for key, tol in (("pcng", 0.05), ("ps3", 0.25)):
+        predicted = off_fs[10] * PANEL_SPAN[10][key] - off_fs[9] * PANEL_SPAN[9][key]
+        measured = PRE_STEP[10][key] - PRE_STEP[9][key]
+        assert abs(predicted - measured) < tol, (
+            f"{key}: a pixel-offset read error predicts fig10 - fig9 = {predicted:+.3f}, "
+            f"measured {measured:+.3f}. If this stops holding, the read-error model in "
+            f"SCOPE.md is wrong and every floor derived from it moves."
         )
 
 
@@ -119,7 +173,7 @@ def test_figures_9_and_10_share_one_trim_and_agree_on_it():
     """Both figures start at 400 lbm/hr, so their pre-step states must agree.
 
     `torq45` is excluded: Figure 10's panel yielded 16 markers against 45 everywhere else
-    and disagrees with Figure 9's by 5.1 %. That exclusion is recorded in
+    and disagrees with Figure 9's by 4.84 %. That exclusion is recorded in
     `test_fuel_step.py`'s UNTRUSTED and this test is where the 5.1 % is pinned, so the
     exclusion cannot quietly become permanent without evidence.
     """
@@ -130,7 +184,7 @@ def test_figures_9_and_10_share_one_trim_and_agree_on_it():
         worst = max(worst, dev)
         assert dev < SHARED_TRIM_TOL_PCT, f"{key}: fig 9 {a} vs fig 10 {b}, {dev:.2f} %"
     assert worst < SHARED_TRIM_TOL_PCT
-    tq = abs(100.0 * (PRE_STEP[9]["torq45"] / PRE_STEP[10]["torq45"] - 1.0))
+    tq = abs(100.0 * (PRE_STEP[9]["torq45"] / PRE_STEP[10]["torq45"] - 1.0))  # 4.84 %
     assert tq > 2.0, (
         f"fig 9/10 torq45 now agree to {tq:.2f} %; if the digitizer has been fixed, drop "
         f"the UNTRUSTED exclusion in test_fuel_step.py"
@@ -166,8 +220,19 @@ def test_figures_9_and_10_are_sea_level_standard():
     Table 2 [pdf p.43] is the only non-standard ambient the report prints (P2 13.92-14.37
     psia, T2 507-517 deg R), and Figures 9-10 use "the dynamometer used for testing of the
     NASA-Lewis experimental engine" [pdf p.39] -- so the Lewis test-cell condition is a
-    live possibility. It loses: our trim at sea-level standard fits Ballin's pre-step
-    plateau roughly four times better.
+    live possibility. It loses, but by less than this test once claimed: on the four
+    trusted channels our standard-day trim fits Ballin's pre-step plateau at rms
+    **0.42 %** against **0.90 %** for the Lewis condition -- a factor of **2.1**, not the
+    "roughly four times" first written here. That 4x was the five-channel rms, and the
+    fifth channel is TORQ45, which this same file excludes elsewhere as bad reference
+    data and whose own read-error floor is ~2.2 % of value. Dropping it removes most of
+    the discrimination, which is the honest result.
+
+    So this is a supporting leg, not the load-bearing one. The load-bearing evidence that
+    Figures 6-10 share a condition is documentary: Ballin's own cross-reference on pdf
+    p.39, checked by `test_ballins_own_cross_reference_between_figures_9_and_6_holds`.
+    What this test still establishes is that the Lewis condition is not *better*, which
+    is what would have to be true for Table 2 to apply here.
 
     That is consistent with Table 2 belonging to Table 3 alone, which also swapped in
     Lewis-derived compressor and turbine functions "in place of the standard functions"
@@ -190,12 +255,13 @@ def test_figures_9_and_10_are_sea_level_standard():
         dev = [100.0 * (ours[k] / PRE_STEP[9][k] - 1.0) for k in ours]
         rms[label] = float(np.sqrt(np.mean(np.square(dev))))
 
-    assert rms["standard"] < rms["lewis"] / 2.0, (
+    assert rms["standard"] < rms["lewis"], (
         f"sea-level standard rms {rms['standard']:.2f} % against the Table 2 Lewis "
-        f"condition {rms['lewis']:.2f} % -- the discrimination has weakened, so the "
-        f"ambient behind Figures 9-10 is no longer settled by this evidence"
+        f"condition {rms['lewis']:.2f} % -- the Lewis condition now fits BETTER, which "
+        f"would reopen the question this row closed. The documentary evidence on pdf "
+        f"p.39 would then be in conflict with the measurement."
     )
-    assert rms["standard"] < 1.0
+    assert rms["standard"] < 0.6, f"standard-day rms {rms['standard']:.2f} %"
 
 
 # --------------------------------------------------------------------- transient vs steady
@@ -212,12 +278,26 @@ def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
     """Ps3 against NG -- the comparison that needs no time axis.
 
     Every time-domain comparison against these figures carries the unprinted step time
-    (open question #17) and a rate comparison on top of the state error. Plotting Ps3
+    (open question #37) and a rate comparison on top of the state error. Plotting Ps3
     against NG discards both: what is left is the thermodynamic path the engine takes
     through the state space, which is set by the turbine flow function and the station 4.1
-    temperature dynamics. This is the strongest evidence in the project that the gas path
-    is right, and it is the metric that localised the remaining Figure 10 error to the
-    torque balance rather than to the gas path.
+    temperature dynamics.
+
+    **Only Figure 10's panel carries real information, and that was overclaimed once.**
+    Ballin's Figure 9 Ps3(NG) over 92-98 %NG is a straight line -- R^2 = 0.9994, and the
+    chord through its two endpoints reproduces the trace to 0.30 %. So a model that
+    merely lands on the 400 and 775 lbm/hr trims traces an indistinguishable path there,
+    and Figure 9's 0.59 % agreement adds almost nothing to the steady-state tests.
+    Figure 10 is different: its chord error is **7.24 %**, so our 1.07 % means the
+    trajectory is 6.8x closer to Ballin's than a straight line is.
+    `test_the_phase_plane_is_not_a_degenerate_comparison` pins that distinction.
+
+    Two further limits, both measured. The metric is **blind to the volume constants**:
+    perturbing `K_V3` and `K_V41` by +/-30 % leaves it bit-identical, because the
+    real-time formulation solves the pressures algebraically and they drop out. And it is
+    **not converged in dt on Figure 9** -- 1.49 / 1.25 / 0.59 / 1.46 % at dt = 3.5 / 5 /
+    7 / 10 ms, so 0.59 % at the shipped 7 ms is partly cancellation. Figure 10 *is*
+    monotone in dt and improves as the frame shrinks: 0.86 / 0.94 / 1.07 / 1.25 %.
     """
     tb_n, vb_n = _trace(f"fig{fig:02d}_pcng_model.csv")
     tb_p, vb_p = _trace(f"fig{fig:02d}_ps3_model.csv")
@@ -240,6 +320,50 @@ def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
             f"fig {fig} at {n:.0f} %NG: Ps3 ours {o:.2f} against Ballin's {b:.2f}, "
             f"{dev:+.2f} % -- the state trajectory has moved, not just the rate"
         )
+
+
+def test_the_phase_plane_is_not_a_degenerate_comparison():
+    """Figure 10's trajectory is curved; Figure 9's is not. Only the first is evidence.
+
+    The baseline a phase-plane comparison has to beat is the chord: the straight line
+    between the two endpoint trims, which any model matching the steady-state sweeps
+    already reproduces. If the reference trace is itself straight, matching it proves
+    nothing beyond the endpoints.
+    """
+    for fig, t_step, grid, straight in (
+        (9, 0.539, (92.0, 94.0, 96.0, 98.0), True),
+        (10, 0.545, (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0), False),
+    ):
+        tb_n, vb_n = _trace(f"fig{fig:02d}_pcng_model.csv")
+        tb_p, vb_p = _trace(f"fig{fig:02d}_ps3_model.csv")
+        mb = tb_n > t_step
+        bn = vb_n[mb]
+        bp = np.interp(tb_n[mb], tb_p, vb_p)
+        if fig == 10:
+            bn, bp = bn[::-1], bp[::-1]
+        lo, hi = min(grid), max(grid)
+        p_lo, p_hi = float(np.interp(lo, bn, bp)), float(np.interp(hi, bn, bp))
+        chord = max(
+            abs(
+                100.0
+                * (
+                    (p_lo + (n - lo) / (hi - lo) * (p_hi - p_lo)) / float(np.interp(n, bn, bp))
+                    - 1.0
+                )
+            )
+            for n in grid
+        )
+        if straight:
+            assert chord < 1.0, (
+                f"fig {fig}: the chord now misses Ballin's trace by {chord:.2f} %, so this "
+                f"panel has become informative and its docstring caveat is stale"
+            )
+        else:
+            assert chord > 4.0, (
+                f"fig {fig}: the chord misses Ballin's trace by only {chord:.2f} %, so the "
+                f"phase-plane agreement here is no longer distinguishable from hitting the "
+                f"two endpoint trims -- the conclusion drawn from it does not hold"
+            )
 
 
 @pytest.mark.parametrize("fig,wf_hi,t_step", [(9, 775.0, 0.539), (10, 125.0, 0.545)])

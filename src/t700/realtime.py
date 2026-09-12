@@ -19,8 +19,12 @@ So Ballin makes the three pressures **algebraic** and solves them each frame:
 * **P45 is solved independently** (Eq. 80), "because it is a nonlinear function of its own
   value, iterative techniques must be used" [pdf p.37].
 
-What remains integrated is NG (tau = 18 ms) and NP (tau ~ 340 ms), both comfortably stable
-at the 7 and 14 ms the report uses.
+What remains integrated is NG and NP, whose modes run **437 / 470 / 738 ms** and
+**358 / 470 / 602 ms** at the three Table B.1 trims -- comfortably stable at the 7 and
+14 ms the report uses. (This paragraph said "NG (tau = 18 ms)" until 2026-09-12. The 18 ms
+mode is a *pressure* mode, not NG: the 5-DOF eigenvalues at hover are 0.2, 0.4, 18.0, 358
+and 437 ms, and the quasi-steady approximation removes the first three. Attributing a
+pressure mode to the shaft understated NG's time constant by a factor of 24.)
 
 This also decodes the Conclusions [pdf p.54]: omitting the high-speed inter-volume
 mass-flow dynamics "was found to be unnecessary". Those dynamics *are* the two fast modes.
@@ -33,12 +37,23 @@ cost a twentyfold smaller time step.
 here: it is what a 1988 real-time model with "no iteration between time steps" [pdf p.35]
 would use, and the two surviving modes are slow enough for it. Logged as a decision.
 
-**Eq. 74 contradicts its own prose** (open question #22). As printed it lags only the
-bleed, `WA31_(n) = WA3_(n) - WA3_bl_(n-1)` -- but `WA3_(n)` still depends on `P3_(n)`, so
-that does not open the loop at all. The prose says the combustor inlet flow is "the mass
-flow leaving the compressor in the previous interval". Only the prose reading actually
-opens it. Both are implemented, selectable, so the report's own 0.1 %-per-frame criterion
-can decide between them -- see `tools/` and the transient validation.
+**Eq. 74 reads two ways, and the report is not self-contradictory** (open question #22).
+As printed it lags only the bleed, `WA31_(n) = WA3_(n) - WA3_bl_(n-1)`; the prose says the
+combustor inlet flow is "the mass flow leaving the compressor in the previous interval",
+i.e. `WA31_(n) = WA31_(n-1)`. Both are implemented and selectable, and the shipped default
+is the prose reading -- because the prose is the sentence that describes *opening* the loop,
+and because Eq. 74's own left-hand side is the quantity the combustor needs.
+
+**It is chosen on those grounds and not because the printed equation fails.** This
+paragraph said the printed reading "converges to nothing", and that was our bug: the
+alternative branch carried `WA31` where Eq. 74 carries `WA3_bl`, giving
+`WA31_(n) = WA3_(n) - WA31_(n-1)` -- an involution whose only fixed point is `WA3/2`, so it
+oscillated with a two-frame period and a trimmed engine never sat still in it. With the
+bleed carried, both readings converge first-order to the same limit (43847.1 against
+43847.7 rpm at dt = 0.25 ms) and differ by **at most 0.11 % on NG over a whole 400 -> 775
+step at the report's own 7 ms frame**, settling to 0.0002 %. The report's 0.1 %-per-frame
+criterion therefore cannot separate them either, which is the real answer to #22:
+the distinction is below the tolerance the report itself works to.
 """
 
 from __future__ import annotations
@@ -394,7 +409,13 @@ def step(
             c.J_PT + j_load
         )  # (46), (47)
 
-    carry = wa31 if not lag_whole_flow else (wa3 - wa3_bl)
+    # The carried scalar is a DIFFERENT quantity in the two readings, and getting that
+    # wrong is what invalidated open question #22's first verdict: this line read
+    # `carry = wa31 if not lag_whole_flow else (wa3 - wa3_bl)`, so the printed branch
+    # computed `WA31(n) = WA3(n) - WA31(n-1)` -- an involution whose only fixed point is
+    # WA3/2, which oscillates instead of converging and made the printed reading look
+    # divergent. Eq. 74 lags the **bleed**: `WA31(n) = WA3(n) - WA3_bl(n-1)`.
+    carry = (wa3 - wa3_bl) if lag_whole_flow else wa3_bl
     nxt = RTState(ng, np_, p3, p41, p45, float(carry), hs_tm, t41, float(w41))
     out = FrameOut(
         inner_iters=inner_iters,
@@ -413,12 +434,19 @@ def step(
     return nxt, out
 
 
-def from_trim(result, wa31_pps: float, frame: Frame | None = None) -> RTState:
+def from_trim(
+    result, wa31_pps: float, frame: Frame | None = None, lag_whole_flow: bool = True
+) -> RTState:
     """Seed a real-time state from a converged trim.
 
     The carried mass flow is initialized to its equilibrium value. The report never says
     how it initializes (open question #23); starting at equilibrium is the choice that
     makes a trimmed engine sit still, which is the only defensible default.
+
+    `lag_whole_flow` must match the value passed to `step`, because the two readings of
+    Eq. 74 carry **different quantities**: the prose reading carries WA31, the printed
+    reading carries WA3_bl. Seeding the wrong one puts a trimmed engine off equilibrium on
+    frame one.
 
     Pass `frame` -- the `engine.frame` evaluated at the same trim -- to seed the
     heat-sink carries as well. Required for `heat_sink=True` runs; harmless otherwise.
@@ -429,8 +457,16 @@ def from_trim(result, wa31_pps: float, frame: Frame | None = None) -> RTState:
     `tau_b`.
     """
     s = result.state
+    carry = wa31_pps
+    if not lag_whole_flow:
+        if frame is None:
+            raise ValueError(
+                "the printed reading of Eq. 74 carries WA3_bl, so `frame` is required to "
+                "seed it; pass engine.frame() evaluated at the same trim"
+            )
+        carry = frame.wa3_bl_pps
     if frame is None:
-        return RTState(s.ng_rpm, s.np_rpm, s.p3_psia, s.p41_psia, s.p45_psia, wa31_pps)
+        return RTState(s.ng_rpm, s.np_rpm, s.p3_psia, s.p41_psia, s.p45_psia, carry)
 
     t41 = frame.t41_ns_degR
     return RTState(
@@ -439,7 +475,7 @@ def from_trim(result, wa31_pps: float, frame: Frame | None = None) -> RTState:
         s.p3_psia,
         s.p41_psia,
         s.p45_psia,
-        wa31_pps,
+        carry,
         t41,  # metal temperature: at equilibrium it sits at the gas temperature (48)
         t41,
         frame.w41_pps,

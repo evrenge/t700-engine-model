@@ -35,20 +35,24 @@ count across all eleven figures: **≈ 190 points**, of which ≈ 77 belong to F
 
 ## 1. Summary table — every functional relationship Appendix A supplies
 
+**Status column updated 2026-09-12.** It read **must-digitize** against all eleven
+relationships long after all eleven were digitized; `data/maps/` holds 183 points across 11
+files, and `tools/reproduce_all.sh` reproduces every one byte for byte.
+
 | Relationship | Model use (report equation) | Where in App. A | Status | Points to recover |
 |---|---|---|---|---|
 | 33 scalar engine constants | throughout | pdf p.55, Table A.1 | **transcribed** (below) | 33 values, done |
-| `f₁`: WA2c = f₁(PS3/P2, NGc) | compressor mass flow, Eq. 7 (p.22) | pdf p.56, Fig. A1 | **must-digitize** | 11 curves × ~6 pts + 11 flat extensions ≈ 77 |
-| `f₂`: T3 = T2·f₂(PS3/P2) | compressor temperature, Eq. 10 (p.22) | pdf p.57, Fig. A2 | **must-digitize** | ~20 |
-| `f₃`: B1 = f₃(NGc) | seal-pressurization bleed, Eq. 12 (p.23) | pdf p.58, Fig. A3 | **must-digitize** | ~17 |
-| `f₄`: B2 = f₄(WA2c) | power-turbine-balance bleed, Eq. 13 (p.23) | pdf p.59, Fig. A4 | **must-digitize** | 3 |
-| `f₅`: B3 = f₅(WA2c) | impeller-tip-leakage + turbine cooling bleed, Eq. 14 (p.23) | pdf p.60, Fig. A5 | **must-digitize** | 3 |
-| `f₆`: η = f₆(FAR) | combustor efficiency, Eq. 20 (p.23) | pdf p.61, Fig. A6 | **must-digitize** | 2 (a constant) |
-| `f₇`: ΔH_GT = θ₄₁·f₇(P45/P41) | gas-generator turbine energy, Eq. 26 (p.24) | pdf p.62, Fig. A7 | **must-digitize** | 6 |
-| `f₈`: ΔH_PT = θ₄₅·f₈(P49/P45) | power turbine energy, Eq. 32 (p.24) | pdf p.63, Fig. A8 | **must-digitize** | 12 |
-| `f₉`: W45c = f₉(Ps9/P45) | power turbine mass flow, Eq. 33 (p.24) | pdf p.64, Fig. A9 | **must-digitize** | ~23 |
-| `f₁₀`: P49 = Ps9·f₁₀(NGc) | exhaust pressure loss, Eq. 38 (p.24) | pdf p.65, Fig. A10 | **must-digitize** | ~20 |
-| `f_hs`: T41sgn = f_hs(NGc) | station 4.1 heat-sink constant, Eq. 52 (p.26) | pdf p.66, Fig. A11 | **must-digitize** | 6 |
+| `f₁`: WA2c = f₁(PS3/P2, NGc) | compressor mass flow, Eq. 7 (p.22) | pdf p.56, Fig. A1 | **digitized** | 11 curves × ~6 pts + 11 flat extensions ≈ 77 |
+| `f₂`: T3 = T2·f₂(PS3/P2) | compressor temperature, Eq. 10 (p.22) | pdf p.57, Fig. A2 | **digitized** | ~20 |
+| `f₃`: B1 = f₃(NGc) | seal-pressurization bleed, Eq. 12 (p.23) | pdf p.58, Fig. A3 | **digitized** | ~17 |
+| `f₄`: B2 = f₄(WA2c) | power-turbine-balance bleed, Eq. 13 (p.23) | pdf p.59, Fig. A4 | **digitized** | 3 |
+| `f₅`: B3 = f₅(WA2c) | impeller-tip-leakage + turbine cooling bleed, Eq. 14 (p.23) | pdf p.60, Fig. A5 | **digitized** | 3 |
+| `f₆`: η = f₆(FAR) | combustor efficiency, Eq. 20 (p.23) | pdf p.61, Fig. A6 | **digitized** | 2 (a constant) |
+| `f₇`: ΔH_GT = θ₄₁·f₇(P45/P41) | gas-generator turbine energy, Eq. 26 (p.24) | pdf p.62, Fig. A7 | **digitized** | 6 |
+| `f₈`: ΔH_PT = θ₄₅·f₈(P49/P45) | power turbine energy, Eq. 32 (p.24) | pdf p.63, Fig. A8 | **digitized** | 12 |
+| `f₉`: W45c = f₉(Ps9/P45) | power turbine mass flow, Eq. 33 (p.24) | pdf p.64, Fig. A9 | **digitized** | ~23 |
+| `f₁₀`: P49 = Ps9·f₁₀(NGc) | exhaust pressure loss, Eq. 38 (p.24) | pdf p.65, Fig. A10 | **digitized** | ~20 |
+| `f_hs`: T41sgn = f_hs(NGc) | station 4.1 heat-sink constant, Eq. 52 (p.26) | pdf p.66, Fig. A11 | **digitized** | 6 |
 
 `f_s` (Eq. 23, p.23 — `T41 = T41_ns · f_s(T41, T41_ns, W41, NGc)`) is **not** an Appendix A
 figure. It is the heat-sink transfer function, defined analytically in the body by
@@ -308,7 +312,7 @@ first tick label is 70. The y axis extends to -0.02 although no data goes below 
 
 **Parameter lines: 1.**
 
-**Markers:** ≈ 17 `×` markers. Shape: flat at ≈0.11 from 65 % to ≈78 %, a smooth shoulder,
+**Markers:** 13 `×` markers (this said "≈ 17"; the file carries 13). Shape: flat at ≈0.11 from 65 % to ≈78 %, a smooth shoulder,
 a steep near-linear fall between ≈83 % and ≈88 %, a knee, then flat at 0.00 from ≈89 % to
 100 %. Markers are concentrated in the 78–89 % transition; the two flat regions carry only
 their endpoints.

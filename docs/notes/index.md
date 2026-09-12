@@ -55,8 +55,9 @@ Figure 1 only — no numerical erratum. Recorded so nobody rediscovers it.
   three control-volume pressures. **Confirmed** — the vector is printed explicitly at [pdf p.27, below Eq. 54] and the
   modes are listed in Table 1 [pdf p.31].
 - **A 6th state, T41, exists** in the station-4.1 heat-sink variant; the 6-DOF state vector
-  {NG, NP, P3, P41, P45, T41} is printed explicitly [pdf p.32, below Eq. 65] and is the
-  only linear-model state vector written out anywhere in the report. The 3-DOF variant is
+  {NG, NP, P3, P41, P45, T41} is printed explicitly [pdf p.32, below Eq. 65]. **Two** linear
+  state vectors are written out in the report, not one -- the 5-DOF vector is displayed below
+  Eq. 54 on pdf p.27, as the bullet four lines above this one already says. The 3-DOF variant is
   {NG, NP, T41} — **inferred, not printed** (from the structure of G2 and d̄, pdf p.33).
 - **The Appendix B 2- and 3-DOF models are NOT order-reduced** from the 5- and 6-DOF
   ones. They are separately *extracted* from a quasi-steady nonlinear simulation
@@ -186,8 +187,11 @@ preference: it would diverge on the first frame.
 That is exactly why Eqs. 74-80 exist. Under the quasi-steady approximation the three
 pressures become **algebraic** and are solved each frame by the opened compressor loop plus
 the inner P3/P41 fixed-point sweep and the independent P45 iteration. What remains
-integrated is NG (tau = 18 ms) and NP (tau ~ 340 ms), both comfortably
-stable at 7 and 14 ms.
+integrated is NG and NP. Their modes run **437 / 470 / 738 ms** (NG) and **358 / 470 /
+602 ms** (NP) at the three Table B.1 trims, both comfortably stable at 7 and 14 ms. (This
+said "NG (tau = 18 ms)" until 2026-09-12. The 18 ms mode is a *pressure* mode: the 5-DOF
+eigenvalues at hover are 0.2, 0.4, 18.0, 358 and 437 ms, and the quasi-steady approximation
+removes the first three. The same wrong number was in `src/t700/realtime.py`.)
 
 It also explains the Conclusions' remark [pdf p.54] that omitting the high-speed
 inter-volume mass-flow dynamics "was found to be unnecessary": those dynamics are the two

@@ -73,15 +73,23 @@ nothing enters `data/` without it.
 
 ## Status
 
+**Updated 2026-09-12.** This table read "not started" against three of its four rows long
+after all three were finished; the dated sections below were the real record. Current state:
+
 | Figure | Quantity | Points | State |
 |---|---|---|---|
-| A2, pdf p.57 | `f2` compressor temperature | 20 | done, verified |
-| A1, A3–A11 | `f1`, `f3`–`f10`, `f_hs` | ~170 | not started |
-| C23–C30 | `F_EC1`, `F_HM1`–`F_HM7` | — | not started |
-| 6–10, pdf pp.40–46 | validation references | ~550 | not started |
+| A2, pdf p.57 | `f2` compressor temperature | 20 | **done, verified** |
+| A1, A3–A11 | `f1`, `f3`–`f10`, `f_hs` | 183 total in `data/maps/` | **done** — all eleven |
+| C23, C24–C29 | `F_EC1`, `F_HM1`–`F_HM6` | 77 | **done** — 7 of 8 |
+| **C30** | **`F_HM7`** | — | **not started** — open question #50 |
+| 6–10, pdf pp.40–46 | validation references | ~8110 | **done** — 31 traces |
 
-Figure A1 (11 crossing speed lines) and Figure C30 (7 curves bundling where markers
-overprint) are the two that will need per-curve ROIs and probably 600 dpi.
+Figure A1's 11 crossing speed lines were the hard case and are done (`tools/digitize_a1.py`).
+**Figure C30 is the one that remains**, and for the reason anticipated here: its seven curves
+bundle and cross around PCNGHL 88–92 %, so the rank-in-y curve assignment that worked for
+C23's four non-crossing curves fails — only 70 of 410 sampled columns resolve seven separate
+runs, and each curve's steep drop to WFPAC = 1 happens at its own speed, so a shared knot
+list cannot describe them. `tools/digitize_appc_multi.py` carries that measurement.
 
 ### Update — A3, A4, A5, A6, A11 done (2026-09-10)
 
@@ -1235,8 +1243,12 @@ the straight-edge homography as well.
 
 ## Attempted 2026-09-11: porting A3, A4, A5 and A11 to the `digitize_a6810` machinery
 
-`f3`, `f4`, `f5` and `f_hs` are still the 2026-09-10 extraction by the generic
-`tools/digitize.py` (300 dpi render, `rectify_page` homography, least-squares tick fit)
+**Outcome: done. All four now carry `# digitized: 2026-09-11 by tools/digitize_a6810.py`,
+so the premise of this section — and of `audit-2026-09-11.md`'s "four older maps" argument —
+no longer holds. Read what follows as the reasoning that led to the port, not as current
+state.** At the time of writing, `f3`, `f4`, `f5` and `f_hs` were the 2026-09-10 extraction
+by the generic `tools/digitize.py` (300 dpi render, `rectify_page` homography,
+least-squares tick fit)
 while the other seven maps were redone the next day on the native bitmap with frame arcs,
 held-out frame calibration and leave-one-tick-out order selection. The four were measured
 first and found to be worth at most 0.21 % on any NG trim and 0.37 % on `tau1/tau2` per
@@ -1289,9 +1301,11 @@ the inventory records the *labelled* majors without saying whether unlabelled ma
 between them, which is exactly what the config needs.
 
 **Next attempt should start by rendering each page and reading its tick lattice
-directly**, the way `digitize_a7.py`'s header shows was done for A7. Until then the
-existing extraction stands: it is sound, its uncertainty is stated, and the measured
-effect of any plausible revision is below 0.05 % on every result in this repository.
+directly**, the way `digitize_a7.py`'s header shows was done for A7. **That was done, and
+all four are now on the `digitize_a6810` machinery** — the sentence that stood here, "until
+then the existing extraction stands", is satisfied rather than pending. The measured effect
+was as predicted: below 0.05 % on every result in this repository, and `f_hs`'s plateau
+moved 7.49719 -> 7.48482.
 
 ## Appendix C scheduling functions — state as of 2026-09-11
 

@@ -13,10 +13,15 @@ dependencies = ["numpy>=2.0"]
 
 [project.optional-dependencies]
 # Digitizing, plotting, and validation analysis. NEVER imported from src/t700/.
-tools = ["matplotlib>=3.8", "scipy>=1.11", "control>=0.10"]
-# control: linear-systems analysis for the Appendix B validation line -- state-space
-# objects, eigenvalues, step responses, comparing our extracted A/B matrices against
-# the report's published ones. Analysis only; never imported from src/t700/.
+tools = ["matplotlib>=3.8", "scipy>=1.11", "pillow>=10.0"]
+# pillow: every digitizer reads the page rasters through PIL.Image. It was undeclared
+# until 2026-09-12, so `pip install -e '.[tools,dev]'` produced a tree that could not run
+# a single digitizer -- the one install line the README gives.
+#
+# `control>=0.10` was declared here with a paragraph about the Appendix B validation line
+# and imported by nothing (`grep -rn "import control"` -> no hits). The Appendix B
+# comparison is element-wise against printed matrices and needs only NumPy, so the
+# dependency was removed rather than kept against a future that did not arrive.
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [tool.setuptools.packages.find]

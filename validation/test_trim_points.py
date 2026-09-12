@@ -335,12 +335,14 @@ def test_the_printed_station_state_matches(case: TrimCase):
     used three quantities per condition (speed, shaft power, shaft torque) while Table
     B.1 prints eight, and the five unused ones are exactly the ones the transient work
     needed: open question #47 spent a long time asking whether our Ps3 was right at low
-    power, comparing it against a digitized Figure 10 trace that sits 3 to 6 % from the
-    report's own Figure 8 -- while a printed Ps3 sat in Table B.1 the whole time.
+    power, comparing a digitized Figure 10 *transient* against the report's steady-state
+    Figure 8 -- an invalid comparison, since a chop must run below the equilibrium locus
+    (open question #53 records the retraction) -- while a printed Ps3 sat in Table B.1 the
+    whole time.
 
     It is also the anchor that settled the f1 interpolation question. Scored on all
     twenty-one printed numbers, the shipped constant-pressure-ratio blend gives an rms
-    deviation of 0.211 % against 0.244 % for interpolation along Figure A1's own beta
+    deviation of 0.202 % against 0.244 % for interpolation along Figure A1's own beta
     lines -- so the structurally tidier construction is measurably worse here, and is not
     shipped. See open question #52.
     """

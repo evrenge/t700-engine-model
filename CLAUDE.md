@@ -31,8 +31,9 @@ with `distrobox enter t700-dev --`.
 | Compare model against the report | `/validate` |
 | Prove every digitized file is current | `bash tools/reproduce_all.sh` |
 
-Pre-rendered page images already exist for pp.8-15 and pp.55-101 as
-`docs/extracted/p-0NN.png`.
+Pre-rendered page images already exist for **every page from 8 to 101** (94 files) as
+`docs/extracted/p-0NN.png`. Render anything outside that range with the `pdftoppm` line
+above.
 
 ## The provenance rule
 
@@ -160,7 +161,7 @@ in a long session, so mechanize any that proves to matter.
 | Gas properties only via `t700.thermo` | **live** — `tests/test_imports.py` fails any module outside `thermo/` that names a `K_H*`/`K_T*`/`K_TH*` constant |
 | Core is deterministic | **live** — `tests/test_imports.py` bans clocks and RNGs structurally; `tests/test_determinism.py` checks it behaviourally |
 | No force-push | `permissions.ask`. A plain `git push` was denied outright until 2026-09-11, when the remote was created and publishing was authorized; force-push still prompts |
-| Never hand-edit a generated data file | **live** — `bash tools/reproduce_all.sh` reruns every digitizer and diffs; a hand-added note is silently wiped by the next rerun, which happened once to the Figure 9 defect annotations. Put it in the tool. |
+| Never hand-edit a generated data file | **live** — `bash tools/reproduce_all.sh` reruns every digitizer and diffs; a hand-added note is silently wiped by the next rerun, which happened once to the Figure 9 defect annotations. Put it in the tool. **Run it inside the container**, and read its verdict, not its exit alone: until 2026-09-12 it computed the verdict from `git status data/` only, so run from the host — no NumPy — every digitizer crashed on import, `data/` stayed clean *because nothing had written to it*, and a total failure to execute printed "every data file reproduces byte for byte". It now refuses to run on an interpreter without NumPy and a failed tool poisons the verdict. A gate that cannot fail is not a gate. |
 | Python stays formatted and linted | PostToolUse hook: `ruff check --fix` then `ruff format` |
 
 Those tests are written and passing as of 2026-09-10, so three rules that were wishes

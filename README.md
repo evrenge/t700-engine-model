@@ -18,16 +18,20 @@ public domain). Everything here is derived from it.
 
 | | |
 |---|---|
-| **Table B.1's full printed state** | **rms 0.21 % over 21 numbers** — Ps3 0.31 %, P41 0.30 %, P45 0.25 %, T45 0.16 %, NG 0.13 %, T41 0.08 %, shp 0.77 % |
+| **Table B.1's full printed state** | **rms 0.20 % over 21 numbers** — worst shp 0.72 %, then Ps3 0.31 %, P41 0.30 %, P45 0.25 %, T45 0.16 %, NG 0.13 %, T41 0.08 % |
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
-| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.1-7.5 % of each panel's excursion, mean 3.8 %** |
-| Appendix B, 297 printed elements | zero structure exact; P3/P41 block <1.5 %; `b` 0.1 % |
-| Tests | 793 passing, with lint and formatting clean |
+| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.0–7.6 % of each panel's excursion, mean 3.8 %** over nine panels |
+| Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
+| Tests | 795 passing, 3 skipped, lint and formatting clean |
 
-Phases 0–4 of `SCOPE.md` are complete: the report is ingested, the data captured, and the
-engine trims and runs transients in **either of the two configurations Ballin published**
-— with or without the station 4.1 heat-sink model. The fuel control system (Phase 5) is
-not built.
+Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
+captured, and the engine trims and runs transients in **either of the two configurations
+Ballin published** — with or without the station 4.1 heat-sink model.
+
+**The fuel control system (Phase 5) is not built**, but its data nearly is: 73 of Appendix
+C's constants are transcribed and **7 of its 8 scheduling functions are digitized** under
+`data/schedules/`. What remains is Figure C30 (`F_HM7`, whose seven curves cross — open
+question #50) and the 22 block diagrams, which are the bulk of the phase.
 
 ## What is actually in here
 
@@ -37,12 +41,21 @@ src/t700/        the model. NumPy and the standard library, nothing else
   realtime.py    the real-time frame, Eqs. 69-80 -- the model Ballin ran
   trim.py        equilibrium solver with continuation
   maps.py        the eleven function tables, loaded and interpolated
+  linear.py      the Jacobian, extracted by the report's own method
+  appendix_b.py  the published linear models, for element-by-element comparison
+  constants.py   Table A.1, every value cited to a page
+  corrections.py theta, delta, corrected speed and flow
+  units.py       the report's US customary units; nothing converts inline
+  control/       Appendix C's 73 constants. The control system itself is Phase 5
   thermo/        gas properties behind one interface
 data/maps/       11 component maps, digitized from printed figures
+data/schedules/  7 of Appendix C's 8 scheduling functions (C30 remains)
+data/linear/     the 297 printed Appendix B matrix elements
 data/reference/  transient and sweep traces to validate against
 tools/           the digitizers; each reproduces its CSV byte for byte
-docs/notes/      ~6,000 lines: equations, symbols, inventories, open questions
+tests/           fast unit tests, and the architecture rules as executable checks
 validation/      comparisons against the report, and the figure set
+docs/notes/      ~6,900 lines: equations, symbols, inventories, open questions
 ```
 
 ## The rules this was built under
@@ -58,9 +71,10 @@ A model that runs on invented numbers is worse than one that does not run, becau
 looks like it works.
 
 A second rule did most of the day-to-day work: **never tune a constant to make a
-comparison pass.** Shaft power went from −0.75 % to −0.05 % over five rounds of
-recalibration and not one data value was adjusted to fit. What was wrong every time was
-our own pixels-to-numbers map, not the report's data.
+comparison pass.** Successive rounds of recalibration took shaft power at the hover and
+level trims to −0.05 %, and not one data value was adjusted to fit; what was wrong every
+time was our own pixels-to-numbers map, not the report's data. (The descent trim still
+sits at −0.72 %, and that is the honest headline number — see the table above.)
 
 ## Two models, not one
 
@@ -76,7 +90,7 @@ linear results and leaves it to inference for the transients:
 
 Eq. 50 has unit DC gain, so the switch cannot move a trim. Every steady-state result here
 is valid in both configurations at once, and that is measured rather than argued: the two
-agree to ~1e-15 relative. `docs/notes/heat-sink-configuration.md` carries the evidence.
+agree to better than 1e-12 relative, against a 1e-9 test bound. `docs/notes/heat-sink-configuration.md` carries the evidence.
 
 All five of his linear models extract from one call — `extract(trim, wf, dof="6dof")` —
 and comparing them element by element against Appendix B rather than by eigenvalue turned
@@ -90,22 +104,28 @@ to lag ratio. What it also showed is that our remaining derivative error is not 
 Reading a 1988 scan carefully turns up genuine defects. They are reproduced as printed and
 recorded, never silently corrected:
 
-- **Figure A3's `0.11` axis label** is misplaced by 19.5 px — a 6σ outlier against every
-  other label on the page. The bleed plateau is 0.1090, not 0.110.
+- **Figure A3's `0.11` axis label** is misplaced by 17.0 px, where every other label on the
+  page sits within 5 px. The bleed plateau is 0.1091, not 0.110.
 - **`TC_T41`'s units** are printed `sec^(9/5)` in two places; Eq. 51 requires `sec^(1/5)`.
 - **Figure A10's axis label is inverted** relative to its own values.
-- **Eq. 74 contradicts its own prose.** Settled by experiment rather than argument:
-  refining the time step, the prose reading converges first-order and the printed reading
-  converges to nothing.
+- **Eq. 29 does not conserve energy**, by construction and by the report's own words: the
+  station 4.5 mixed enthalpy is "proportional to" the station 4.4 value, `H45 = K_H45·H44`
+  with `K_H45 = 0.9623`, a single multiplicative fraction rather than a mass-weighted mix.
+  Reproduced as printed.
 
-And three that looked like report defects and were **ours**: a torque threshold that seemed
+And four that looked like report defects and were **ours**: a torque threshold that seemed
 absurd until we noticed we had read rotor-hub torque as engine torque; an exhaust pressure
-ratio we nearly inverted; and a 3–6 % "inconsistency" between Figures 8 and 10 that came
+ratio we nearly inverted; **Eq. 74 "contradicting its own prose"**, which was a carry bug in
+our own alternative branch — it held `WA31` where Eq. 74 holds `WA3_bl`, making the
+recurrence an involution that oscillated instead of converging. With the bleed carried, both
+readings converge first-order to the same limit and differ by at most 0.11 % on NG across a
+whole fuel step at the report's own 7 ms frame, which is inside the 0.1 %-per-frame criterion
+the report works to. And a 3–6 % "inconsistency" between Figures 8 and 10 that came
 from comparing a decelerating engine against an equilibrium locus. A chop *must* run below
 that locus — fuel is cut, T41 falls, and the choked station 4.1 nozzle then passes the same
-flow at a lower P41. Ballin's own Figure 10 sits 2.3–7.0 % below his own Figure 8, and his
-Figure 9 accel sits up to +3.9 % above it. Both signs are required, and he ties the two
-figures together himself on pdf p.39.
+flow at a lower P41. Over its full record Ballin's own Figure 10 runs **−1.68 % to −8.73 %**
+against his own Figure 8, and his Figure 9 accel runs **−1.43 % to +7.35 %**. Both signs are
+required, and he ties the two figures together himself on pdf p.39.
 
 ## Known gaps
 
@@ -118,30 +138,44 @@ figures together himself on pdf p.39.
   swings 0.62 → 0.67 within a few frames, and the stale memory amplified the excursion.
   Integrating the metal temperature instead — Eqs. 48–49 as printed — has no such artifact,
   and is identical whenever the coefficients are constant, so Appendix B, Table 1 and every
-  trim are untouched. Whole-curve RMS, mean over nine panels: **9.8 % → 3.6 %**; worst panel
-  15.8 % → 7.0 %; the Figure 9 T41 overshoot 1.67× Ballin's → **0.87×**.
+  trim are untouched. Whole-curve RMS, mean over nine panels: **9.8 % → 3.8 %**; worst panel
+  15.8 % → 7.6 %; the Figure 9 T41 overshoot 1.67× Ballin's → **0.87×**.
 - **What looked like the report disagreeing with itself at 775 lbm/hr was an unsettled
   transient, and we match both sides of it.** Figure 6 gives 99.69 %NG against Figure 9's
   98.88, Figure 8 gives Ps3 244.2 against 235.3, Figure 7 gives 1724.8 shp against 1648.2 —
-  spreads of 0.82, 3.77 and 4.64 %. But **Ballin's Figure 9 trace is still climbing at
-  +0.142 %NG/s when its record ends** at t = 4.46 s, so the two figures never described the
-  same instant. Our own model reproduces 51 / 39 / 62 % of each spread purely as settling,
-  and matches the sweep to −0.26 / −1.92 / −0.91 % *and* the transient to +0.15 / +0.30 /
-  +0.81 % at the same time — which a real contradiction would forbid.
-- **The transient error is localised to the torque balance, and the torque balance is at the
-  noise floor.** Comparing Ps3 against NG instead of against time discards the unprinted step
-  time and the rate, leaving the thermodynamic path through the state space: **ours matches
-  Ballin's to 0.59 % on Figure 9 and to 1.07 % over 78–90 %NG on Figure 10**, and the
-  off-equilibrium excursion tracks in sign and shape. So nothing is left in the compressor
-  map, the pressure solution, the mass balance, or the heat sink. `dNG/dt` at matched NG then
-  agrees to 3.3 % over 82–88 %NG and falls to 0.75× at 76 % — where the net torque is
-  **7.5 % of the turbine torque it is the difference of**, so 1 % on either term moves the
-  rate by 13.3 %. The 25 % rate deficit is ~1.9 % on a torque, under the read error below.
-- **These figures' read error is measured, not estimated.** Figures 9–10 carry one panel whose
-  true value is printed — `WFPH` is the input and the caption states both levels — so
-  digitizing it measures the error directly: **+1.83 % and +1.67 % at the 400 lbm/hr level**,
-  0.26 and 0.38 % at the far levels. Deviations under ~1.8 % against these figures are under
-  the reference's own error and are not chased.
+  spreads of 0.82, 3.77 and 4.64 %. But **Ballin's Figure 9 trace is still climbing when its
+  record ends** at t = 4.46 s — at +0.24 to +0.28 %NG/s measured over its last 1.5–3 s — so
+  the two figures never described the same instant. (The trace is quantised at 0.030 %NG per
+  pixel row, so the *instantaneous* end slope is not resolved; an earlier "+0.142 %NG/s" was
+  one fit window's answer.) Our own model reproduces 51 / 39 / 62 % of each spread purely as
+  settling, and matches the sweep to −0.26 / −1.92 / −0.91 % *and* the transient to +0.15 /
+  +0.30 / +0.81 % at the same time — which a real contradiction would forbid.
+- **The state trajectory is right; what is left is the rate along it.** Comparing Ps3 against
+  NG instead of against time discards the unprinted step time, leaving the thermodynamic path
+  through the state space. On **Figure 10** ours matches Ballin's to **1.07 % over 78–90 %NG
+  against a 7.24 % chord baseline** — the chord being the straight line between the two
+  endpoint trims, which the steady-state tests already pin, so being 6.8× closer than it is
+  real shape information. Figure 10's agreement also *improves* as the frame shrinks
+  (1.25 / 1.07 / 0.94 / 0.86 % at dt = 10 / 7 / 5 / 3.5 ms). `dNG/dt` at matched NG runs
+  0.75× Ballin's at 76 %NG and approaches 1 by 88 %, and at 76 % the net torque is **7.5 % of
+  the turbine torque it is the difference of**, so 1 % on either term moves the rate 13.3 %.
+  **Three things this does not show**, all measured rather than conceded: Figure 9's panel is
+  nearly vacuous (his Ps3(NG) there is a straight line to R² = 0.9994, chord error 0.30 %, so
+  its 0.59 % agreement adds almost nothing to the endpoint trims); the metric is *blind* to
+  the volume constants (±30 % on `K_V3`/`K_V41` is bit-identical, since the real-time
+  formulation solves the pressures algebraically); and it cannot exonerate the inertia — ±20 %
+  on `J_GT` moves it by about as much as the residual itself.
+- **These figures' read error is measured, not estimated — in percent of full scale.** Figures
+  9–10 carry one panel whose true value is printed (`WFPH` is the input and the caption states
+  both levels), so digitizing it measures the error directly: **+0.97 % and +1.34 % of full
+  scale**. The currency matters more than the number. The digitizer maps pixel rows to values
+  by a straight line between the frame rows, so the error is a *pixel offset*; the same offset
+  reads +1.83 % of value at 400 on a 250–1000 axis and **+0.21 % on the 80–100 PCNG axis**.
+  This README briefly carried the 1.83 % as a universal floor, which is nine times too
+  permissive on PCNG — the channel most transient agreements are quoted on. The evidence for
+  the pixel model is a prediction: the two figures read the same 400 lbm/hr trim on
+  different spans, and calibrating on WFPH alone predicts their PCNG disagreement as
+  **+0.340 %NG against a measured +0.340**.
 - **Seven hypotheses were tested and eliminated on the way there**, and the list is worth
   keeping because each cost real work: the heat-sink time constants (a lead-lag with unit DC
   gain cannot create an overshoot, and Eqs. 50–53 were all re-read off the raster); the volume
@@ -152,8 +186,8 @@ figures together himself on pdf p.39.
 - **Two fixes, both replacing an invention with something printed.** The pressure iterations ran
   to `tol=1e-10` where the report states 0.1 percent in ten and eight passes (pdf p.37); and the
   heat sink is now Eqs. 48–49 rather than the collapsed Eq. 50. Neither was aimed at a figure.
-- **A false equilibrium below flight idle.** Run the Figure 10 chop past ~25 s — twenty times
-  the 4.5 s of record — and the frame settles at 75.7 %NG where the differential model trims at
+- **A false equilibrium below flight idle.** Run the Figure 10 chop far past its 4.5 s of
+  record — the test integrates 120 s — and the frame settles at 75.7 %NG where the differential model trims at
   67.0 %. It is the P45 *tolerance*: 1e-6 reaches the right root, the printed 1e-3 does not,
   because at 125 lbm/hr `f9` is extrapolated 136,704 times in a 200 s run and a loose tolerance
   on a flat iteration function invites a false fixed point. The printed criterion is kept —
@@ -165,7 +199,19 @@ figures together himself on pdf p.39.
   simulation, which this report consumes and does not contain. That was Ballin's boundary
   too.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **49 logged, 33 closed, 5 partly closed, 11 open**. **Nine of the eleven are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining three, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and three are work we have not done: linearizing the discrete real-time map, Figure C30's seven crossing curves, and cleaning the off-curve samples out of the Figure 9/10 traces so transient *shape* can be compared at all.
+Open questions are tracked in `docs/notes/open-questions.md` — **49 logged, 33 closed, 5 partly
+closed, 11 open**.
+
+**Seven of the eleven are things the report simply does not print**, and no amount of work
+closes them: the initialization rule for the opened iteration (#23), the integration algorithm
+(#26), the relaxation parameter and Lipschitz constant (#27), the 10 ms against 14 ms conflict
+(#33), the power turbine speed behind Figures 6–8 (#35) and behind Figures 9–10 (#36), and the
+fuel-step time (#37).
+
+The other four are work, not gaps in the source: **#45** the model running outside its own
+digitized envelope on the 775 lbm/hr step; **#46** the Table B.1 against Figure 7 low-power
+disagreement; **#49** linearizing the discrete real-time map; **#50** Figure C30's seven
+crossing curves, which Phase 5 needs.
 
 ## Running it
 

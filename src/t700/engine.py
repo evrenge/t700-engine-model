@@ -168,7 +168,8 @@ def frame(
             comes from the Gen Hel UH-60A simulation, which this report consumes and does
             not contain.
         j_load: load inertia added to J_PT [Eq. 46]. External to the report; recovered
-            from Appendix B as `constants.J_LOAD_UH60A` (open question #6, closed).
+            from Appendix B as `constants.J_LOAD_UH60A` (open question #6, **partly**
+            closed -- `J_load` is recovered, `dQreq/dNP` is still external).
         t41_degR: drive T41 instead of computing it from T41_ns. `None` -- the default --
             is Eq. 23's `T41 = T41_ns`, the 5-DOF configuration. Supplying it makes T41 an
             independent input, which is how the heat-sink (3-/6-DOF) linear models are

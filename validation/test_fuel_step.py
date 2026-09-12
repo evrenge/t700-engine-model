@@ -27,7 +27,7 @@ and settled state respond to it.
 They compare the **initial trim** and the **settled final state** on each panel. They do
 not yet compare the shape of the transition, which needs the traces resampled onto a
 common time base and a decision about how to treat the step-time uncertainty (the step
-time is not printed; ours measures 0.539 s and 0.545 s -- open question #17).
+time is not printed; ours measures 0.539 s and 0.545 s -- open question #37).
 
 Tolerances here are **ours**. The report states no percentage tolerance for any transient
 quantity; its only numeric transient claim is a 1-2 % NG overestimate on the open-loop

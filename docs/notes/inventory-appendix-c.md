@@ -377,7 +377,7 @@ the marker. Digitizing these is therefore breakpoint extraction, not curve traci
 |---|---|---|---|---|---|---|---|---|
 | C23 | 94 | F_EC1 — ECU thermocouple sensor time constant | POWER TURBINE FLOW PARAMETER, W45R — 0 to 16, nondimensional | SENSOR TIME CONSTANT, TAU45, sec — 1 to 6 | 4, parameter T45L = 1260.0 / 1660.0 / 2060.0 / 2460.0 deg R | digits 1–4 at each knot; ~5 knots per curve (W45R ≈ 1, 2.5, 6.5, 10, 15) | good; curves 2/3/4 converge near W45R = 15 | **easy–medium** (converging tail) |
 | C24 | 95 | F_HM1 — HMU topping line schedule | INLET TEMPERATURE, T2, deg R — 390 to 640 | FUEL FLOW TOPPING LINE PARAMETER, WFPTP — −0.50 to 4.00 | 1 | `×`, 9 knots | excellent | **easy** |
-| C25 | 96 | F_HM2 — HMU power-available input schedule | POWER AVAILABLE SPINDLE ANGLE, deg — 20 to 120 | FUEL FLOW POWER-AVAILABLE PARAMETER, WFPRF — −2 to 12 | 1, monotonically decreasing | `×`, 13 knots | excellent | **easy** |
+| C25 | 96 | F_HM2 — HMU power-available input schedule | POWER AVAILABLE SPINDLE ANGLE, deg — 20 to 120 | FUEL FLOW POWER-AVAILABLE PARAMETER, WFPRF — −2 to 12 | 1, monotonically decreasing | `×`, **11** knots (this row said 13 until 2026-09-12; `data/schedules/fhm2_power_available.csv` carries 11) | excellent | **easy** |
 | C26 | 97 | F_HM3 — HMU load-demand-compensation schedule function 1 | LOAD DEMAND SPINDLE ANGLE, XLDSA, deg — 0 to 100 | GAS GENERATOR SPEED DEMAND PARAMETER, PNG — 75.0 to 112.5 | 1, rising then flat above 80° | `×`, 11 knots at XLDSA = 0,10,…,100 | excellent | **easy** |
 | C27 | 98 | F_HM4 — HMU load-demand-compensation schedule function 2 | LOAD DEMAND SPINDLE ANGLE, XLDSA, deg — 0 to 100 | FUEL FLOW DELTA DEMAND PARAMETER, WFQPS3 — 2.1 to 3.7 | 1, rising then flat above 80° | `×`, 11 knots at XLDSA = 0,10,…,100 | excellent | **easy** |
 | C28 | 99 | F_HM5 — HMU idle-schedule function 1 | INLET TEMPERATURE, T2, deg R — 390 to 640 | FUEL FLOW IDLE SCHEDULE LIMIT PARAMETER, WFIRF — 2.05 to 2.65 | 1, monotone rising | `×`, 13 knots | excellent | **easy** |
@@ -458,7 +458,7 @@ appended to `open-questions.md`:
    or above idle. With KNDRP = 0.25 and WFIRF ≈ 2.05–2.65, WFIDM turns positive once sensed
    NG droops `WFIRF/KNDRP` ≈ 8.2–10.6 percentage points below the idle reference, and
    outbids a 1.5–4 demand at ≈ 14–27 points below. That is deep sub-idle — and the report
-   [pdf p.44] explicitly eliminates *"fuel control below flight-idle power"*. The floor is
+   [pdf p.38] explicitly eliminates *"fuel control below flight-idle power"*. The floor is
    inactive in every modelled condition **because the model stops above its regime**, not
    because of a sign error. Implement as printed.
 2. **CR / TRQL units (Fig. C3, p.86) — RESOLVED, see open-questions.md #11.** TRQL is
@@ -487,4 +487,4 @@ appended to `open-questions.md`:
 6. **The unlabelled saturation in Fig. C9** — read as `max(·, 0)` from the icon; it carries
    no limit labels at all, unlike every other saturation in the appendix.
 7. **No breakpoint tables for F_EC1 and F_HM1…F_HM7.** The eight schedule functions exist
-   only as Figs. C23–C30 and must be digitized before any of the fuel control can run.
+   only as Figs. C23–C30 and must be digitized before any of the fuel control can run — **7 of the 8 now are; only Fig. C30 (`F_HM7`) remains, open question #50**.
