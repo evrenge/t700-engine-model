@@ -116,7 +116,7 @@ pressure ratio we nearly inverted.
   simulation, which this report consumes and does not contain. That was Ballin's boundary
   too.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **46 logged, 29 closed, 4 partly closed, 13 open**. **Nine of the thirteen are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining four, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and two are work we have not done: linearizing the discrete real-time map, and Figure C30's seven crossing curves.
+Open questions are tracked in `docs/notes/open-questions.md` — **47 logged, 29 closed, 4 partly closed, 14 open**. **Nine of the fourteen are things the report simply does not print**: the initialization rule for the opened iteration, what the 0.1 % time-step criterion is measured on, the iteration counts, the integration algorithm, the relaxation parameter, the 10 ms against 14 ms conflict, and the power turbine speed and step time behind Figures 6-10. Those cannot be closed by working harder. Of the remaining five, one waits on Phase 5, one records a contradiction between two of the report's own datasets, and three are work we have not done: linearizing the discrete real-time map, Figure C30's seven crossing curves, and cleaning the off-curve samples out of the Figure 9/10 traces so transient *shape* can be compared at all.
 
 ## Running it
 

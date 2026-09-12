@@ -129,3 +129,22 @@ def test_gas_properties_only_inside_thermo(path: Path):
         f"t700.thermo instead -- see CLAUDE.md, 'All gas property evaluation goes "
         f"through t700.thermo'."
     )
+
+
+def test_core_never_reads_the_reference_data():
+    """`src/t700/` must not consume anything under `data/reference/`.
+
+    That directory holds the traces we validate *against* -- Ballin's published curves and
+    the two GE models he himself was checking. A model that read its own validation data
+    would not be a model. The GE series in particular is a different engine model, and
+    agreeing with it is not evidence of anything; see `validation/test_ge_reference.py`.
+
+    This is the mechanism behind the 2026-09-12 audit recorded in that file.
+    """
+    for path in core_modules():
+        source = path.read_text()
+        for needle in ("data/reference", "reference/fig", '"reference"', "'reference'"):
+            assert needle not in source, (
+                f"{path.name} names {needle!r}. The model core must not read validation "
+                f"data; comparisons live in validation/."
+            )

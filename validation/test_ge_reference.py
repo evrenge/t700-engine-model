@@ -1,25 +1,38 @@
 """Ours, Ballin's model, and the two GE models he validated against [Figs. 6-8].
 
-Every deviation in this project has been quoted against Ballin without a scale. Figures 6,
-7 and 8 each plot **three** series: Ballin's real-time model and two General Electric
-models -- the status-81 performance standard and an unbalanced-torque variant. Comparing
-all three answers the question that gives the others meaning: **how far was Ballin himself
-from the standard he was validating against?**
+**The target is Ballin, and only Ballin.** Closeness to GE is not evidence that we are
+right, and this file must not be read as claiming otherwise. We are replicating one
+model; agreeing with a different model of the same engine is at best a coincidence and
+at worst a symptom -- if our numbers ever sat closer to GE than to Ballin, the first
+thing to suspect would be that we had imported something from the wrong source.
 
-The answer is that he was further from GE than we are from him. His mean distance from GE
-status-81 runs 0.45-1.97 % with worst cases to 8.5 %, and from the unbalanced-torque model
-1.4-5.3 % with worst cases to 17 %. Ours from Ballin is 0.43-1.51 % mean.
+Audited 2026-09-12, because that suspicion deserves a check rather than a disclaimer:
+**no number in the model derives from the GE or NASA-Lewis series.** The GE traces exist
+only under `data/reference/`, nothing in `src/t700/` reads that directory at all
+(`tests/test_imports.py` now enforces it), and every transient assertion in
+`test_fuel_step.py` targets `fig??_*_model.csv` -- Ballin's own curve -- never
+`*_reference.csv`. The GE series has never touched a model value.
 
-## The result that matters most
+## What the GE series legitimately provides: a scale, not a verdict
 
-On Figure 6, **we are closer to GE than Ballin is**: -0.08 %NG mean against his +0.89 %NG.
-That reframes the -1.38 %NG "disagreement" recorded in open question #46 -- it exists
-because Ballin's Figure 6 curve sits about 0.9 %NG above GE while we sit on it. Since we
-also match Table B.1 to 0.13 %, the reading is that **Table B.1 and GE agree, and Figure 6
-is the outlier of the three**, rather than that we drift.
+Every deviation in this project is quoted against Ballin without any sense of how large a
+deviation is normal between two careful models of the same engine. Figures 6, 7 and 8
+each plot **three** series: Ballin's real-time model and two General Electric models --
+the status-81 performance standard and an unbalanced-torque variant. Measuring all three
+pairs gives that scale: Ballin's own mean distance from GE status-81 runs 0.45-1.97 %
+with worst cases to 8.5 %, and from the unbalanced-torque model 1.4-5.3 % with worst
+cases to 17 %. Ours from Ballin is 0.43-1.51 % mean.
 
-This does not make Figure 6 wrong; it makes it a third source with its own offset, and it
-removes the presumption that any gap to it is our error.
+That is a ruler, not a grade. It says a 1 % steady-state spread is ordinary among models
+of this engine; it says nothing about whether our 1 % is in the right place.
+
+## Where it does bear on a question: #46
+
+On Figure 6 we sit -0.08 %NG from GE where Ballin sits +0.89 %NG. The useful content is
+not "we are closer" but that **Figure 6 carries an offset of its own**, which is exactly
+the disagreement open question #46 records between Table B.1 and Figure 6. Three sources,
+and Table B.1 and GE fall together. That removes the presumption that the gap to Figure 6
+is automatically our error -- it does not turn the gap into a credential.
 """
 
 from __future__ import annotations
