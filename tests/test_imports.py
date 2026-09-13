@@ -130,23 +130,53 @@ def dotted_imports(path: Path) -> set[str]:
     return out
 
 
-def dotted_attributes(path: Path) -> set[tuple[str, str]]:
-    """Every `<name>.<attr>` in one module, as pairs.
+def import_aliases(path: Path) -> dict[str, str]:
+    """Local name -> the module it actually names.
 
-    Deliberately shallow: it matches on the *spelling*, so `np.random.default_rng()` is
-    caught as `("np", "random")` whatever follows.
-
-    This docstring said an alias -- `from numpy import random` -- "is caught by the import
-    walk instead, since `numpy.random` is not `numpy`". That was false: `top_level_imports`
-    does `node.module.split(".")[0]`, which is exactly `"numpy"`, and `"numpy"` is the one
-    allowed third-party package. `FORBIDDEN_MODULES` and
-    `test_core_does_not_import_a_forbidden_module_under_any_spelling` close it properly.
+    `import numpy as _np` gives `{"_np": "numpy"}`; `import os` gives `{"os": "os"}`;
+    `import numpy.random as r` gives `{"r": "numpy.random"}`. Used to resolve an attribute
+    access back to the module it reaches, whatever the module was renamed to locally.
     """
     tree = ast.parse(path.read_text(), filename=str(path))
+    out: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                out[alias.asname or alias.name.split(".")[0]] = alias.name
+    return out
+
+
+def dotted_attributes(path: Path) -> set[tuple[str, str]]:
+    """Every `<name>.<attr>` in one module, as pairs -- with import aliases resolved.
+
+    It matches on the spelling *after* resolving the local name through the module's own
+    imports, so `np.random.default_rng()`, `numpy.random.default_rng()` and
+    `import numpy as _np; _np.random.default_rng()` all come back as `("np", "random")`.
+
+    **The alias resolution is the fix for a real hole.** Until 2026-09-14 this walker was
+    "deliberately shallow: it matches on the *spelling*", and a two-line rename defeated it
+    -- `import numpy as _np` then `_np.random.default_rng()` passed the whole import suite.
+    CLAUDE.md claimed `FORBIDDEN_ATTRIBUTES` closed "the other dotted routes"; it closed the
+    `np.`-spelled one. Determinism survived only because `tests/test_determinism.py` catches
+    anything that reaches output -- an RNG that merely logged would have slipped both
+    layers. Found by the 2026-09-14 docs-and-ledger audit, which broke the rule to check it.
+
+    Both spellings are emitted, not just the canonical one, because `FORBIDDEN_ATTRIBUTES`
+    is keyed by the conventional local name (`np`, `os`) and a module may also reach a
+    forbidden attribute through a name it never imported.
+    """
+    tree = ast.parse(path.read_text(), filename=str(path))
+    aliases = import_aliases(path)
+    canonical = {"numpy": "np"}
     out: set[tuple[str, str]] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-            out.add((node.value.id, node.attr))
+            name = node.value.id
+            out.add((name, node.attr))
+            module = aliases.get(name)
+            if module:
+                out.add((module, node.attr))
+                out.add((canonical.get(module, module.split(".")[0]), node.attr))
     return out
 
 
@@ -256,6 +286,11 @@ DECOYS = [
     ("from scipy import ndimage\n", "top_level_imports", "scipy"),
     ("def f():\n    import matplotlib\n", "top_level_imports", "matplotlib"),
     ("import numpy as np\nrng = np.random.default_rng()\n", "dotted", ("np", "random")),
+    # the alias routes that defeated this walker until 2026-09-14
+    ("import numpy as _np\nrng = _np.random.default_rng()\n", "dotted", ("np", "random")),
+    ("import numpy\nrng = numpy.random.default_rng()\n", "dotted", ("np", "random")),
+    ("import os as _os\nx = _os.urandom(8)\n", "dotted", ("os", "urandom")),
+    ("import time as _t\nx = _t.monotonic()\n", "dotted", ("time", "monotonic")),
     ("from numpy import random\n", "dotted_import", "numpy.random"),
     ("import numpy.random as npr\n", "dotted_import", "numpy.random"),
     ("from numpy.random import default_rng\n", "dotted_import", "numpy.random"),
@@ -368,6 +403,58 @@ def test_gas_properties_only_inside_thermo(path: Path):
         f"{path.name} references gas property constants {used}. Go through "
         f"t700.thermo instead -- see CLAUDE.md, 'All gas property evaluation goes "
         f"through t700.thermo'."
+    )
+
+
+def _gas_property_values() -> dict[float, str]:
+    """The numeric value of every gas-property fit constant, keyed by value."""
+    from t700 import constants as c
+
+    out: dict[float, str] = {}
+    for name in GAS_PROPERTY_CONSTANTS:
+        v = float(getattr(c, name))
+        out[v] = name
+        out[-v] = name  # a sign-flipped intercept is the same fit
+    return out
+
+
+@pytest.mark.parametrize("path", core_modules(), ids=lambda p: p.name)
+def test_gas_property_constants_are_not_inlined_as_literals(path: Path):
+    """The same fit, written as a bare number, must not pass.
+
+    `test_gas_properties_only_inside_thermo` matches **identifiers**, so it enforces a
+    naming convention rather than the rule the convention stands for. The 2026-09-14
+    docs-and-ledger audit broke the rule without tripping it: `K_T41_1 * h41 + K_T41_2`
+    rewritten as `(h41 + 86.905) / 0.301` sat in `engine.py` with the whole suite green,
+    defeating the thermo rule and the provenance rule in one line. That is the "detector
+    fooled by its own subject matter" pattern this project has hit before.
+
+    This closes the literal route: every float in a core module is compared against the
+    *values* of the fit constants. It cannot catch an obfuscated arithmetic rearrangement
+    -- `(h41 + 86.905) / 0.301` is caught because 86.905 and 0.301 are both literally in
+    `constants.py`, but `h41 * 3.3223 + ...` written to four places would not be -- so it
+    is a second layer, not a proof. Both layers together are still weaker than the reading
+    CLAUDE.md asks for, which is why the gas-property rule stays worth challenging on sight.
+    """
+    rel = path.relative_to(SRC)
+    if rel.parts[0] == "thermo" or rel == Path("constants.py"):
+        return
+
+    values = _gas_property_values()
+    tree = ast.parse(path.read_text(), filename=str(path))
+    hits = sorted(
+        {
+            (node.value, values[node.value])
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, float)
+            and node.value in values
+        }
+    )
+    assert not hits, (
+        f"{path.name} contains the numeric value of a gas-property fit constant as a bare "
+        f"literal: {hits}. That is the fit welded in by hand, and it defeats both the "
+        f"thermo rule and the provenance rule. Go through t700.thermo."
     )
 
 
