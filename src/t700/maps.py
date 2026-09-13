@@ -35,7 +35,13 @@ from pathlib import Path
 
 import numpy as np
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "maps"
+_DATA = Path(__file__).resolve().parent.parent.parent / "data"
+DATA_DIR = _DATA / "maps"
+SCHEDULE_DIR = _DATA / "schedules"
+"""The engine's function tables and the fuel control's scheduling functions are the same
+*kind* of object -- a printed plot, digitized, linear between knots -- so they share
+`Curve`, `SpeedMap` and the loaders. They live in different directories because they
+belong to different phases and different appendices."""
 
 _clamps: Counter[str] = Counter()
 
@@ -143,6 +149,7 @@ def load_speed_map(
     xcol: str,
     ycol: str,
     phys: Physics | None = None,
+    directory: Path | None = None,
 ) -> SpeedMap:
     """Load a 2-D map whose rows are grouped by a parameter column.
 
@@ -150,7 +157,7 @@ def load_speed_map(
     constraint has: the lines do not share breakpoints. The reported move is the largest
     over all lines.
     """
-    path = DATA_DIR / filename
+    path = (directory or DATA_DIR) / filename
     _, cols, header = _read_csv(path)
     src = next((h[len("# source:") :].strip() for h in header if h.startswith("# source:")), "")
     params = np.unique(cols[param])
@@ -245,10 +252,15 @@ the physics."""
 
 
 def load_curve(
-    filename: str, name: str, xcol: str = "x", ycol: str = "y", phys: Physics | None = None
+    filename: str,
+    name: str,
+    xcol: str = "x",
+    ycol: str = "y",
+    phys: Physics | None = None,
+    directory: Path | None = None,
 ) -> Curve:
-    """Load a 1-D function table from data/maps/, optionally conditioned."""
-    path = DATA_DIR / filename
+    """Load a 1-D function table, optionally conditioned. Defaults to data/maps/."""
+    path = (directory or DATA_DIR) / filename
     _, cols, header = _read_csv(path)
     src = next((h[len("# source:") :].strip() for h in header if h.startswith("# source:")), "")
     order = np.argsort(cols[xcol])

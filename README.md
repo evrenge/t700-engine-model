@@ -22,17 +22,17 @@ public domain). Everything here is derived from it.
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.0–7.6 % of each panel's excursion, mean 3.8 %** over nine panels |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
-| Tests | 801 passing, 3 skipped, lint and formatting clean |
+| Tests | 832 passing, 3 skipped, lint and formatting clean |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
 Ballin published** — with or without the station 4.1 heat-sink model.
 
-**The fuel control system (Phase 5) is not built, but all of its data now is**: 73 of
-Appendix C's constants are transcribed and **all eight scheduling functions are digitized**
-under `data/schedules/`. What remains is the 22 block diagrams — and a decision, because
-the report's only closed-loop figures need the Gen Hel simulation, so Phase 5 will have no
-figure to validate against.
+**Phase 5 is under way: the HMU is built, the ECU is not.** `src/t700/control/hmu.py`
+implements Figures C9–C22 — the droop line, the torque motor, the Ps3 and NG sensors, the
+collective rigging, and the idle / acceleration / deceleration cam cascade — on all eight
+digitized scheduling functions. It runs open-loop with the ECU trim at its null. What
+remains is the ECU (Figs. C1–C8) and closing the loop.
 
 ## What is actually in here
 
@@ -47,7 +47,7 @@ src/t700/        the model. NumPy and the standard library, nothing else
   constants.py   Table A.1, every value cited to a page
   corrections.py theta, delta, corrected speed and flow
   units.py       the report's US customary units; nothing converts inline
-  control/       Appendix C's 73 constants. The control system itself is Phase 5
+  control/       the fuel control: 73 constants, 8 schedules, and the HMU
   thermo/        gas properties behind one interface
 data/maps/       11 component maps, digitized from printed figures
 data/schedules/  all 8 of Appendix C's scheduling functions
@@ -198,7 +198,13 @@ required, and he ties the two figures together himself on pdf p.39.
   low power. We track Table B.1, which is printed numbers rather than a plot.
 - Figures 11–15 are **not reproducible** — they need the Gen Hel UH-60A blade-element
   simulation, which this report consumes and does not contain. That was Ballin's boundary
-  too.
+  too. **So Phase 5 has no published trace to overlay**, and its checks are structural
+  instead. The one real cross-check available is that Appendix C and Table B.1 were
+  digitized independently: holding the engine at each printed trim, the HMU needs
+  **52.8 / 35.9 / 23.0 %** collective to command the printed fuel flows — all three on the
+  droop line rather than a cam, monotone with power, nothing tuned. That is weaker than an
+  overlay and much stronger than nothing; it already caught a units error (`XCPC` is
+  percent of maximum, not inches) that would otherwise have sat undetected.
 - **Figure C30 took a third method after two failed, and the failures are the useful part.**
   `F_HM7`'s seven curves cross, so the rank-in-y rule that identifies every other multi-curve
   figure does not apply. Reading the printed digits fails: the curve runs through each glyph
@@ -216,8 +222,8 @@ required, and he ties the two figures together himself on pdf p.39.
   intersecting adjacent fits removed it. Segment-on-ink coverage **0.9850** over 185
   segments is the acceptance test, and the tool fails below 0.98.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **49 logged, 34 closed, 5 partly
-closed, 10 open**.
+Open questions are tracked in `docs/notes/open-questions.md` — **51 logged, 34 closed, 5 partly
+closed, 12 open**.
 
 **Seven of the eleven are things the report simply does not print**, and no amount of work
 closes them: the initialization rule for the opened iteration (#23), the integration algorithm

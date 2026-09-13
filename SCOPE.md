@@ -115,7 +115,14 @@ mass-flow iteration. Reproduce the report's time-step sensitivity (0.1% at 10 ms
 test — matching the *error behaviour*, not just the answer.
 *Gate:* open-loop response has the report's shape and time constants.
 
-**Phase 5 — Control system.** **NOT STARTED, but its data is complete.**
+**Phase 5 — Control system.** **IN PROGRESS. The HMU is built; the ECU is not.**
+`src/t700/control/hmu.py` implements Figures C9-C22 -- the droop line, the torque motor,
+the Ps3 and NG sensors, the collective rigging, and the idle / acceleration / deceleration
+cam cascade -- against `src/t700/control/schedules.py`, which loads all eight digitized
+scheduling functions. It runs open-loop with the ECU trim held at its null. What remains is
+the **ECU** (Figs. C1-C8) and then closing the loop around the engine.
+
+Its data is complete.
 `src/t700/control/constants.py` holds **73** constants (57 from Table C.1 plus 16 read off
 the figures; the other 3 of the 76 read from the report live in `t700.constants` and
 `t700.units`). **All 8 scheduling functions are digitized** and committed under
@@ -305,6 +312,7 @@ unprinted step time (open question #37). Tolerances for the last two, ours:
 | Whole-curve RMS, normalised by each panel's excursion | **8 % ratchet** | `test_whole_curve.WHOLE_CURVE_RMS_CEILING_PCT`. Not a tolerance -- set just above the worst measured panel so a regression fails and an improvement is free. Lower it when the model improves; never raise it. Current: mean 3.79 %, range 1.96-7.62 % over nine panels |
 | Table B.1's printed station state | +/-0.5 % | `test_trim_points.STATE_TOL_PCT`. Much tighter than the +/-3 % gas-path row because these are printed *numbers*, with no read error of ours in them at all |
 | Figures 9/10 read error | +/-1.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS`, measured on the WFPH panel -- see the section above, and note the currency |
+| HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. What it tests is that Appendix C and Table B.1 -- digitized independently -- agree at all |
 
 **Every tolerance any test asserts is in this file.** Five were inline in test files until
 2026-09-12, two of them carrying their own docstring note saying they belonged here. A

@@ -483,8 +483,23 @@ appended to `open-questions.md`:
 4. **NGDES is used but never defined in Appendix C** (Fig. C15, the `100/NGDES` gain).
    Presumably an Appendix A constant.
 5. **F_HM3 / F_HM4 argument** — Fig. C17 feeds them XLDSH (post-hysteresis), but the
-   x-axes of Figs. C26 and C27 are labelled XLDSA (pre-hysteresis).
+   x-axes of Figs. C26 and C27 are labelled XLDSA (pre-hysteresis). **Implemented as the
+   block diagram draws it: the wire carries XLDSH.** The axis label is the more likely
+   slip, since a schedule is naturally drawn against the physical spindle angle while the
+   wire carries whatever the block upstream produced. The difference is bounded by
+   XLDHYS = 2.5 deg.
 6. **The unlabelled saturation in Fig. C9** — read as `max(·, 0)` from the icon; it carries
    no limit labels at all, unlike every other saturation in the appendix.
 7. **No breakpoint tables for F_EC1 and F_HM1…F_HM7.** The eight schedule functions exist
-   only as Figs. C23–C30 and must be digitized before any of the fuel control can run — **7 of the 8 now are; only Fig. C30 (`F_HM7`) remains, open question #50**.
+   only as Figs. C23–C30 and had to be digitized before any of the fuel control could run.
+   **All eight now are** (Fig. C30 last, 2026-09-13, open question #50 — closed), and they
+   load through `src/t700/control/schedules.py`.
+8. **`XCPC` is percent, not inches** [nomenclature, pdf p.81, read off the raster:
+   *"helicopter collective pitch position in percent of maximum, percent"*]. Worth stating
+   because the Fig. C13 rigging `XLDSA = 0.914·XCPC + 5.34` only reaches the load demand
+   spindle's printed 0–100 deg range if XCPC is a percentage; read as inches it spans just
+   5.3–14.5 deg and the whole control sits against its deceleration floor.
+9. **The torque motor null is not 0.44** [Fig. C10, pdf p.89]. The first summing junction
+   forms `SPDG − 0.44`, but the forward path is `e·(0.04s+1)/(0.2s+1)·564.0 − 31.0`, so at
+   `e = 0` it delivers −31.0, far outside the ±TMDB = ±2.0 deadband, and the integrator
+   ramps to `XLOLIM`. The signal sits still at `0.44 + 31.0/564.0 = 0.49496`. See #55.
