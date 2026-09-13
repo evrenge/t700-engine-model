@@ -181,6 +181,12 @@ Two independent lines:
    is which question each answers: 1e-5 is the Jacobian, ±2 % is the secant Ballin's
    Appendix B matrices actually are. **Open question #56.**
 
+   **`f1` is interpolated at constant beta** as of 2026-09-14 -- 0 at the choked end of a
+   speed line, 1 at surge -- along the beta grid Figure A1 prints for itself. That closed
+   open question #58 (there was no data hole) and took the worst Table 1 NG mode from
+   -22.6 % to -11.8 %, at a cost of 0.2018 -> 0.2355 % on Table B.1's rms. It redistributed
+   the #43 derivative ambiguity rather than closing it.
+
    Two limits found during extraction, both real:
    - **The NP row is not independently reproducible.** Row 2 and b(2) are built from
      dQreq/dNP and dQreq/dNPdot (Eqs. 57-62), which come from the external Gen Hel

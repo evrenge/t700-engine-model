@@ -203,7 +203,8 @@ def test_which_tables_are_extrapolated_at_which_trims():
 
         110 lbm/hr   f3, f8, f9      NGc 65.0 %, the bottom of f1's parameter range
         125          f8
-        150          f1@65, f8       NGc 74.0 %, inside f1's 65-80 % data hole
+        150          f8              (it read `f1@65` too until 2026-09-13, under
+                                        constant-abscissa interpolation)
         200-725      none
         750 and up   f9              Ps9/P45 passes f9's tabulated 0.85012
 
@@ -226,7 +227,7 @@ def test_which_tables_are_extrapolated_at_which_trims():
     expected = {
         110.0: ("f3", "f8", "f9"),
         125.0: ("f8",),
-        150.0: ("f1@65", "f8"),
+        150.0: ("f8",),
         200.0: (),
         300.0: (),
         400.0: (),

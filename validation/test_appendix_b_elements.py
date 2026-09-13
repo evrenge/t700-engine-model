@@ -254,31 +254,58 @@ def test_hover_is_the_double_case_that_pins_the_mechanism():
     f7_elsewhere = max(_err(2, "NG", "P45"), _err(3, "NG", "P45"))
     assert f7_here > f7_elsewhere, "hover should hold the worst f7-driven error"
 
+    # **The NG-column half of this inverted on 2026-09-13** and the assertions below are
+    # what is left of it. Interpolating f1 along Figure A1's construction lines (constant k,
+    # not constant x -- see `maps.SpeedMap`) redistributed the f1-driven error: descent now
+    # holds the best d/dNG column at 0.6 % and level the worst at 18.1 %, where it was hover
+    # best and descent worst. The f7 half above is untouched, which is the control: f7 is a
+    # 1-D table and the change did not touch it.
+    #
+    # So the "double case" this test is named for is now a single case. It still pins the
+    # f7 mechanism, and the NG column is pinned by
+    # `test_the_ng_column_error_is_redistributed_not_removed` instead. Open question #43.
     for si, sj in NG_COLUMN:
-        here = _err(1, si, sj)
-        elsewhere = min(_err(2, si, sj), _err(3, si, sj))
-        assert here < elsewhere, (
-            f"hover should hold the BEST d({si})/d({sj}); got {here:.1f} % against "
-            f"{elsewhere:.1f} % elsewhere"
+        assert _err(1, si, sj) < 5.0, (
+            f"hover d({si})/d({sj}) is {_err(1, si, sj):.1f} %; it was under 1 % under "
+            f"constant-x f1 and is about 2.5 % now"
         )
-        assert here < 1.0, f"hover d({si})/d({sj}) is {here:.1f} %, expected under 1 %"
 
 
-def test_the_ng_column_fails_only_where_the_trim_sits_on_a_speed_line():
-    """`f1` interpolates linearly between speed lines, so d/dNGc jumps at each one.
+def test_the_ng_column_error_is_redistributed_not_removed():
+    """`f1` is piecewise linear between speed lines, so d/dNGc jumps at each one.
 
-    Level sits 2.8 % past the 89 line and descent 7.5 % past the 85 line; hover sits 58 %
-    across [92, 94]. The errors follow, and this asserts the ordering rather than the
-    numbers, because the ordering is the claim.
+    **This test asserted the opposite ordering until 2026-09-13**, and recording why is the
+    point. Under constant-abscissa interpolation the error tracked distance to the nearest
+    speed line: hover sits 41.9 % across [92, 94] and held the best NG column; level sits
+    2.8 % past the 89 line and descent 7.5 % past the 85 line, and both were worse.
+
+    Interpolating along Figure A1's own construction lines instead (see `maps.SpeedMap`)
+    **redistributed that error without removing it**. Descent now holds the best column at
+    0.6 % and level the worst at 18.1 %, with hover between at 2.5 %. The knot distances
+    have not changed -- the correspondence between them and the errors has.
+
+    That is the honest state of open question #43: `docs/notes/derivative-ambiguity.md`
+    identified a mechanism and said it "identifies the mechanism without identifying the
+    scheme". Changing the scheme moved the error to a different trim, which is what that
+    note predicted would happen. The derivative disagreement is not settled, and the
+    report prints nothing that would settle it.
+
+    What this now pins is that the *spread* stays bounded, so a future change that quietly
+    made every trim worse would fail here.
     """
     d = {t: _knot_distance_f1(t) for t in (1, 2, 3)}
     assert d[1] > d[3] > d[2], f"knot distances changed: {d}"
     for si, sj in NG_COLUMN:
         e = {t: _err(t, si, sj) for t in (1, 2, 3)}
-        assert e[1] < e[2] and e[1] < e[3], (
-            f"d({si})/d({sj}): hover {e[1]:.1f} % should beat level {e[2]:.1f} % and "
-            f"descent {e[3]:.1f} %, since only hover sits mid-segment"
+        # Level is the worst on every element of the column; descent and hover trade
+        # places between elements (descent 0.6 % against hover 2.5 % on d(P3)/d(NG),
+        # 2.9 against 2.5 on d(NG)/d(NG)), so only the level statement is asserted.
+        assert e[2] > e[1] and e[2] > e[3], (
+            f"d({si})/d({sj}): on record level {e[2]:.1f} % is the worst, against hover "
+            f"{e[1]:.1f} % and descent {e[3]:.1f} %. If this has reordered again, the f1 "
+            f"interpolation is the place to look."
         )
+        assert max(e.values()) < 25.0, f"d({si})/d({sj}) spread widened: {e}"
 
 
 # ------------------------------------------------- the heat-sink models, B7-B12
@@ -393,18 +420,11 @@ def test_the_t41_row_ng_element_carries_the_f1_error_on_top(trim_no: int):
     """
     ours, ref = _hs_pair(DOF.SIX, trim_no)
     t41, ng = ours.states.index("T41"), ours.states.index("NG")
-    others = [
-        ours.A[t41, j] / ref.A[t41, j]
-        for j in range(len(ours.states))
-        if ref.A[t41, j] != 0.0 and j != ng
-    ]
     r_ng = ours.A[t41, ng] / ref.A[t41, ng]
-    if trim_no == 3:
-        assert abs(r_ng - np.mean(others)) > 0.05, (
-            "descent has the worst f1 error, so its T41/NG element should stand clear of "
-            f"the row; got {r_ng:.3f} against a row mean of {np.mean(others):.3f}"
-        )
-    assert 0.75 < r_ng < 1.05, f"trim {trim_no} A(T41,NG) ratio {r_ng:.3f}"
+    # The "descent stands clear of its row" assertion is gone with the error pattern it
+    # described: under constant-k f1 descent's T41/NG element sits 0.922 against a row mean
+    # of 0.929, i.e. squarely in the row. That is the improvement, not a loss of signal.
+    assert 0.75 < r_ng < 1.15, f"trim {trim_no} A(T41,NG) ratio {r_ng:.3f}"
 
 
 # --------------------------------------------------- the load-torque slope, and its limits

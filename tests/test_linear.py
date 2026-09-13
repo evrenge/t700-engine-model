@@ -62,10 +62,15 @@ def test_sorting_would_mispair_the_slow_modes(name: str):
     np_mode = m.A[1, 1]
     assert m.comparable_eigenvalues.size == 4
     assert np_mode not in m.comparable_eigenvalues
-    if name in ("hover", "descent"):
+    # Hover only since 2026-09-13. Interpolating f1 along Figure A1's construction lines
+    # moved the descent NG mode from -1.41 to -1.84 /sec, past NP's -1.66, so NP became the
+    # slowest mode there and positional pairing would now coincidentally work at descent.
+    # That is exactly the coincidence this test warns about, and it is why the guard is a
+    # guard rather than the test.
+    if name == "hover":
         assert ev[-1] != np_mode, (
-            "NP is no longer the *slowest* mode, so positional pairing would now "
-            "coincidentally work here; re-read this test before trusting it"
+            "NP is no longer the *slowest* mode at hover either, so positional pairing "
+            "would now coincidentally work everywhere; re-read this test before trusting it"
         )
 
 
@@ -93,8 +98,13 @@ def test_eigenvalues_are_step_independent(name: str):
         assert np.allclose(ev, ref, rtol=1e-3), f"rel={rel:g} moved the spectrum: {ev}"
 
     report = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=0.02).A).real)
-    worst = max(100.0 * (b / a - 1.0) for a, b in zip(ref, report, strict=True))
-    expected = {"hover": 21.6, "level": 2.6, "descent": 22.7}[name]
+    shifts = [100.0 * (b / a - 1.0) for a, b in zip(ref, report, strict=True)]
+    worst = max(shifts, key=abs)
+    # Moved by the f1 interpolation change of 2026-09-13, and the shape of the move is the
+    # point: descent collapsed from +22.7 % to +2.0 %, which is what you expect if the
+    # sensitivity to the extraction step was the speed-line knot discontinuity. Hover, which
+    # sits mid-segment and was never knot-dominated, is unmoved at +21.6 %.
+    expected = {"hover": 21.6, "level": -10.3, "descent": 2.0}[name]
     assert abs(worst - expected) < 1.0, (
         f"{name}: the report's +/-2 % perturbation [pdf p.28] moves the 5-DOF spectrum by "
         f"{worst:+.1f} % against rel=1e-5, where {expected:+.1f} % is on record. If this "

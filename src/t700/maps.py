@@ -194,25 +194,60 @@ class SpeedMap:
     """A two-dimensional map: z = f(x, parameter).
 
     `f1` is the only one in the engine -- corrected compressor mass flow against static
-    pressure ratio, parameterised by corrected gas generator speed. Each speed line is
-    its own `Curve` with its own x range, so evaluation interpolates *along* the two
-    bracketing lines first and *between* them second.
+    pressure ratio, parameterised by corrected gas generator speed.
 
-    **The order does not matter, and this docstring said it did until 2026-09-13.** The
-    claim was "that order matters: the lines do not share breakpoints, so there is no
-    rectangular grid to interpolate on." The premise is true and the conclusion does not
-    follow. Both lines are piecewise linear, so blending them is linear in the line values
-    at any fixed x; resampling both onto the union of their knots and blending there gives
-    a function that agrees with interpolate-then-blend at every x, and does so **to
-    2.9e-16 relative** -- measured over 67 speeds and 41 abscissae each, including the
-    range where the two lines' domains differ and the shorter one clamps.
+    ## Interpolation is at constant BETA, along the figure's own beta lines
 
-    What the unshared breakpoints really cost is the clamp, and it is not a subtlety of
-    ordering: below 80 %NGc the lower bracketing line is the 65 % one, whose x range ends
-    at 3.753 against the 80 % line's 6.671, so every evaluation past 3.753 is asking a
-    clamped 65 % line to bracket an unclamped 80 % one. `f1` has **no digitized speed line
-    at all between 65 and 80 %** -- eleven lines, and a 15-point hole across the band the
-    Figure 10 chop occupies. See open question #58.
+    Beta is the standard compressor-map coordinate: **0 at the choked end of a speed line,
+    1 at surge**, so that a given beta names corresponding points on every speed line no
+    matter how different their pressure-ratio ranges are. Interpolating between speed lines
+    at constant beta is what performance models do, and it is what this class does.
+
+    **Ballin drew the beta lines.** Figure A1 prints six dotted construction lines, each
+    joining the k-th marker of all eleven speed lines, plus a seventh vertical one joining
+    their left ends -- and those are beta lines. `tools/digitize_a1.py` tests every
+    extracted point against them, and the result is a perfect **11 x 7 grid**: each speed
+    line carries markers k = 0..6 at the same seven beta values,
+
+        beta = k / 6,   beta = 0 at the choked left end, beta = 1 at surge,
+
+    with the knee (the end of the flat choked extension) at beta = 1/6. So the report gives
+    the beta grid rather than leaving it to be invented, which is why this needs no
+    parameterisation of ours.
+
+    Evaluation blends the two bracketing speed lines at equal beta -- x and y together --
+    and evaluates the query on the blended line. Blending the seven printed beta values
+    directly is exact: both coordinates are piecewise linear in beta with the same
+    breakpoints on every line, so resampling each line onto a finer beta grid first and
+    blending there gives an identical answer. Measured, against 50 points per line:
+    **2.4e-16**. A coarser resampling is *worse*, not better -- at 20 points it misses the
+    knots and loses 3.2e-4 -- so the seven printed values are both the cheapest and the most
+    accurate grid available. See
+    `tests/test_maps.py::test_blending_at_the_printed_beta_values_is_exact`.
+
+    ## Interpolating at constant pressure ratio manufactures an extrapolation
+
+    That is what this class did until 2026-09-13. Each speed line ends at its own last
+    marker, which is the surge limit for that speed: the 65 % line stops at Ps3/P2 = 3.753
+    where the 80 % line reaches 6.671, because a compressor at 65 % corrected speed cannot
+    make a pressure ratio of 6. Asking both lines for the same x therefore asks the shorter
+    one for a pressure ratio it cannot reach, takes its clamped end value, and blends a real
+    number with a fictitious one. Over the Figure 10 chop that happened on **389 frames**,
+    every one below 80 %NGc, up to 45 % past the 65 % line's last knot -- and it was
+    recorded as open question #58, "f1's 15-point data hole".
+
+    **There is no hole.** Blending along the construction lines, the map's own right edge
+    runs 3.753 at 65 %NGc, 4.726 at 70, 5.504 at 74 and 6.671 at 80, while the chop's worst
+    query is 5.439 at 74.09 %NGc: **zero of 715 frames fall outside the map.** The
+    extrapolation was an artifact of the evaluation, not a property of the data.
+
+    (The 65-to-80 gap is still fifteen points where every other gap is two or three, so the
+    blend there is a longer secant than elsewhere. That is a real limit of what the report
+    printed, and it is not extrapolation.)
+
+    The previous docstring also claimed the *order* of the two interpolations mattered. It
+    did not, under constant-x evaluation -- both orders agreed to 2.9e-16. Under constant-k
+    the question does not arise: there is one blended line and one evaluation on it.
     """
 
     name: str
@@ -226,6 +261,13 @@ class SpeedMap:
     @property
     def param_range(self) -> tuple[float, float]:
         return float(self.params[0]), float(self.params[-1])
+
+    @property
+    def beta_grid(self) -> bool:
+        """True when every speed line carries the same number of beta values, so knot k of
+        one line names the same beta as knot k of the next. `f1` is an 11 x 7 grid, with
+        beta = k/6 from the choked end to surge."""
+        return len({line.x.size for line in self.lines}) == 1
 
     def __call__(self, xq: float, pq: float) -> float:
         # `nan < lo or nan > hi` is False, `np.clip(nan, lo, hi)` is nan, and
@@ -251,10 +293,21 @@ class SpeedMap:
             return float(self.lines[-1](xq))
 
         p0, p1 = self.params[j - 1], self.params[j]
-        z0 = float(self.lines[j - 1](xq))
-        z1 = float(self.lines[j](xq))
         w = 0.0 if p1 == p0 else (p - p0) / (p1 - p0)
-        return z0 + w * (z1 - z0)
+
+        if not self.beta_grid:  # unequal beta grids: no correspondence to interpolate on
+            z0 = float(self.lines[j - 1](xq))
+            z1 = float(self.lines[j](xq))
+            return z0 + w * (z1 - z0)
+
+        # Blend the two speed lines at constant beta -- along the figure's own printed
+        # beta lines -- then evaluate the blended line. See the class docstring.
+        a, b = self.lines[j - 1], self.lines[j]
+        xb = (1.0 - w) * a.x + w * b.x
+        yb = (1.0 - w) * a.y + w * b.y
+        if xq < xb[0] or xq > xb[-1]:
+            _clamps[self.name] += 1
+        return float(np.interp(xq, xb, yb))
 
 
 def load_speed_map(

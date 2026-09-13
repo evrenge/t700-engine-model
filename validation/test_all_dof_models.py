@@ -117,8 +117,14 @@ def test_two_dof_ng_mode_against_table_1_column_4(trim_no: int):
     want = TABLE_1_2DOF[trim_no]
     dev = (abs(ng) - abs(want)) / abs(want) * 100.0
     assert abs(dev) < 25.0, f"{TRIM[trim_no]}: 2-DOF NG mode {ng:.3f} vs {want}, {dev:+.1f} %"
-    if trim_no == 2:
-        assert abs(dev) < 2.0, "level should be the tight one -- it sits mid-segment on f1"
+    if trim_no == 3:
+        # Descent is the tight one now, not level. Interpolating f1 along Figure A1's
+        # construction lines (constant k, not constant x -- see `maps.SpeedMap`)
+        # REDISTRIBUTED the f1-driven derivative error rather than removing it:
+        # descent went from the worst case to the best and level the other way. The
+        # mechanism of docs/notes/derivative-ambiguity.md still holds; which trim it
+        # bites has moved. Open question #43.
+        assert abs(dev) < 3.0, "descent should be the tight one under constant-k f1"
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
@@ -159,7 +165,10 @@ def test_two_dof_elements_against_b1_b3_b5(trim_no: int):
                 assert m.A[i, j] == 0.0
                 continue
             r = m.A[i, j] / ref.A[i, j]
-            assert 0.70 < r < 1.10, (
+            # Widened from 1.10 to 1.20 on 2026-09-13 with the f1 interpolation change,
+            # which took level's A(NG,NG) from 1.06 to 1.117 and descent's elements the
+            # other way. Open question #43: the ambiguity moved, it did not go.
+            assert 0.70 < r < 1.20, (
                 f"{TRIM[trim_no]} A({ref.states[i]},{ref.states[j]}) ratio {r:.3f}"
             )
 
@@ -185,25 +194,36 @@ def test_three_dof_elements_against_b7_b9_b11(trim_no: int):
 
 
 def test_the_descent_t41_ng_element_is_recorded_not_forgotten():
-    """B11's `A(T41,NG)` is the single worst element in the whole comparison.
+    """B11's `A(T41,NG)` was the single worst element in the whole comparison, and it came
+    right.
 
-    Ours is about 1e-4 against Ballin's 0.01659 -- a ratio of 0.006. It is a small element
-    (the row is dominated by `A(T41,T41)` at -0.88), so it barely moves the model, but the
-    relative miss is total and it should not be lost in an aggregate.
+    Ours was about 1e-4 against Ballin's 0.01659 -- **a ratio of 0.006**, a total relative
+    miss on a small element, recorded here so it would not be lost in an aggregate. It was
+    attributed to the `f1` knot error in its most extreme form: descent sits 7.5 % past the
+    85 % speed line and this element is built through the engine block's NG column.
 
-    It is the `f1` knot error in its most extreme form: descent sits 7.5 % past the 85 %
-    speed line, `A(T41,NG)` is built through the engine block's NG column, and the same
-    element runs 0.731 and 0.844 at the other two trims. Characterized so that if it ever
-    comes right, the cause is worth understanding.
+    **That attribution was right.** Interpolating `f1` along Figure A1's own construction
+    lines instead of at constant abscissa (see `maps.SpeedMap`) took it to **0.791**, in
+    line with the other two trims at 0.823 and 1.147. The element that was absent is now
+    merely imprecise, which is what the rest of the comparison looks like.
+
+    The remaining spread across the three trims is the derivative ambiguity of open
+    question #43 -- redistributed by the same change, not removed: descent went from the
+    worst case to the best and level from the best to the worst. See
+    `docs/notes/derivative-ambiguity.md`, whose mechanism still holds even though which
+    trim it bites has moved.
     """
     m = _model(DOF.THREE, 3)
     ref = ab.load(11)
     t41, ng = ref.states.index("T41"), ref.states.index("NG")
     r = m.A[t41, ng] / ref.A[t41, ng]
-    assert r < 0.20, f"A(T41,NG) at descent is now {r:.3f} of Ballin's -- re-measure"
+    assert 0.6 < r < 1.0, (
+        f"A(T41,NG) at descent is {r:.3f} of Ballin's, 0.791 on record. It was 0.006 under "
+        f"constant-x f1; if it has collapsed again, the interpolation is the place to look."
+    )
     others = [
         _model(DOF.THREE, t).A[t41, ng] / ab.load(FIG[(DOF.THREE, t)]).A[t41, ng] for t in (1, 2)
     ]
-    assert all(0.6 < o < 0.95 for o in others), (
-        f"the other two trims should be poor but not absent: {others}"
+    assert all(0.7 < o < 1.3 for o in others), (
+        f"the other two trims should be imprecise but present: {others}"
     )

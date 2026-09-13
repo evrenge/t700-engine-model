@@ -200,10 +200,14 @@ def test_jacobian_eigenvalues_against_table_1():
 
     Paired by physics, at the hover trim, against Table 1's printed NG / P3 / P45 / P41:
 
-        NG    -2.287 vs -2.66     -14.0 %
-        P3   -55.434 vs -51.6      +7.4 %
+        NG    -2.375 vs -2.66     -10.7 %
+        P3   -52.364 vs -51.6      +1.5 %
         P45 -2603.8  vs -3060.0   -14.9 %
-        P41 -4870.7  vs -4900.0    -0.6 %
+        P41 -4870.3  vs -4900.0    -0.6 %
+
+    NG and P3 improved from -14.0 % and +7.4 % on 2026-09-13, when `f1` moved to constant-k
+    interpolation along Figure A1's construction lines. P45 and P41 do not go through `f1`
+    and did not move.
 
     The NG residual is the one `test_all_dof_models` reports as -9.1 / -0.3 / -22.6 %
     across the three trims, and `docs/notes/derivative-ambiguity.md` attributes it to
@@ -221,7 +225,7 @@ def test_jacobian_eigenvalues_against_table_1():
     # quantity we do not have, and is the same row Appendix B flags as not independently
     # reproducible.
     printed = [-2.66, -51.6, -3060.0, -4900.0]
-    on_record = [-14.0, 7.4, -14.9, -0.6]
+    on_record = [-10.7, 1.5, -14.9, -0.6]  # NG and P3 moved with the f1 interpolation
 
     assert ours.size == len(printed), f"expected 4 comparable modes, got {ours}"
     for got, want, expected in zip(ours, printed, on_record, strict=True):
@@ -290,7 +294,11 @@ def test_a_solution_off_the_compressor_map_is_not_reported_as_good():
     """
     from t700 import trim as _trim
 
-    bad = _trim.solve(wf_pps_from_pph(750.0), 20900.0, Ambient(14.696, 518.67))
+    # 750 lbm/hr until 2026-09-13, when interpolating f1 along Figure A1's own construction
+    # lines widened the solver's good basin: a cold 750 now converges to a legitimate
+    # NG = 44220 rpm at NGc 98.9 % instead of the degenerate root. 800 still degenerates, to
+    # NGc = 8.1e7 %, so the mechanism is unchanged and only the threshold moved.
+    bad = _trim.solve(wf_pps_from_pph(800.0), 20900.0, Ambient(14.696, 518.67))
     assert bad.residual_converged, "the degenerate root is a real root of the clamped system"
     assert not bad.on_data, "but it sits off the compressor map and must say so"
     assert not bad.trustworthy

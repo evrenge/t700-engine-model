@@ -291,8 +291,107 @@ def test_a_nan_parameter_does_not_silently_select_the_top_speed_line():
         maps.f2()(float("nan"))
 
 
-def test_the_order_of_f1s_two_interpolations_does_not_matter():
-    """`SpeedMap`'s docstring claimed it did, from 2026-09-10 to 2026-09-13.
+def test_blending_at_the_printed_beta_values_is_exact():
+    """Resampling each speed line onto a finer beta grid first changes nothing.
+
+    Beta is 0 at the choked end of a speed line and 1 at surge. Figure A1 prints seven beta
+    values per line -- the six dotted construction lines plus the vertical one at the left
+    ends -- so beta = k/6 and the grid is given rather than invented.
+
+    Both x and y are piecewise linear in beta with the *same* breakpoints on every line, so
+    blending the printed values directly is identical to resampling onto any beta grid that
+    **contains** them, and slightly worse than nothing on a grid that does not:
+
+        n = 7, 13, 25, 49, 97, 301   (n-1 a multiple of 6)   <= 4e-16
+        n = 20                                                1.2e-3
+        n = 50                                                4.6e-4
+        n = 1000                                              8.0e-6
+
+    So splitting each speed line into fifty evenly spaced beta points -- the obvious thing
+    to do, and what a map without printed beta lines would require -- is a 4.6e-4
+    approximation of what the figure already gives exactly. It rounds the corners off a
+    piecewise-linear map. The seven printed values are both the cheapest grid and the only
+    exact one, and the error falls as 1/n^2 for grids that miss them.
+    """
+    m = maps.f1()
+    beta_knots = np.linspace(0.0, 1.0, m.lines[0].x.size)
+
+    def blend_n(xq, pq, n):
+        j = int(np.searchsorted(m.params, pq))
+        a, b = m.lines[j - 1], m.lines[j]
+        w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
+        beta = np.linspace(0.0, 1.0, n)
+        xs = (1 - w) * np.interp(beta, beta_knots, a.x) + w * np.interp(beta, beta_knots, b.x)
+        ys = (1 - w) * np.interp(beta, beta_knots, a.y) + w * np.interp(beta, beta_knots, b.y)
+        return float(np.interp(xq, xs, ys))
+
+    for n, bound in ((7, 1e-15), (13, 1e-12), (49, 1e-12), (301, 1e-12)):
+        worst = 0.0
+        for pq in np.linspace(66.0, 99.5, 40):
+            j = int(np.searchsorted(m.params, pq))
+            a, b = m.lines[j - 1], m.lines[j]
+            w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
+            lo = (1 - w) * a.x[0] + w * b.x[0]
+            hi = (1 - w) * a.x[-1] + w * b.x[-1]
+            for xq in np.linspace(lo, hi, 30):
+                ref = blend_n(xq, pq, n)
+                worst = max(worst, abs(float(m(xq, pq)) - ref) / max(abs(ref), 1e-12))
+        assert worst < bound, f"n={n}: shipped blend differs by {worst:.3e}"
+
+    # and a grid that misses the printed values is measurably worse, not better
+    coarse = 0.0
+    for pq in np.linspace(66.0, 99.5, 40):
+        j = int(np.searchsorted(m.params, pq))
+        a, b = m.lines[j - 1], m.lines[j]
+        w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
+        lo = (1 - w) * a.x[0] + w * b.x[0]
+        hi = (1 - w) * a.x[-1] + w * b.x[-1]
+        for xq in np.linspace(lo, hi, 30):
+            ref = blend_n(xq, pq, 50)
+            coarse = max(coarse, abs(float(m(xq, pq)) - ref) / max(abs(ref), 1e-12))
+    assert 1e-5 < coarse < 1e-2, (
+        f"a 50-point beta grid misses the seven printed values and should differ by about "
+        f"4.6e-4; got {coarse:.3e}"
+    )
+
+
+def test_f1_is_interpolated_along_the_figures_own_construction_lines():
+    """Constant k, not constant x. See `maps.SpeedMap`.
+
+    Figure A1 prints six dotted construction lines joining the k-th marker of all eleven
+    speed lines, so the data is an 11 x 7 grid and the k-th knot of one line corresponds to
+    the k-th of the next. Blending knot by knot is reading that construction; blending at
+    constant abscissa is not, and it asks the shorter line for pressure ratios it cannot
+    reach -- 389 frames of the Figure 10 chop, up to 45 % past the 65 % line's last knot.
+
+    Under constant k the blended line's own abscissa range is the blend of the two lines'
+    ranges, so a query inside both lines is inside the blend, and **zero frames leave the
+    map**.
+
+    The old test here asserted that the *order* of the two interpolations did not matter,
+    which was true under constant-x evaluation and is now moot: there is one blended line
+    and one evaluation on it.
+    """
+    m = maps.f1()
+    assert m.beta_grid, "f1 is no longer an 11 x 7 grid, so constant-k has no meaning"
+    assert {line.x.size for line in m.lines} == {7}
+
+    # the blended line's range is the blend of the two lines' ranges
+    for pq in (70.0, 74.0, 86.0, 93.16):
+        j = int(np.searchsorted(m.params, pq))
+        a, b = m.lines[j - 1], m.lines[j]
+        w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
+        hi = (1 - w) * a.x[-1] + w * b.x[-1]
+        assert a.x[-1] <= hi <= b.x[-1], (pq, hi)
+        # and a query at that edge is not a clamp
+        maps.reset_clamps()
+        m(hi * 0.999, pq)
+        assert "f1" not in maps.clamp_report(), f"a query inside the blend clamped at {pq}"
+    maps.reset_clamps()
+
+
+def _retired_test_the_order_of_f1s_two_interpolations_does_not_matter():
+    """Retired 2026-09-13 with the constant-x scheme it was about.
 
     The claim was that because the speed lines do not share breakpoints, interpolating
     along the lines and then between them is a different operation from blending the

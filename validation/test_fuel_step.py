@@ -203,21 +203,23 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     row was attributed to `f1` at the time, and on that attribution the whole-curve ratchet
     was raised from 8 to 14 %. It is back at 8.
 
-    ## What survives: the extrapolation itself
+    ## And the `f1` extrapolation was never real either
 
-    Measured over the run, with both solves converged:
+    With `f1` interpolated at constant abscissa, this run clamped the 65 % speed line **389
+    times** -- every frame below 80 %NGc, asking it for pressure ratios up to 5.44 against
+    its own last knot at 3.753 -- and that was recorded as open question #58, "f1's 15-point
+    data hole".
 
-        f1@65 clamped   389 times   (the 65 % line is the lower bracket below 80 %NGc, and
-                                     the chop asks it for pressure ratios up to 5.44
-                                     against its own last knot at 3.753)
-        f9 clamped      157
-        f8 clamped       75
+    Interpolating along Figure A1's own printed construction lines instead (see
+    `maps.SpeedMap`) takes that to **zero**. Each speed line ends at its own surge limit, so
+    blending the two lines knot by knot blends their limits too, and the blended line's
+    right edge runs 4.726 at 70 %NGc and 5.504 at 74 -- comfortably outside the chop's worst
+    query of 5.439. The model never leaves the compressor map. The extrapolation was an
+    artifact of the evaluation, not a property of the data.
 
-    `f1` has no digitized speed line between 65 and 80 %NGc -- a 15-point hole where every
-    other gap is 2 to 3 -- so everything below 80 %NGc interpolates across it with a clamped
-    lower bracket. That is open question #58 and it is still open. What today's work
-    established is that it is **second-order**: the worst Figure 10 panel is now better than
-    it was before any of it, with `f1` untouched.
+    What is left is `f8` and `f9`, both near the top of their own ranges, and the fuel-air
+    ratio falling to 0.00527 -- which is no longer an extrapolation of anything either,
+    since `f6` is the constant Figure A6 draws and a constant has no domain to leave.
 
     The fuel-air ratio still falls to 0.00527. That is no longer an extrapolation of
     anything: `f6` is loaded as the constant Figure A6 draws, and a constant has no domain
@@ -241,10 +243,10 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
         f"before believing the model changed physically."
     )
     assert tr["far"].min() < 0.010, "the fuel-air ratio still falls below f6's plotted range"
-    assert rep.get("f1@65", 0) > 100, (
-        "f1's 65 % line is the lower bracket below 80 % NGc and is asked for pressure "
-        "ratios outside its own range; if that stops happening, the extrapolation "
-        "caveat on every Figure 10 number needs revisiting"
+    assert "f1@65" not in rep and "f1" not in rep, (
+        f"the chop is reading f1 outside its data again: {rep}. Under constant-k "
+        f"interpolation the blended line carries both speed lines' surge limits, so a "
+        f"query inside both is inside the blend and nothing should clamp."
     )
     assert "f6" not in rep, "f6 is a constant now and cannot be clamped -- see maps.f6"
     maps.reset_clamps()
