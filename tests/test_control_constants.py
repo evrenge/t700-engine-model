@@ -11,6 +11,8 @@ model which runs, saturates in the wrong direction, and looks merely "detuned".
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from t700.control import constants as k
@@ -134,3 +136,50 @@ def test_zlolim_switch_matches_table_value():
     assert k.ZLOLIM == -1.0
     assert k.ZLOLIM_HIGH_TORQUE == -0.3
     assert k.ENGINE2_TORQUE_THRESHOLD == 180.0
+
+
+def test_the_ten_millisecond_lags_are_still_lags_at_the_report_frame():
+    """Six blocks at tau = 0.010 s against a 7 ms frame: dt/tau = 0.7. See `_blocks.lag`.
+
+    Explicit Euler puts the pole at `1 - dt/tau`, so these six sit at z = +0.300 with an
+    effective time constant of 5.814 ms -- **41.9 % short**. At `realtime.MAX_STEP_S`
+    (10 ms) the pole is exactly zero and the blocks respond in one frame; at `FRAME_NP_S`
+    (14 ms) it is negative and they alternate instead of lagging. Both of those frames are
+    named by the report (open question #33), so neither degenerate case is hypothetical.
+
+    Isolated, the discretization is worth at most 0.094 % on the closed-loop settled state
+    (see `_blocks.lag`), because every affected block is a sensor lag far above the loop
+    bandwidth. The condition is recorded, not removed: explicit Euler is the scheme the
+    model uses everywhere, by the architecture rule in CLAUDE.md.
+
+    This test exists so that a change of frame cannot make them deadbeat quietly.
+    """
+    from t700 import realtime
+
+    ten_ms = {
+        "CT9": k.CT9,
+        "CTPL": k.CTPL,
+        "CTPS3": k.CTPS3,
+        "T17": k.T17,
+        "TL1": k.TL1,
+        "TL2": k.TL2,
+    }
+    for name, tau in ten_ms.items():
+        assert tau == 0.010, f"{name} is {tau}, not the 0.010 s this test is about"
+
+    dt = realtime.FRAME_ENGINE_S
+    pole = 1.0 - dt / 0.010
+    assert abs(pole - 0.300) < 1e-12, f"dt/tau is no longer 0.7: pole {pole}"
+    tau_eff = -dt / math.log(pole)
+    assert abs(100.0 * (tau_eff / 0.010 - 1.0) + 41.9) < 0.1, (
+        f"the effective time constant is {tau_eff * 1000:.3f} ms, "
+        f"{100 * (tau_eff / 0.010 - 1):+.1f} % against -41.9 % on record"
+    )
+    assert pole > 0.0, (
+        "the 10 ms lags have gone deadbeat or worse at the shipped frame; they are no "
+        "longer first-order lags and every Appendix C sensor path is affected"
+    )
+
+    # the two frames the report itself names, for the record
+    assert 1.0 - realtime.MAX_STEP_S / 0.010 == 0.0, "10 ms is exactly deadbeat for these"
+    assert 1.0 - realtime.FRAME_NP_S / 0.010 < 0.0, "14 ms puts the pole negative"

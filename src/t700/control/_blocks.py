@@ -23,6 +23,43 @@ def lag(x: float, u: float, tau: float, dt: float) -> float:
 
     `tau <= 0` passes the input straight through, which is what a lag of zero means and
     keeps a variable time constant (Fig. C5's TAU45) from dividing by zero.
+
+    ## Six of Appendix C's lags run at dt/tau = 0.7, and nothing said so until 2026-09-13
+
+    Explicit Euler puts the discrete pole at `z = 1 - dt/tau`. `CT9`, `CTPL`, `CTPS3`,
+    `T17`, `TL1` and `TL2` are all **tau = 0.010 s** [Table C.1, pdf pp.83-84] against the
+    report's 7 ms engine frame, so:
+
+        dt (ms)   dt/tau   pole z    effective tau
+          0.875    0.087   +0.912      9.556 ms    -4.4 %
+          3.5      0.350   +0.650      8.125       -18.8 %
+          **7**    **0.700**  **+0.300**  **5.814**  **-41.9 %**
+          10       1.000    0.000      deadbeat -- the block responds in one frame
+          14       1.400   -0.400      the pole is NEGATIVE: it alternates, and is no
+                                       longer a lag at all
+
+    10 ms is `realtime.MAX_STEP_S` and 14 ms is `FRAME_NP_S`, so both degenerate cases are
+    inside the range of frames the report itself names (open question #33).
+
+    ## What it costs, isolated
+
+    Replacing this update with the exact `z = exp(-dt/tau)` at the same 7 ms frame -- same
+    blocks, same constants, only the discretization -- moves the closed-loop settled state
+    by **Wf -0.094 %, shp -0.039 %, NP +0.012 %, NG +0.0007 %**. Small because every one of
+    the six is a sensor lag far above the loop bandwidth.
+
+    Refining the *frame* instead moves it further, up to 0.75 % on Wf at 0.875 ms, and
+    non-monotonically -- which is a different effect: the loop carries three hysteresis
+    blocks (open question #54) whose settled point is path-dependent, plus a transport
+    delay whose interpolation depends on dt.
+
+    ## Why it is kept
+
+    Explicit Euler is the scheme the whole model uses, by the architecture rule in
+    CLAUDE.md and because the report's real-time formulation is fixed-step explicit. A
+    1988 real-time block would not evaluate an exponential per lag per frame. The condition
+    is recorded rather than removed; `tests/test_control_constants.py` pins it so a frame
+    change cannot silently make these blocks deadbeat.
     """
     if tau <= 0.0:
         return u
