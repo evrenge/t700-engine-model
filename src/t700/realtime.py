@@ -235,13 +235,20 @@ def _contraction_error(step: float, prev_step: float, value: float) -> tuple[flo
     and no contraction factor is needed to say so. (This is the branch a trimmed engine
     takes, and it is why holding a trim costs one pass rather than two.)
 
-    "Stopped moving" means one ulp of `value`, not exactly zero. A step at the rounding
-    floor carries no information, and a *ratio* of two such steps carries less: judged on
-    exact zero, a held 400 lbm/hr trim ran 2.4 % of its frames to the ten-pass cap on
-    rounding noise alone. One ulp is far below anything the converging iteration produces
-    -- the P45 steps at that trim measure 69 ulp, then 5, then 0.
+    "Stopped moving" means a step below `_CONVERGED_STEP * value`, not exactly zero. A step
+    at the rounding floor carries no information, and a *ratio* of two such steps carries
+    less: judged on exact zero, a held 400 lbm/hr trim ran 2.4 % of its frames to the
+    ten-pass cap on rounding noise alone.
+
+    The floor was one ulp until later on 2026-09-13, and one ulp was not enough. A step of
+    1e-13 relative still produces a ratio against another 1e-13 step, that ratio is noise,
+    and when it comes out above 1 the estimate is infinite and the loop reports failure at
+    a fixed point it is already sitting on. At the 349.3 lbm/hr trim that happened on
+    **one frame in 144**, and because `_p45_loop` falls back to bisection on failure, that
+    one frame moved P45 by the bisection tolerance and kicked NG by 1.2e-3 rpm -- enough to
+    stop a published trim being a fixed point.
     """
-    if step <= np.spacing(value):
+    if step <= _CONVERGED_STEP * abs(value):
         return 0.0, 0.0
     if prev_step <= 0.0:
         return float("inf"), 0.0
@@ -280,6 +287,40 @@ def _stalled(first_step: float, last_step: float) -> bool:
 MAX_ITER_P3_P41: Final = 10
 """Pass cap for the P3/P41 sweep. [pdf p.37]  "up to ten iterations may be required",
 cross-checked by the printed operation count: 11 operations a pass x 10 = 110."""
+
+_CONVERGED_STEP: Final = 1.0e-9
+"""Relative step below which an iterate is at its fixed point, whatever the step ratio says.
+
+Not a tolerance -- a noise floor for the *estimator*. For an error above the 1e-3 the
+report states, a step this small would need a contraction factor within 1e-9 of unity,
+which is an iteration that is not moving at all. Four orders below `TOL_P45_BISECT` and six
+below `TOL_PRESSURE`, so it cannot mask a real failure to converge; it only stops a ratio
+of two rounding-level steps from being read as one. See `_contraction_error`.
+"""
+
+TOL_P45_BISECT: Final = 1.0e-5
+"""Relative bracket width at which `_p45_bisect` stops. **Ours, not the report's.**
+
+The report states no tolerance for Eq. 80 at all -- it states that eight passes of its own
+iteration achieved less than 0.1 percent error [pdf p.37]. This is the stopping rule for
+the *fallback*, which only runs where that iteration fails, so there is no printed number
+to inherit and the choice has to be argued instead:
+
+  * **Two orders below the printed 0.1 percent**, so the fallback is never the reason a
+    frame misses the criterion the report does state. A bisection bracket is a *rigorous*
+    bound rather than the fixed-point method's estimate, so 1e-5 here is strictly better
+    than 1e-5 there would be.
+  * **Tight enough that the volume balances still close.** Stopping at the printed 1e-3
+    left Eq. 42's residual at 8.6e-9 of WA2 where the differential model closes to 1e-13,
+    and `tests/test_mass_conservation.py` asserts 1e-9. Measured at 1e-5 the balances close
+    at the same level they do everywhere else.
+  * **Loose enough to be worth running.** Halving to 1e-5 takes about 15 steps against the
+    ~47 that reaching the rounding floor needs, which is the difference between ~23 and ~55
+    passes a frame in the regime where the fallback fires.
+
+It was the rounding floor for one commit on 2026-09-13. That was overkill bought at 3x the
+cost for accuracy nothing downstream can use.
+"""
 
 MAX_ITER_P45: Final = 8
 """Pass cap for the P45 iteration. [pdf p.37]  "Eight iterations resulted in an error
@@ -432,7 +473,7 @@ def _p45_loop(
         Figure 9 does not move.
 
     The cost is the pass count, and it is real: below about 160 lbm/hr this loop runs a
-    mean of ~55 passes a frame -- the printed eight, then ~47 bisection steps -- against
+    mean of **~23 passes a frame** -- the printed eight, then ~15 bisection steps -- against
     the report's budget of eight. Above flight idle it is 1 to 2. A real-time model would
     not pay that, but a real-time model was never asked to run here.
 
@@ -476,16 +517,16 @@ def _p45_bisect(
     The same equation, the same f9 data -- only the method differs, and it differs in the
     one way that matters: a bracket cannot fail to contain a root, so convergence does not
     depend on the map's elasticity. The bracket is expanded geometrically from the entering
-    P45 until the residual changes sign, then halved to the **rounding floor**, which makes
-    the error bound rigorous where the fixed-point estimate was only an estimate.
+    P45 until the residual changes sign, then halved until its relative width is below
+    `TOL_P45_BISECT`, which makes the error bound rigorous where the fixed-point estimate
+    was only an estimate.
 
-    **It is halved to rounding rather than to `tol`**, and the reason is worth stating: the
-    report's 0.1 percent is a statement about what eight passes of successive substitution
-    achieved, i.e. a cost constraint on *that* method. Once the printed method has failed
-    and we are paying for a bracket anyway, stopping at 0.1 percent buys nothing and costs
-    accuracy -- measured, it left the station 3 volume balance closing to 8.6e-9 of WA2
-    where the printed iteration closes to 1e-13. One bit per evaluation is cheap; a
-    needlessly loose root is not.
+    **It stops at `TOL_P45_BISECT`, not at the report's 0.1 percent and not at rounding.**
+    The report's number is a statement about what eight passes of successive substitution
+    achieved, i.e. a cost constraint on *that* method, and stopping the bracket there is
+    measurably too loose: it left the station 3 volume balance closing to 8.6e-9 of WA2
+    where the printed iteration closes to 1e-13. Rounding is the other extreme and costs
+    three times the steps for accuracy nothing downstream reads. See `TOL_P45_BISECT`.
 
     `None` when no bracket can be found, which has not been observed; the caller then
     returns the iterate it held and reports `Exit.DIVERGING`.
@@ -509,7 +550,7 @@ def _p45_bisect(
 
     for k in range(max_steps):
         mid = 0.5 * (lo + hi)
-        if hi - lo <= 4.0 * np.spacing(mid):
+        if hi - lo <= TOL_P45_BISECT * mid:
             return float(mid), k + 1
         r_mid = residual(mid)
         if r_lo * r_mid <= 0.0:

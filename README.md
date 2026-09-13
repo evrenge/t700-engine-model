@@ -282,8 +282,8 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   eliminated from the real-time model [pdf p.38], and the printed "eight iterations
   resulted in an error equal to less than 0.1 percent" was measured on a step from flight
   idle to full power. Where Ballin measured it, it holds and we reproduce it. The cost is
-  the pass count: ~55 a frame below 160 lbm/hr against the report's budget of eight, and
-  1–2 above flight idle. Open question #57.
+  the pass count: **~23 a frame** below 160 lbm/hr against the report's budget of eight,
+  and 1–2 above flight idle. Open question #57.
 
   **`f1`'s data hole is still open (#58) and is now second-order.** 389 frames still read
   the 65 % speed line past its own last knot, up to 45 % beyond — but the worst Figure 10
