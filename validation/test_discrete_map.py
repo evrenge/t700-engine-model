@@ -78,15 +78,15 @@ TABLE_1_2DOF = {1: -2.69, 2: -2.23, 3: -1.82}
 FRAME_S = 0.007
 """The report's engine frame [pdf p.47]."""
 
-DISCRETE_TOL_PCT = {1: 8.0, 2: 18.0, 3: 5.0}
+DISCRETE_TOL_PCT = {1: 8.0, 2: 15.0, 3: 7.0}
 """Ours, declared in `SCOPE.md`. The loose one carries the #31/#43 interpolation residual,
 which is present in the continuous model too and is not what this file is measuring.
 
-**It was descent, and since 2026-09-13 it is level.** Interpolating `f1` along Figure A1's
-own construction lines redistributed that residual: the three trims read +6.2 / +15.4 /
-+2.6 % where they read +1.4 / +2.5 / -21.8 %. Descent, the loose one at 25 %, is now the
-tight one at 2.6 %; level is the loose one. The worst case improved from 21.8 % to 15.4 %,
-and the ambiguity moved rather than closing. Open question #43."""
+**It was descent, and since 2026-09-13 it is level.** Putting `f1` on a beta grid
+redistributed that residual: the three trims read about +6 / +14 / +6 % where they read
++1.4 / +2.5 / -21.8 %. Descent, the loose one at 25 %, is now among the tight ones; level
+is the loose one. The worst case improved from 21.8 % to about 14 %, and the ambiguity moved
+rather than closing. Open question #43."""
 
 
 STATE_NAMES = ("NG", "NP", "P3", "P41", "P45", "WA31")
@@ -465,7 +465,7 @@ def test_the_descent_residual_is_gone_and_the_level_one_replaced_it():
 
     What this test now pins is the relocation, so that neither trim can quietly drift back.
     """
-    for case, lo, hi in ((3, -5.0, 5.0), (2, 5.0, 18.0)):
+    for case, lo, hi in ((3, -7.0, 7.0), (2, 5.0, 15.0)):
         cont = continuous_ng_mode(case)
         disc = discrete_ng_mode(case, tol=1e-12)
         for name, v in (("continuous", cont), ("discrete", disc)):

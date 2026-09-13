@@ -523,6 +523,57 @@ def f1() -> SpeedMap:
     The only 2-D map in the engine, and the one the real-time scheme is built around
     avoiding: closing the compressor loop would mean evaluating this several times per
     frame, which is why Ballin opened it.
+
+    **This loads the beta-gridded map**, `f1_compressor_mass_flow_beta.csv`: the same eleven
+    speed lines re-expressed on a common beta grid of 56 values, produced by
+    `tools/digitize_a1.py` from the raw seven-point extraction. `f1_as_printed()` loads the
+    seven-point file.
+
+    Beta is the fraction of a speed line's own pressure-ratio span -- 0 at the choked left
+    end, 1 at surge -- **not** the six dotted construction lines Figure A1 prints, although
+    those are beta lines and are Ballin's own. The markers carry digitizing noise: as a
+    fraction of each line's span the k=1 markers run 0.785, 0.817, 0.831, 0.832, 0.814,
+    0.811, 0.855 ... -- non-monotone -- while the spans themselves are smooth. Using the
+    markers as the correspondence propagates that jitter into every interpolated value.
+
+    **Using this file is a departure from replication and is recorded as one** (open
+    question #60). Figure A1's speed lines are *drawn* as polylines, so the raw file is
+    Ballin's table and linear interpolation between those points is his model. The
+    characteristic they sample is smooth; the corners are an artifact of plotting.
+
+    Worth, measured against the printed-marker correspondence: Table B.1's rms
+    0.2471 -> 0.2439 %, the worst Table 1 NG mode 8.18 -> 7.56 %, transients and the
+    zero-extrapolation property unchanged, at 56 stored points instead of 97. Against the
+    seven-point original: worst Table 1 NG mode 11.80 -> 7.56 %.
+
+    The fit lives in the digitizer, not here: it needs SciPy, the core may not import it,
+    and a derived data file carries its own provenance header and is checked by the
+    reproducibility gate like every other.
+    """
+    return load_speed_map(
+        "f1_compressor_mass_flow_beta.csv",
+        "f1",
+        "ngc_pct",
+        "ps3_p2",
+        "wa2c_lbm_per_s",
+        phys=Physics(
+            nonnegative=True,
+            monotone="dec",
+            why="Along one speed line a compressor passes less corrected flow as it works "
+            "against a higher pressure ratio. Applied to the densified map for the same "
+            "reason it is applied to the raw one; the shape-preserving fit cannot "
+            "introduce a rise the anchors do not have, so this conditions nothing.",
+        ),
+    )
+
+
+@_cached
+def f1_as_printed() -> SpeedMap:
+    """`f1` on the seven beta values Figure A1 actually prints. [Fig. A1]
+
+    The faithful transcription: seven markers per speed line, interpolated linearly, which
+    is Ballin's own table and what a 1988 function-table processor did with it. `f1()`
+    loads the densified extension instead and says why.
     """
     return load_speed_map(
         "f1_compressor_mass_flow.csv",

@@ -127,10 +127,16 @@ def test_f10_stays_between_the_neighbouring_map_arguments():
 
 
 def test_f1_structure():
+    """`f1()` is the beta-gridded map; `f1_as_printed()` is Ballin's seven-point table."""
     m = maps.f1()
     assert len(m.lines) == 11, "eleven speed lines"
     assert m.params.tolist() == [65, 80, 82, 85, 87, 89, 92, 94, 96, 98, 100]
-    assert all(line.x.size == 7 for line in m.lines), "seven points per line"
+    assert all(line.x.size == 56 for line in m.lines), "56 beta values per line"
+
+    raw = maps.f1_as_printed()
+    assert len(raw.lines) == 11
+    assert raw.params.tolist() == m.params.tolist()
+    assert all(line.x.size == 7 for line in raw.lines), "seven printed markers per line"
 
 
 def test_f1_on_a_speed_line_matches_that_line():
@@ -291,137 +297,6 @@ def test_a_nan_parameter_does_not_silently_select_the_top_speed_line():
         maps.f2()(float("nan"))
 
 
-def test_blending_at_the_printed_beta_values_is_exact():
-    """Resampling each speed line onto a finer beta grid first changes nothing.
-
-    Beta is 0 at the choked end of a speed line and 1 at surge. Figure A1 prints seven beta
-    values per line -- the six dotted construction lines plus the vertical one at the left
-    ends -- so beta = k/6 and the grid is given rather than invented.
-
-    Both x and y are piecewise linear in beta with the *same* breakpoints on every line, so
-    blending the printed values directly is identical to resampling onto any beta grid that
-    **contains** them, and slightly worse than nothing on a grid that does not:
-
-        n = 7, 13, 25, 49, 97, 301   (n-1 a multiple of 6)   <= 4e-16
-        n = 20                                                1.2e-3
-        n = 50                                                4.6e-4
-        n = 1000                                              8.0e-6
-
-    So splitting each speed line into fifty evenly spaced beta points -- the obvious thing
-    to do, and what a map without printed beta lines would require -- is a 4.6e-4
-    approximation of what the figure already gives exactly. It rounds the corners off a
-    piecewise-linear map. The seven printed values are both the cheapest grid and the only
-    exact one, and the error falls as 1/n^2 for grids that miss them.
-    """
-    m = maps.f1()
-    beta_knots = np.linspace(0.0, 1.0, m.lines[0].x.size)
-
-    def blend_n(xq, pq, n):
-        j = int(np.searchsorted(m.params, pq))
-        a, b = m.lines[j - 1], m.lines[j]
-        w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
-        beta = np.linspace(0.0, 1.0, n)
-        xs = (1 - w) * np.interp(beta, beta_knots, a.x) + w * np.interp(beta, beta_knots, b.x)
-        ys = (1 - w) * np.interp(beta, beta_knots, a.y) + w * np.interp(beta, beta_knots, b.y)
-        return float(np.interp(xq, xs, ys))
-
-    for n, bound in ((7, 1e-15), (13, 1e-12), (49, 1e-12), (301, 1e-12)):
-        worst = 0.0
-        for pq in np.linspace(66.0, 99.5, 40):
-            j = int(np.searchsorted(m.params, pq))
-            a, b = m.lines[j - 1], m.lines[j]
-            w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
-            lo = (1 - w) * a.x[0] + w * b.x[0]
-            hi = (1 - w) * a.x[-1] + w * b.x[-1]
-            for xq in np.linspace(lo, hi, 30):
-                ref = blend_n(xq, pq, n)
-                worst = max(worst, abs(float(m(xq, pq)) - ref) / max(abs(ref), 1e-12))
-        assert worst < bound, f"n={n}: shipped blend differs by {worst:.3e}"
-
-    # and a grid that misses the printed values is measurably worse, not better
-    coarse = 0.0
-    for pq in np.linspace(66.0, 99.5, 40):
-        j = int(np.searchsorted(m.params, pq))
-        a, b = m.lines[j - 1], m.lines[j]
-        w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
-        lo = (1 - w) * a.x[0] + w * b.x[0]
-        hi = (1 - w) * a.x[-1] + w * b.x[-1]
-        for xq in np.linspace(lo, hi, 30):
-            ref = blend_n(xq, pq, 50)
-            coarse = max(coarse, abs(float(m(xq, pq)) - ref) / max(abs(ref), 1e-12))
-    assert 1e-5 < coarse < 1e-2, (
-        f"a 50-point beta grid misses the seven printed values and should differ by about "
-        f"4.6e-4; got {coarse:.3e}"
-    )
-
-
-def test_f1_is_interpolated_along_the_figures_own_construction_lines():
-    """Constant k, not constant x. See `maps.SpeedMap`.
-
-    Figure A1 prints six dotted construction lines joining the k-th marker of all eleven
-    speed lines, so the data is an 11 x 7 grid and the k-th knot of one line corresponds to
-    the k-th of the next. Blending knot by knot is reading that construction; blending at
-    constant abscissa is not, and it asks the shorter line for pressure ratios it cannot
-    reach -- 389 frames of the Figure 10 chop, up to 45 % past the 65 % line's last knot.
-
-    Under constant k the blended line's own abscissa range is the blend of the two lines'
-    ranges, so a query inside both lines is inside the blend, and **zero frames leave the
-    map**.
-
-    The old test here asserted that the *order* of the two interpolations did not matter,
-    which was true under constant-x evaluation and is now moot: there is one blended line
-    and one evaluation on it.
-    """
-    m = maps.f1()
-    assert m.beta_grid, "f1 is no longer an 11 x 7 grid, so constant-k has no meaning"
-    assert {line.x.size for line in m.lines} == {7}
-
-    # the blended line's range is the blend of the two lines' ranges
-    for pq in (70.0, 74.0, 86.0, 93.16):
-        j = int(np.searchsorted(m.params, pq))
-        a, b = m.lines[j - 1], m.lines[j]
-        w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
-        hi = (1 - w) * a.x[-1] + w * b.x[-1]
-        assert a.x[-1] <= hi <= b.x[-1], (pq, hi)
-        # and a query at that edge is not a clamp
-        maps.reset_clamps()
-        m(hi * 0.999, pq)
-        assert "f1" not in maps.clamp_report(), f"a query inside the blend clamped at {pq}"
-    maps.reset_clamps()
-
-
-def _retired_test_the_order_of_f1s_two_interpolations_does_not_matter():
-    """Retired 2026-09-13 with the constant-x scheme it was about.
-
-    The claim was that because the speed lines do not share breakpoints, interpolating
-    along the lines and then between them is a different operation from blending the
-    lines first. Both lines are piecewise linear, so the blend is linear in the line
-    values at any fixed x and the two orders coincide identically. Measured here rather
-    than argued, over the full x range including where the shorter line clamps.
-
-    What the unshared breakpoints *do* cost is the clamp, which is open question #58.
-    """
-    m = maps.f1()
-    worst = 0.0
-    for pq in np.linspace(float(m.params[0]), float(m.params[-1]), 67):
-        j = int(np.searchsorted(m.params, pq))
-        if j <= 0 or j >= len(m.params):
-            continue
-        lo_line, hi_line = m.lines[j - 1], m.lines[j]
-        p0, p1 = float(m.params[j - 1]), float(m.params[j])
-        w = (pq - p0) / (p1 - p0)
-        xs = np.union1d(lo_line.x, hi_line.x)
-        ys = (1 - w) * np.interp(xs, lo_line.x, lo_line.y) + w * np.interp(xs, hi_line.x, hi_line.y)
-        for xq in np.linspace(float(xs[0]), float(xs[-1]), 41):
-            a = float(m(xq, pq))
-            b = float(np.interp(xq, xs, ys))
-            worst = max(worst, abs(a - b) / max(abs(a), 1e-12))
-    assert worst < 1e-13, (
-        f"blend-then-interpolate and interpolate-then-blend differ by {worst:.3e}; if "
-        f"this is ever nonzero the SpeedMap docstring's history needs rewriting again"
-    )
-
-
 def test_f1_has_no_speed_line_between_65_and_80_percent():
     """The data hole the Figure 10 chop lives in. Open question #58.
 
@@ -578,3 +453,44 @@ def test_the_uneven_beta_spacing_puts_resolution_where_the_curvature_is():
                 ref = float(np.interp(xq, xb, yb))
                 worst = max(worst, abs(float(np.interp(xq, xs, ys)) - ref) / max(ref, 1e-12))
     assert worst < 1e-12, f"the choked segment's internal correspondence matters: {worst:.3e}"
+
+
+def test_f1_is_interpolated_on_a_smooth_analytic_beta_grid():
+    """Beta is the fraction of a speed line's own pressure-ratio span, not a printed marker.
+
+    0 at the choked left end of every line, 1 at surge, so one beta names corresponding
+    points on lines whose spans differ by a factor of six. Figure A1 *does* print beta lines
+    -- the six dotted construction lines joining the k-th marker of all eleven speed lines
+    -- and they are not used, because the marker positions carry digitizing noise. As a
+    fraction of each line's span the k=1 markers run
+
+        0.785 0.817 0.831 0.832 0.814 0.811 0.855 0.868 0.882 0.891 0.897
+
+    which goes up, up, up, **down, down**, up. That is jitter, and using it as the
+    correspondence propagates it into every interpolated value. The spans it is a fraction
+    of are smooth. Measured: Table B.1's rms 0.2471 -> 0.2439 % and the worst Table 1 NG
+    mode 8.18 -> 7.56 % on moving from the printed markers to the analytic beta.
+
+    What this pins is the property that made beta worth having at all: **blending two speed
+    lines at equal beta blends their surge limits too**, so a query inside both lines is
+    inside the blend and nothing is ever asked for a pressure ratio it cannot reach. Under
+    the old constant-abscissa evaluation that failed on 389 frames of the Figure 10 chop.
+    """
+    m = maps.f1()
+    assert m.beta_grid, "f1 is no longer a common-beta grid"
+
+    for pq in (70.0, 74.0, 86.0, 93.16):
+        j = int(np.searchsorted(m.params, pq))
+        a, b = m.lines[j - 1], m.lines[j]
+        w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
+        hi = (1 - w) * a.x[-1] + w * b.x[-1]
+        assert a.x[-1] <= hi <= b.x[-1], (pq, hi)
+        maps.reset_clamps()
+        m(hi * 0.999, pq)
+        assert "f1" not in maps.clamp_report(), f"a query inside the blend clamped at {pq}"
+    maps.reset_clamps()
+
+    # every line starts at the same choked abscissa and ends at its own surge point
+    assert len({round(float(line.x[0]), 6) for line in m.lines}) == 1
+    ends = [float(line.x[-1]) for line in m.lines]
+    assert ends == sorted(ends), "surge pressure ratio must rise with speed"

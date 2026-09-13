@@ -19,12 +19,12 @@ the two qualifications on that). Everything here is derived from it.
 
 | | |
 |---|---|
-| **Table B.1's full printed state** | **rms 0.24 % over 21 numbers** — worst shp 0.87 % at descent |
-| Jacobian eigenvalues vs Table 1 | worst **−11.8 %** on the 2-DOF NG mode, down from −22.6 % |
+| **Table B.1's full printed state** | **rms 0.24 % over 21 numbers** — worst shp 0.91 % at descent |
+| Jacobian eigenvalues vs Table 1 | worst **+7.6 %** on the 2-DOF NG mode, down from −22.6 % |
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 1.3–7.7 % of each panel's excursion, mean 3.5 %** over nine panels — Figure 9 1.3–5.2 %, Figure 10 1.9–7.7 % |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
 | **Closed loop vs Table B.1** | **worst 0.62 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
-| Tests | 992 passing, 3 skipped, lint and formatting clean |
+| Tests | 997 passing, 3 skipped, lint and formatting clean |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
@@ -287,43 +287,48 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
 
   **And `f1`'s "data hole" turned out not to exist — see below.**
 
-- **`f1` is interpolated at constant beta now, and the "data hole" was never the problem.**
-  Beta is the standard compressor-map coordinate — 0 at the choked end of a speed line, 1 at
-  surge — so a given beta names corresponding points on lines whose pressure-ratio ranges
-  differ wildly. **Ballin printed the beta grid.** Figure A1 draws six dotted construction
-  lines joining the k-th marker of all eleven speed lines, plus a vertical one at their left
-  ends, giving a perfect **11 × 7 grid** with beta = k/6.
+- **`f1` is interpolated on a beta grid now, and the "data hole" was never the problem.**
+  Beta is the fraction of a speed line's own pressure-ratio span — 0 at the choked end, 1 at
+  surge — so one beta names corresponding points on lines whose spans differ by a factor of
+  six. Interpolating at constant *pressure ratio*, which is what this model did until
+  2026-09-14, asks the shorter line for a ratio it cannot physically reach: the 65 % line
+  stops at Ps3/P2 = 3.753 where the 80 % line reaches 6.671. Over the Figure 10 chop that
+  blended a real number with a clamped one on **389 frames**, and it was recorded as open
+  question #58, "f1's 15-point data hole".
 
-  Interpolating at constant *pressure ratio* instead — which is what this model did until
-  2026-09-14 — asks the shorter speed line for a ratio it cannot physically reach. Each line
-  ends at its own surge limit: the 65 % line stops at Ps3/P2 = 3.753 where the 80 % line
-  reaches 6.671. So the blend mixed a real number with a clamped one on **389 frames** of the
-  Figure 10 chop, and that was recorded as open question #58, "f1's 15-point data hole".
+  There is no hole. Blending at equal beta blends the surge limits too, so a query inside
+  both lines is inside the blend: **zero of 715 frames leave the map.** The extrapolation was
+  an artifact of the evaluation.
 
-  There is no hole. Blending at equal beta blends the surge limits too, so the blended line's
-  right edge runs 4.726 at 70 %NGc and 5.504 at 74, against the chop's worst query of 5.439:
-  **zero of 715 frames leave the map.** The extrapolation was an artifact of the evaluation.
+  **Ballin's own beta lines were tried and rejected on measurement.** Figure A1 prints six
+  dotted construction lines joining the k-th marker of all eleven speed lines — those *are*
+  beta lines, and they are his. But the marker positions carry digitizing noise: as a
+  fraction of each line's span the k=1 markers run 0.785, 0.817, 0.831, 0.832, **0.814,
+  0.811**, 0.855 … — non-monotone — while the spans themselves are smooth. Using the markers
+  as the correspondence propagates that jitter into every interpolated value. An analytic
+  beta scores better (Table B.1 0.2439 vs 0.2471 %, worst Table 1 mode 7.56 vs 8.18 %) and is
+  far less grid-sensitive: 0.2438–0.2439 % across every grid from 32 to 96 points, against
+  0.2471–0.2488 % for the printed markers.
 
-  Blending the seven printed beta values is exact. Resampling each line onto an arbitrary
-  finer grid — the obvious thing to do, and what a map *without* printed beta lines would
-  need — is measurably worse, because those seven values are the breakpoints of a
-  piecewise-linear map and an arbitrary grid rounds the corners off: 4.6e-4 at 50 points,
-  1.2e-3 at 20, falling as 1/n². Any grid containing them is identical to 4e-16.
+  **This is a departure from replication and is recorded as one** (open question #60). The
+  speed lines are *drawn* as polylines, so the seven-point table is Ballin's and linear
+  interpolation between those points is his model — `maps.f1_as_printed()` still provides it.
+  The characteristic they sample is smooth; the corners are an artifact of plotting a coarse
+  table. The grid is produced by `tools/digitize_a1.py` (`--raw-only` skips it) so it carries
+  its own provenance header and the reproducibility gate checks it like any other data file.
 
-  **What it fixed, and what it moved.** B11's `A(T41,NG)` — recorded as the single worst
-  element in the whole Appendix B comparison, at 0.006 of Ballin's — is now **0.791**, in
-  line with the other trims. Table 1's descent NG mode went **−22.6 % → +1.1 %**, and the
-  ±2 % perturbation sensitivity there collapsed **+22.7 % → +2.0 %**. But level went the
-  other way, −0.3 % → +11.8 %, so the worst case across the three trims improved from 22.6 %
-  to 11.8 % and **the derivative ambiguity of #43 was redistributed rather than closed** —
-  exactly what `derivative-ambiguity.md` predicted when it said the evidence "identifies the
-  mechanism without identifying the scheme".
+  | | constant-x | printed beta | **analytic beta** |
+  |---|---|---|---|
+  | frames reading `f1` off the map | 389 | 0 | **0** |
+  | worst Table 1 NG mode | −22.6 % | +11.8 % | **+7.56 %** |
+  | Table B.1 rms | **0.2018 %** | 0.2355 % | 0.2439 % |
+  | Figure 10 worst panel | 13.15 % | 7.50 % | **7.50 %** |
+  | stored points per speed line | 7 | 7 | 56 |
 
-  It cost Table B.1's rms **0.2018 → 0.2355 %**. Taken anyway: provenance outranks a 0.03 %
-  score in this project, the report disagrees with *itself* by 5.5 % on the same quantity,
-  and a scheme that manufactures 389 frames of extrapolation is wrong whatever it scores.
-  Figure 8 — Ps3 against NG, with no fuel flow in it, so the closest thing to a direct test
-  of `f1` — agrees: 0.895 → **0.799 %** over 27 points.
+  The Table B.1 cost is the honest price: a 21 % degradation of the project's primary
+  evidence, taken because the report disagrees with *itself* by 5.5 % on that quantity and a
+  scheme that manufactures extrapolation is wrong whatever it scores. **What it did not fix
+  is #43** — the derivative ambiguity moved from descent to level rather than going away.
 
 - **Table B.1 and Figures 6–7 disagree with each other**, by up to 5.5 % on shaft power at
   low power. We track Table B.1, which is printed numbers rather than a plot.
@@ -366,12 +371,12 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   intersecting adjacent fits removed it. Segment-on-ink coverage **0.9850** over 185
   segments is the acceptance test, and the tool fails below 0.98.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **55 logged, 40 closed, 5 partly
-closed, 10 open**. The 2026-09-13 audits closed #25 (the pressure loops' stopping test and
+Open questions are tracked in `docs/notes/open-questions.md` — **56 logged, 40 closed, 5 partly
+closed, 11 open**. The 2026-09-13 audits closed #25 (the pressure loops' stopping test and
 pass count) and #45 (Eq. 80's repelling fixed point), and opened #56 (the Jacobian's
 perturbation step, which `SCOPE.md` had claimed was the report's ±2 % and never was).
 
-**Seven of the ten are things the report simply does not print**, and no amount of work
+**Seven of the eleven are things the report simply does not print**, and no amount of work
 closes them: the initialization rule for the opened iteration (#23), the integration algorithm
 (#26), the relaxation parameter and Lipschitz constant (#27), the 10 ms against 14 ms conflict
 (#33), the power turbine speed behind Figures 6–8 (#35) and behind Figures 9–10 (#36), and the

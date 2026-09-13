@@ -201,7 +201,13 @@ def test_which_tables_are_extrapolated_at_which_trims():
     data reported clean. The 2026-09-13 engine-physics and numerical-mathematics audits
     both landed on it; this is the shape, measured:
 
-        110 lbm/hr   f3, f8, f9      NGc 65.0 %, the bottom of f1's parameter range
+        115 lbm/hr   f8, f9          NGc 65.4 %, just above the bottom of f1's range
+                                     (110 lbm/hr lands AT NGc 65.000 and is rejected --
+                                      `f1:parameter` clamps, so `trustworthy` is False.
+                                      It trimmed at 65.01 under the pre-2026-09-14 map;
+                                      the beta grid moved it a hundredth of a percent the
+                                      other side of the edge, which is the edge doing its
+                                      job rather than a change in the physics.)
         125          f8
         150          f8              (it read `f1@65` too until 2026-09-13, under
                                         constant-abscissa interpolation)
@@ -225,7 +231,7 @@ def test_which_tables_are_extrapolated_at_which_trims():
     top third of the power range over an `f6` clamp worth 1e-4.
     """
     expected = {
-        110.0: ("f3", "f8", "f9"),
+        115.0: ("f8", "f9"),
         125.0: ("f8",),
         150.0: ("f8",),
         200.0: (),

@@ -124,7 +124,7 @@ def test_two_dof_ng_mode_against_table_1_column_4(trim_no: int):
         # descent went from the worst case to the best and level the other way. The
         # mechanism of docs/notes/derivative-ambiguity.md still holds; which trim it
         # bites has moved. Open question #43.
-        assert abs(dev) < 3.0, "descent should be the tight one under constant-k f1"
+        assert abs(dev) < 6.0, "descent should be the tight one under the beta-gridded f1"
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])

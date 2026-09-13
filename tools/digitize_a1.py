@@ -55,6 +55,7 @@ from __future__ import annotations
 import csv
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -1111,6 +1112,167 @@ with open(out, "w", newline="") as fh:
         for k, (a, b) in enumerate(DATA[lbl]):
             w.writerow([NGC[lbl], f"{a:.3f}", f"{b:.4f}", k, lbl])
 print("wrote", out)
+
+# ======================================================================================
+# THE BETA-GRIDDED MAP -- a standard extension of this figure, written alongside the raw one
+# ======================================================================================
+# Beta is the standard compressor-map coordinate: 0 at the choked end of a speed line, 1 at
+# surge, so that one beta names corresponding points on lines whose pressure-ratio ranges
+# differ by a factor of six. Interpolating between speed lines at constant beta is what
+# performance models do, and it is what `t700.maps.SpeedMap` does with this file.
+#
+# WHY NOT THE PRINTED CONSTRUCTION LINES. Figure A1 draws six dotted lines joining the k-th
+# marker of all eleven speed lines, and those ARE beta lines -- Ballin's own. Using them is
+# the obvious choice and it is not the best one, because the marker positions carry
+# digitizing noise and using them as the correspondence propagates it. Expressed as a
+# fraction of each line's own span, the k=1 markers sit at
+#
+#     0.7846 0.8174 0.8306 0.8318 0.8135 0.8113 0.8549 0.8681 0.8818 0.8914 0.8973
+#
+# -- up, up, up, DOWN, DOWN, up -- which is jitter, not physics (rms second difference
+# 0.0216). The span they are fractions of is smooth (2.76 ... 17.52, rms 2nd diff 0.79 on a
+# quantity spanning 15). So beta here is defined analytically, as the fraction of the line's
+# own pressure-ratio span:
+#
+#     beta = (Ps3/P2 - X0) / (Ps3/P2 at surge - X0),   X0 = 0.991, the plot's left frame
+#
+# Measured against the printed-marker correspondence: Table B.1's rms 0.2471 -> 0.2439 %,
+# the worst Table 1 NG mode 8.18 -> 7.56 %, transients and the zero-extrapolation property
+# unchanged, at 56 stored points instead of 97. It is also far less sensitive to the grid --
+# 0.2438-0.2439 % across every grid from 32 to 96 points, where the printed-marker version
+# moved over 0.2471-0.2488 -- which is what a well-posed parameterisation looks like.
+#
+# USING THIS FILE IS A DEPARTURE FROM REPLICATION and is recorded as one, open question #60.
+# Figure A1's speed lines are DRAWN as polylines, so the raw seven-point file is Ballin's
+# table and linear interpolation between those points is his model. The characteristic they
+# sample is smooth; the corners are an artifact of plotting a coarse table.
+#
+# GRID. 8 values in the choked part and 48 in the unchoked, split at beta = 0.70. The knee
+# sits at beta 0.785 to 0.897 on the eleven lines, so the split is below every one of them
+# and the whole unchoked run gets the fine spacing. The choked run is flat to 0.15 % and
+# needs nothing.
+#
+# SHAPE PRESERVATION. y is taken from a Fritsch-Carlson fit through the seven printed
+# markers (scipy PchipInterpolator, in Ps3/P2). It cannot overshoot: the flat choked run
+# stays flat, the falling unchoked run stays monotone, no hump is invented at the knee. A
+# natural cubic spline would ring there.
+#
+# `--raw-only` skips this file.
+BETA_CHOKED = 8
+BETA_UNCHOKED = 48
+BETA_SPLIT = 0.70
+
+if "--raw-only" not in sys.argv:
+    from scipy.interpolate import PchipInterpolator
+
+    dense_out = "data/maps/f1_compressor_mass_flow_beta.csv"
+    x_left = min(DATA[lbl][0][0] for lbl in LABELS)
+    beta = np.concatenate(
+        [
+            np.linspace(0.0, BETA_SPLIT, BETA_CHOKED, endpoint=False),
+            np.linspace(BETA_SPLIT, 1.0, BETA_UNCHOKED),
+        ]
+    )
+
+    def anchors(lbl):
+        """The seven printed markers, with the physics `t700.maps` applies at load applied
+        FIRST, so the fit is through data that already satisfies it.
+
+        Along one speed line a compressor passes less corrected flow against a higher
+        pressure ratio. Two of the 66 digitized segments rise instead, by 4e-4 and 1.7e-3
+        lbm/sec, which is pen width -- `maps.Physics(monotone="dec")` flattens them at load.
+        Fitting a shape-preserving cubic through the unflattened points and conditioning
+        afterwards is the wrong order: the fit faithfully preserves the rise, spreads it
+        over 56 points, and the load-time isotonic step then has to move 1.6e-3 instead of
+        the 8.5e-4 it moves on the raw file. Conditioning first leaves it nothing to do.
+        """
+        xs = np.array([q[0] for q in DATA[lbl]])
+        ys = np.array([q[1] for q in DATA[lbl]], dtype=float)
+        # pool-adjacent-violators for a non-increasing fit, the same rule maps.py uses
+        v = -ys.copy()
+        n = v.size
+        vals, wts, idx = np.zeros(n), np.zeros(n), 0
+        for i in range(n):
+            vals[idx], wts[idx], idx = v[i], 1.0, idx + 1
+            while idx > 1 and vals[idx - 1] < vals[idx - 2]:
+                vals[idx - 2] = (wts[idx - 2] * vals[idx - 2] + wts[idx - 1] * vals[idx - 1]) / (
+                    wts[idx - 2] + wts[idx - 1]
+                )
+                wts[idx - 2] += wts[idx - 1]
+                idx -= 1
+        out, j = np.zeros(n), 0
+        for i in range(idx):
+            out[j : j + int(wts[i])] = vals[i]
+            j += int(wts[i])
+        return xs, -out
+
+    chord = 0.0
+    for lbl in LABELS:
+        xs, ys = anchors(lbl)
+        f = PchipInterpolator(xs, ys)
+        xg = x_left + beta * (xs[-1] - x_left)
+        fine = np.linspace(xg[0], xg[-1], 4000)
+        chord = max(chord, float(np.abs(np.interp(fine, xg, f(xg)) - f(fine)).max()))
+    DHDR = [
+        "# source: TM-100991 pdf p.56, Figure A1 -- DERIVED from the raw extraction",
+        "# quantity: f1 -- compressor corrected mass flow, WA2c = f1(Ps3/P2, NGc), Eq. 7",
+        "# method: derived -- the 7 printed markers of each speed line, re-expressed on a",
+        "#         common beta grid. NO PIXEL IS RE-READ: this is a pure function of",
+        "#         f1_compressor_mass_flow.csv and nothing else.",
+        "#",
+        "# BETA is the fraction of a speed line's own pressure-ratio span:",
+        f"#     beta = (Ps3/P2 - {x_left:.4f}) / (Ps3/P2 at surge - {x_left:.4f})",
+        "# so beta = 0 at the choked left end of every line and 1 at its surge point, and one",
+        "# beta names corresponding points on lines whose spans differ by a factor of six.",
+        "#",
+        "# NOT the six dotted construction lines Figure A1 prints, although those are beta",
+        "# lines and are Ballin's own. Their marker positions carry digitizing noise: as a",
+        "# fraction of each line's span the k=1 markers run 0.785 0.817 0.831 0.832 0.814",
+        "# 0.811 0.855 0.868 0.882 0.891 0.897 -- non-monotone, rms 2nd difference 0.0216 --",
+        "# while the spans themselves are smooth. Using the markers as the correspondence",
+        "# propagates that jitter into every interpolated value. Measured against them:",
+        "# Table B.1 rms 0.2471 -> 0.2439 %, worst Table 1 NG mode 8.18 -> 7.56 %.",
+        "#",
+        f"# GRID: {BETA_CHOKED} values below beta = {BETA_SPLIT} and {BETA_UNCHOKED} above,",
+        f"# {len(beta)} per line. The knee sits at beta 0.785-0.897 on the eleven lines, so",
+        "# the split is below every one and the whole unchoked run gets the fine spacing; the",
+        "# choked run is flat to 0.15 % and needs nothing.",
+        "#",
+        "# COLUMNS:",
+        "#   ngc_pct         corrected gas generator speed NGc of the speed line, percent",
+        "#   beta            position along the line, nondimensional: 0 at the choked end,",
+        "#                   1 at surge. The interpolation coordinate.",
+        "#   ps3_p2          compressor static pressure ratio Ps3/P2, nondimensional",
+        "#   wa2c_lbm_per_s  station 2 corrected mass flow WA2c, lbm/sec -- the value of f1",
+        "#   symbol          the plot symbol of that speed line in Figure A1, 1..11",
+        "#",
+        "# Monotonicity is applied to the seven markers BEFORE the fit, not after: two of the",
+        "# 66 digitized segments rise by 4e-4 and 1.7e-3 lbm/sec (pen width), and a",
+        "# shape-preserving fit through them would faithfully preserve the rise.",
+        "#",
+        "# y comes from a shape-preserving Fritsch-Carlson fit through the seven printed",
+        "# markers (scipy PchipInterpolator, in Ps3/P2), so the curve passes through every",
+        "# measured point exactly and cannot overshoot at the knee. The stored polyline",
+        f"# approximates that curve to {chord:.2e} lbm/sec.",
+        "#",
+        "# USING THIS FILE IS A DEPARTURE FROM REPLICATION -- open question #60. The raw",
+        "# seven-point CSV is Ballin's table, and `maps.f1_as_printed()` loads it.",
+        f"# points: {11 * len(beta)} ({len(beta)} per line x 11 speed lines)",
+        "# derived: by tools/digitize_a1.py from the raw CSV; rerunnable, deterministic",
+    ]
+    with open(dense_out, "w", newline="") as fh:
+        for line in DHDR:
+            fh.write(line + "\n")
+        w = csv.writer(fh)
+        w.writerow(["ngc_pct", "beta", "ps3_p2", "wa2c_lbm_per_s", "symbol"])
+        for lbl in LABELS:
+            xs, ys = anchors(lbl)
+            f = PchipInterpolator(xs, ys)
+            for b in beta:
+                x = x_left + b * (xs[-1] - x_left)
+                w.writerow([NGC[lbl], f"{b:.6f}", f"{x:.4f}", f"{float(f(x)):.5f}", lbl])
+    print(f"wrote {dense_out}  (polyline approximates the fit to {chord:.2e} lbm/sec)")
+
 
 # per-curve two-column CSVs so `digitize.py verify` can be run on each speed line
 for lbl in LABELS:
