@@ -230,6 +230,27 @@ class SpeedMap:
     away from the only part of the line that bends, and would replace a correspondence the
     figure prints with one of ours.
 
+    ## Why seven, and not more
+
+    A real compressor characteristic is smooth, so representing a speed line by six chords
+    must in principle lose something -- which is an argument for digitizing intermediate
+    beta values off the printed curve. **The printed curve does not have any.** Read at
+    600 dpi, Figure A1's speed lines are drawn as *polylines*: straight runs with a visible
+    corner at each marker, not splines through them. The plotter drew Ballin's table, and
+    the table has seven points per line.
+
+    That makes linear interpolation between the seven a reproduction of his model rather
+    than an approximation of it -- a 1988 function-table processor interpolates linearly,
+    and the polyline on the page is what that produces. Adding beta values would mean
+    inventing intermediate points the report does not contain, and would make this map
+    *smoother than the one being replicated*. If that is ever wanted it is a departure to
+    be argued and recorded, like Eq. 80's solver, not a digitizing job.
+
+    (The evidence is visual and bounded: the digit markers are about 50 px tall on chords
+    of 50 to 83 px, so they occupy most of each segment and a tracer cannot separate the
+    line's own bow from glyph strokes. What can be said is that the corners are visible at
+    the markers and the segments between them read straight.)
+
     Evaluation blends the two bracketing speed lines at equal beta -- x and y together --
     and evaluates the query on the blended line. Blending the seven printed beta values
     directly is exact: both coordinates are piecewise linear in beta with the same
