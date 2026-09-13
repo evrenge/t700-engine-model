@@ -215,6 +215,21 @@ class SpeedMap:
     the beta grid rather than leaving it to be invented, which is why this needs no
     parameterisation of ours.
 
+    ## The seven values are unevenly spaced, and that is correct rather than a defect
+
+    They look alarming: on an average speed line the first interval, beta 0 to 1/6, spans
+    **9.15** in pressure ratio and the remaining five together span **1.8**. But the first
+    interval is the *choked* part of the line, where corrected flow does not depend on back
+    pressure, and it is flat -- measured over all eleven lines, y varies by at most **0.0048
+    lbm/s across it, 0.15 %**. The five crowded intervals cover the unchoked run, where y
+    varies by **3.0 to 6.4 %**. Ballin put the resolution where the curvature is.
+
+    Checked rather than argued: inserting an extra beta line anywhere inside the choked
+    segment, at any skew, moves `f1` by at most **4.3e-16**. Nothing there needs resolving,
+    so nothing is lost by not resolving it. Equally spaced beta lines would move resolution
+    away from the only part of the line that bends, and would replace a correspondence the
+    figure prints with one of ours.
+
     Evaluation blends the two bracketing speed lines at equal beta -- x and y together --
     and evaluates the query on the blended line. Blending the seven printed beta values
     directly is exact: both coordinates are piecewise linear in beta with the same

@@ -24,7 +24,7 @@ the two qualifications on that). Everything here is derived from it.
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 1.3–7.7 % of each panel's excursion, mean 3.5 %** over nine panels — Figure 9 1.3–5.2 %, Figure 10 1.9–7.7 % |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
 | **Closed loop vs Table B.1** | **worst 0.62 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
-| Tests | 991 passing, 3 skipped, lint and formatting clean |
+| Tests | 992 passing, 3 skipped, lint and formatting clean |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations

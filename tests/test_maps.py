@@ -530,3 +530,51 @@ def test_the_loaded_tables_cannot_be_mutated_through_a_cached_handle():
 
     # and the table still reads correctly afterwards
     assert float(maps.f2()(3.0)) == float(curve(3.0))
+
+
+def test_the_uneven_beta_spacing_puts_resolution_where_the_curvature_is():
+    """The seven printed beta values are far from evenly spaced. That is correct.
+
+    On an average speed line the first interval -- beta 0 to 1/6, the choked part -- spans
+    9.15 in pressure ratio, and the remaining five together span 1.8. It looks like the
+    resolution is in the wrong place until you look at what varies: across the choked
+    interval `y` moves by at most 0.0048 lbm/s over all eleven lines (0.15 %), while across
+    the unchoked run it moves 3.0 to 6.4 %.
+
+    So the sparse interval is flat and the dense ones bend. Inserting an extra beta line
+    inside the choked segment, at any skew, changes `f1` by ~1e-16 -- there is nothing there
+    to resolve. Evenly spaced beta lines would take resolution from the only part of the
+    line that curves, and would replace the correspondence Figure A1 prints with one of ours.
+    """
+    m = maps.f1()
+    choked_dy = [abs(line.y[1] - line.y[0]) for line in m.lines]
+    run_dy = [abs(line.y[-1] - line.y[1]) for line in m.lines]
+    assert max(choked_dy) < 0.006, f"the choked segment is no longer flat: {max(choked_dy)}"
+    assert min(run_dy) > 0.15, f"the unchoked run no longer carries the variation: {min(run_dy)}"
+    assert min(run_dy) > 30 * max(choked_dy)
+
+    # an extra beta line inside the choked segment must change nothing at all
+    worst = 0.0
+    for pq in np.linspace(66.0, 99.5, 30):
+        j = int(np.searchsorted(m.params, pq))
+        a, b = m.lines[j - 1], m.lines[j]
+        w = (pq - m.params[j - 1]) / (m.params[j] - m.params[j - 1])
+        xb = (1 - w) * a.x + w * b.x
+        yb = (1 - w) * a.y + w * b.y
+        for skew in (0.25, 0.5, 0.75):
+            xs = np.insert(
+                xb,
+                1,
+                (1 - w) * (a.x[0] + skew * (a.x[1] - a.x[0]))
+                + w * (b.x[0] + skew * (b.x[1] - b.x[0])),
+            )
+            ys = np.insert(
+                yb,
+                1,
+                (1 - w) * (a.y[0] + skew * (a.y[1] - a.y[0]))
+                + w * (b.y[0] + skew * (b.y[1] - b.y[0])),
+            )
+            for xq in np.linspace(xb[0], xb[-1], 25):
+                ref = float(np.interp(xq, xb, yb))
+                worst = max(worst, abs(float(np.interp(xq, xs, ys)) - ref) / max(ref, 1e-12))
+    assert worst < 1e-12, f"the choked segment's internal correspondence matters: {worst:.3e}"
