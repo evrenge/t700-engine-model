@@ -23,7 +23,7 @@ public domain). Everything here is derived from it.
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.0–7.6 % of each panel's excursion, mean 3.8 %** over nine panels |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
 | **Closed loop vs Table B.1** | **worst 0.74 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
-| Tests | 866 passing, 3 skipped, lint and formatting clean |
+| Tests | 874 passing, 3 skipped, lint and formatting clean |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
@@ -127,6 +127,31 @@ flow at a lower P41. Over its full record Ballin's own Figure 10 runs **−1.68 
 against his own Figure 8, and his Figure 9 accel runs **−1.43 % to +7.35 %**. Both signs are
 required, and he ties the two figures together himself on pdf p.39.
 
+## What the real-time approximation actually costs
+
+Table 1 prints two eigenvalue columns for what should be the same system — a 2-DOF model
+and an order-reduced 5-DOF — and Ballin's differ, −2.69 against −2.81 at hover. **Ours are
+identical**, and that is a theorem rather than a bug: linearizing an exactly solved
+quasi-steady system and taking the Schur complement of the full Jacobian are the same
+operation, so any model that converges its pressures must print two identical columns.
+
+His differ because his 2-DOF is a *separately coded* nonlinear program (pdf p.27) carrying
+the real-time numerics. Linearizing **our** `realtime.step` as a six-state discrete map —
+including Eq. 74's carried mass flow, which the continuous model does not have — and
+converting with `logm(A_d)/dt` puts a number on that:
+
+| hover NG mode | value | vs Ballin's −2.69 |
+|---|---|---|
+| continuous 2-DOF / reduced-5 | −2.444 | −9.1 % |
+| **discrete map at the report's own 7 ms frame** | **−2.728** | **+1.4 %** |
+
+So most of the gap is the frame, not the physics, and Table 1 column 4 becomes an
+independent check we pass at two trims of three. Refining the frame converges it back to
+the continuous value first-order. Two by-products: Eq. 74's opened iteration contributes a
+mode whose *discrete* eigenvalue stays a fixed fraction per **frame** as the frame shrinks
+(0.68 → 0.49), so it has no continuous limit and is a discretization artifact rather than a
+dynamic; and the printed 0.1 % iteration tolerance costs a further 10–19 % on the slow mode.
+
 ## Known gaps
 
 - **The transient error was a realization artifact, and it is fixed.** Eq. 50 writes the
@@ -228,8 +253,8 @@ required, and he ties the two figures together himself on pdf p.39.
   intersecting adjacent fits removed it. Segment-on-ink coverage **0.9850** over 185
   segments is the acceptance test, and the tool fails below 0.98.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **51 logged, 35 closed, 6 partly
-closed, 10 open**.
+Open questions are tracked in `docs/notes/open-questions.md` — **51 logged, 36 closed, 6 partly
+closed, 9 open**.
 
 **Seven of the eleven are things the report simply does not print**, and no amount of work
 closes them: the initialization rule for the opened iteration (#23), the integration algorithm
@@ -242,8 +267,7 @@ Of the three that remained work rather than gaps in the source, two are now clos
 outside its own digitized envelope on the 775 lbm/hr step — turned out to be an artifact of
 *prescribing* a fuel step the control would never command: with the loop closed, a harder
 demand leaves `f1`, `f7` and `f9` entirely unclamped, because that is what the acceleration
-limit is for. **#49**, linearizing the discrete real-time map, is the one piece of analysis
-still undone.
+limit is for. **#49**, linearizing the discrete real-time map, is now done — see below.
 
 Phase 5 added **#54** (is a hysteresis constant the whole band or the half?) and **#55** (the
 report states no initial condition for any of the 22 block diagrams). Neither can be closed

@@ -317,6 +317,7 @@ unprinted step time (open question #37). Tolerances for the last two, ours:
 | Figures 9/10 read error | +/-1.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS`, measured on the WFPH panel -- see the section above, and note the currency |
 | HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. What it tests is that Appendix C and Table B.1 -- digitized independently -- agree at all |
 | **Closed loop vs Table B.1** | **+/-1 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst 0.74 %, and that one is inherited -- the descent shaft power is 0.72 % out open-loop too. This is the Phase 5 gate: fuel flow is an *output* |
+| Discrete real-time map vs Table 1 col. 4 | +/-5 % (hover, level), +/-25 % (descent) | `test_discrete_map.DISCRETE_TOL_PCT`. Descent is loose because it carries the #31/#43 interpolation residual, which the continuous model has too and which this comparison is not measuring |
 
 **Every tolerance any test asserts is in this file.** Five were inline in test files until
 2026-09-12, two of them carrying their own docstring note saying they belonged here. A
