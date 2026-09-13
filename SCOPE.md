@@ -122,7 +122,7 @@ digitized scheduling functions and `_blocks.py` holds the primitives the figures
 *Gate:* closed-loop transients match the report's figures. **Not achievable, and known
 before the phase started** -- Figs. 11-15 all need Gen Hel. The gate actually met is the
 one available: the closed loop settles on **Table B.1's printed trims with fuel flow as an
-output**, worst deviation 0.74 % over NG, NP, Wf, Ps3 and shp at three conditions, and the
+output**, worst deviation **0.62 %** over NG, NP, Wf, Ps3 and shp at three conditions, and the
 governor absorbs a 35-70 % collective sweep while the settled state moves under 0.2 %.
 That is a cross-check between two independently digitized halves of the report, not a
 restatement. `validation/test_closed_loop.py`.
@@ -231,7 +231,7 @@ report, and most of them are deviations he *accepted*, not accuracy he *met*:
 | NG overestimate, open-loop step | 1-2% | Figs. 9-10 | 39 |
 | Rotor speed agreement | 0.2% | Fig. 12 only | 50 |
 | Eigenvalue mismatch called "good" | 4% | Table 1 comparison | 29 |
-| NG validity ceiling | 100% | above this the model is not claimed | 38 |
+| NG validity ceiling | 100% | above this the model is not claimed | **39** |
 
 Everything else Ballin says is qualitative -- "fair agreement", "agree very well". So our
 tolerances cannot be derived from the report; they have to be **declared by us and labelled
@@ -333,13 +333,21 @@ unprinted step time (open question #37). Tolerances for the last two, ours:
 | Table B.1's printed station state | +/-0.5 % | `test_trim_points.STATE_TOL_PCT`. Much tighter than the +/-3 % gas-path row because these are printed *numbers*, with no read error of ours in them at all |
 | Figures 9/10 read error | +/-1.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS`, measured on the WFPH panel -- see the section above, and note the currency |
 | HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. What it tests is that Appendix C and Table B.1 -- digitized independently -- agree at all |
-| **Closed loop vs Table B.1** | **+/-1 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst 0.74 %, and that one is inherited -- the descent shaft power is 0.72 % out open-loop too. This is the Phase 5 gate: fuel flow is an *output* |
+| **Closed loop vs Table B.1** | **+/-1 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst **0.62 %**, on descent fuel flow. This row said "0.74 %, and that one is inherited -- the descent shaft power is 0.72 % out open-loop too" until 2026-09-13, and **both halves were wrong when written**: the accuracy audit rebuilt the tree at the commit that wrote it and measured 0.696 % with descent shp +0.115 %. The governor does not inherit the open-loop shaft-power error, it converts it -- descent shp is -0.724 % open-loop and **+0.101 %** closed, because fuel flow is an output and the loop trims it until the torque matches. This is the Phase 5 gate |
 | Discrete real-time map vs Table 1 col. 4 | +/-5 % (hover, level), +/-25 % (descent) | `test_discrete_map.DISCRETE_TOL_PCT`. Descent is loose because it carries the #31/#43 interpolation residual, which the continuous model has too and which this comparison is not measuring |
 
-**Every tolerance any test asserts is in this file.** Five were inline in test files until
-2026-09-12, two of them carrying their own docstring note saying they belonged here. A
-tolerance that lives only beside the assertion it governs is one nobody compares against
+**Every *accuracy* tolerance is in this file, by name.** Five were inline in test files
+until 2026-09-12, two of them carrying their own docstring note saying they belonged here.
+A tolerance that lives only beside the assertion it governs is one nobody compares against
 its siblings, which is how two tests come to bound the same quantity differently.
+
+The sentence read "every tolerance any test asserts is in this file" until 2026-09-13, and
+that is not true and cannot be: roughly twenty-five numeric bounds are structural pins
+rather than accuracy claims -- a sign, an ordering, a band that says "this must still be
+positive" -- and hoisting those here would bury the dozen that matter. What belongs here is
+every bound that says *how close to the report is close enough*. Both the 2026-09-13
+code-quality and accuracy audits listed the inline survivors; `test_trim_points`'s
+eigenvalue bound was one, and is now `EIGENVALUE_TOL_PCT` below.
 
 ### Two things not to do
 
@@ -394,6 +402,6 @@ in the first place.
 
 ## Open questions
 
-Tracked in `docs/notes/open-questions.md` -- 49 rows, numbering deliberately
+Tracked in `docs/notes/open-questions.md` -- **55 rows**, numbering deliberately
 non-contiguous (see the note at the top of that file). Anything the report does not answer
 goes there rather than into the code as a guess.

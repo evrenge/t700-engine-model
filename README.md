@@ -23,8 +23,8 @@ the two qualifications on that). Everything here is derived from it.
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 1.3–13.2 % of each panel's excursion, mean 4.4 %** over nine panels — Figure 9 1.3–5.2 %, Figure 10 1.7–13.2 % |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
-| **Closed loop vs Table B.1** | **worst 0.74 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
-| Tests | 988 passing, 3 skipped, lint and formatting clean |
+| **Closed loop vs Table B.1** | **worst 0.62 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
+| Tests | 990 passing, 3 skipped, lint and formatting clean |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
@@ -56,7 +56,7 @@ data/reference/  transient and sweep traces to validate against
 tools/           the digitizers; each reproduces its CSV byte for byte
 tests/           fast unit tests, and the architecture rules as executable checks
 validation/      comparisons against the report, and the figure set
-docs/notes/      ~6,900 lines: equations, symbols, inventories, open questions
+docs/notes/      ~7,400 lines: equations, symbols, inventories, open questions
 ```
 
 ## The rules this was built under
@@ -148,10 +148,15 @@ converting with `logm(A_d)/dt` puts a number on that:
 
 So most of the gap is the frame, not the physics, and Table 1 column 4 becomes an
 independent check we pass at two trims of three. Refining the frame converges it back to
-the continuous value first-order. Two by-products: Eq. 74's opened iteration contributes a
-mode whose *discrete* eigenvalue stays a fixed fraction per **frame** as the frame shrinks
-(0.68 → 0.49), so it has no continuous limit and is a discretization artifact rather than a
-dynamic; and the printed 0.1 % iteration tolerance costs a further 5.2–8.7 % on the slow mode
+the continuous value first-order. Two by-products: **two** of the frame map's six modes are
+discretization artifacts rather than dynamics — their *discrete* eigenvalues stay a fixed
+fraction per **frame** as the frame shrinks, so neither has a continuous limit. P45's
+one-frame lag runs 0.675 → 0.590 → 0.538 → 0.507 at dt = 14 / 7 / 3.5 / 1.75 ms, and
+Eq. 74's carried compressor flow is a complex pair going the other way, 0.154 → 0.191.
+(This README attributed the first series to Eq. 74 until 2026-09-13. By participation
+factor that mode is P45's — P[P45] = 0.68 against P[WA31] = 0.07 at the 7 ms frame — and it
+is a mode because Eq. 26 takes the *entering* P45, so it feeds forward a frame whatever the
+iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to the digit.) and the printed 0.1 % iteration tolerance costs a further 5.2–8.7 % on the slow mode
 (10–19 % before its stopping rule was corrected).
 
 ## Known gaps
@@ -196,7 +201,7 @@ dynamic; and the printed 0.1 % iteration tolerance costs a further 5.2–8.7 % o
   Integrating the metal temperature instead — Eqs. 48–49 as printed — has no such artifact,
   and is identical whenever the coefficients are constant, so Appendix B, Table 1 and every
   trim are untouched. Whole-curve RMS, mean over nine panels: **9.8 % → 3.8 %**; worst panel
-  15.8 % → 7.6 %; the Figure 9 T41 overshoot 1.67× Ballin's → **0.87×**. (Those are the
+  15.8 % → 7.6 %; the Figure 9 T41 overshoot 1.67× Ballin's → **0.83×**. (Those are the
   numbers at that change; the stopping-rule correction above then took the mean to 4.4 %
   and the worst panel to 13.2 %, all of it on Figure 10.)
 - **What looked like the report disagreeing with itself at 775 lbm/hr was an unsettled
@@ -206,7 +211,7 @@ dynamic; and the printed 0.1 % iteration tolerance costs a further 5.2–8.7 % o
   record ends** at t = 4.46 s — at +0.24 to +0.28 %NG/s measured over its last 1.5–3 s — so
   the two figures never described the same instant. (The trace is quantised at 0.030 %NG per
   pixel row, so the *instantaneous* end slope is not resolved; an earlier "+0.142 %NG/s" was
-  one fit window's answer.) Our own model reproduces 51 / 39 / 62 % of each spread purely as
+  one fit window's answer.) Our own model reproduces 50 / 38 / 61 % of each spread purely as
   settling, and matches the sweep to −0.26 / −1.92 / −0.91 % *and* the transient to +0.15 /
   +0.30 / +0.81 % at the same time — which a real contradiction would forbid.
 - **The state trajectory is right; what is left is the rate along it.** Comparing Ps3 against
@@ -250,25 +255,36 @@ dynamic; and the printed 0.1 % iteration tolerance costs a further 5.2–8.7 % o
   describes, which under-converged the loop eightfold; and the heat sink is now Eqs. 48–49
   rather than the collapsed Eq. 50. None was aimed at a figure, and the middle one cost us
   Figure 10.
-- **The "false equilibrium below flight idle" is gone, and it was never the P45 loop.**
-  Run the Figure 10 chop past its 4.5 s of record and the frame used to settle at 75.7 %NG
-  where the differential model trims at 67.0 %, recorded as a P45 *tolerance* artifact:
-  "a loose tolerance on a flat iteration function invites a false fixed point." Both halves
-  were wrong. With the P3/P41 loop stopping on the error, the 125 lbm/hr run settles at
-  **66.895 %NG against a 67.039 % differential trim, −0.21 %**, and *identically at 1e-3,
-  1e-6 and 1e-9* — the tolerance argument set both loops, so tightening "P45" had been
-  tightening the inner one.
+- **The false equilibrium below flight idle: gone from the chop, still there from its own
+  trim, and selected by the *parity* of a pass count.** Run the Figure 10 chop past its
+  4.5 s of record and the frame used to settle at 75.7 %NG where the differential model
+  trims at 67.0 %. With the P3/P41 loop stopping on the error, that path now settles at
+  **66.895 %NG against 67.039 %, −0.21 %**, identically at 1e-3, 1e-6 and 1e-9 — the
+  tolerance argument sets both loops, so tightening "P45" had been tightening the inner
+  one. **This README said "the false root is gone" for part of 2026-09-13, and that was
+  overstated: what is gone is the chop *path*.** Held at its own 125 lbm/hr trim the
+  shipped model still settles at **75.743 %NG**, and which root it finds depends on nothing
+  but whether `MAX_ITER_P45` is even or odd — 75.743 at 2, 4, 6, 8, 20 and 67.610 at 3, 5,
+  7, 9, 21. Magnitude is irrelevant out to 21 passes. (That confirms a parity claim the
+  numerical-mathematics audit had recorded as *unverified*, and could not verify because
+  the caps are default arguments and setting the module attribute does nothing.)
 
-  The P45 map is not flat there either; it is **expansive**. Eq. 80 iterates
-  `g(P45) = N/f9(Ps9/P45)`, so `g′(P45*)` is exactly f9's elasticity, which measures
-  −0.253 / −0.755 / −0.947 / −1.258 / −1.568 at Ps9/P45 = 0.60 / 0.70 / 0.75 / 0.80 /
-  0.849. It crosses −1 near **0.77**, so the fixed point is genuinely **repelling** above
-  that — and the settled chop sits at 0.8492, *inside* f9's data, with 96 % of its frames
-  in the repelling band. It does not blow up because each frame restarts from the previous
-  frame's P45, already at the fixed point to within rounding, and eight passes amplify that
-  by 1.57⁸ ≈ 37, which leaves it at rounding. Confirmed directly: iterated at the
-  125 lbm/hr trim the P45 steps grow 57, 88, 137 … 7912 ulp — a ratio of 1.57 a pass, which
-  is the elasticity. Open question #45, closed.
+  **The mechanism is both of the explanations on record, not one instead of the other.**
+  Eq. 80 iterates `g(P45) = N/f9(Ps9/P45)`, so `g′(P45*)` is exactly f9's elasticity.
+  f9's data ends at Ps9/P45 = **0.85012**. The true equilibrium sits at **0.84903** — inside
+  by 0.00109, where the elasticity is **−1.5685**, so it is **repelling**, which is what the
+  mathematics audit found. Immediately beyond the last knot the table clamps flat:
+  elasticity **0.000**, strongly **attracting**, which is what the original ledger entry
+  meant by "a clamped, therefore nearly flat, iteration function invites a false fixed
+  point". The false root sits there, at 0.8692. So the iterate is expelled from a repelling
+  root and captured by an attracting plateau **0.13 % away**. Calling the old explanation
+  "backwards" was wrong; it described the second half and was missing the first.
+
+  Elasticity along the curve: −0.253 / −0.755 / −0.947 / −1.258 / −1.568 at Ps9/P45 =
+  0.60 / 0.70 / 0.75 / 0.80 / 0.849, crossing −1 near **0.77**; the settled chop spends
+  96 % of its frames above that. Confirmed directly: iterated at the 125 lbm/hr trim the
+  P45 steps grow 57, 88, 137 … 7912 ulp, a ratio of 1.57 a pass, which is the elasticity
+  itself. Open question #45.
 - **Table B.1 and Figures 6–7 disagree with each other**, by up to 5.5 % on shaft power at
   low power. We track Table B.1, which is printed numbers rather than a plot.
 - Figures 11–15 are **not reproducible** — they need the Gen Hel UH-60A blade-element
@@ -278,8 +294,14 @@ dynamic; and the printed 0.1 % iteration tolerance costs a further 5.2–8.7 % o
   strong one, because the engine and the control were digitized from different halves of
   the report and neither knows the other exists: close the loop, hold the load at Table
   B.1's printed shaft torque, and the model settles on the printed trims **with fuel flow
-  as an output** — worst 0.74 % across NG, NP, Wf, Ps3 and shp at three conditions, and
-  that one is inherited (the descent shaft power is 0.72 % out open-loop too). The
+  as an output** — worst **0.62 %** across NG, NP, Wf, Ps3 and shp at three conditions, on
+  descent fuel flow. **The governor does not inherit the open-loop shaft-power error, it
+  converts it**: descent shp is −0.724 % open-loop and **+0.101 %** closed, because fuel
+  flow is an output and the loop trims it until the torque matches, absorbing the error
+  into Wf instead. This paragraph said "worst 0.74 %, and that one is inherited (the
+  descent shaft power is 0.72 % out open-loop too)" until 2026-09-13; the 2026-09-13
+  accuracy audit rebuilt the tree at the commit that wrote it and measured 0.696 % with
+  descent shp +0.115 %, so both the number and the attribution were wrong when written. The
   governor also absorbs a 35–70 % collective sweep while the settled state moves under
   0.2 % and `SPDG` travels from −0.40 to +1.62, which is what a governor is *for* and is
   the thing a mis-wired loop fails first. Building it caught three errors that would
@@ -304,12 +326,12 @@ dynamic; and the printed 0.1 % iteration tolerance costs a further 5.2–8.7 % o
   intersecting adjacent fits removed it. Segment-on-ink coverage **0.9850** over 185
   segments is the acceptance test, and the tool fails below 0.98.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **52 logged, 37 closed, 5 partly
-closed, 10 open**. The 2026-09-13 audits closed #25 (the pressure loops' stopping test and
+Open questions are tracked in `docs/notes/open-questions.md` — **55 logged, 37 closed, 5 partly
+closed, 13 open**. The 2026-09-13 audits closed #25 (the pressure loops' stopping test and
 pass count) and #45 (Eq. 80's repelling fixed point), and opened #56 (the Jacobian's
 perturbation step, which `SCOPE.md` had claimed was the report's ±2 % and never was).
 
-**Seven of the eleven are things the report simply does not print**, and no amount of work
+**Seven of the thirteen are things the report simply does not print**, and no amount of work
 closes them: the initialization rule for the opened iteration (#23), the integration algorithm
 (#26), the relaxation parameter and Lipschitz constant (#27), the 10 ms against 14 ms conflict
 (#33), the power turbine speed behind Figures 6–8 (#35) and behind Figures 9–10 (#36), and the

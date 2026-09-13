@@ -26,7 +26,7 @@ import numpy as np
 from t700 import constants as c
 from t700 import maps
 from t700.engine import STANDARD_DAY, Ambient, Frame, State, frame
-from t700.units import RPM_TO_RAD_PER_SEC
+from t700.units import shp_from_torque
 
 # The four unknowns, in the order the residual vector uses.
 UNKNOWNS = ("NG", "P3", "P41", "P45")
@@ -119,7 +119,7 @@ class TrimResult:
     @property
     def shp(self) -> float:
         """Shaft horsepower delivered by the power turbine at this trim."""
-        return self.frame.q_pt_ftlbf * self.state.np_rpm * RPM_TO_RAD_PER_SEC / 550.0
+        return shp_from_torque(self.frame.q_pt_ftlbf, self.state.np_rpm)
 
     @property
     def q_req_ftlbf(self) -> float:

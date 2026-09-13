@@ -25,11 +25,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pytest
 
 from t700 import constants as c
 from t700 import trim
 from t700.engine import Ambient, frame
+from t700.linear import DOF, extract
 from t700.units import wf_pps_from_pph
 
 # Tolerances from SCOPE.md. Ours, declared, not derived from the report.
@@ -160,55 +162,79 @@ def test_more_fuel_buys_more_speed_and_power():
 # --------------------------------------------------------------------------- dynamics
 
 
+EIGENVALUE_TOL_PCT = 30.0
+"""Ours, declared in `SCOPE.md`. Loose because the NG mode carries the #31/#43
+interpolation residual, worst -22.6 % at descent; see `docs/notes/derivative-ambiguity.md`.
+It was an inline `30.0` under a docstring claiming a 4 % standard until 2026-09-13."""
+
+
 def test_jacobian_eigenvalues_against_table_1():
     """Compare our own linearization with the report's printed modes [Table 1, pdf p.31].
 
     A far stronger check than the trim values: it tests the *derivatives* of every
-    equation, not just their equilibrium. Ballin calls a 4 % eigenvalue mismatch "good
-    agreement" [pdf p.29], which is the standard used here.
+    equation, not just their equilibrium.
 
-    The slowest mode is excluded deliberately. It is the NP/rotor mode and its eigenvalue
-    depends on dQreq/dNP, supplied by the Gen Hel UH-60A simulation. Our Jacobian holds
-    Qreq constant, so that derivative is zero and the mode is not comparable -- the same
-    row Appendix B flags as not independently reproducible.
+    ## Two defects this test carried until 2026-09-13
+
+    **It compared the wrong mode.** It sorted the spectrum, dropped `ours[0]` as "the
+    load-dependent slowest mode ... the NP/rotor mode", and compared the rest against
+    Table 1. At hover the sorted spectrum is [-4870.69, -2603.82, -55.43, -2.792, -2.287]
+    and the structural NP mode is `A[1,1] = -2.792` -- so it dropped **-2.287, the NG
+    mode**, and compared **-2.792, the NP mode**, against Ballin's printed NG mode of
+    -2.66, reporting **+5.0 %** where the correct pairing is **-14.0 %**. That is exactly
+    what `tests/test_linear.py::test_sorting_would_mispair_the_slow_modes` exists to
+    forbid, and that test's own docstring names these numbers. Found by the 2026-09-13
+    code-quality audit.
+
+    `LinearModel.comparable_eigenvalues` already identifies NP structurally -- column NP is
+    otherwise all zeros in every printed variant, so `A[1,1]` *is* that eigenvalue -- and
+    this now uses it instead of hand-rolling a Jacobian.
+
+    **And it stated a standard it did not apply.** It said Ballin calls a 4 % mismatch
+    "good agreement" [pdf p.29] "which is the standard used here", and then asserted 30 %.
+    pdf p.29 says only "in good agreement" and prints no number; the 4 % is the project's
+    own arithmetic on Table 1 (-2.69 against -2.81 at hover is 4.3 %). The bound is in
+    `SCOPE.md` now and the docstring no longer claims to be something it is not.
+
+    ## What it measures
+
+    Paired by physics, at the hover trim, against Table 1's printed NG / P3 / P45 / P41:
+
+        NG    -2.287 vs -2.66     -14.0 %
+        P3   -55.434 vs -51.6      +7.4 %
+        P45 -2603.8  vs -3060.0   -14.9 %
+        P41 -4870.7  vs -4900.0    -0.6 %
+
+    The NG residual is the one `test_all_dof_models` reports as -9.1 / -0.3 / -22.6 %
+    across the three trims, and `docs/notes/derivative-ambiguity.md` attributes it to
+    interpolation rather than to a wrong equation.
     """
-    import numpy as np
-
-    from t700.engine import State, frame
-
     case = CASES[0]
     amb = Ambient(case.p_amb_psia, case.t_amb_degR)
     wf = wf_pps_from_pph(case.wf_pph)
     r = _solve(case)
-    x0 = r.state.as_array()
-    qreq = r.frame.q_pt_ftlbf
 
-    def deriv(x):
-        f = frame(State.from_array(x), wf, amb, q_req_ftlbf=qreq)
-        return np.array([f.dng_dt, f.dnp_dt, f.dp3_dt, f.dp41_dt, f.dp45_dt])
+    model = extract(r, wf, DOF.FIVE, amb)
+    ours = np.sort(np.real(model.comparable_eigenvalues))[::-1]  # least to most negative
 
-    f0 = deriv(x0)
-    A = np.zeros((5, 5))
-    for i in range(5):
-        h = 1e-6 * max(abs(x0[i]), 1.0)
-        xp = x0.copy()
-        xp[i] += h
-        A[:, i] = (deriv(xp) - f0) / h
-
-    ours = np.sort(np.linalg.eigvals(A).real)[::-1]  # least to most negative
-    # Table 1, trim 1, excluding the load-dependent slowest mode
+    # Table 1, trim 1, with the NP row excluded -- it is built from dQreq/dNP, a Gen Hel
+    # quantity we do not have, and is the same row Appendix B flags as not independently
+    # reproducible.
     printed = [-2.66, -51.6, -3060.0, -4900.0]
-    mine = [ours[1], ours[2], ours[3], ours[4]]
+    on_record = [-14.0, 7.4, -14.9, -0.6]
 
-    for got, want in zip(mine, printed, strict=True):
-        rel = abs(got - want) / abs(want) * 100.0
-        assert rel < 30.0, f"eigenvalue {got:.1f} against printed {want}: {rel:.1f} % off"
-
-    fastest = abs(ours[-1])
-    assert fastest > 1000.0, (
-        "the fast pressure modes should be present in the 5-state model; if they are not, "
-        "the volume dynamics are not being modelled"
-    )
+    assert ours.size == len(printed), f"expected 4 comparable modes, got {ours}"
+    for got, want, expected in zip(ours, printed, on_record, strict=True):
+        # magnitude convention, as `test_all_dof_models` uses: negative means our mode is
+        # less damped than the printed one
+        dev = (abs(got) - abs(want)) / abs(want) * 100.0
+        assert abs(dev) < EIGENVALUE_TOL_PCT, (
+            f"eigenvalue {got:.1f} against printed {want}: {dev:+.1f} %"
+        )
+        assert abs(dev - expected) < 1.0, (
+            f"eigenvalue {got:.1f} against printed {want} measures {dev:+.1f} %, "
+            f"{expected:+.1f} % on record. Paired by physics, not by position."
+        )
 
 
 def test_the_model_is_too_stiff_for_explicit_integration_at_the_report_frame_time():

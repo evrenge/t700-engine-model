@@ -287,10 +287,12 @@ def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
     Ballin's Figure 9 Ps3(NG) over 92-98 %NG is a straight line -- R^2 = 0.9994, and the
     chord through its two endpoints reproduces the trace to 0.30 %. So a model that
     merely lands on the 400 and 775 lbm/hr trims traces an indistinguishable path there,
-    and Figure 9's agreement -- **1.42 %** -- is in fact *larger* than the curvature it
+    and Figure 9's agreement -- **1.66 %** -- is in fact *larger* than the curvature it
     would have to explain, so that panel carries nothing.
-    Figure 10 is different: its chord error is **7.24 %**, so our **1.02 %** means the
-    trajectory is about seven times closer to Ballin's than a straight line is.
+    Figure 10 is different: its chord error is **7.24 %**, so our **1.30 %** means the
+    trajectory is about **5.6 times** closer to Ballin's than a straight line is.
+    (1.42 / 1.02 / "seven times" were on record until 2026-09-13; `SCOPE.md` had already
+    been updated to 1.66 / 1.30 by the stopping-rule change and this docstring had not.)
     `test_the_phase_plane_is_not_a_degenerate_comparison` pins that distinction.
 
     Two further limits, both measured. The metric is **blind to the volume constants**:

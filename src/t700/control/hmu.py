@@ -56,6 +56,7 @@ from t700 import constants as engine_c
 from t700.control import constants as c
 from t700.control import schedules
 from t700.control._blocks import backlash, clamp, delay, lag, lead_lag
+from t700.units import wf_pps_from_pph
 
 SPDG_NULL: float = -c.TM_INPUT_BIAS - c.TM_CURRENT_BIAS / c.TM_FORWARD_GAIN
 """The ECU trim signal at which the torque motor sits still. **Not 0.44.**
@@ -284,7 +285,7 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
         wf_history=history,
     )
     out = HMUOutputs(
-        wf_pps=wf_pph / 3600.0,
+        wf_pps=wf_pps_from_pph(wf_pph),
         wf_pph=wf_pph,
         pcnghl=pcnghl,
         ps3l_psia=ps3l,

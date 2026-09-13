@@ -84,7 +84,28 @@ def integrator(x: float, u: float, gain: float, lo: float, hi: float, dt: float)
 
     Clamping the state rather than the output is what makes it anti-windup: an integrator
     that ran free behind a clamped output would take an unbounded time to come back.
-    Appendix C draws the limits inside the integrator icon, which is the same thing.
+
+    **Appendix C does not draw it this way, and this docstring said it did.** It claimed
+    "Appendix C draws the limits inside the integrator icon, which is the same thing".
+    Both halves are wrong, and the first is checkable: read at 300 dpi, Figure C10
+    [pdf p.89] draws `TMGN/s` as a plain box with no limits on it, followed by a
+    *separate* saturation box labelled XHILIM above and XLOLIM below. Figures C3
+    [pdf p.86] and C7 [pdf p.88] do the same with YHILIM/YLOLIM and ZHILIM/ZLOLIM. So the
+    drawn topology is an unlimited integrator into a downstream limiter -- which **winds
+    up** -- and clamping the state is not the same thing as clamping the output.
+
+    It only matters when a limit actually binds, and then it matters a lot. Measured by
+    the 2026-09-13 control-systems audit on the validation suite's own collective slam:
+    with `pi_int` saturating at ZHILIM the two readings diverge by 63 rpm NP, 132 rpm NG,
+    18.4 pph Wf and 24.7 degR T41; on the same slam with the load raised so the limit never
+    binds they agree to 0.000 rpm; and adding a load chop takes it to 1240 rpm NP (5.9 %)
+    and 330 pph Wf (69 %). Figure C3's torque integrator free-runs to 9650-11549 ft*lbf*s
+    against its clip at 40 -- a 241-289x windup that would take about 480 s to unwind.
+
+    **The anti-windup behaviour is kept for now and the departure is recorded**, because
+    choosing between them is a replication decision rather than a bug fix: the report draws
+    windup, a physical op-amp integrator against a stop does not have it, and this project's
+    rule is to reproduce what is printed and record the objection. Open question #59.
     """
     return clamp(x + dt * gain * u, lo, hi)
 

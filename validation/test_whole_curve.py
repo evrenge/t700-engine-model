@@ -262,7 +262,12 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
 
     ## Why it was also the wrong loop
 
-    The false root is gone, and correcting P45 is not what removed it. On 2026-09-13 the
+    The false root is gone **from the chop path**, and correcting P45 is not what removed
+    it. (This paragraph said "the false root is gone" without that qualifier for part of
+    2026-09-13. Held at its own 125 lbm/hr trim the shipped model still settles at 75.743
+    %NG, and which root it reaches depends on the **parity** of `MAX_ITER_P45` and nothing
+    else: 75.743 at caps 2, 4, 6, 8, 20 and 67.610 at 3, 5, 7, 9, 21. See
+    `test_the_sub_idle_root_is_selected_by_the_parity_of_the_pass_count`.) On 2026-09-13 the
     **P3/P41** stopping test was corrected to measure the error the report states rather
     than the iterate step (see `realtime.TOL_PRESSURE`). With the inner loop converged, the
     125 lbm/hr chop settles at **66.895 %NG against a 67.039 % differential trim, -0.21 %**
@@ -279,10 +284,16 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
     genuinely far off -- 0.4 % of the run, just after the step -- and `_p45_loop` reports
     those as `Exit.DIVERGING` rather than discarding them.
 
-    So the repelling fixed point is real, it is a property of Eq. 80 and f9 rather than of
-    our arithmetic, and it is harmless at the frame rate the report runs. That is the
-    closure: the phenomenon is understood, and the behaviour it was blamed for had another
-    cause.
+    ## The two explanations are complementary
+
+    Calling the recorded wording "backwards" was itself wrong, and this docstring did that
+    for part of 2026-09-13. f9's data ends at Ps9/P45 = 0.85012; the true equilibrium sits
+    at 0.84903, inside by 0.00109, elasticity -1.5685 and therefore repelling. The clamped
+    plateau immediately beyond has elasticity **0.000** -- strongly attracting -- and that
+    is what "a clamped, therefore nearly flat, iteration function invites a false fixed
+    point" was describing. The false root sits on it, at 0.8692. The iterate is expelled
+    from a repelling root and captured by an attracting plateau 0.13 % away. Both halves
+    are real and they are one mechanism.
     """
     f9 = maps.f9()
 
@@ -341,6 +352,65 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
         f"the settled speed must not depend on the tolerance any more: {printed:.3f} %NG "
         f"printed against {converged:.3f} % at 1e-9"
     )
+
+
+def test_the_sub_idle_root_is_selected_by_the_parity_of_the_pass_count():
+    """Held at its own 125 lbm/hr trim, the shipped model sits on the false root.
+
+    The chop path reaches the true equilibrium (the test above). Started from the
+    125 lbm/hr trim itself, it does not -- and which root it finds depends on nothing but
+    whether `MAX_ITER_P45` is even or odd:
+
+        cap   2      3      4      5      6      8      9     20     21
+        %NG  75.743 67.610 75.743 67.610 75.743 75.743 67.610 75.743 67.610
+
+    against a differential trim of 67.039 %NG. Magnitude is irrelevant out to 21 passes;
+    only parity matters. The shipped cap is 8, so the shipped model takes the false root.
+
+    This is the parity claim the 2026-09-13 numerical-mathematics audit recorded as
+    **unverified** -- and it could not verify it, because `MAX_ITER_P45` is a default
+    argument bound at definition time, so assigning the module attribute does nothing. The
+    cap has to be overridden by wrapping `_p45_loop`, which is what this test does.
+
+    Kept rather than fixed, for the reasons in the test above: the report specifies Eq. 80
+    and eight passes [pdf p.37], and it eliminated below-flight-idle fuel control from the
+    real-time model [pdf p.38]. Open question #45.
+    """
+    original = realtime._p45_loop
+    r0 = trim.solve(wf_pps_from_pph(125.0), c.NP_DES, AMB)
+    f0 = frame(r0.state, wf_pps_from_pph(125.0), AMB)
+    differential = 100.0 * r0.state.ng_rpm / c.NG_DES
+    assert abs(differential - 67.039) < 0.05, f"the trim moved: {differential:.3f} %NG"
+
+    def settle_with_cap(cap: int) -> float:
+        def capped(*a, **k):
+            return original(*a[:6], k.get("tol", realtime.TOL_PRESSURE), cap)
+
+        realtime._p45_loop = capped
+        try:
+            st = realtime.from_trim(r0, f0.wa31_pps, f0)
+            tr = realtime.run(
+                st,
+                lambda t: wf_pps_from_pph(125.0),
+                AMB,
+                duration_s=40.0,
+                dt=0.007,
+                q_req_ftlbf=f0.q_pt_ftlbf,
+                integrate_np=False,
+                heat_sink=True,
+            )
+        finally:
+            realtime._p45_loop = original
+        t = np.asarray(tr["t"])
+        pcng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
+        return float(np.median(pcng[t > 35.0]))
+
+    for cap in (2, 4, 6, 8):
+        got = settle_with_cap(cap)
+        assert abs(got - 75.743) < 0.05, f"even cap {cap} settles at {got:.3f}, not 75.743"
+    for cap in (3, 5, 7, 9):
+        got = settle_with_cap(cap)
+        assert abs(got - 67.610) < 0.05, f"odd cap {cap} settles at {got:.3f}, not 67.610"
 
 
 def test_the_frame_map_has_its_own_equilibria_below_flight_idle():

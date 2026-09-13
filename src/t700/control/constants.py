@@ -5,7 +5,7 @@ Two groups, and the second is the one that gets lost:
 * **Table C.1** [TM-100991 pdf pp.83-84], 57 rows, printed across two pages
   (AWFP..T17, then T45COR..ZLOLIM). Kept in the report's own alphabetical order so this
   module can be checked line by line against the printed table.
-* **Nineteen constants that appear only inside block diagrams** and are in no table
+* **Sixteen constants that appear only inside block diagrams** and are in no table
   anywhere in the report. They are just as load-bearing as the tabulated ones -- the
   torque motor forward gain, the fuel transport delay, the UH-60A collective rigging --
   and a transcription that reads only the tables loses every one of them silently.
@@ -247,8 +247,15 @@ one-engine implementation switch open, TRQL(engine 2) = 0, so this is the value 
 and it matches the Table C.1 entry."""
 
 # ================================================== constants printed only on the figures
-# In no table anywhere in the report. Nineteen of them. A transcription that reads only
-# the tables loses every one silently, so they are named here with their figure.
+# In no table anywhere in the report. **Sixteen** of them, and 57 + 16 = 73, which is the
+# total README and SCOPE carry. A transcription that reads only the tables loses every one
+# silently, so they are named here with their figure.
+#
+# This comment and the module docstring above both said "nineteen" until 2026-09-13, above
+# and below a list of sixteen. Nineteen *numbers* appear only on block diagrams, and
+# `tests/test_control_constants.py` says so and reconciles it -- three of them are not new
+# constants, they are values already in Table C.1 that the figures repeat. The count of new
+# constants is sixteen. Found by the 2026-09-13 accuracy audit.
 
 LOAD_SHARE_LAG_GAIN: Final = 1.1
 """Numerator gain of the load-share lag 1.1/(CT7*s + 1). [Fig. C2, pdf p.85]"""

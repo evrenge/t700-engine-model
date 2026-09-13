@@ -57,8 +57,14 @@ rather than silently shifting a curve.
 ## What the output is checked against
 
 Every segment between consecutive knots is sampled and required to lie on ink. Over 185
-segments the mean coverage is **0.9965**, every curve is between 0.990 and 1.000, and the
-worst single segment is 0.83. That is the acceptance test, and `main` fails if it degrades.
+segments the mean coverage is **0.9850**, and the two weakest curves are 5 (T2 = 519.0,
+0.970 mean, 0.64 worst) and 7 (T2 = 590.0, 0.959 mean, 0.48 worst). That is the acceptance
+test, and `main` fails below the 0.98 floor.
+
+(This said "mean coverage 0.9965, every curve between 0.990 and 1.000, worst single
+segment 0.83" until 2026-09-13 -- flattering, on the figure this project calls its hardest
+extraction. The CSV header the tool emits, and README, both carried the correct 0.9850;
+only the docstring was wrong. Found by the 2026-09-13 accuracy audit.)
 
     python3 tools/digitize_c30.py
 """
@@ -266,7 +272,7 @@ within SEED_TOL_WFPAC. This is the test that actually matters: a seed must ident
 run unambiguously, even when its own value is imprecise."""
 
 COVERAGE_FLOOR = 0.98
-"""Mean fraction of segment samples that must lie within 6 px of ink. Measured 0.9965."""
+"""Mean fraction of segment samples that must lie within 6 px of ink. Measured 0.9850."""
 
 
 def plot_mask(ink, box):

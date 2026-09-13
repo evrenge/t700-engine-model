@@ -304,8 +304,13 @@ def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
       only valid for constant coefficients, and Eqs. 51 and 53 make them functions of T41
       and W41. See `realtime._heat_sink`.
 
-    The overshoot went 3.41x Ballin's without the heat sink, 1.67x with it and the old
-    realization, and is now BELOW his. The band is a ratchet: leaving it in either
+    The overshoot went 3.17x Ballin's without the heat sink, 1.67x with it and the old
+    realization, and is now BELOW his at **0.83x**. (3.41x and 0.87x were on record until
+    2026-09-13; both moved with that day's stopping-rule correction and neither was swept
+    up. Measured today with this file's own `_t41_overshoot` definition: ours 100.1 degR
+    against Ballin's 120.8 with the heat sink, 383.4 without.)
+
+    The band is a ratchet: leaving it in either
     direction means re-measuring, and the lower bound exists so an improvement is noticed
     rather than silently absorbed.
     """
@@ -322,8 +327,8 @@ def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
     ratio = ours / theirs
     assert 0.6 < ratio < 1.2, (
         f"T41 overshoot is {ours:.0f} degR against Ballin's {theirs:.0f}, a ratio of "
-        f"{ratio:.2f}x. On record is 0.87x after the Eqs. 48-49 rebuild, down from 1.67x "
-        f"with the collapsed lead-lag and 3.41x with no heat sink at all. Outside this "
+        f"{ratio:.2f}x. On record is 0.83x after the Eqs. 48-49 rebuild, down from 1.67x "
+        f"with the collapsed lead-lag and 3.17x with no heat sink at all. Outside this "
         f"band, re-measure -- and if below, tighten."
     )
     assert pre_them > 0.0
