@@ -78,6 +78,75 @@ def test_a_failed_digitizer_poisons_the_verdict(source: str):
     )
 
 
+def test_the_gate_checks_for_poppler_before_doing_anything(source: str):
+    """The prerequisite a Python dependency list cannot express.
+
+    Every digitizer shells out to `pdftoppm` or `pdfimages`. Without them the tools fail
+    one at a time with a FileNotFoundError naming a binary, which reads as a broken
+    digitizer rather than a missing package -- and the string "poppler" appeared nowhere
+    in this repository until 2026-09-13.
+    """
+    assert "pdftoppm" in source and "pdfimages" in source, (
+        "the gate no longer checks that poppler is on PATH; a machine without it gets a "
+        "FileNotFoundError per tool and no indication of what to install"
+    )
+    guard = min(source.index("pdftoppm"), source.index("pdfimages"))
+    loop = source.index("for entry in ")
+    assert guard < loop, "the poppler check must come before the digitizer loop"
+
+
+def test_no_gate_tool_reads_a_gitignored_input_it_does_not_produce():
+    """A gate that only runs on the one machine that still has the intermediates.
+
+    `digitize_a1.py` read `validation/out/digitize/a1r_600-056.png` -- gitignored, and
+    produced by no tool in the gate. On a fresh clone it failed loudly rather than falsely
+    passing, which is the better of the two failures, but CLAUDE.md names this gate as one
+    of only two `live` mechanisms and it was unrunnable anywhere else.
+
+    The rule this enforces: a tool that names a path under `validation/out/` must also
+    contain the command that creates it.
+    """
+    ignored = (Path(__file__).resolve().parent.parent / ".gitignore").read_text()
+    assert "validation/out/" in ignored, "validation/out/ is tracked now; revisit this test"
+
+    for path in sorted(TOOLS.glob("*.py")):
+        text = path.read_text()
+        reads = set(re.findall(r'"(validation/out/[\w./-]*)"', text))
+        if not reads:
+            continue
+        # A tool may raster the page itself or delegate to a sibling that does --
+        # `digitize_native.native_bitmap` is shared by five of them -- so follow one hop
+        # of tools-local imports before deciding it cannot produce its own inputs.
+        reachable = text
+        for sibling in re.findall(r"(?:^|\n)(?:from|import) (\w+)", text):
+            candidate = TOOLS / f"{sibling}.py"
+            if candidate.exists():
+                reachable += candidate.read_text()
+        assert "pdftoppm" in reachable or "pdfimages" in reachable, (
+            f"{path.name} reads {sorted(reads)} under the gitignored validation/out/ and "
+            f"neither it nor anything it imports rasters a page, so it cannot run from a "
+            f"fresh clone"
+        )
+
+
+def test_digitize_a1_cannot_rewrite_a_data_file_as_a_side_effect_of_being_imported():
+    """It is the one tool whose work happens at module level.
+
+    `python3 -c "import digitize_a1"` used to rerun the whole Figure A1 extraction and
+    overwrite `data/maps/f1_compressor_mass_flow.csv`. Every other tool in tools/ has an
+    `if __name__ == "__main__"` guard; this one has nothing to put behind such a guard, so
+    it refuses the import instead.
+    """
+    source = (TOOLS / "digitize_a1.py").read_text()
+    assert '__name__ != "__main__"' in source, (
+        "tools/digitize_a1.py no longer refuses to be imported. Everything it does "
+        "happens at module level, including rewriting a committed data file."
+    )
+    guard = source.index('__name__ != "__main__"')
+    writes = source.index('"data/maps')
+    assert guard < writes, "the refusal must come before anything that writes"
+
+
 def test_every_data_writing_tool_is_rerun_by_the_gate(source: str):
     """A tool outside the loop is a committed data file with no reproducibility check.
 

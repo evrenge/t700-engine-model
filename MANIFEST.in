@@ -1,0 +1,27 @@
+# What goes into an sdist beyond the package itself.
+#
+# Before 2026-09-13 there was no MANIFEST.in, and setuptools' defaults shipped the 50-odd
+# files it recognises -- including `tests/`, and excluding every CSV those tests read.
+# An sdist that carries a test suite it cannot run is worse than one that carries no
+# tests, because the failure looks like a broken model.
+#
+# `data/` is included by `[tool.setuptools.package-data]` in pyproject.toml, which covers
+# the wheel as well; the rest of the repository is listed here because an sdist of a
+# replication is only useful with the thing being replicated and the tools that read it.
+
+include LICENSE README.md SCOPE.md CLAUDE.md
+recursive-include data *.csv
+recursive-include tests *.py
+recursive-include validation *.py
+recursive-include tools *.py *.sh
+recursive-include docs/notes *.md
+
+# The 12 MB source scan. Every citation in this repository is `pdf p.NN` against this
+# exact file -- SHA-256 in docs/notes/index.md -- so an sdist without it cannot be
+# checked against anything.
+include docs/ballin-tm100991.pdf
+
+# Rendered page images and digitizer scratch: reproducible from the PDF, and 94 PNGs.
+prune docs/extracted
+prune validation/out
+global-exclude *.pyc __pycache__

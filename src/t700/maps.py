@@ -35,9 +35,10 @@ from pathlib import Path
 
 import numpy as np
 
-_DATA = Path(__file__).resolve().parent.parent.parent / "data"
-DATA_DIR = _DATA / "maps"
-SCHEDULE_DIR = _DATA / "schedules"
+from ._data import DATA_ROOT
+
+DATA_DIR = DATA_ROOT / "maps"
+SCHEDULE_DIR = DATA_ROOT / "schedules"
 """The engine's function tables and the fuel control's scheduling functions are the same
 *kind* of object -- a printed plot, digitized, linear between knots -- so they share
 `Curve`, `SpeedMap` and the loaders. They live in different directories because they

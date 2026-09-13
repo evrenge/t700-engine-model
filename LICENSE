@@ -23,5 +23,28 @@ SOFTWARE.
 ---
 
 The source document, NASA Technical Memorandum 100991 (Ballin, 1988), included
-here as docs/ballin-tm100991.pdf, is a work of the United States Government and
-is in the public domain. It is not covered by the licence above.
+here as docs/ballin-tm100991.pdf, is a work of the United States Government
+prepared by an officer or employee as part of that person's official duties, and
+is therefore not subject to copyright protection in the United States under
+17 U.S.C. section 105. It is not covered by the licence above.
+
+Two qualifications, both checkable on the face of the document:
+
+  * Section 105 removes copyright IN THE UNITED STATES only. The United States
+    government may hold or receive copyright in the document abroad, and this
+    repository makes no claim about its status outside the United States.
+
+  * Section 105 covers works OF the government. The report reproduces material
+    from at least one work that is not: Figure 2 [pdf p.18] is captioned "(From
+    ref. 6.)", and reference 6 [pdf p.102] is
+
+        Prescott, W. E.; and Mabee, R. L.: T700-GE-700 Training Guide.
+        General Electric Aircraft Engine Business Group; Technical Training
+        Operation, 1984.
+
+    a General Electric publication. Reference 4 is a United Technologies
+    Sikorsky Aircraft report (SER-70982) and reference 5 a General Electric
+    model specification. Nothing in this repository is derived from Figure 2 --
+    it is a cutaway illustration of the engine, and no number is taken from it --
+    but the blanket sentence "the source document is in the public domain" was
+    over-broad and is corrected here rather than left standing.

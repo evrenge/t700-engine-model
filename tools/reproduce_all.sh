@@ -8,7 +8,10 @@
 #   bash tools/reproduce_all.sh              # from inside the t700-dev container
 #   distrobox enter t700-dev -- bash tools/reproduce_all.sh
 #
-# Needs the rendered page images under validation/out/digitize/, and takes a few minutes.
+# Needs poppler (pdftoppm, pdfimages) and takes a few minutes. It pulls the page rasters it
+# needs from the PDF itself -- until 2026-09-13 digitize_a1 did not, and its one input was
+# a gitignored intermediate that no tool in this list produced, so the gate could not be
+# run from a fresh clone at all.
 #
 # ## Why this script checks its own interpreter before doing anything
 #
@@ -29,6 +32,21 @@ if ! python3 -c 'import numpy' 2>/dev/null; then
     echo "    distrobox enter t700-dev -- bash tools/reproduce_all.sh"
     exit 2
 fi
+
+# poppler is the prerequisite a Python dependency list cannot express: every digitizer
+# shells out to pdftoppm or pdfimages to raster the source scan. Checked here for the same
+# reason NumPy is -- without it the tools fail one by one with a FileNotFoundError naming
+# a binary, which reads as a broken digitizer rather than a missing package.
+for bin in pdftoppm pdfimages; do
+    if ! command -v "$bin" >/dev/null 2>&1; then
+        echo "$bin is not on PATH. The digitizers raster the source scan with poppler:"
+        echo
+        echo "    dnf install poppler-utils        # or the equivalent for your distro"
+        echo
+        echo "See docs/notes/environment.md."
+        exit 2
+    fi
+done
 
 if [ -n "$(git status --porcelain data/)" ]; then
     echo "data/ is already dirty -- commit or stash first, or the verdict is meaningless."

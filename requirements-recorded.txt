@@ -1,0 +1,16 @@
+# The exact versions the published numbers in README.md and SCOPE.md were produced under,
+# recorded 2026-09-13 from the t700-dev container. Fedora 44, CPython 3.14.7,
+# poppler-utils 26.01.0.
+#
+# This is a RECORD, not a floor: pyproject.toml carries the lower bounds that express what
+# the code actually needs. Install from this file to reproduce a number exactly; install
+# from pyproject.toml to develop.
+#
+# What is known about drift, measured rather than assumed (docs/notes/environment.md):
+# the suite passes on numpy 2.4.6 and 2.5.3, and the trim is bit-identical across the two.
+numpy==2.4.6
+scipy==1.16.2
+matplotlib==3.10.8
+pillow==12.3.0
+pytest==8.4.2
+ruff==0.16.6

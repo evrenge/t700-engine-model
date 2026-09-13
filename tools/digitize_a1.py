@@ -39,8 +39,15 @@ CSVs that `digitize.py verify` consumes. Inputs:
     python3 tools/rectify_page.py rectify --page validation/out/digitize/a1_600-056.png \
         --out validation/out/digitize/a1r_600-056.png
 
-The first is pulled automatically if missing. This module lives in tools/ and may use
-SciPy and PIL. Nothing here is imported by src/t700/.
+All three are pulled automatically if missing -- see `native_bitmap` and `ensure_page` --
+so this script runs from a fresh clone with only the PDF and poppler present. Until
+2026-09-13 only the first was, and the other two were gitignored intermediates no tool
+produced, which made `tools/reproduce_all.sh` unrunnable outside the one machine that
+happened to still have them.
+
+This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
+src/t700/ -- and nothing imports *it*: it is a script that works at module level, and
+importing it raises.
 """
 
 from __future__ import annotations
@@ -55,11 +62,70 @@ from PIL import Image, ImageDraw
 from scipy import ndimage
 from scipy.spatial import cKDTree
 
+import rectify_page
+
+# This file is a script whose work happens at module level, so *importing* it used to run
+# the whole digitization and overwrite data/maps/f1_compressor_mass_flow.csv as a side
+# effect -- `python3 -c "import digitize_a1"` silently rewrote a committed data file. It
+# was the only tool in tools/ with no `if __name__ == "__main__"` guard. Refusing the
+# import outright is the honest form of that guard here: there is no library in this
+# module to import, every name below is an intermediate of one figure's extraction, and a
+# partial run would leave the CSV half written.
+if __name__ != "__main__":
+    raise ImportError(
+        "tools/digitize_a1.py is a script, not a module: everything it does happens at "
+        "import time, including rewriting data/maps/f1_compressor_mass_flow.csv. Run it "
+        "instead -- `python3 tools/digitize_a1.py` -- from the repository root."
+    )
+
 SP = os.environ.get("A1_WORK", "validation/out/digitize")  # intermediate .npy arrays
 PDF = Path("docs/ballin-tm100991.pdf")
 NAT = Path("validation/out/digitize/a1redo")
 PAGE_NO = 56
-PAGE = "validation/out/digitize/a1r_600-056.png"
+RENDER = Path("validation/out/digitize/a1_600-056.png")
+PAGE = Path("validation/out/digitize/a1r_600-056.png")
+
+
+def ensure_page() -> None:
+    """Produce the rectified 600 dpi render this script reads, if it is not already there.
+
+    `PAGE` lives under `validation/out/`, which is gitignored, and until 2026-09-13 no
+    tool in `tools/reproduce_all.sh` produced it -- so the reproducibility gate that
+    CLAUDE.md names as one of two `live` mechanisms could not run from a fresh clone at
+    all. It failed loudly rather than falsely passing, which is the better of the two
+    failures, but a gate nobody can run is not enforcing anything.
+
+    Both steps are the two commands this module's docstring already told a reader to run
+    by hand, in the same order and with the same arguments. Neither introduces a number:
+    `pdftoppm` rasterizes the page and `rectify_page.rectify` fits the four printed frame
+    lines and maps their quadrilateral onto its enclosing rectangle.
+    """
+    PAGE.parent.mkdir(parents=True, exist_ok=True)
+    if not RENDER.exists():
+        print(f"rendering page {PAGE_NO} at 600 dpi -> {RENDER}")
+        subprocess.run(
+            [
+                "pdftoppm",
+                "-f",
+                str(PAGE_NO),
+                "-l",
+                str(PAGE_NO),
+                "-r",
+                "600",
+                "-png",
+                str(PDF),
+                str(RENDER.parent / "a1_600"),
+            ],
+            check=True,
+        )
+    if not PAGE.exists():
+        print(f"rectifying -> {PAGE}")
+        left, top, right, bottom = rectify_page.rectify(RENDER, PAGE)
+        print(f"  frame {left},{top},{right},{bottom}")
+
+
+ensure_page()
+
 img = np.asarray(Image.open(PAGE).convert("L"), dtype=float) / 255.0
 RAW = img < 0.6
 X0, X1, Y0, Y1 = 914, 4221, 818, 5006  # plot interior, just inside the rectified frame

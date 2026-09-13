@@ -43,7 +43,9 @@ from pathlib import Path
 
 import numpy as np
 
-DATA = Path(__file__).resolve().parent.parent.parent / "data" / "linear"
+from ._data import DATA_ROOT
+
+DATA = DATA_ROOT / "linear"
 
 
 @dataclass(frozen=True)

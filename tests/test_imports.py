@@ -9,6 +9,12 @@ Until this file existed, three of the rules in CLAUDE.md's enforcement table wer
 
 The provenance rule -- every number cites a report page -- stays advisory. It cannot be
 mechanised, which is precisely why it is the one to be most careful about.
+
+The 2026-09-13 dependency audit went looking for ways to satisfy these tests and break the
+rules anyway, and found several. They are closed below and each is documented where it
+sits, because the interesting artifact is the *shape* of the hole rather than the patch: an
+AST walk over `import` statements answers "what does this module import", and three of the
+four rules above are really about "what can this module reach".
 """
 
 from __future__ import annotations
@@ -27,12 +33,81 @@ ALLOWED_THIRD_PARTY = {"numpy"}
 BANNED_IN_CORE = {"scipy", "matplotlib", "pandas", "numba", "sympy", "PIL"}
 """Analysis and plotting live in tools/ and validation/. Numba is deferred (SCOPE.md)."""
 
-NONDETERMINISTIC = {"random", "time", "datetime", "secrets", "uuid", "os.urandom"}
-"""Same input must give bit-identical output, run to run and machine to machine."""
+NONDETERMINISTIC = {"random", "time", "datetime", "secrets", "uuid", "timeit", "hashlib"}
+"""Same input must give bit-identical output, run to run and machine to machine.
+
+`"os.urandom"` sat in this set until 2026-09-13 and could never have matched: the walk
+below yields top-level package names only, so the entry a reader would have pointed at as
+proof the RNG ban was covered was the one entry that did nothing. `os` cannot be banned
+outright -- it is the standard library -- so its nondeterministic members are caught by
+`FORBIDDEN_ATTRIBUTES` instead, which is where `os.urandom` actually lives now.
+
+`hashlib` is here because `hash()`-like digests over floats are a plausible route to a
+"deterministic" value that is not; `timeit` because `timeit.default_timer` is a clock that
+does not import `time`.
+"""
+
+FORBIDDEN_ATTRIBUTES = {
+    # RNG, reachable through the one third-party package the core is allowed
+    ("np", "random"): "NumPy's RNG is still an RNG; the core must be reproducible",
+    ("numpy", "random"): "NumPy's RNG is still an RNG; the core must be reproducible",
+    # clocks and entropy that ride in on stdlib modules the core legitimately uses
+    ("os", "urandom"): "entropy source",
+    ("os", "times"): "a clock",
+    ("os", "getrandom"): "entropy source",
+    ("time", "time"): "a clock",
+    ("time", "perf_counter"): "a clock",
+    ("time", "monotonic"): "a clock",
+    # dynamic import, which routes around the AST import walk entirely
+    ("importlib", "import_module"): "a dynamic import; the import walk cannot see it",
+    ("ctypes", "CDLL"): "loads an arbitrary shared library",
+    ("ctypes", "cdll"): "loads an arbitrary shared library",
+}
+"""Dotted names the import walk structurally cannot catch.
+
+The 2026-09-13 dependency audit enumerated the ways a module could satisfy
+`test_core_imports_numpy_and_stdlib_only` and still break the rule it stands for. The
+sharpest was `np.random.default_rng()`: NumPy is the one allowed third-party package, so
+an RNG was reachable in the core with the import ban fully satisfied. No live violation
+existed -- `src/` was clean on every vector the audit tried -- but a mechanism with a hole
+that size is a wish wearing a mechanism's clothes.
+"""
+
+FORBIDDEN_CALLS = {
+    "__import__": "a dynamic import; the import walk cannot see it",
+    "eval": "arbitrary code, invisible to every check in this file",
+    "exec": "arbitrary code, invisible to every check in this file",
+}
+"""Bare builtins with the same property, checked by call target rather than by attribute."""
 
 
 def core_modules() -> list[Path]:
     return sorted(SRC.rglob("*.py"))
+
+
+def dotted_attributes(path: Path) -> set[tuple[str, str]]:
+    """Every `<name>.<attr>` in one module, as pairs.
+
+    Deliberately shallow: it matches on the *spelling*, so `np.random.default_rng()` is
+    caught as `("np", "random")` whatever follows. An alias (`from numpy import random`)
+    is caught by the import walk instead, since `numpy.random` is not `numpy`.
+    """
+    tree = ast.parse(path.read_text(), filename=str(path))
+    out: set[tuple[str, str]] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            out.add((node.value.id, node.attr))
+    return out
+
+
+def bare_calls(path: Path) -> set[str]:
+    """Every `name(...)` call in one module, by callee name."""
+    tree = ast.parse(path.read_text(), filename=str(path))
+    return {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
 
 
 def top_level_imports(path: Path) -> set[str]:
@@ -87,6 +162,79 @@ def test_core_is_deterministic_by_construction(path: Path):
     )
 
 
+@pytest.mark.parametrize("path", core_modules(), ids=lambda p: p.name)
+def test_core_does_not_reach_a_clock_or_an_rng_through_an_allowed_module(path: Path):
+    """The import ban is necessary and not sufficient -- see `FORBIDDEN_ATTRIBUTES`."""
+    found = dotted_attributes(path) & set(FORBIDDEN_ATTRIBUTES)
+    assert not found, "; ".join(
+        f"{path.name} uses {a}.{b} -- {FORBIDDEN_ATTRIBUTES[(a, b)]}" for a, b in sorted(found)
+    )
+
+
+@pytest.mark.parametrize("path", core_modules(), ids=lambda p: p.name)
+def test_core_does_not_import_or_execute_dynamically(path: Path):
+    """`__import__`, `eval` and `exec` make every other check in this file advisory."""
+    found = bare_calls(path) & set(FORBIDDEN_CALLS)
+    assert not found, "; ".join(
+        f"{path.name} calls {name}() -- {FORBIDDEN_CALLS[name]}" for name in sorted(found)
+    )
+
+
+# --------------------------------------------------------------------------------------
+# The checks above are static analysers, and a static analyser that silently matches
+# nothing passes every test in this file. `"os.urandom"` sat in NONDETERMINISTIC for three
+# days doing exactly that. These run each detector against source that *should* trip it.
+# --------------------------------------------------------------------------------------
+
+DECOYS = [
+    ("import scipy\n", "top_level_imports", "scipy"),
+    ("from scipy import ndimage\n", "top_level_imports", "scipy"),
+    ("def f():\n    import matplotlib\n", "top_level_imports", "matplotlib"),
+    ("import numpy as np\nrng = np.random.default_rng()\n", "dotted", ("np", "random")),
+    ("import os\nx = os.urandom(8)\n", "dotted", ("os", "urandom")),
+    ("import os\nt = os.times()\n", "dotted", ("os", "times")),
+    (
+        "import importlib\nm = importlib.import_module('scipy')\n",
+        "dotted",
+        ("importlib", "import_module"),
+    ),
+    ("import ctypes\nlib = ctypes.CDLL('libm.so.6')\n", "dotted", ("ctypes", "CDLL")),
+    ("m = __import__('scipy')\n", "call", "__import__"),
+    ("eval('1+1')\n", "call", "eval"),
+]
+
+
+@pytest.mark.parametrize("source,kind,expected", DECOYS, ids=lambda v: str(v)[:40])
+def test_each_detector_fires_on_source_that_should_trip_it(tmp_path, source, kind, expected):
+    """A detector that matches nothing passes silently. Prove each one still matches."""
+    decoy = tmp_path / "decoy.py"
+    decoy.write_text(source)
+    found = {
+        "top_level_imports": top_level_imports,
+        "dotted": dotted_attributes,
+        "call": bare_calls,
+    }[kind](decoy)
+    assert expected in found, f"{kind} did not see {expected!r} in:\n{source}"
+
+
+@pytest.mark.parametrize(
+    "name",
+    sorted({a for a, _ in FORBIDDEN_ATTRIBUTES} | set(FORBIDDEN_CALLS) | NONDETERMINISTIC),
+)
+def test_no_banned_name_is_unreachable_by_construction(name: str):
+    """Every entry must be spelled the way the detector that owns it can see it.
+
+    NONDETERMINISTIC is compared against top-level package names, so a dotted entry there
+    is dead. FORBIDDEN_ATTRIBUTES is compared against `(name, attr)` pairs, so a bare
+    entry there is dead. This is the check that would have caught `"os.urandom"`.
+    """
+    if name in NONDETERMINISTIC:
+        assert "." not in name, (
+            f"NONDETERMINISTIC entry {name!r} is dotted, and the import walk yields "
+            f"top-level names only -- it can never match. Put it in FORBIDDEN_ATTRIBUTES."
+        )
+
+
 GAS_PROPERTY_CONSTANTS = (
     "K_H2",
     "K_H3_1",
@@ -119,7 +267,11 @@ def test_gas_properties_only_inside_thermo(path: Path):
     it is the door.
     """
     rel = path.relative_to(SRC)
-    if rel.parts[0] == "thermo" or rel.name == "constants.py":
+    # `rel.name == "constants.py"` was the test until 2026-09-13, which also exempted
+    # `control/constants.py` -- a file in a different appendix that has no business
+    # naming a gas-property fit. The exemption is for the one file that declares the
+    # values, so it names that one file.
+    if rel.parts[0] == "thermo" or rel == Path("constants.py"):
         return
 
     source = path.read_text()

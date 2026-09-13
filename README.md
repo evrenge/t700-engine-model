@@ -11,8 +11,9 @@ Hawk. Ballin built a component-level thermodynamic model that had to compute in 
 and the report is largely the record of how he made an implicit engine model run in real
 time and what it cost him.
 
-The source document is included as `docs/ballin-tm100991.pdf` (NASA technical memorandum,
-public domain). Everything here is derived from it.
+The source document is included as `docs/ballin-tm100991.pdf` — NASA TM-100991, NTRS
+accession N88-26378, not subject to US copyright under 17 U.S.C. §105 (see `LICENSE` for
+the two qualifications on that). Everything here is derived from it.
 
 ## Where it stands
 
@@ -23,7 +24,7 @@ public domain). Everything here is derived from it.
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.0–7.6 % of each panel's excursion, mean 3.8 %** over nine panels |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
 | **Closed loop vs Table B.1** | **worst 0.74 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
-| Tests | 874 passing, 3 skipped, lint and formatting clean |
+| Tests | 951 passing, 3 skipped, lint and formatting clean |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
@@ -278,7 +279,9 @@ the governor absorbs it. No conclusion here turns on either.
 
 ## Running it
 
-The model needs NumPy. Analysis and digitizing also want SciPy, Matplotlib and Pillow.
+The model needs NumPy. Analysis and digitizing also want SciPy, Matplotlib and Pillow —
+and **poppler** (`pdftoppm`, `pdfimages`), which is not a Python package and so cannot be
+declared as a dependency; the digitizers shell out to it to raster the source scan.
 
 ```bash
 pip install -e '.[tools,dev]'
@@ -286,7 +289,25 @@ pytest
 python validation/plot_validation.py     # writes the figure set
 ```
 
+`.[dev]` pulls in `.[tools]`, because `testpaths` includes `validation/` and those modules
+import SciPy at module level. A plain `pip install .` also works: the wheel carries
+`data/` inside the package.
+
+`Containerfile` builds the environment the published numbers were produced under, and
+`docs/notes/environment.md` records its versions.
+
 ## Licence and provenance
 
-The source document is a NASA technical memorandum and is in the public domain. This
-implementation is offered in the same spirit — see `LICENSE`.
+This implementation is MIT — see `LICENSE`.
+
+The source document is a NASA technical memorandum, not subject to copyright in the
+United States under 17 U.S.C. §105. Two qualifications are written out in `LICENSE`:
+§105 is a US-only provision, and the report reproduces at least one figure it does not
+own — Figure 2 is captioned "(From ref. 6.)", a General Electric training guide. No
+number in this repository comes from that figure.
+
+The scan itself is pinned by checksum in `docs/notes/environment.md`, along with its NTRS
+accession (N88-26378) and the exact software versions every number above was produced
+under. That matters more than it sounds: every citation in the codebase is `pdf p.NN`
+against *this* digitization, whose page numbering comes from its front matter and would
+differ in another copy.

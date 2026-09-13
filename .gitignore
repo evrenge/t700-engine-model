@@ -11,3 +11,7 @@ docs/extracted/*.ppm
 
 # Validation output plots -- derived, regenerate with /validate
 validation/out/
+
+# Build artifacts
+build/
+dist/
