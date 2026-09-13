@@ -516,13 +516,20 @@ def run(
         t = i * dt
         wf = float(wf_of_t(t))
         tr["t"][i] = t
+        # NG and NP are integrator states and are already at t_i. The three pressures are
+        # NOT: they are algebraic, solved *inside* the frame from the state at t_i, and
+        # returned in the next state. Recording them before the call logged the previous
+        # frame's solution against this frame's speeds -- a 7 ms skew, invisible at steady
+        # state, worth 12.1 psia on P3 at a fuel step, and it flattered the Figure 9
+        # phase-plane agreement from a true 1.42 % to an apparent 0.59 %. No test caught
+        # it; found by the 2026-09-13 physics audit.
         tr["ng"][i] = st.ng_rpm
         tr["np"][i] = st.np_rpm
+        tr["wf"][i] = wf
+        st, out = step(st, wf, ambient, dt, **kw)
         tr["p3"][i] = st.p3_psia
         tr["p41"][i] = st.p41_psia
         tr["p45"][i] = st.p45_psia
-        tr["wf"][i] = wf
-        st, out = step(st, wf, ambient, dt, **kw)
         tr["t41"][i] = out.t41_degR
         tr["t41_ns"][i] = out.t41_ns_degR
         tr["t45"][i] = out.t45_degR
