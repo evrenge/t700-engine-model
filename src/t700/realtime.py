@@ -59,6 +59,7 @@ the distinction is below the tolerance the report itself works to.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Final
 
 import numpy as np
@@ -124,6 +125,12 @@ class FrameOut:
 
     inner_iters: int
     p45_iters: int
+    inner_exit: Exit
+    """How the P3/P41 sweep finished. Discarded by `run()` until 2026-09-13, so a run that
+    spent every frame at the pass cap emitted no signal at all."""
+    p45_exit: Exit
+    """How the P45 iteration finished. `DIVERGING` below roughly 76 %NG is expected, not a
+    fault -- see `_p45_loop`."""
     t41_degR: float
     t41_ns_degR: float
     """T41 before the heat sink. Equal to `t41_degR` when `heat_sink=False` [Eq. 23]."""
@@ -140,12 +147,96 @@ class FrameOut:
 # --------------------------------------------------------------------------- solver stopping rules
 
 TOL_PRESSURE: Final = 1.0e-3
-"""Relative convergence tolerance for both pressure iterations. [pdf p.37]
+"""Relative **error** bound for both pressure iterations. [pdf p.37]
 
 Printed twice on that page: the P3/P41 sweep converges "with less than 0.1 percent
-error", and for P45 "eight iterations resulted in an error equal to less than 0.1
-percent of the steady-state value". 0.1 percent is 1e-3.
+error", and for P45 "eight iterations resulted in an error equal to less than 0.1 percent
+of the steady-state value". 0.1 percent is 1e-3.
+
+**Both sentences state an error, and neither states a tolerance.** The report prints no
+convergence test at all -- what it prints is a cost (eleven arithmetic operations a pass,
+four plus a table lookup for P45), a pass count, and the error that pass count achieved.
+Until 2026-09-13 this constant was used as a tolerance on the iterate *step*, which is a
+different quantity: for a linearly convergent iteration with contraction rho the remaining
+error is rho/(1-rho) times the last step, and rho measures **0.887-0.902** here, so the
+step test delivered roughly eight times the number it was named for. Measured through the
+Figure 9 step, the true P3 error at exit ran to a median of 0.25 % and a worst frame of
+4.21 %, under a constant documented as 0.1 %.
+
+The loops below now stop on the error itself, estimated from the iterates as
+`rho/(1-rho) * step` with rho taken from consecutive steps. That introduces no constant:
+rho is measured, not assumed. See `_contraction_error`.
 """
+
+
+class Exit(StrEnum):
+    """How an iteration finished. Recorded because a model that stops early is a model
+    running on unconverged pressures, and nothing downstream can tell from the value."""
+
+    CONVERGED = "converged"
+    """The estimated error fell below `tol` before the printed pass cap."""
+
+    CAPPED = "capped"
+    """The pass cap was reached first -- the report's "under the most extreme conditions,
+    up to ten iterations may be required" [pdf p.37]. Expected during a transient and
+    measured: on the Figure 9 accel 142 of 287 frames exit this way."""
+
+    DIVERGING = "diverging"
+    """Successive steps grew. For P45 this is a real operating regime and not a numerical
+    accident -- see `_p45_loop` and open question #45."""
+
+
+def _contraction_error(step: float, prev_step: float, value: float) -> tuple[float, float]:
+    """A-posteriori error estimate for a linearly convergent fixed-point iteration.
+
+    For `x_(k+1) = g(x_k)` with `|g'| = rho < 1` near the fixed point, the standard bound
+    is `|x_k - x*| <= rho/(1-rho) * |x_k - x_(k-1)|`, with rho estimated by the ratio of
+    consecutive steps. Returns `(estimated_error, rho)`.
+
+    The report describes exactly this situation -- "the iteration converges linearly"
+    [pdf p.37] -- so the estimate is the one the report's own sentence licenses. It needs
+    two passes before it exists, which is why both loops below take a minimum of two.
+
+    `rho >= 1` means the steps are growing and the estimate does not apply, so the bound
+    returned is infinite: an iteration that is not contracting has no a-posteriori error
+    estimate at all.
+
+    With no previous step there is likewise no estimate, and the honest return is an
+    infinite bound -- which is what forces the minimum of two passes. The exception is a
+    step of exactly zero: the iterate has stopped moving, so the fixed point is reached
+    and no contraction factor is needed to say so. (This is the branch a trimmed engine
+    takes, and it is why holding a trim costs one pass rather than two.)
+
+    "Stopped moving" means one ulp of `value`, not exactly zero. A step at the rounding
+    floor carries no information, and a *ratio* of two such steps carries less: judged on
+    exact zero, a held 400 lbm/hr trim ran 2.4 % of its frames to the ten-pass cap on
+    rounding noise alone. One ulp is far below anything the converging iteration produces
+    -- the P45 steps at that trim measure 69 ulp, then 5, then 0.
+    """
+    if step <= np.spacing(value):
+        return 0.0, 0.0
+    if prev_step <= 0.0:
+        return float("inf"), 0.0
+    rho = step / prev_step
+    if rho >= 1.0:
+        return float("inf"), rho
+    return rho / (1.0 - rho) * step, rho
+
+
+def _diverged(first_step: float, last_step: float) -> bool:
+    """Did the iteration move further per pass at the end than at the start?
+
+    Deliberately not "was any single ratio >= 1". Near a fixed point the steps reach the
+    rounding floor -- measured at the 400 and 775 lbm/hr trims, the P45 steps run 69 ulp,
+    5 ulp, then exactly 0 -- and ratios of quantities at that level are noise. Judging one
+    pass on it reported divergence on 3.5 % of the frames of a *held trim*.
+
+    Comparing the whole run of steps is immune to that and still unambiguous where it
+    matters: at the 125 lbm/hr trim the P45 steps grow 57, 88, 137, ... 7912 ulp, a ratio
+    of 1.57 a pass, which is f9's elasticity at that operating point to three figures.
+    """
+    return last_step > first_step
+
 
 MAX_ITER_P3_P41: Final = 10
 """Pass cap for the P3/P41 sweep. [pdf p.37]  "up to ten iterations may be required",
@@ -187,18 +278,48 @@ def _inner_pressure_loop(
     Steady state is untouched -- a fixed point is a fixed point -- so no trim moves.
     See open question #25 for what is still not printed: how many passes were actually
     taken per frame, which is worth another 40 degR.
+
+    **What the stopping test measures changed on 2026-09-13**, and the difference is a
+    factor of eight. It tested the iterate *step*, `|P3_(k) - P3_(k-1)| < tol*P3`, under a
+    constant documented as the report's 0.1 percent *error*. For a linearly convergent
+    iteration the two differ by `rho/(1-rho)`, and rho measures 0.887-0.902 here, so the
+    step test delivered a median true error of 0.25 % and a worst frame of 4.21 % on the
+    Figure 9 accel. It now stops on `_contraction_error`, which is the report's own
+    quantity.
+
+    The change vindicates the report's arithmetic rather than departing from it. Under the
+    error test this loop runs to a median of **nine passes** on Figure 9's step and takes
+    the ten-pass cap on 142 frames of 287 -- which is "under the most extreme conditions,
+    up to ten iterations may be required ... resulting in a total of 110 arithmetic
+    operations" [pdf p.37], the printed budget, rather than the median of *one* pass the
+    step test was exiting on. And the error it then delivers on the report's own test case
+    -- the flight-idle-to-full-power step -- has a median of **0.0978 %**, against a
+    printed "less than 0.1 percent". Nothing was fitted to that; it falls out of the
+    measured contraction.
     """
+    prev3 = prev41 = 0.0
+    first3 = first41 = 0.0
+    exit_ = Exit.CAPPED
     it = 0
     while it < max_iter:
         it += 1
         p3_new = 0.5 * (p41 + np.sqrt(p41 * p41 + 4.0 * c.K_DPB * t3 * wa31 * wa31))  # (76)
         w41 = c.K_WGT * p41 / np.sqrt(theta41)
         p41_new = p3_new - t3 * c.K_DPB * (w41 - wf) ** 2 / p3_new  # (78) with (77)
-        if abs(p3_new - p3) < tol * p3 and abs(p41_new - p41) < tol * p41:
-            p3, p41 = p3_new, p41_new
-            break
+        step3, step41 = abs(p3_new - p3), abs(p41_new - p41)
         p3, p41 = p3_new, p41_new
-    return float(p3), float(p41), it
+        if it == 1:
+            first3, first41 = step3, step41
+        err3, _ = _contraction_error(step3, prev3, p3)
+        err41, _ = _contraction_error(step41, prev41, p41)
+        if err3 < tol * p3 and err41 < tol * p41:
+            exit_ = Exit.CONVERGED
+            break
+        prev3, prev41 = step3, step41
+    else:
+        if _diverged(first3, prev3) or _diverged(first41, prev41):
+            exit_ = Exit.DIVERGING
+    return float(p3), float(p41), it, exit_
 
 
 def _p45_loop(
@@ -224,17 +345,41 @@ def _p45_loop(
 
     Eq. 79 prints the returned bleed as `B3 B4 WA2` where Eq. 44 writes `B3 K_bl WA2` for
     the identical term, and B4 is in no nomenclature (open question #30). K_bl is used.
+
+    **This iteration is not always contractive, and that is a property of Eq. 80 rather
+    than of the arithmetic.** Differentiating `g(P45) = N / f9(Ps9/P45)` gives
+    `g'(P45*) = dln(f9)/dln(Ps9/P45)` -- the fixed point's stability is exactly f9's
+    elasticity at the operating point, and nothing else. f9's elasticity crosses -1 at
+    `Ps9/P45 ~ 0.77`, so **above that pressure ratio the fixed point is repelling** and no
+    tolerance reaches it. That is the mechanism behind open question #45; see
+    `docs/notes/open-questions.md` for the elasticity table and for the explanation it
+    replaced, which had it backwards.
+
+    So the loop reports `Exit.DIVERGING` rather than returning whatever it happened to
+    hold at the cap. It still returns that value -- there is nothing better to return, and
+    the report's own model had no divergence test either -- but the condition is now
+    visible in `FrameOut` and in `run()`'s traces instead of being discarded.
     """
     numerator = (w41 + b3 * c.K_BL * wa2) * np.sqrt(theta45)
+    prev = first = 0.0
+    exit_ = Exit.CAPPED
     it = 0
     while it < max_iter:
         it += 1
         p45_new = numerator / float(maps.f9()(ps9 / p45))
-        if abs(p45_new - p45) < tol * p45:
-            p45 = p45_new
-            break
+        step = abs(p45_new - p45)
         p45 = p45_new
-    return float(p45), it
+        if it == 1:
+            first = step
+        err, _ = _contraction_error(step, prev, p45)
+        if err < tol * p45:
+            exit_ = Exit.CONVERGED
+            break
+        prev = step
+    else:
+        if _diverged(first, prev):
+            exit_ = Exit.DIVERGING
+    return float(p45), it, exit_
 
 
 def _heat_sink(
@@ -376,7 +521,7 @@ def step(
     theta41 = thermo.theta41_from_t41(t41)  # (25)
 
     # --- the two pressure solves ------------------------------------------------------
-    p3, p41, inner_iters = _inner_pressure_loop(
+    p3, p41, inner_iters, inner_exit = _inner_pressure_loop(
         st.p3_psia, st.p41_psia, t3, theta41, wa31, wf_pps, tol=tol
     )
     w41 = c.K_WGT * p41 / np.sqrt(theta41)  # (28)
@@ -390,7 +535,7 @@ def step(
     t45 = thermo.t45_from_h45(h45)  # (30)
     theta45 = thermo.theta45_from_t45(t45)  # (31)
 
-    p45, p45_iters = _p45_loop(st.p45_psia, w41, b3, wa2, theta45, ps9, tol=tol)
+    p45, p45_iters, p45_exit = _p45_loop(st.p45_psia, w41, b3, wa2, theta45, ps9, tol=tol)
 
     dh_pt = theta45 * float(maps.f8()(p49 / p45))  # (32)
     w45 = float(maps.f9()(ps9 / p45)) * p45 / np.sqrt(theta45)  # (33), (34)
@@ -420,6 +565,8 @@ def step(
     out = FrameOut(
         inner_iters=inner_iters,
         p45_iters=p45_iters,
+        inner_exit=inner_exit,
+        p45_exit=p45_exit,
         t41_degR=t41,
         t41_ns_degR=t41_ns,
         t45_degR=t45,
@@ -494,6 +641,13 @@ def run(
 
     `wf_of_t` is a callable of time in seconds returning fuel flow in lbm/sec, so a step
     input is just a lambda.
+
+    Two of the traces are diagnostics rather than model outputs. `inner_iters` and
+    `p45_iters` are the pass counts, and `inner_capped` / `p45_capped` / `p45_diverging`
+    are the exit conditions as 0/1 flags -- `FrameOut` carried all of this and `run()`
+    dropped it until 2026-09-13, so a run that spent every frame at the pass cap, or every
+    frame on a repelling P45 fixed point, produced traces indistinguishable from a
+    converged one. `iteration_report` summarises them.
     """
     n = int(round(duration_s / dt)) + 1
     keys = (
@@ -510,6 +664,11 @@ def run(
         "wf",
         "wa2",
         "far",
+        "inner_iters",
+        "p45_iters",
+        "inner_capped",
+        "p45_capped",
+        "p45_diverging",
     )
     tr = {k: np.zeros(n) for k in keys}
     for i in range(n):
@@ -536,7 +695,42 @@ def run(
         tr["q_pt"][i] = out.q_pt_ftlbf
         tr["wa2"][i] = out.wa2_pps
         tr["far"][i] = out.far
+        tr["inner_iters"][i] = out.inner_iters
+        tr["p45_iters"][i] = out.p45_iters
+        tr["inner_capped"][i] = out.inner_exit is Exit.CAPPED
+        tr["p45_capped"][i] = out.p45_exit is Exit.CAPPED
+        tr["p45_diverging"][i] = out.p45_exit is Exit.DIVERGING
     return tr
 
 
-__all__ = ["RTState", "FrameOut", "step", "run", "from_trim", "FRAME_ENGINE_S", "MAX_STEP_S"]
+def iteration_report(tr: dict[str, np.ndarray]) -> dict[str, float]:
+    """How hard the two pressure solves worked over a run, and how often they gave up.
+
+    The one thing a trace of P3 cannot tell you is whether P3 is converged. `maps
+    .clamp_report()` already did this job for the other failure mode -- a lookup outside
+    its data -- and this is the same idea for the iterations. Fractions are of all frames.
+    """
+    n = len(tr["t"])
+    return {
+        "frames": float(n),
+        "inner_iters_mean": float(tr["inner_iters"].mean()),
+        "inner_iters_max": float(tr["inner_iters"].max()),
+        "inner_capped_frac": float(tr["inner_capped"].mean()),
+        "p45_iters_mean": float(tr["p45_iters"].mean()),
+        "p45_iters_max": float(tr["p45_iters"].max()),
+        "p45_capped_frac": float(tr["p45_capped"].mean()),
+        "p45_diverging_frac": float(tr["p45_diverging"].mean()),
+    }
+
+
+__all__ = [
+    "FRAME_ENGINE_S",
+    "MAX_STEP_S",
+    "Exit",
+    "FrameOut",
+    "RTState",
+    "from_trim",
+    "iteration_report",
+    "run",
+    "step",
+]

@@ -178,19 +178,47 @@ def test_step_up_stays_inside_the_compressor_map():
 
 
 def test_step_down_runs_off_the_bottom_of_the_maps():
-    """Figure 10 still extrapolates at the bottom of its data -- but it now largely agrees.
+    """Figure 10 runs outside its own digitized data, and that is where its error is.
 
-    This test used to explain a 9-16 % disagreement. That disagreement was mostly ours:
-    until 2026-09-12 the pressure iterations ran to `tol=1e-10`, seven orders tighter
-    than the 0.1 percent the report prints [pdf p.37]. Converging harder than Ballin did
-    let the engine plunge further on a fuel cut. Adopting the printed criterion moved the
-    NGc minimum from 70.94 % to **74.64 %**, against Ballin's own 74.2 %, the settled T41
-    from +11.5 % to +3.2 %, and T45 from +17.4 % to +3.4 %.
+    ## The history, because it is the point of this test
 
-    What survives is the extrapolation itself, a real caveat on any Figure 10 number that
-    must keep being reported: NGc bottoms at 74.6 %, so `f1`'s 65 % line is still the
-    lower bracket and is asked for pressure ratios outside its own range, and the
-    fuel-air ratio falls to 0.0053 against an `f6` table starting at 0.00999.
+    Three values of the NGc minimum have been on record, and the differences are entirely
+    in how hard the pressure loops were converged:
+
+    | inner P3/P41 stopping rule | NGc bottoms at |
+    |---|---|
+    | `tol=1e-10` on the step, cap 40 -- invented, pre-2026-09-12 | 70.94 % |
+    | `tol=1e-3` on the **step** -- the printed number, the wrong quantity | 74.64 % |
+    | `tol=1e-3` on the **error** -- what the report states [pdf p.37] | **69.92 %** |
+
+    The middle row looked like a triumph: Ballin's own trace bottoms at 74.2 %. It was
+    not. Testing the iterate step rather than the error under-converges the loop by a
+    factor of `rho/(1-rho)` ~ 8 (see `realtime.TOL_PRESSURE`), and the resulting lag in
+    the pressures damped the plunge into near-agreement. Converging the loop to the error
+    the report actually prints puts the floor back at 69.92 %, close to where the
+    seven-orders-too-tight version had it -- which is the giveaway, since 1e-10 and a
+    correctly applied 1e-3 should agree, and they do.
+
+    ## What this costs, and where it goes
+
+    Figure 10's whole-curve RMS moved pcng 2.35 -> 4.21 %, t41 5.18 -> 5.78 %, t45
+    7.62 -> 13.15 %. Figure 9, the accel, improved on four of five panels over the same
+    change. The asymmetry is the finding: **the chop's error is the map extrapolation,
+    not the numerics.**
+
+    Measured over the run, with the loop converged:
+
+        f1's 65 % speed line clamped   389 times   (it is the lower bracket below 80 %NGc)
+        f6 clamped                     425 times   (FAR falls to 0.00527 against a table
+                                                    starting at 0.00999)
+        f9 clamped                     722 times
+        f8 clamped                      38 times
+
+    `f1` has no digitized speed line between 65 and 80 % -- a 15-point hole -- so
+    everything below 80 %NGc interpolates across it, and below 74 % the 65 line is being
+    asked for pressure ratios outside its own range as well. The chop now spends its whole
+    floor in that band. **Fixing `f1`'s low-speed interpolation is the next piece of work**,
+    and it is the thing that should bring Figure 10 back.
 
     Figure 10's reference data is also the weaker of the two: its `WFPH` settles 4.35 %
     from the value its caption states, against 0.23 % for Figure 9, and its `TORQ45`
@@ -201,12 +229,14 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     ngc = 100.0 * tr["ng"] / c.NG_DES
     rep = maps.clamp_report()
 
-    # Ballin's trace bottoms at 74.2 %; ours at 74.64 %. The window is tight on both
-    # sides on purpose -- too deep was the old defect, and too shallow would mean the
-    # fuel cut is no longer being followed at all.
-    assert 73.5 < ngc.min() < 76.0, (
-        f"NGc bottoms at {ngc.min():.2f} %, against Ballin's 74.2 %; the printed 0.1 "
-        f"percent convergence criterion [pdf p.37] is what puts it there"
+    # Ours bottoms at 69.92 %, Ballin's at 74.2 %. The window is tight on both sides on
+    # purpose: a floor that rises back toward 74 % would most likely mean the pressure
+    # loops have stopped converging again rather than that the model improved, and a
+    # deeper one would mean the fuel cut is no longer being followed at all.
+    assert 68.5 < ngc.min() < 71.5, (
+        f"NGc bottoms at {ngc.min():.2f} %, against Ballin's 74.2 % and our 69.92 % on "
+        f"record. If this has risen, check `realtime.TOL_PRESSURE`'s stopping rule before "
+        f"believing the model got better."
     )
     assert tr["far"].min() < 0.010, "and below f6's tabulated fuel-air ratio"
     assert rep.get("f1@65", 0) > 100, (

@@ -243,6 +243,21 @@ def _quasi_steady_deriv(
 def _central_jacobian(f, x0: np.ndarray, n_out: int, rel: float) -> np.ndarray:
     """Central differences. `rel=1e-5` is inside the plateau where the 5-DOF eigenvalues
     are converged to 5 significant figures over rel = 1e-4 .. 1e-8, measured, not assumed.
+
+    **This is not the report's step, and the difference is not small.** [pdf p.28] prints
+    "a perturbation step-size of plus or minus two percent of equilibruim [*sic*]
+    conditions ... considered to be adequate based on the rotor speed deviations
+    experienced by current-generation helicopters" -- an *amplitude*, chosen to match the
+    excursions the linear model has to represent, rather than a step chosen to approximate
+    a derivative. At ±2 % a central difference is a finite secant over a strongly nonlinear
+    range, and on the 5-DOF spectrum it moves the worst mode +21.6 % at hover, +2.6 % at
+    level and +22.7 % at descent against `rel=1e-5`; the 2-DOF NG mode goes -2.444 ->
+    -2.952 at hover.
+
+    Neither reading wins against Table 1's printed -2.69 at hover -- 1e-5 reads -9.1 %,
+    ±2 % reads +9.7 % -- so the comparison cannot settle it. `SCOPE.md` claimed we used
+    the report's ±2 % until 2026-09-13; we do not, and open question #56 records the
+    choice rather than hiding it behind a default argument.
     """
     A = np.zeros((n_out, len(x0)))
     for i in range(len(x0)):

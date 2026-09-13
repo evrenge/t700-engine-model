@@ -75,6 +75,15 @@ def test_eigenvalues_are_step_independent(name: str):
 
     The system spans four decades, 4900 to 0.5 /sec, which is exactly where one-sided
     differences go soft. Central differences are converged over rel = 1e-4 .. 1e-8.
+
+    **The plateau ends well before the report's own step**, which is worth stating here
+    because `SCOPE.md` claimed we used that step until 2026-09-13. [pdf p.28] prescribes
+    ±2 % of equilibrium -- three decades above the top of this sweep -- and at ±2 % the
+    5-DOF spectrum moves +21.6 % at hover, +2.6 % at level and +22.7 % at descent. That is
+    not a defect in either choice: ±2 % is an *amplitude* matched to real rotor-speed
+    excursions, so it is a secant over the range the model must represent, while 1e-5 is
+    the derivative. The last assertion below pins the separation so the two cannot be
+    quietly conflated again. Open question #56.
     """
     wf = wf_pps_from_pph(TRIMS[name][0])
     r = trim.solve(wf, NP_RPM, AMB)
@@ -82,6 +91,16 @@ def test_eigenvalues_are_step_independent(name: str):
     for rel in (1e-4, 1e-6, 1e-7, 1e-8):
         ev = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=rel).A).real)
         assert np.allclose(ev, ref, rtol=1e-3), f"rel={rel:g} moved the spectrum: {ev}"
+
+    report = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=0.02).A).real)
+    worst = max(100.0 * (b / a - 1.0) for a, b in zip(ref, report, strict=True))
+    expected = {"hover": 21.6, "level": 2.6, "descent": 22.7}[name]
+    assert abs(worst - expected) < 1.0, (
+        f"{name}: the report's +/-2 % perturbation [pdf p.28] moves the 5-DOF spectrum by "
+        f"{worst:+.1f} % against rel=1e-5, where {expected:+.1f} % is on record. If this "
+        f"has collapsed, the two steps have become interchangeable and SCOPE.md's open "
+        f"question #56 can be closed."
+    )
 
 
 @pytest.mark.parametrize("name", TRIMS)
