@@ -318,11 +318,19 @@ def test_the_sweep_refuses_past_the_maps_top_speed_line():
     Beginning at 800 lbm/hr from the design-point guess lands off the map immediately, so
     there is no good solution to continue from and every later point fails too. Begin low,
     walk up.
+
+    **The ladder's spacing matters near the top, and that is not a detail.** This test used
+    [400, 600, 800, 850] until 2026-09-13 and the 600 -> 800 jump stopped working when `f6`
+    became the constant Figure A6 draws: the 0.0037 % more combustor efficiency that gave
+    at FAR 0.024 moved the 800 lbm/hr solution from NGc 99.872 to exactly 100.000, `f1`'s
+    top speed line, where `np.clip` pins the parameter and the residual stops depending on
+    NG. On a finer ladder 800 trims cleanly at **NGc 99.8725**. So the model did not get
+    worse; a 200 lbm/hr continuation step at the very top of the map did.
     """
     from t700 import trim as _trim
 
-    results = _trim.sweep([400.0, 600.0, 800.0, 850.0])
-    assert all(r.trustworthy for r in results[:3])
+    results = _trim.sweep([400.0, 600.0, 700.0, 800.0, 850.0])
+    assert all(r.trustworthy for r in results[:4])
     assert not results[-1].trustworthy, "850 lbm/hr is past the map's 100 % speed line"
 
     cold = _trim.sweep([800.0])

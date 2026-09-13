@@ -362,10 +362,23 @@ def test_the_sub_idle_root_is_selected_by_the_parity_of_the_pass_count():
     whether `MAX_ITER_P45` is even or odd:
 
         cap   2      3      4      5      6      8      9     20     21
-        %NG  75.743 67.610 75.743 67.610 75.743 75.743 67.610 75.743 67.610
+        %NG  66.894 67.607 66.894 67.607 66.894 66.894 67.607 66.894 67.607
 
     against a differential trim of 67.039 %NG. Magnitude is irrelevant out to 21 passes;
-    only parity matters. The shipped cap is 8, so the shipped model takes the false root.
+    only parity matters -- but **both branches now sit within 0.9 % of the true trim**, and
+    until 2026-09-13 the even branch sat at **75.743 %NG, +12.99 %**.
+
+    **What removed it was `f6`.** The false root settled at FAR = 0.01029, hard against
+    `f6`'s lower table edge of 0.00999, where the digitized two-point table's spurious
+    slope met its clamp and made a kink. Loading `f6` as the constant Figure A6 actually
+    draws (see `maps.f6`) removes the kink, and with it the attractor: the same run settles
+    at FAR 0.01357, the true operating point. Verified by attribution -- restoring the
+    sloped, clamped table brings 75.743 %NG straight back, and the 150 lbm/hr case, whose
+    FAR is 0.01537 and well inside the old table, does not move at all.
+
+    So the sub-idle story has two causes and they are separable: `f6`'s clamp knee produced
+    the 125 lbm/hr false root, and Eq. 80's repelling fixed point produces the parity split
+    and the 150 lbm/hr deviation of open question #57.
 
     This is the parity claim the 2026-09-13 numerical-mathematics audit recorded as
     **unverified** -- and it could not verify it, because `MAX_ITER_P45` is a default
@@ -407,10 +420,14 @@ def test_the_sub_idle_root_is_selected_by_the_parity_of_the_pass_count():
 
     for cap in (2, 4, 6, 8):
         got = settle_with_cap(cap)
-        assert abs(got - 75.743) < 0.05, f"even cap {cap} settles at {got:.3f}, not 75.743"
+        assert abs(got - 66.894) < 0.05, f"even cap {cap} settles at {got:.3f}, not 66.894"
     for cap in (3, 5, 7, 9):
         got = settle_with_cap(cap)
-        assert abs(got - 67.610) < 0.05, f"odd cap {cap} settles at {got:.3f}, not 67.610"
+        assert abs(got - 67.607) < 0.05, f"odd cap {cap} settles at {got:.3f}, not 67.607"
+    assert abs(settle_with_cap(8) - differential) / differential < 0.01, (
+        "the shipped cap must now land within 1 % of the differential trim; the 75.743 %NG "
+        "false root was f6's clamp knee and is gone"
+    )
 
 
 def test_the_frame_map_has_its_own_equilibria_below_flight_idle():

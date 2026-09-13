@@ -204,16 +204,17 @@ def test_which_tables_are_extrapolated_at_which_trims():
         110 lbm/hr   f3, f8, f9      NGc 65.0 %, the bottom of f1's parameter range
         125          f8
         150          f1@65, f8       NGc 74.0 %, inside f1's 65-80 % data hole
-        200-550      none
-        590 and up   f6              FAR passes f6's tabulated 0.02000
+        200-725      none
+        750 and up   f9              Ps9/P45 passes f9's tabulated 0.85012
 
-    Two things worth stating plainly about the ends.
-
-    **`f6` is clamped at every trim above about 590 lbm/hr** -- the top third of the power
-    range, Figure 9's 775 lbm/hr endpoint included. It is numerically harmless: `f6` is a
-    two-point, nearly constant table (0.98504 at FAR 0.00999, 0.98496 at 0.02000), so
-    clamping a combustor efficiency that barely varies costs about 1e-4 however far outside
-    you go. It is still extrapolation and it is still reported.
+    **`f6` used to appear here at every trim above about 590 lbm/hr** -- the top third of
+    the power range, Figure 9's 775 lbm/hr endpoint included -- and it does not any more.
+    Figure A6 [pdf p.61] draws a single horizontal line across a y axis spanning 0.88 to
+    1.10, with an `x` at each frame edge and nothing between; the two digitized endpoints
+    differ by 7.3e-5 against a 4.06e-4 read error apiece, which is 0.13 sigma and 0.46 px.
+    The slope was the page's skew. As of 2026-09-13 `f6` is loaded as the constant it is,
+    and **a constant has no domain to leave**, so what was the most-reported clamp in the
+    project has ceased to exist rather than been suppressed. See `maps.f6`.
 
     **`f1@65` is clamped at 150 lbm/hr**, which is the 65 % speed line being asked for
     pressure ratios past its own last knot while it brackets the 80 % line from below.
@@ -225,15 +226,23 @@ def test_which_tables_are_extrapolated_at_which_trims():
     expected = {
         110.0: ("f3", "f8", "f9"),
         125.0: ("f8",),
+        150.0: ("f1@65", "f8"),
         200.0: (),
         300.0: (),
         400.0: (),
         550.0: (),
-        600.0: ("f6",),
-        700.0: ("f6",),
+        600.0: (),
+        700.0: (),
+        775.0: ("f9",),
     }
+    # Continued, not cold-started: above ~725 lbm/hr a cold trim from the design-point
+    # guess lands off the map, which `test_the_sweep_refuses_past_the_maps_top_speed_line`
+    # is about. The ladder is the one `trim.sweep` exists for.
+    ladder = sorted(expected)
+    results = dict(zip(ladder, trim.sweep(ladder), strict=True))
+
     for pph, tables in expected.items():
-        r = trim.solve(wf_pps_from_pph(pph), c.NP_DES, AMB)
+        r = results[pph]
         assert r.trustworthy, f"{pph:.0f} lbm/hr no longer trims"
         assert r.extrapolated_tables == tables, (
             f"{pph:.0f} lbm/hr extrapolates {r.extrapolated_tables}, on record "
@@ -241,8 +250,8 @@ def test_which_tables_are_extrapolated_at_which_trims():
         )
         assert r.fully_on_data == (not tables)
 
-    top = trim.solve(wf_pps_from_pph(700.0), c.NP_DES, AMB)
+    top = results[775.0]
     assert top.trustworthy and not top.fully_on_data, (
-        "the f6 clamp above ~590 lbm/hr must not make a trim untrustworthy -- see the "
-        "docstring for why that line is drawn where it is"
+        "the f9 clamp near the top of the range must not make a trim untrustworthy -- see "
+        "the docstring for why that line is drawn where it is"
     )

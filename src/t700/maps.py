@@ -146,6 +146,14 @@ class Curve:
     x: np.ndarray
     y: np.ndarray
     source: str = ""
+    constant: bool = False
+    """Set by `condition` when `Physics.constant` declares the figure a horizontal line.
+
+    A constant has no domain to leave, so evaluations outside `[x[0], x[-1]]` are not
+    counted as clamps: there is nothing being extrapolated. `f6` is the only one, and it is
+    why "f6 clamped N times" stopped appearing in clamp reports on 2026-09-13. The report
+    asked for FAR up to 0.0327 against a table ending at 0.0200, and the answer was the
+    same number at both."""
 
     def __post_init__(self) -> None:
         if self.x.size < 2:
@@ -174,9 +182,10 @@ class Curve:
                 f"it silently makes the failure surface hundreds of frames later."
             )
         lo, hi = self.domain
-        outside = int(np.count_nonzero((xa < lo) | (xa > hi)))
-        if outside:
-            _clamps[self.name] += outside
+        if not self.constant:
+            outside = int(np.count_nonzero((xa < lo) | (xa > hi)))
+            if outside:
+                _clamps[self.name] += outside
         return np.interp(xa, self.x, self.y)  # np.interp clamps at both ends
 
 
@@ -304,6 +313,20 @@ class Physics:
     at_most_one: bool = False
     at_least_one: bool = False
     monotone: str | None = None  # "inc" or "dec"
+    constant: bool = False
+    """The figure draws a horizontal line and the printed spread is read noise.
+
+    Declared only where the *ink* says so: `f6` is Figure A6 [pdf p.61], a single
+    horizontal line across a y axis spanning 0.88 to 1.10, with an `x` marker at each
+    frame edge and nothing between them. Its two digitized endpoints differ by 7.3e-5
+    against a 1-sigma read error of 4.06e-4 each -- **0.13 sigma on the difference**, and
+    0.46 px at 200 dpi. The page's four frame edges are fitted at +0.209, +0.155, -0.109
+    and +0.150 degrees, four *different* angles, so the frame is a genuine quadrilateral
+    and a horizontal line across it does not come back horizontal. That skew is what the
+    residual slope is.
+
+    A two-point table is how you write a constant for a function-table processor that
+    wants endpoints. Reading a slope out of it is reading the paper, not the model."""
     why: str = ""
 
 
@@ -339,6 +362,8 @@ def _isotonic(y: np.ndarray, increasing: bool) -> np.ndarray:
 def condition(curve: Curve, phys: Physics) -> tuple[Curve, float]:
     """Apply declared physical constraints. Returns the curve and the largest change."""
     y = curve.y.astype(float).copy()
+    if phys.constant:
+        y = np.full_like(y, float(np.mean(y)))
     if phys.monotone in ("inc", "dec"):
         y = _isotonic(y, increasing=(phys.monotone == "inc"))
     if phys.nonnegative:
@@ -348,7 +373,10 @@ def condition(curve: Curve, phys: Physics) -> tuple[Curve, float]:
     if phys.at_least_one:
         y = np.maximum(y, 1.0)
     moved = float(np.abs(y - curve.y).max())
-    return Curve(name=curve.name, x=curve.x, y=y, source=curve.source), moved
+    return (
+        Curve(name=curve.name, x=curve.x, y=y, source=curve.source, constant=phys.constant),
+        moved,
+    )
 
 
 CONDITIONING: dict[str, float] = {}
@@ -494,9 +522,29 @@ def f5() -> Curve:
 def f6() -> Curve:
     """Combustor efficiency against fuel-air ratio. [Fig. A6]
 
-    Two knots -- the function is one number, about 0.985, and the read-error bound on it
-    is 5e-4 (the scan's vertical bow). The printed abscissa reads "FUEL-TO-RATIO, FAR";
-    the word AIR is missing on the page (open question #7, closed as a report typo).
+    **This is a constant, and as of 2026-09-13 it is loaded as one.** Figure A6 draws a
+    single horizontal line at 0.985 across a y axis spanning 0.88 to 1.10, with an `x`
+    marker at each frame edge and no other ink. The two digitized endpoints, 0.985038 and
+    0.984965, differ by 7.3e-5 against a 1-sigma read error of 4.06e-4 apiece -- 0.13 sigma
+    on the difference, and 0.46 px at the 200 dpi the figure was read at. The page's four
+    frame edges sit at four *different* angles (+0.209, +0.155, -0.109, +0.150 degrees), so
+    the frame is a quadrilateral and a printed horizontal line does not come back
+    horizontal. The slope was the paper.
+
+    Conditioned to the mean, **0.985002**, which moves each endpoint by 3.65e-5 and is
+    recorded in `CONDITIONING`. The CSV is untouched -- it still carries the ink as
+    measured, so the provenance chain back to the page is unbroken and the reproducibility
+    gate is unaffected.
+
+    Two consequences worth stating. The model asks for FAR up to 0.0327 against a table
+    ending at 0.0200 [open question #45], and **that stops being an extrapolation at all**:
+    a constant has no domain to leave. And the combustor efficiency stops being a source of
+    transient error by construction, which the 2026-09-12 measurement had already shown it
+    was not -- relaxing the clamp to linear extrapolation moved the T41 peak by -0.2 degR
+    against a 112 degR gap.
+
+    The printed abscissa reads "FUEL-TO-RATIO, FAR"; the word AIR is missing on the page
+    (open question #7, closed as a report typo).
     """
     return load_curve(
         "f6_combustor_efficiency.csv",
@@ -504,8 +552,10 @@ def f6() -> Curve:
         phys=Physics(
             nonnegative=True,
             at_most_one=True,
-            why="An efficiency. The report draws a horizontal line, so this is one number "
-            "to within its 5e-4 read error.",
+            constant=True,
+            why="An efficiency, and Figure A6 draws it as a single horizontal line. The "
+            "two endpoints differ by 0.13 sigma of the read error, which is the page's "
+            "own skew rather than a slope.",
         ),
     )
 

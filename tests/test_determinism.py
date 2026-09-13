@@ -94,7 +94,7 @@ def test_a_real_time_run_is_bit_identical_across_an_intervening_clamp_count():
     a = _figure_9_trace()
     maps.reset_clamps()
     for _ in range(500):
-        maps.f6()(0.5)  # far outside f6's table, so every call counts
+        maps.f9()(0.95)  # outside f9's table, so every call counts
     b = _figure_9_trace()
     for key in a:
         assert np.array_equal(a[key], b[key]), f"trace {key!r} moved with the clamp counter"

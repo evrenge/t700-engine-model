@@ -356,13 +356,15 @@ def test_clamp_scope_nests_without_destroying_an_enclosing_count():
     nested measurement.
     """
     maps.reset_clamps()
-    f6 = maps.f6()
-    f6(0.5)  # far outside f6's 0.00999-0.02000 table
+    # f9, not f6: as of 2026-09-13 f6 is loaded as the constant Figure A6 draws, and a
+    # constant has no domain to leave, so it no longer counts clamps at all.
+    f9 = maps.f9()
+    f9(0.95)  # outside f9's 0.30050-0.85012 table
     with maps.clamp_scope() as inner:
-        f6(0.5)
-        f6(0.5)
-    assert inner.counts == {"f6": 2}, inner.counts
-    assert maps.clamp_report() == {"f6": 3}, (
+        f9(0.95)
+        f9(0.95)
+    assert inner.counts == {"f9": 2}, inner.counts
+    assert maps.clamp_report() == {"f9": 3}, (
         "the enclosing count must survive the inner scope and absorb its clamps"
     )
     maps.reset_clamps()
@@ -387,7 +389,7 @@ def test_the_clamp_counter_cannot_influence_any_model_output():
     maps.reset_clamps()
     a = trim.solve(wf, ambient=amb).state
     for _ in range(500):  # run the counter up on purpose
-        maps.f6()(0.5)
+        maps.f9()(0.95)
     b = trim.solve(wf, ambient=amb).state
     maps.reset_clamps()
     c_ = trim.solve(wf, ambient=amb).state
