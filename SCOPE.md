@@ -115,14 +115,17 @@ mass-flow iteration. Reproduce the report's time-step sensitivity (0.1% at 10 ms
 test — matching the *error behaviour*, not just the answer.
 *Gate:* open-loop response has the report's shape and time constants.
 
-**Phase 5 — Control system.** **IN PROGRESS. The HMU is built; the ECU is not.**
-`src/t700/control/hmu.py` implements Figures C9-C22 -- the droop line, the torque motor,
-the Ps3 and NG sensors, the collective rigging, and the idle / acceleration / deceleration
-cam cascade -- against `src/t700/control/schedules.py`, which loads all eight digitized
-scheduling functions. It runs open-loop with the ECU trim held at its null. What remains is
-the **ECU** (Figs. C1-C8) and then closing the loop around the engine.
+**Phase 5 — Control system.** **COMPLETE.** `hmu.py` implements Figs. C9-C22, `ecu.py`
+Figs. C1-C8, and `loop.py` closes them on the engine; `schedules.py` loads all eight
+digitized scheduling functions and `_blocks.py` holds the primitives the figures draw.
 
-Its data is complete.
+*Gate:* closed-loop transients match the report's figures. **Not achievable, and known
+before the phase started** -- Figs. 11-15 all need Gen Hel. The gate actually met is the
+one available: the closed loop settles on **Table B.1's printed trims with fuel flow as an
+output**, worst deviation 0.74 % over NG, NP, Wf, Ps3 and shp at three conditions, and the
+governor absorbs a 35-70 % collective sweep while the settled state moves under 0.2 %.
+That is a cross-check between two independently digitized halves of the report, not a
+restatement. `validation/test_closed_loop.py`.
 `src/t700/control/constants.py` holds **73** constants (57 from Table C.1 plus 16 read off
 the figures; the other 3 of the 76 read from the report live in `t700.constants` and
 `t700.units`). **All 8 scheduling functions are digitized** and committed under
@@ -313,6 +316,7 @@ unprinted step time (open question #37). Tolerances for the last two, ours:
 | Table B.1's printed station state | +/-0.5 % | `test_trim_points.STATE_TOL_PCT`. Much tighter than the +/-3 % gas-path row because these are printed *numbers*, with no read error of ours in them at all |
 | Figures 9/10 read error | +/-1.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS`, measured on the WFPH panel -- see the section above, and note the currency |
 | HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. What it tests is that Appendix C and Table B.1 -- digitized independently -- agree at all |
+| **Closed loop vs Table B.1** | **+/-1 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst 0.74 %, and that one is inherited -- the descent shaft power is 0.72 % out open-loop too. This is the Phase 5 gate: fuel flow is an *output* |
 
 **Every tolerance any test asserts is in this file.** Five were inline in test files until
 2026-09-12, two of them carrying their own docstring note saying they belonged here. A

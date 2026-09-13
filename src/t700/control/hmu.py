@@ -55,6 +55,7 @@ from dataclasses import dataclass, replace
 from t700 import constants as engine_c
 from t700.control import constants as c
 from t700.control import schedules
+from t700.control._blocks import backlash, clamp, delay, lag, lead_lag
 
 SPDG_NULL: float = -c.TM_INPUT_BIAS - c.TM_CURRENT_BIAS / c.TM_FORWARD_GAIN
 """The ECU trim signal at which the torque motor sits still. **Not 0.44.**
@@ -72,50 +73,6 @@ which is derived from three printed constants and nothing else. That it lands wi
 The deadband is what makes a null exist at all rather than a single exact value -- any
 SPDG in [0.44 + 29/564, 0.44 + 33/564] = [0.4914, 0.4985] leaves a motor at rest at rest.
 This constant is the centre of that band."""
-
-
-def _lag(x: float, u: float, tau: float, dt: float) -> float:
-    """One explicit step of `1/(tau*s + 1)`. Returns the new state, which is the output."""
-    if tau <= 0.0:
-        return u
-    return x + dt * (u - x) / tau
-
-
-def _lead_lag(x: float, u: float, lead: float, lag: float, dt: float) -> tuple[float, float]:
-    """One step of `(lead*s + 1)/(lag*s + 1)`. Returns (new state, output).
-
-    The state is the lag's, and the output reads the lead off the same derivative -- the
-    realization that avoids differentiating the input. It is the one the station 4.1 heat
-    sink uses too, for the same reason.
-    """
-    if lag <= 0.0:
-        return u, u
-    dx = (u - x) / lag
-    return x + dt * dx, x + lead * dx
-
-
-def _backlash(state: float, u: float, width: float) -> float:
-    """Hysteresis of total band `width`, centred: the output follows the input but only
-    after the input has reversed by `width`.
-
-    **The report does not say whether the named constant is the whole band or the half
-    band** -- open question #54. Figure C15's icon braces `CH` from the vertical axis to
-    one branch, which argues for a half-width, but the brace measures 43 px against a
-    branch separation of 58 px, so the drawing does not settle it. This takes the constant
-    as the **total** band, the ordinary meaning of a hysteresis block's width parameter.
-    Reading it as a half-width doubles every band; that matters most for `XLDHYS`, which
-    is 2.5 deg on a spindle graduated in 10 deg steps.
-    """
-    half = 0.5 * width
-    if u > state + half:
-        return u - half
-    if u < state - half:
-        return u + half
-    return state
-
-
-def _clamp(v: float, lo: float, hi: float) -> float:
-    return lo if v < lo else (hi if v > hi else v)
 
 
 @dataclass(frozen=True)
@@ -211,6 +168,19 @@ def seed(u: HMUInputs) -> HMUState:
     png = float(schedules.f_hm3()(xldsa))
     wfqps3 = float(schedules.f_hm4()(xldsa))
     dwfp = c.KNDRP * (c.NGREF - png) + (c.LOAD_DEMAND_BIAS - wfqps3)
+    # the metering valve has to be seeded too, or the loop starts with a fuel-flow step
+    # from zero -- which is a slam acceleration the control never commanded
+    wfptp = float(schedules.f_hm1()(u.t2_degR))
+    wfprf = float(schedules.f_hm2()(u.pas_deg))
+    tmru = 0.0  # the integrator is seeded at zero, and TMRU = TMLG * it
+    wfpdm = wfptp + c.KNDRP * (c.NGREF - pcng) - wfprf - max(dwfp + tmru, 0.0)
+    wfidm = c.KNDRP * (float(schedules.f_hm6()(u.t2_degR)) - pcng) - float(
+        schedules.f_hm5()(u.t2_degR)
+    )
+    wfpac = float(schedules.f_hm7()(pcng, u.t2_degR))
+    wfpdc = clamp(c.AWFP * pcng + c.BWFP, c.WFPDCL, c.WFPDCH)
+    hmusel = max(min(max(wfpdm, wfidm), wfpac), wfpdc)
+    wfmv = clamp(hmusel * u.ps3_psia, c.WFMIN, c.WFMAX)
     return HMUState(
         tm_leadlag=(u.spdg + c.TM_INPUT_BIAS),
         tm_integrator=0.0,
@@ -220,8 +190,8 @@ def seed(u: HMUInputs) -> HMUState:
         xldsh=xldsa,
         pcng_hyst=pcng,
         pcnghl=pcng,
-        wfmv_lag=0.0,
-        wf_history=(),
+        wfmv_lag=wfmv,
+        wf_history=(wfmv, wfmv, wfmv, wfmv),
     )
 
 
@@ -229,16 +199,16 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
     """Advance the HMU one frame. Returns the new state and the signals of Figs. C9-C22."""
     # --- C-36, Fig. C15: NG spool sensor -------------------------------------------
     pcng = u.ng_rpm * 100.0 / engine_c.NG_DES
-    pcng_hyst = _backlash(state.pcng_hyst, pcng, c.CH)
-    pcnghl = _lag(state.pcnghl, pcng_hyst, c.CNTL, dt)
+    pcng_hyst = backlash(state.pcng_hyst, pcng, c.CH)
+    pcnghl = lag(state.pcnghl, pcng_hyst, c.CNTL, dt)
 
     # --- C-32, Fig. C11: Ps3 sensor ------------------------------------------------
-    ps3_lag = _lag(state.ps3_lag, u.ps3_psia, c.CTPS3, dt)
-    ps3l = _backlash(state.ps3_hyst, ps3_lag, c.PS3HYS)
+    ps3_lag = lag(state.ps3_lag, u.ps3_psia, c.CTPS3, dt)
+    ps3l = backlash(state.ps3_hyst, ps3_lag, c.PS3HYS)
 
     # --- C-34, Fig. C13: collective to load demand spindle, UH-60A rigging ---------
     xldsa = c.COLLECTIVE_RIGGING_GAIN * u.xcpc_pct + c.COLLECTIVE_RIGGING_BIAS
-    xldsh = _backlash(state.xldsh, xldsa, c.XLDHYS)
+    xldsh = backlash(state.xldsh, xldsa, c.XLDHYS)
 
     # --- C-38, Fig. C17: load demand spindle input schedule ------------------------
     # Fed XLDSH here, though Figs. C26/C27 label their x axes XLDSA -- see the
@@ -248,11 +218,11 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
     dwfp = c.KNDRP * (c.NGREF - png) + (c.LOAD_DEMAND_BIAS - wfqps3)
 
     # --- C-33, Fig. C12: load demand dynamics --------------------------------------
-    load_demand_lag = _lag(state.load_demand_lag, dwfp, c.CLLDS, dt)
+    load_demand_lag = lag(state.load_demand_lag, dwfp, c.CLLDS, dt)
 
     # --- C-28..C-31, Fig. C10: torque motor ----------------------------------------
     tm_err = (u.spdg + c.TM_INPUT_BIAS) - c.TMLVG * state.tm_integrator
-    tm_leadlag, tm_out = _lead_lag(state.tm_leadlag, tm_err, c.TM_LEAD, c.TM_LAG, dt)
+    tm_leadlag, tm_out = lead_lag(state.tm_leadlag, tm_err, c.TM_LEAD, c.TM_LAG, dt)
     tm_current = tm_out * c.TM_FORWARD_GAIN + c.TM_CURRENT_BIAS
     if tm_current > c.TMDB:
         tm_db = tm_current - c.TMDB
@@ -260,7 +230,7 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
         tm_db = tm_current + c.TMDB
     else:
         tm_db = 0.0
-    tm_integrator = _clamp(state.tm_integrator + dt * c.TMGN * tm_db, c.XLOLIM, c.XHILIM)
+    tm_integrator = clamp(state.tm_integrator + dt * c.TMGN * tm_db, c.XLOLIM, c.XHILIM)
     tmru = c.TMLG * tm_integrator
 
     # --- C-35/C-37, Figs. C14/C16: topping and power-available schedules ------------
@@ -280,7 +250,7 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
     wfpac = float(schedules.f_hm7()(pcnghl, u.t2_degR))
 
     # --- C-43, Fig. C22: deceleration limit ----------------------------------------
-    wfpdc = _clamp(c.AWFP * pcnghl + c.BWFP, c.WFPDCL, c.WFPDCH)
+    wfpdc = clamp(c.AWFP * pcnghl + c.BWFP, c.WFPDCL, c.WFPDCH)
 
     # --- C-39, Fig. C18: the limit cascade -----------------------------------------
     after_idle = max(wfpdm, wfidm)
@@ -297,8 +267,8 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
 
     # --- C-27/C-40, Figs. C9/C19: metering valve -----------------------------------
     wfmv = hmusel * ps3l
-    wfmv_lag = _lag(state.wfmv_lag, _clamp(wfmv, c.WFMIN, c.WFMAX), c.CLMV, dt)
-    history, wf_pph = _delay(state.wf_history, wfmv_lag, c.FUEL_TRANSPORT_DELAY, dt)
+    wfmv_lag = lag(state.wfmv_lag, clamp(wfmv, c.WFMIN, c.WFMAX), c.CLMV, dt)
+    history, wf_pph = delay(state.wf_history, wfmv_lag, c.FUEL_TRANSPORT_DELAY, dt)
 
     new = replace(
         state,
@@ -332,26 +302,3 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
         limit=limit,
     )
     return new, out
-
-
-def _delay(
-    history: tuple[float, ...], u: float, tau: float, dt: float
-) -> tuple[tuple[float, ...], float]:
-    """Pure transport delay `e^(-tau*s)` on a fixed step, by linear interpolation.
-
-    [Fig. C19, pdf p.92] tau = 0.015 s against the report's 7 ms engine frame is about two
-    frames, so the delay is not a rounding detail and is not resolved by the frame either:
-    it has to be interpolated between samples.
-    """
-    n = int(tau / dt) + 2 if dt > 0.0 else 1
-    buf = (history + (u,))[-max(n, 2) :]
-    if len(buf) < 2:
-        return buf, u
-    back = tau / dt  # in samples, measured from the newest
-    i = len(buf) - 1 - back
-    if i <= 0:
-        return buf, buf[0]
-    lo = int(i)
-    frac = i - lo
-    hi = min(lo + 1, len(buf) - 1)
-    return buf, buf[lo] + frac * (buf[hi] - buf[lo])

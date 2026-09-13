@@ -499,7 +499,12 @@ appended to `open-questions.md`:
    because the Fig. C13 rigging `XLDSA = 0.914·XCPC + 5.34` only reaches the load demand
    spindle's printed 0–100 deg range if XCPC is a percentage; read as inches it spans just
    5.3–14.5 deg and the whole control sits against its deceleration floor.
-9. **The torque motor null is not 0.44** [Fig. C10, pdf p.89]. The first summing junction
+9. **`W45` must be lbm/sec, not the nomenclature's lb/hr** [pdf p.80]. Fig. C5 forms
+   `W45R = W45·√T45L/P45` and feeds it to `F_EC1`, whose printed x axis runs 1.0 to 15.0.
+   At the three Table B.1 trims lbm/sec gives **8.56 / 8.42 / 8.18**; lbm/hr gives about
+   **30 000**, a factor of 3600 off a bounded axis. Another labelling slip in the same
+   family as Table C.1's "nondimensional" for `CR` (open question #11).
+10. **The torque motor null is not 0.44** [Fig. C10, pdf p.89]. The first summing junction
    forms `SPDG − 0.44`, but the forward path is `e·(0.04s+1)/(0.2s+1)·564.0 − 31.0`, so at
    `e = 0` it delivers −31.0, far outside the ±TMDB = ±2.0 deadband, and the integrator
    ramps to `XLOLIM`. The signal sits still at `0.44 + 31.0/564.0 = 0.49496`. See #55.
