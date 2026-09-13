@@ -394,3 +394,38 @@ def test_the_clamp_counter_cannot_influence_any_model_output():
 
     assert a == b == c_, f"the clamp counter moved a model output:\n{a}\n{b}\n{c_}"
     maps.reset_clamps()
+
+
+def test_the_loaded_tables_cannot_be_mutated_through_a_cached_handle():
+    """`frozen=True` protects the reference, not the array it points at.
+
+    The loaders are cached, so `maps.f2()` hands every caller the same `Curve`. Two
+    spellings got past the dataclass guard entirely:
+
+        maps.f2().y[:] = something     -- no attribute assignment, so no guard at all;
+                                          it moved the 400 lbm/hr trim's NG by 482 rpm
+        maps.f2().y *= 1.02            -- numpy applies the in-place multiply FIRST and
+                                          the FrozenInstanceError fires after, so the
+                                          "protected" spelling corrupts the table and
+                                          then raises
+
+    The second is the dangerous one: a reader seeing the exception would conclude nothing
+    happened. Found by the 2026-09-13 code-quality audit. `appendix_b` already did this
+    with `setflags(write=False)`; the function tables did not.
+    """
+    curve = maps.f2()
+    with pytest.raises(ValueError, match="read-only"):
+        curve.y[:] = 0.0
+    with pytest.raises(ValueError, match="read-only"):
+        curve.y *= 1.02
+    with pytest.raises(ValueError, match="read-only"):
+        curve.x[0] = 0.0
+
+    speed = maps.f1()
+    with pytest.raises(ValueError, match="read-only"):
+        speed.params[0] = 0.0
+    with pytest.raises(ValueError, match="read-only"):
+        speed.lines[0].y[:] = 0.0
+
+    # and the table still reads correctly afterwards
+    assert float(maps.f2()(3.0)) == float(curve(3.0))

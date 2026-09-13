@@ -47,6 +47,28 @@ outright -- it is the standard library -- so its nondeterministic members are ca
 does not import `time`.
 """
 
+FORBIDDEN_MODULES = (
+    "numpy.random",
+    "os.urandom",
+    "os.getrandom",
+    "secrets",
+    "random",
+)
+"""Dotted module paths the core may not import **by any spelling**.
+
+`top_level_imports` reduces everything to its first component, which is the right
+question for "is this package allowed" and the wrong one for `numpy.random`: numpy is the
+one permitted third-party package, so `from numpy import random`,
+`import numpy.random as npr` and `from numpy.random import default_rng` all reduced to
+`"numpy"` and passed. The 2026-09-13 code-quality audit demonstrated all three against the
+detectors added earlier the same day -- the RNG ban was the headline of that morning's fix
+and three of its four spellings still escaped.
+
+`FORBIDDEN_ATTRIBUTES` catches the fourth, `np.random.default_rng()`, at the use site.
+This catches the rest at the import, which is strictly stronger: a module that cannot be
+imported cannot be reached under an alias either.
+"""
+
 FORBIDDEN_ATTRIBUTES = {
     # RNG, reachable through the one third-party package the core is allowed
     ("np", "random"): "NumPy's RNG is still an RNG; the core must be reproducible",
@@ -85,12 +107,40 @@ def core_modules() -> list[Path]:
     return sorted(SRC.rglob("*.py"))
 
 
+def dotted_imports(path: Path) -> set[str]:
+    """Every full dotted path an import introduces, not just its first component.
+
+    `import numpy.random as npr` yields `numpy.random`; `from numpy.random import
+    default_rng` yields `numpy.random` and `numpy.random.default_rng`; `from numpy import
+    random` yields `numpy` and `numpy.random`. So a forbidden module is caught however it
+    is spelled and whatever it is renamed to.
+    """
+    tree = ast.parse(path.read_text(), filename=str(path))
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                out.add(alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level or not node.module:
+                continue  # relative import, stays inside the package
+            out.add(node.module)
+            for alias in node.names:
+                out.add(f"{node.module}.{alias.name}")
+    return out
+
+
 def dotted_attributes(path: Path) -> set[tuple[str, str]]:
     """Every `<name>.<attr>` in one module, as pairs.
 
     Deliberately shallow: it matches on the *spelling*, so `np.random.default_rng()` is
-    caught as `("np", "random")` whatever follows. An alias (`from numpy import random`)
-    is caught by the import walk instead, since `numpy.random` is not `numpy`.
+    caught as `("np", "random")` whatever follows.
+
+    This docstring said an alias -- `from numpy import random` -- "is caught by the import
+    walk instead, since `numpy.random` is not `numpy`". That was false: `top_level_imports`
+    does `node.module.split(".")[0]`, which is exactly `"numpy"`, and `"numpy"` is the one
+    allowed third-party package. `FORBIDDEN_MODULES` and
+    `test_core_does_not_import_a_forbidden_module_under_any_spelling` close it properly.
     """
     tree = ast.parse(path.read_text(), filename=str(path))
     out: set[tuple[str, str]] = set()
@@ -163,6 +213,21 @@ def test_core_is_deterministic_by_construction(path: Path):
 
 
 @pytest.mark.parametrize("path", core_modules(), ids=lambda p: p.name)
+def test_core_does_not_import_a_forbidden_module_under_any_spelling(path: Path):
+    """`from numpy import random` is `numpy.random`, whatever the first component says."""
+    found = sorted(
+        name
+        for name in dotted_imports(path)
+        for banned in FORBIDDEN_MODULES
+        if name == banned or name.startswith(banned + ".")
+    )
+    assert not found, (
+        f"{path.name} imports {found}. The first component of those is an allowed "
+        f"package, which is why the import walk passed them -- see FORBIDDEN_MODULES."
+    )
+
+
+@pytest.mark.parametrize("path", core_modules(), ids=lambda p: p.name)
 def test_core_does_not_reach_a_clock_or_an_rng_through_an_allowed_module(path: Path):
     """The import ban is necessary and not sufficient -- see `FORBIDDEN_ATTRIBUTES`."""
     found = dotted_attributes(path) & set(FORBIDDEN_ATTRIBUTES)
@@ -191,6 +256,10 @@ DECOYS = [
     ("from scipy import ndimage\n", "top_level_imports", "scipy"),
     ("def f():\n    import matplotlib\n", "top_level_imports", "matplotlib"),
     ("import numpy as np\nrng = np.random.default_rng()\n", "dotted", ("np", "random")),
+    ("from numpy import random\n", "dotted_import", "numpy.random"),
+    ("import numpy.random as npr\n", "dotted_import", "numpy.random"),
+    ("from numpy.random import default_rng\n", "dotted_import", "numpy.random"),
+    ("import numpy.random\n", "dotted_import", "numpy.random"),
     ("import os\nx = os.urandom(8)\n", "dotted", ("os", "urandom")),
     ("import os\nt = os.times()\n", "dotted", ("os", "times")),
     (
@@ -212,27 +281,46 @@ def test_each_detector_fires_on_source_that_should_trip_it(tmp_path, source, kin
     found = {
         "top_level_imports": top_level_imports,
         "dotted": dotted_attributes,
+        "dotted_import": dotted_imports,
         "call": bare_calls,
     }[kind](decoy)
     assert expected in found, f"{kind} did not see {expected!r} in:\n{source}"
 
 
-@pytest.mark.parametrize(
-    "name",
-    sorted({a for a, _ in FORBIDDEN_ATTRIBUTES} | set(FORBIDDEN_CALLS) | NONDETERMINISTIC),
-)
-def test_no_banned_name_is_unreachable_by_construction(name: str):
-    """Every entry must be spelled the way the detector that owns it can see it.
+@pytest.mark.parametrize("name", sorted(NONDETERMINISTIC))
+def test_no_nondeterministic_entry_is_spelled_so_it_can_never_match(name: str):
+    """NONDETERMINISTIC is compared against top-level names, so a dotted entry is dead.
 
-    NONDETERMINISTIC is compared against top-level package names, so a dotted entry there
-    is dead. FORBIDDEN_ATTRIBUTES is compared against `(name, attr)` pairs, so a bare
-    entry there is dead. This is the check that would have caught `"os.urandom"`.
+    This is the check that would have caught `"os.urandom"` sitting in that set for three
+    days doing nothing.
     """
-    if name in NONDETERMINISTIC:
-        assert "." not in name, (
-            f"NONDETERMINISTIC entry {name!r} is dotted, and the import walk yields "
-            f"top-level names only -- it can never match. Put it in FORBIDDEN_ATTRIBUTES."
+    assert "." not in name, (
+        f"NONDETERMINISTIC entry {name!r} is dotted, and the import walk yields top-level "
+        f"names only -- it can never match. Put it in FORBIDDEN_ATTRIBUTES."
+    )
+
+
+def test_every_banned_entry_is_owned_by_a_detector_that_can_see_it():
+    """The sibling check for the other three sets, and it was missing.
+
+    `test_no_banned_name_is_unreachable_by_construction` parametrized over all four sets
+    and asserted nothing for three of them -- 8 of its 15 cases ran an empty body,
+    including the `FORBIDDEN_ATTRIBUTES` half its own docstring claimed to check. Found by
+    the 2026-09-13 code-quality audit.
+    """
+    for a, b in FORBIDDEN_ATTRIBUTES:
+        assert "." not in a and "." not in b, (
+            f"FORBIDDEN_ATTRIBUTES key ({a!r}, {b!r}) is dotted; `dotted_attributes` "
+            f"yields single-component pairs, so it can never match."
         )
+    for name in FORBIDDEN_CALLS:
+        assert "." not in name, (
+            f"FORBIDDEN_CALLS entry {name!r} is dotted; `bare_calls` yields `ast.Name` "
+            f"callees only, so it can never match. An attribute call belongs in "
+            f"FORBIDDEN_ATTRIBUTES."
+        )
+    for name in FORBIDDEN_MODULES:
+        assert name and not name.startswith("."), f"bad FORBIDDEN_MODULES entry {name!r}"
 
 
 GAS_PROPERTY_CONSTANTS = (

@@ -146,14 +146,33 @@ def _zlolim(engine2_torq45: float | None) -> float:
     return c.ZLOLIM_HIGH_TORQUE if engine2_torq45 >= c.ENGINE2_TORQUE_THRESHOLD else c.ZLOLIM
 
 
-def seed(u: ECUInputs) -> ECUState:
+def seed(u: ECUInputs, spdg: float = 0.0) -> ECUState:
     """A state consistent with holding `u`, as `hmu.seed` is for the HMU. Open question #55.
 
-    Every lag starts at its input and both integrators at zero. The P+I integrator's zero
-    is *not* generally an equilibrium -- it only stops when `SPDSS` is zero, which is what
-    the governor is for -- so a closed-loop run starts with the integrator unwound and
-    lets it find its own level. That is the honest default: the report gives none, and
-    pretending to know the integrator's trim value would be inventing a number.
+    Every lag starts at its input. `spdg` seeds the P+I integrator and the CT16 output lag
+    to the torque-motor demand the caller wants held.
+
+    **Why it takes an argument at all.** The default of zero was the honest choice for the
+    ECU *alone*: the P+I integrator only stops when `SPDSS` is zero, so its trim value is
+    not derivable from the ECU's own inputs and inventing one would be inventing a number.
+    But `loop.seed` was seeding the HMU's torque motor to hold `SPDG_NULL = 0.49496` while
+    leaving this at zero, so frame 1 delivered **SPDG = 0 into a torque motor seeded for
+    0.495** -- a half-volt step the control never commanded. That is not an unknown
+    initial condition, it is two halves of one seed contradicting each other, and the
+    2026-09-13 control-systems audit measured what it costs:
+
+        as shipped                Wf peak 627.9 pph (+31.8 %), NP +1.42 %, T41 2500.8 degR,
+                                  50 `f6` clamps -- the model leaves its digitized envelope
+        ECU seeded at SPDG_NULL   Wf peak 477.4 pph (+0.23 %), NP +0.03 %, T41 2293.6, none
+
+    It decays in about 3 s, so the 4000-frame closed-loop trim tests washed it out entirely
+    -- settled fuel flow moves 476.47 -> 475.95 pph -- but every transient started from
+    `loop.seed` began with that slam.
+
+    `SPDG_NULL` is not fitted: the CT16 lag has unit DC gain and `SPDSS` is zero at trim,
+    and the loop settles at SPDG = 0.5038 on its own from either seed. It is the same
+    principle `realtime.from_trim` already follows -- start at equilibrium, because that is
+    the only choice that makes a trimmed engine sit still.
     """
     pcnp = u.np_rpm * 100.0 / engine_c.NP_DES
     trql = u.torq45_ftlbf
@@ -164,6 +183,8 @@ def seed(u: ECUInputs) -> ECUState:
         trql_lag2=trql,
         harness_lag=t45l,
         t45el_lag=t45l,
+        pi_int=spdg,
+        spdg_lag=spdg,
     )
 
 

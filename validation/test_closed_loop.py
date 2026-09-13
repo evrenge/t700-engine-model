@@ -71,6 +71,30 @@ TRIMS = [
     ("descent 80 kt", 267.7, 38072.0, 114.27, 76.06, 1.18, 302.6),
 ]
 
+XCPC_PCT = {"hover": 52.75, "level 80 kt": 35.87, "descent 80 kt": 23.01}
+"""Collective at each trim, from `test_hmu_trim.py`'s own droop-line solve.
+
+**All three ran at the hover collective, 52.75 %, until 2026-09-13.** The settled state
+barely notices -- the governor is what absorbs a wrong collective, and that is the thing
+`test_the_governor_absorbs_the_collective` is about -- but the *path* there does not:
+
+    level,   52.75 %   Wf peak +57.4 %,  NP peak +2.04 %   f6 x46
+    level,   35.87 %   Wf peak  +0.6 %,  NP peak +0.03 %   none
+    descent, 52.75 %   Wf peak +94.1 %,  NP peak +3.53 %   f6 x215, f1@85 x10, f1@82 x228
+    descent, 23.01 %   Wf peak  +0.7 %,  NP peak +0.03 %   none
+
+(Measured after the `ecu.seed` fix of the same day. The control-systems audit that found
+this measured +78.7 / +107.9 % on the peaks against the unfixed seed, which was adding its
+own +31.8 % slam on top; the f1 clamping is the part that matters and it is unchanged in
+kind.)
+
+So every level and descent run in what `SCOPE.md` calls the Phase 5 gate was leaving the
+digitized compressor map -- 273 evaluations off `f1`'s 82 % speed line at descent -- and
+nothing reported it, because `maps.reset_clamps()` was called only inside the acceleration
+test. Found by the 2026-09-13 control-systems audit. The settled deviations against
+Table B.1 are unchanged by the fix; what changes is that the model now stays inside its
+own data on the way there."""
+
 
 def _dqpt_dnp(result, wf_pps: float) -> float:
     """dQ_PT/dNP by central difference, the report's own method for a derivative."""
@@ -88,8 +112,13 @@ def _dqpt_dnp(result, wf_pps: float) -> float:
     return (q[1] - q[0]) / (2.0 * h)
 
 
-def settle(wf_pph, q_shaft, ratio, xcpc_pct=52.75, n=SETTLE_FRAMES, pcprf=None):
-    """Close the loop from the open-loop trim and run it to steady state."""
+def settle(wf_pph, q_shaft, ratio, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, name=None):
+    """Close the loop from the open-loop trim and run it to steady state.
+
+    `xcpc_pct` defaults to the collective that trim actually needs -- see `XCPC_PCT`.
+    """
+    if xcpc_pct is None:
+        xcpc_pct = XCPC_PCT[name] if name in XCPC_PCT else 52.75
     wf = wf_pps_from_pph(wf_pph)
     r = trim.solve(wf, engine_c.NP_DES, AMB)
     f = frame(r.state, wf, AMB)
@@ -115,7 +144,7 @@ def settle(wf_pph, q_shaft, ratio, xcpc_pct=52.75, n=SETTLE_FRAMES, pcprf=None):
 @pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
 def test_the_closed_loop_settles_on_the_printed_trim(name, wf, ng, ps3, q, ratio, shp):
     """Fuel flow is an **output** here. Nothing tells the loop what it should be."""
-    s, _e, h, fr = settle(wf, q, ratio)
+    s, _e, h, fr = settle(wf, q, ratio, name=name)
     got = {
         "NG": s.engine.ng_rpm,
         "NP": s.engine.np_rpm,
@@ -136,7 +165,7 @@ def test_the_closed_loop_settles_on_the_printed_trim(name, wf, ng, ps3, q, ratio
 def test_every_printed_trim_governs_on_the_droop_line(name, wf, ng, ps3, q, ratio, shp):
     """Closed loop, as open loop: a governor in steady flight sits on its droop line, not
     on a cam. And the ECU should be governing speed, not limiting temperature."""
-    _s, e, h, _fr = settle(wf, q, ratio)
+    _s, e, h, _fr = settle(wf, q, ratio, name=name)
     assert h.limit == "droop", (name, h.limit)
     assert e.limiting == "speed", (name, e.limiting, e.tsig, e.spdsf)
 
@@ -271,4 +300,31 @@ def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope()
     assert limits.get("accel", 0) > 20, (
         f"the acceleration limit never bound during a slam ({limits}), so this test is "
         f"not exercising what it claims to"
+    )
+
+
+@pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
+def test_the_closed_loop_stays_inside_its_digitized_data(name, wf, ng, ps3, q, ratio, shp):
+    """The Phase 5 gate must not reach its answer through extrapolated maps.
+
+    Nothing checked this until 2026-09-13: `maps.reset_clamps()` was called only inside
+    the acceleration test, so every level and descent run here left the compressor map
+    unreported. The cause was the collective -- see `XCPC_PCT` -- and at descent it was
+    273 evaluations off `f1`'s 82 % speed line, in the comparison `SCOPE.md` calls the
+    gate for Phase 5.
+
+    `f6` is the one clamp that is allowed, and only above about 590 lbm/hr: it is a
+    two-point, nearly constant table (0.98504 to 0.98496) whose clamp costs 1e-4, and the
+    top of the power range cannot avoid it. See `trim.TrimResult.extrapolated_tables`.
+    """
+    maps.reset_clamps()
+    settle(wf, q, ratio, name=name)
+    report = maps.clamp_report()
+    maps.reset_clamps()
+
+    offenders = {k: v for k, v in report.items() if not k.startswith("f6")}
+    assert not offenders, (
+        f"{name}: the closed loop reads {offenders} outside their digitized range on the "
+        f"way to its settled state. Every number this file reports would then be resting "
+        f"on extrapolated maps."
     )

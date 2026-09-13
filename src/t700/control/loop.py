@@ -108,7 +108,10 @@ def seed(
     )
     return LoopState(
         engine=st,
-        ecu=ecu_mod.seed(e_in),
+        # Both halves seeded to hold the SAME torque-motor demand. They disagreed until
+        # 2026-09-13 -- the HMU held SPDG_NULL while the ECU delivered 0 on frame 1 -- and
+        # the half-volt step that produced cost +31.8 % on fuel flow. See `ecu.seed`.
+        ecu=ecu_mod.seed(e_in, spdg=hmu_mod.SPDG_NULL),
         hmu=hmu_mod.seed(h_in),
         t45_degR=frame.t45_degR,
         w45_pps=frame.w45_pps,

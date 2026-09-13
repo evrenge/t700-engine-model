@@ -152,6 +152,14 @@ class Curve:
             raise ValueError(f"{self.name}: need at least two knots, got {self.x.size}")
         if not np.all(np.diff(self.x) > 0):
             raise ValueError(f"{self.name}: knots are not strictly increasing in x")
+        # `frozen=True` protects the *references*, not what they point at, and the loaders
+        # are cached -- so every caller shares one `Curve` per table and
+        # `maps.f2().y[:] = ...` silently rewrote the report's data for the whole process.
+        # The dangerous spelling was `maps.f2().y *= 1.02`: numpy applies the in-place
+        # multiply first and the dataclass guard fires afterwards, so the "protected" form
+        # corrupted the table and then raised. Found by the 2026-09-13 code-quality audit.
+        self.x.flags.writeable = False
+        self.y.flags.writeable = False
 
     @property
     def domain(self) -> tuple[float, float]:
@@ -202,6 +210,9 @@ class SpeedMap:
     params: np.ndarray  # the parameter value of each line, ascending
     lines: list[Curve] = field(default_factory=list)
     source: str = ""
+
+    def __post_init__(self) -> None:
+        self.params.flags.writeable = False  # see Curve.__post_init__
 
     @property
     def param_range(self) -> tuple[float, float]:
@@ -343,7 +354,12 @@ def condition(curve: Curve, phys: Physics) -> tuple[Curve, float]:
 CONDITIONING: dict[str, float] = {}
 """Largest change physical conditioning made to each table, in data units. Report it
 alongside any result -- if a number here is ever large, the digitization is wrong, not
-the physics."""
+the physics.
+
+The second piece of mutable module state in the core, and unlike `_clamps` it is
+**write-once**: the loaders are cached, so each table writes its entry exactly once at
+load and nothing touches it again. Named in CLAUDE.md alongside `_clamps` after the
+2026-09-13 code-quality audit pointed out that it was a third global nobody had counted."""
 
 
 def load_curve(

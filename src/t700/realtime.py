@@ -176,8 +176,9 @@ Until 2026-09-13 this constant was used as a tolerance on the iterate *step*, wh
 different quantity: for a linearly convergent iteration with contraction rho the remaining
 error is rho/(1-rho) times the last step, and rho measures **0.887-0.902** here, so the
 step test delivered roughly eight times the number it was named for. Measured through the
-Figure 9 step, the true P3 error at exit ran to a median of 0.25 % and a worst frame of
-4.21 %, under a constant documented as 0.1 %.
+Figure 9 step, the true P3 error at exit ran to a median of 0.25 % under a constant
+documented as 0.1 %. (The worst frame, 4.21 %, is the step instant and is identical under
+both rules, so it is not evidence for the change either way.)
 
 The loops below now stop on the error itself, estimated from the iterates as
 `rho/(1-rho) * step` with rho taken from consecutive steps. That introduces no constant:
@@ -195,11 +196,18 @@ class Exit(StrEnum):
     CAPPED = "capped"
     """The pass cap was reached first -- the report's "under the most extreme conditions,
     up to ten iterations may be required" [pdf p.37]. Expected during a transient and
-    measured: on the Figure 9 accel 142 of 287 frames exit this way."""
+    measured: on the Figure 9 accel **45 of 287 frames**, 15.7 %.
+
+    This said 142 of 287 until later the same day. That figure was measured before
+    `_contraction_error` gained its one-ulp floor and never re-measured after the floor
+    changed the behaviour -- the same commit's ledger entry carries the correct 15.7 %, so
+    the commit disagreed with itself."""
 
     DIVERGING = "diverging"
-    """Successive steps grew. For P45 this is a real operating regime and not a numerical
-    accident -- see `_p45_loop` and open question #45."""
+    """The iteration did not contract: successive steps grew, or held level in a cycle.
+    For P45 this is a real operating regime and not a numerical accident -- see
+    `_p45_loop` and open question #45. `_stalled` decides it, and it does not separate
+    divergence from a limit cycle; the name is kept for the field it fills."""
 
 
 def _contraction_error(step: float, prev_step: float, value: float) -> tuple[float, float]:
@@ -239,8 +247,8 @@ def _contraction_error(step: float, prev_step: float, value: float) -> tuple[flo
     return rho / (1.0 - rho) * step, rho
 
 
-def _diverged(first_step: float, last_step: float) -> bool:
-    """Did the iteration move further per pass at the end than at the start?
+def _stalled(first_step: float, last_step: float) -> bool:
+    """Did the iteration fail to contract -- moving as far at the end as at the start?
 
     Deliberately not "was any single ratio >= 1". Near a fixed point the steps reach the
     rounding floor -- measured at the 400 and 775 lbm/hr trims, the P45 steps run 69 ulp,
@@ -250,8 +258,19 @@ def _diverged(first_step: float, last_step: float) -> bool:
     Comparing the whole run of steps is immune to that and still unambiguous where it
     matters: at the 125 lbm/hr trim the P45 steps grow 57, 88, 137, ... 7912 ulp, a ratio
     of 1.57 a pass, which is f9's elasticity at that operating point to three figures.
+
+    **The test was a strict `>` until the 2026-09-13 code-quality audit**, which pointed
+    out that the failure mode it was written for -- a limit cycle between f9's expansive
+    region and its clamped plateau -- has `last == first` exactly, so a strict comparison
+    was a coin flip on rounding. Held at the 150 lbm/hr trim it reported `DIVERGING` on
+    9.4 % of frames while every frame was in the cycle. `>=` against a relative tolerance
+    counts a cycle as a failure to contract, which is what the caller needs to know. The
+    name changed with it: nothing here separates a diverging iteration from a stalled one,
+    and claiming to was the error.
     """
-    return last_step > first_step
+    if first_step <= 0.0:
+        return False
+    return last_step >= first_step * (1.0 - 1e-9)
 
 
 MAX_ITER_P3_P41: Final = 10
@@ -272,7 +291,7 @@ def _inner_pressure_loop(
     wf: float,
     tol: float = TOL_PRESSURE,
     max_iter: int = MAX_ITER_P3_P41,
-) -> tuple[float, float, int]:
+) -> tuple[float, float, int, Exit]:
     """The P3/P41 fixed-point sweep, Eqs. 76 and 78.
 
     Gauss-Seidel exactly as the report describes it [pdf p.37]: P3 from the current P41,
@@ -299,19 +318,26 @@ def _inner_pressure_loop(
     factor of eight. It tested the iterate *step*, `|P3_(k) - P3_(k-1)| < tol*P3`, under a
     constant documented as the report's 0.1 percent *error*. For a linearly convergent
     iteration the two differ by `rho/(1-rho)`, and rho measures 0.887-0.902 here, so the
-    step test delivered a median true error of 0.25 % and a worst frame of 4.21 % on the
-    Figure 9 accel. It now stops on `_contraction_error`, which is the report's own
-    quantity.
+    step test delivered a median true error of 0.25 % on the Figure 9 accel, where the
+    error test delivers 0.0746 %. It now stops on `_contraction_error`, the report's own
+    quantity. (The *worst* frame is 4.21 % under both rules -- the step instant, where ten
+    passes reach the fixed point from neither starting point.)
 
-    The change vindicates the report's arithmetic rather than departing from it. Under the
-    error test this loop runs to a median of **nine passes** on Figure 9's step and takes
-    the ten-pass cap on 142 frames of 287 -- which is "under the most extreme conditions,
-    up to ten iterations may be required ... resulting in a total of 110 arithmetic
-    operations" [pdf p.37], the printed budget, rather than the median of *one* pass the
-    step test was exiting on. And the error it then delivers on the report's own test case
-    -- the flight-idle-to-full-power step -- has a median of **0.0978 %**, against a
-    printed "less than 0.1 percent". Nothing was fitted to that; it falls out of the
-    measured contraction.
+    The change vindicates the report's arithmetic rather than departing from it. Over the
+    Figure 9 step this loop takes a **mean of 4.06 passes, median 3, maximum 10**, reaching
+    the ten-pass cap on **45 frames of 287 (15.7 %)** -- which is "under the most extreme
+    conditions, up to ten iterations may be required ... resulting in a total of 110
+    arithmetic operations" [pdf p.37], the printed budget, rather than the median of *one*
+    pass the step test was exiting on. And the error it delivers on the report's own test
+    case -- the flight-idle-to-full-power step -- has a **median of 0.0746 % and a mean of
+    0.0985 %**, both under the printed "less than 0.1 percent". Nothing was fitted to that;
+    it falls out of the measured contraction.
+
+    (This read "a median of nine passes ... on 142 frames of 287 ... a median of 0.0978 %"
+    for part of 2026-09-13. All three came from a probe run before `_contraction_error`
+    gained its one-ulp floor, and 0.0978 % was in any case the *mean* rather than the
+    median. The true median, 0.0746 %, supports the claim better than the number quoted
+    for it.)
     """
     prev3 = prev41 = 0.0
     first3 = first41 = 0.0
@@ -333,7 +359,7 @@ def _inner_pressure_loop(
             break
         prev3, prev41 = step3, step41
     else:
-        if _diverged(first3, prev3) or _diverged(first41, prev41):
+        if _stalled(first3, prev3) or _stalled(first41, prev41):
             exit_ = Exit.DIVERGING
     return float(p3), float(p41), it, exit_
 
@@ -347,7 +373,7 @@ def _p45_loop(
     ps9: float,
     tol: float = TOL_PRESSURE,
     max_iter: int = MAX_ITER_P45,
-) -> tuple[float, int]:
+) -> tuple[float, int, Exit]:
     """P45 by its own iteration, Eq. 80.
 
     Same correction as the P3/P41 sweep, and the report is equally explicit for this one:
@@ -393,7 +419,7 @@ def _p45_loop(
             break
         prev = step
     else:
-        if _diverged(first, prev):
+        if _stalled(first, prev):
             exit_ = Exit.DIVERGING
     return float(p45), it, exit_
 
@@ -712,6 +738,13 @@ def run(
     tr = {k: np.zeros(n) for k in keys}
     want_np = kw.get("integrate_np", True)
     if multirate:
+        if kw.get("dt_np") is not None:
+            raise TypeError(
+                "run(multirate=True) sets dt_np itself, to 2*dt, so passing dt_np as well "
+                "is contradictory. It used to be accepted and silently discarded -- worth "
+                "6000 rpm on NP in the single-rate branch and nothing at all here. Pass "
+                "multirate=False to choose your own NP step."
+            )
         kw["dt_np"] = 2.0 * dt
     for i in range(n):
         t = i * dt

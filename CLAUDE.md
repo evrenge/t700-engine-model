@@ -31,9 +31,11 @@ with `distrobox enter t700-dev --`.
 | Compare model against the report | `/validate` |
 | Prove every digitized file is current | `bash tools/reproduce_all.sh` |
 
-Pre-rendered page images already exist for **every page from 8 to 101** (94 files) as
-`docs/extracted/p-0NN.png`. Render anything outside that range with the `pdftoppm` line
-above.
+Pre-rendered page images exist for **every page from 8 to 101** (94 files) as
+`docs/extracted/p-0NN.png` — **but they are gitignored**, so a fresh clone or a git
+worktree has none of them and only the 104 `.txt` text-layer files, which is the one
+artifact the OCR corollary below forbids transcribing from. Render what you need with the
+`pdftoppm` line above; it is cheap and it is the only source a new checkout has.
 
 ## The provenance rule
 
@@ -133,9 +135,11 @@ Two typesetting traps the OCR layer cannot show, both load-bearing:
 - **Determinism.** No wall-clock reads, no RNG, no reliance on dict ordering in the core.
   Same input → bit-identical output, run to run and machine to machine.
 - Components are plain functions or small classes: explicit state in, derivatives out. No
-  global mutable state, no hidden caches. **One sanctioned exception beyond the thermo
-  backend**, added 2026-09-13 after the engine-physics audit named it: `maps._clamps`, the
-  counter recording which function tables were read outside their data. It is diagnostic —
+  global mutable state, no hidden caches. **Two sanctioned exceptions beyond the
+  thermo backend**, both added 2026-09-13 after the engine-physics and code-quality audits
+  named them. `maps.CONDITIONING` is write-once: the cached loaders record how far physical
+  conditioning moved each table, and nothing writes it after load. `maps._clamps` is the
+  live one — the counter recording which function tables were read outside their data. It is diagnostic —
   nothing downstream of a lookup reads it, so no model output can depend on it, and
   `tests/test_maps.py::test_the_clamp_counter_cannot_influence_any_model_output` checks
   that behaviourally rather than by inspection. The cost is that `frame()` is impure. Use
@@ -167,7 +171,7 @@ in a long session, so mechanize any that proves to matter.
 | No SciPy / Matplotlib / pandas / Numba under `src/t700/` | **live** — `tests/test_imports.py` parses every core module's imports |
 | Gas properties only via `t700.thermo` | **live** — `tests/test_imports.py` fails any module outside `thermo/` that names a `K_H*`/`K_T*`/`K_TH*` constant |
 | Core is deterministic | **live** — `tests/test_imports.py` bans clocks and RNGs structurally; `tests/test_determinism.py` checks it behaviourally. The structural ban was an `import` walk only until 2026-09-13, so `np.random.default_rng()` satisfied it completely — numpy being the one allowed package. `FORBIDDEN_ATTRIBUTES` closes that and the other dotted routes, and ten decoys assert each detector still fires |
-| No global mutable state in the core | `advisory`, with two named exceptions — the thermo backend and `maps._clamps`. The second is bounded by a behavioural test that no model output can depend on it |
+| No global mutable state in the core | `advisory`, with three named exceptions — the thermo backend, `maps._clamps` and the write-once `maps.CONDITIONING`. The clamp counter is bounded by behavioural tests that no model output can depend on it, over a trim (`test_maps.py`) and over a whole transient (`test_determinism.py`) |
 | No force-push | `permissions.ask`. A plain `git push` was denied outright until 2026-09-11, when the remote was created and publishing was authorized; force-push still prompts |
 | Never hand-edit a generated data file | **live** — `bash tools/reproduce_all.sh` reruns every digitizer and diffs; a hand-added note is silently wiped by the next rerun, which happened once to the Figure 9 defect annotations. Put it in the tool. **Run it inside the container**, and read its verdict, not its exit alone: until 2026-09-12 it computed the verdict from `git status data/` only, so run from the host — no NumPy — every digitizer crashed on import, `data/` stayed clean *because nothing had written to it*, and a total failure to execute printed "every data file reproduces byte for byte". It now refuses to run on an interpreter without NumPy and a failed tool poisons the verdict. A gate that cannot fail is not a gate. |
 | Python stays formatted and linted | PostToolUse hook: `ruff check --fix` then `ruff format` |
