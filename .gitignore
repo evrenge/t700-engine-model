@@ -15,3 +15,6 @@ validation/out/
 # Build artifacts
 build/
 dist/
+
+# Agent worktrees
+.claude/worktrees/
