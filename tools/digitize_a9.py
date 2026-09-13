@@ -33,6 +33,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
+from digitize import check_against_csv
 from digitize_native import (
     axis_values,
     blend_axis,
@@ -329,11 +330,17 @@ def main() -> int:
             f"{cal_x[i]:6.5f} {glyph_px[i] * dXdpx[i]:7.5f} {mx[i]:7.5f} | "
             f"{cal_y[i]:7.6f} {glyph_px[i] * dYdpx[i]:7.6f} {my[i]:7.6f} | {Ylin[i]:9.6f}"
         )
-    print("\ncsv rows:")
-    for i in range(N):
-        print(f"{X[i]:.5f},{Y[i]:.6f}")
-    print(f"\nheader and CSV are maintained by hand in {CSV}; compare the rows above.")
-    return 0
+    # The CSV is maintained by hand; these values are not. See `check_against_csv`.
+    return check_against_csv(
+        CSV,
+        {
+            "x": (X, "%.5f"),
+            "y": (Y, "%.6f"),
+            "sx": (sx, "%.5f"),
+            "sy": (sy, "%.6f"),
+        },
+        label="f9 (Figure A9)",
+    )
 
 
 if __name__ == "__main__":

@@ -309,6 +309,73 @@ def write_csv(
             w.writerow([f"{x:.6g}", f"{y:.6g}"])
 
 
+def check_against_csv(
+    csv_path: str | Path,
+    columns: dict[str, tuple[list, str]],
+    label: str = "",
+) -> int:
+    """Compare computed columns against a **hand-maintained** CSV. 0 if identical, 1 if not.
+
+    Three of the eleven engine maps -- `f2` (Figure A2), `f7` (Figure A7) and `f9`
+    (Figure A9) -- have CSVs whose header and rows are written by hand, because the header
+    carries a provenance narrative no generator produces. Their tools printed the rows and
+    said "compare the rows above", which means a human eye was the only thing between the
+    extraction and the committed data.
+
+    **That made `tools/reproduce_all.sh` vacuous for those three maps**, and it was
+    demonstrated rather than argued by the 2026-09-13 accuracy audit: corrupt a value in
+    `f9_pt_mass_flow.csv`, commit it so `data/` is clean, run the gate, and it prints
+    "VERDICT: every data file reproduces byte for byte" and exits 0. That is the exact
+    2026-09-12 defect CLAUDE.md records as closed -- a gate that cannot fail is not a gate
+    -- alive for `f2`, `f7` and `f9`. `f9` is the map Eq. 80's whole repelling-fixed-point
+    story rests on.
+
+    So the tools now compare instead of printing, and return non-zero on any difference.
+    The CSVs stay hand-maintained; what changes is that the numbers in them are checked
+    against the extraction on every gate run.
+
+    `columns` maps CSV column name -> (values, format), where the format is the one that
+    reproduces that column's printed precision. The comparison is on the formatted text,
+    so it is exactly the check a writer would perform.
+    """
+    path = Path(csv_path)
+    lines = [ln.rstrip("\n") for ln in path.read_text().splitlines()]
+    body = [ln for ln in lines if ln.strip() and not ln.lstrip().startswith("#")]
+    if not body:
+        print(f"FAIL {label}: {path} has no data rows")
+        return 1
+    names = [n.strip() for n in body[0].split(",")]
+    rows = [[v.strip() for v in ln.split(",")] for ln in body[1:]]
+
+    missing = [n for n in columns if n not in names]
+    if missing:
+        print(f"FAIL {label}: {path} has no column(s) {missing}; header is {names}")
+        return 1
+
+    n_expected = len(next(iter(columns.values()))[0])
+    if len(rows) != n_expected:
+        print(f"FAIL {label}: {path} has {len(rows)} rows, the tool computed {n_expected}")
+        return 1
+
+    bad = 0
+    for i, row in enumerate(rows):
+        for name, (values, fmt) in columns.items():
+            got = fmt % values[i]
+            want = row[names.index(name)]
+            if got != want:
+                bad += 1
+                print(f"  row {i + 1} column {name}: csv has {want}, the tool computes {got}")
+    if bad:
+        print(
+            f"FAIL {label}: {bad} value(s) in {path} differ from what the tool extracts "
+            f"today. The CSV is maintained by hand, so either the hand edit was wrong or "
+            f"the tool has changed -- decide which, and say so in the commit."
+        )
+        return 1
+    print(f"ok  {label}: all {len(rows)} rows of {path} match the extraction")
+    return 0
+
+
 def verify_overlay(
     page: Path, csv_path: Path, calib: Calibration, out: Path, roi_spec: str | None
 ) -> int:

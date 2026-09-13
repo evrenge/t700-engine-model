@@ -30,19 +30,58 @@ SCRIPT = Path(__file__).resolve().parent.parent / "tools" / "reproduce_all.sh"
 TOOLS = Path(__file__).resolve().parent.parent / "tools"
 
 
-def data_writing_tools() -> set[str]:
-    """Tools that write a committed file under `data/`, found rather than hardcoded.
+def data_tools() -> set[str]:
+    """Tools that own a committed file under `data/`, found rather than hardcoded.
 
     A hardcoded list is what let `digitize_appc_multi` sit outside the gate: it writes the
     seven Appendix C schedules and nobody noticed it was unlisted. `digitize.py` and
     `digitize_native.py` are shared libraries -- they name no output path, so they are
     excluded automatically rather than by exception.
+
+    "Owns" rather than "writes", because three of them do not write. See
+    `test_every_data_tool_either_writes_its_file_or_checks_it`.
     """
     out = set()
     for path in TOOLS.glob("*.py"):
+        if path.stem in ("digitize", "digitize_native", "rectify_page"):
+            continue
         if re.search(r'Path\("data/|"data/\w+/', path.read_text()):
             out.add(path.stem)
     return out
+
+
+def test_every_data_tool_either_writes_its_file_or_checks_it():
+    """A tool that only *prints* its rows puts a human eye between figure and data.
+
+    `digitize_a2`, `digitize_a7` and `digitize_a9` contained no write call at all. They
+    printed their extraction and ended "header and CSV are maintained by hand in ...;
+    compare the rows above" -- so `tools/reproduce_all.sh` ran them, they succeeded, they
+    touched nothing, `git status data/` stayed clean, and the gate reported "every data
+    file reproduces byte for byte" for `f2`, `f7` and `f9`. Demonstrated by the 2026-09-13
+    accuracy audit by corrupting a value in `f9_pt_mass_flow.csv` and watching the gate
+    pass. That is the 2026-09-12 defect CLAUDE.md records as closed, alive for three of
+    the eleven engine maps -- `f9` among them, which is the map Eq. 80's repelling fixed
+    point depends on.
+
+    They now call `digitize.check_against_csv` and return non-zero on any difference, so
+    the CSVs stay hand-maintained and their numbers stop being unverified. This test is
+    what keeps that true: a data tool must either write its file or check it.
+
+    It also replaces a detector that was fooled by its own subject matter --
+    `data_tools()` matches a `data/` path anywhere in the source, and in those three files
+    the only such path was inside the "maintained by hand" message.
+    """
+    for name in sorted(data_tools()):
+        text = (TOOLS / f"{name}.py").read_text()
+        writes = bool(
+            re.search(r"\.write\(|\.write_text\(|writerow|to_csv|np\.save|open\([^)]*[\"']w", text)
+        )
+        checks = "check_against_csv" in text
+        assert writes or checks, (
+            f"tools/{name}.py names a path under data/ but neither writes it nor checks "
+            f"it against the extraction. The reproducibility gate will run it, it will "
+            f"succeed, and it will prove nothing about that file."
+        )
 
 
 @pytest.fixture(scope="module")
@@ -155,7 +194,7 @@ def test_every_data_writing_tool_is_rerun_by_the_gate(source: str):
     """
     loop = source.split("for entry in", 1)[1].split("do", 1)[0]
     listed = set(re.findall(r"digitize_\w+", loop))
-    writers = data_writing_tools()
+    writers = data_tools()
     missing = writers - listed
     assert not missing, (
         f"these tools write committed files under data/ but are not rerun by the gate, "

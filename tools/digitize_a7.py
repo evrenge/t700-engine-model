@@ -59,6 +59,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
+from digitize import check_against_csv
 from digitize_native import (
     blend_axis,
     corner,
@@ -750,11 +751,17 @@ def main() -> int:
             f"{X[i] - old[i, 0]:+.6f} {Y[i] - old[i, 1]:+7.4f} "
             f"({(X[i] - old[i, 0]) / sx[i]:+.1f}, {(Y[i] - old[i, 1]) / sy[i]:+.1f})"
         )
-    print("\ncsv rows (x,y,sx,sy):")
-    for i in range(N):
-        print(f"{X[i]:.6f},{Y[i]:.4f},{sx[i]:.6f},{sy[i]:.4f}")
-    print(f"\nheader and CSV are maintained by hand in {CSV}; compare the rows above.")
-    return 0
+    # The CSV is maintained by hand; these values are not. See `check_against_csv`.
+    return check_against_csv(
+        CSV,
+        {
+            "x": (X, "%.6f"),
+            "y": (Y, "%.4f"),
+            "sx": (sx, "%.6f"),
+            "sy": (sy, "%.4f"),
+        },
+        label="f7 (Figure A7)",
+    )
 
 
 if __name__ == "__main__":
