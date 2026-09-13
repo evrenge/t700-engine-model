@@ -265,3 +265,132 @@ def test_f1_cross_line_ordering_holds_as_digitized():
     for pr in np.linspace(lo, hi, 40):
         flows = [float(line(pr)) for line in m.lines]
         assert np.all(np.diff(flows) >= 0.0), f"speed lines cross at Ps3/P2 = {pr:.4f}"
+
+
+# --------------------------------------------------------------------------------------
+# The 2026-09-13 audits. Each of these is a hole that existed rather than a property that
+# was in doubt: the model was clean on all of them, and the mechanisms were not.
+# --------------------------------------------------------------------------------------
+
+
+def test_a_nan_parameter_does_not_silently_select_the_top_speed_line():
+    """The worst available failure mode, and it was the one in place.
+
+    `nan < lo or nan > hi` is False, so the clamp counter never fired; `np.clip(nan,...)`
+    is nan; and `np.searchsorted(params, nan)` returns `len(params)`, which took the
+    `j >= len(self.params)` branch. So `f1(5.0, nan)` returned **10.108** -- the 100 %
+    speed line's value, maximum compressor flow -- with an empty clamp report. A corrupted
+    gas generator speed produced a plausible large number instead of a detectable NaN.
+    """
+    m = maps.f1()
+    with pytest.raises(ValueError, match="non-finite"):
+        m(5.0, float("nan"))
+    with pytest.raises(ValueError, match="non-finite"):
+        m(float("nan"), 90.0)
+    with pytest.raises(ValueError, match="non-finite"):
+        maps.f2()(float("nan"))
+
+
+def test_the_order_of_f1s_two_interpolations_does_not_matter():
+    """`SpeedMap`'s docstring claimed it did, from 2026-09-10 to 2026-09-13.
+
+    The claim was that because the speed lines do not share breakpoints, interpolating
+    along the lines and then between them is a different operation from blending the
+    lines first. Both lines are piecewise linear, so the blend is linear in the line
+    values at any fixed x and the two orders coincide identically. Measured here rather
+    than argued, over the full x range including where the shorter line clamps.
+
+    What the unshared breakpoints *do* cost is the clamp, which is open question #58.
+    """
+    m = maps.f1()
+    worst = 0.0
+    for pq in np.linspace(float(m.params[0]), float(m.params[-1]), 67):
+        j = int(np.searchsorted(m.params, pq))
+        if j <= 0 or j >= len(m.params):
+            continue
+        lo_line, hi_line = m.lines[j - 1], m.lines[j]
+        p0, p1 = float(m.params[j - 1]), float(m.params[j])
+        w = (pq - p0) / (p1 - p0)
+        xs = np.union1d(lo_line.x, hi_line.x)
+        ys = (1 - w) * np.interp(xs, lo_line.x, lo_line.y) + w * np.interp(xs, hi_line.x, hi_line.y)
+        for xq in np.linspace(float(xs[0]), float(xs[-1]), 41):
+            a = float(m(xq, pq))
+            b = float(np.interp(xq, xs, ys))
+            worst = max(worst, abs(a - b) / max(abs(a), 1e-12))
+    assert worst < 1e-13, (
+        f"blend-then-interpolate and interpolate-then-blend differ by {worst:.3e}; if "
+        f"this is ever nonzero the SpeedMap docstring's history needs rewriting again"
+    )
+
+
+def test_f1_has_no_speed_line_between_65_and_80_percent():
+    """The data hole the Figure 10 chop lives in. Open question #58.
+
+    Eleven speed lines at 65, 80, 82, 85, 87, 89, 92, 94, 96, 98, 100 %NGc: fifteen
+    percentage points between the first two and two or three between every other pair.
+    Everything below 80 %NGc is therefore interpolated across that gap, with the 65 line
+    as the lower bracket -- and the 65 line's abscissa ends at 3.753 against the 80 line's
+    6.671, so past 3.753 a clamped line is bracketing an unclamped one.
+
+    Pinned so the gap is a recorded property of the data rather than a surprise. It is
+    also the reason the ratchet in `test_whole_curve` went up on 2026-09-13.
+    """
+    m = maps.f1()
+    gaps = np.diff(m.params)
+    assert float(gaps[0]) == 15.0, f"the 65-80 gap is {gaps[0]:g}, not 15"
+    assert float(gaps[1:].max()) <= 3.0, (
+        f"the other speed lines are spaced at most 3 % apart; largest is {gaps[1:].max():g}"
+    )
+    lo = m.lines[0]
+    assert float(lo.x[-1]) < 4.0, (
+        f"the 65 % line's data ends at {lo.x[-1]:.3f} in Ps3/P2; if it has been extended, "
+        f"the bracketing clamp described here is gone"
+    )
+
+
+def test_clamp_scope_nests_without_destroying_an_enclosing_count():
+    """`reset_clamps()` inside a measurement used to zero the measurement around it.
+
+    `trim.solve` counts clamps over its Newton search and then again at the solution, and
+    `validation/` counts them over runs that contain trims. Every one of those was a
+    nested measurement.
+    """
+    maps.reset_clamps()
+    f6 = maps.f6()
+    f6(0.5)  # far outside f6's 0.00999-0.02000 table
+    with maps.clamp_scope() as inner:
+        f6(0.5)
+        f6(0.5)
+    assert inner.counts == {"f6": 2}, inner.counts
+    assert maps.clamp_report() == {"f6": 3}, (
+        "the enclosing count must survive the inner scope and absorb its clamps"
+    )
+    maps.reset_clamps()
+
+
+def test_the_clamp_counter_cannot_influence_any_model_output():
+    """`maps._clamps` is the one mutable module global in the core. This bounds it.
+
+    CLAUDE.md sanctions one exception to "no global mutable state" -- the thermo backend
+    -- so the counter is a second, recorded in `maps._clamps`' own docstring. The
+    guarantee that makes it acceptable is that nothing downstream of a lookup reads it,
+    and that is checked behaviourally here rather than by inspection: the same trim run
+    with the counter empty, pre-loaded, and never reset must be bit-identical.
+    """
+    from t700 import trim
+    from t700.engine import Ambient
+    from t700.units import wf_pps_from_pph
+
+    amb = Ambient(14.696, 518.67)
+    wf = wf_pps_from_pph(400.0)
+
+    maps.reset_clamps()
+    a = trim.solve(wf, ambient=amb).state
+    for _ in range(500):  # run the counter up on purpose
+        maps.f6()(0.5)
+    b = trim.solve(wf, ambient=amb).state
+    maps.reset_clamps()
+    c_ = trim.solve(wf, ambient=amb).state
+
+    assert a == b == c_, f"the clamp counter moved a model output:\n{a}\n{b}\n{c_}"
+    maps.reset_clamps()

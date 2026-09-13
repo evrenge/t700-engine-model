@@ -65,12 +65,55 @@ class TrimResult:
         `f1:parameter` is the decisive clamp because it means corrected speed itself is
         off the map -- distinct from a query running slightly past one speed line's last
         knot, which is ordinary and happens at the descent trim.
+
+        **It is the decisive clamp, not the only one, and this property's name oversells
+        it.** `on_data` is True at trims where three other tables are being extrapolated;
+        use `extrapolated_tables` to see which, and `fully_on_data` to require none. The
+        distinction was invisible until the 2026-09-13 numerical-mathematics audit pointed
+        out that `f9` clamped -- the very ingredient open question #45 turns on -- passes
+        this test without comment.
         """
         return "f1:parameter" not in self.clamps_at_solution
 
     @property
+    def extrapolated_tables(self) -> tuple[str, ...]:
+        """Every function table being read outside its own data at this trim, sorted.
+
+        Measured across the fuel-flow range, so the shape of it is on record rather than
+        discovered per-caller:
+
+            110 lbm/hr   f3, f8, f9         (NGc 65.0 %, the bottom of f1's parameter range)
+            125          f8
+            150          f1@65, f8          (NGc 74.0 %, inside f1's 65-80 % data hole)
+            200-550      none
+            590 and up   f6                 (FAR passes f6's tabulated 0.02000)
+
+        `f6` is therefore clamped at **every trim above about 590 lbm/hr**, which is the
+        top third of the power range including the 775 lbm/hr endpoint of Figure 9. It is
+        numerically harmless -- f6 is a two-point, nearly constant table, 0.98504 to
+        0.98496, so clamping it costs 1e-4 -- but it is extrapolation and it is reported.
+        """
+        return tuple(sorted(self.clamps_at_solution))
+
+    @property
+    def fully_on_data(self) -> bool:
+        """No function table is being extrapolated at the converged state.
+
+        Stricter than `trustworthy`, and deliberately not what `trustworthy` means: `f6`
+        clamps at every trim above ~590 lbm/hr, so requiring this would reject the top
+        third of the power range including Figure 9's own endpoint.
+        """
+        return not self.clamps_at_solution
+
+    @property
     def trustworthy(self) -> bool:
-        """Converged *and* inside the data. This is what callers should check."""
+        """Converged *and* the compressor map's speed range is not clamped.
+
+        This is what callers should check, and what it does **not** check is every other
+        table -- see `extrapolated_tables`. The line is drawn at `f1:parameter` because
+        that clamp manufactures equilibria (above), while the others degrade accuracy
+        without inventing a root.
+        """
         return self.residual_converged and self.on_data
 
     @property
@@ -101,6 +144,12 @@ class TrimResult:
             lines.append(
                 f"  *** AT THE SOLUTION, outside digitized data: {self.clamps_at_solution}"
             )
+            if self.on_data:
+                lines.append(
+                    "      (trustworthy is still True: f1's speed range is not clamped, "
+                    "which is the clamp that manufactures equilibria. The rest degrade "
+                    "accuracy. See TrimResult.extrapolated_tables.)"
+                )
         elif self.clamps:
             lines.append(
                 f"  (map clamps during the search only, none at the solution: {self.clamps})"
@@ -162,53 +211,56 @@ def solve(
     so convergence is judged on a *relative* norm, each residual divided by a
     characteristic magnitude of its own equation.
     """
-    maps.reset_clamps()
     amb = ambient
     st = guess or initial_guess(wf_pps, np_rpm, amb)
     x = np.array([st.ng_rpm, st.p3_psia, st.p41_psia, st.p45_psia], dtype=float)
 
     scale = np.array([c.NG_DES, amb.p_amb_psia, amb.p_amb_psia, amb.p_amb_psia])
 
-    r = _residuals(x, np_rpm, wf_pps, amb)
-    converged = False
-    it = 0
-    while it < max_iter:
-        it += 1
-        if float(np.linalg.norm(r / scale)) < tol:
-            converged = True
-            break
-        jac = _jacobian(x, np_rpm, wf_pps, amb, r)
-        try:
-            step = np.linalg.solve(jac, -r)
-        except np.linalg.LinAlgError:
-            break
-
-        # damped line search: accept the longest step that reduces the residual
-        lam = 1.0
-        r_new = r
-        for _ in range(40):
-            trial = x + lam * step
-            # keep pressures positive and ordered enough for Eq. 18 to stay real
-            if trial[1] <= trial[2] or np.any(trial <= 0.0):
-                lam *= 0.5
-                continue
-            r_new = _residuals(trial, np_rpm, wf_pps, amb)
-            if np.linalg.norm(r_new / scale) < np.linalg.norm(r / scale):
-                x = trial
+    # Scoped rather than `reset_clamps()`: a caller measuring clamps over a run that
+    # contains trims -- which `validation/` does -- used to have its count silently zeroed
+    # by every trim inside it. See `maps.clamp_scope`.
+    with maps.clamp_scope() as search:
+        r = _residuals(x, np_rpm, wf_pps, amb)
+        converged = False
+        it = 0
+        while it < max_iter:
+            it += 1
+            if float(np.linalg.norm(r / scale)) < tol:
+                converged = True
                 break
-            lam *= 0.5
-        else:
-            break
-        r = r_new
+            jac = _jacobian(x, np_rpm, wf_pps, amb, r)
+            try:
+                step = np.linalg.solve(jac, -r)
+            except np.linalg.LinAlgError:
+                break
+
+            # damped line search: accept the longest step that reduces the residual
+            lam = 1.0
+            r_new = r
+            for _ in range(40):
+                trial = x + lam * step
+                # keep pressures positive and ordered enough for Eq. 18 to stay real
+                if trial[1] <= trial[2] or np.any(trial <= 0.0):
+                    lam *= 0.5
+                    continue
+                r_new = _residuals(trial, np_rpm, wf_pps, amb)
+                if np.linalg.norm(r_new / scale) < np.linalg.norm(r / scale):
+                    x = trial
+                    break
+                lam *= 0.5
+            else:
+                break
+            r = r_new
+    during = search.counts
 
     st = State(float(x[0]), np_rpm, float(x[1]), float(x[2]), float(x[3]))
-    during = maps.clamp_report()
 
-    # re-evaluate cleanly at the solution: clamps during a Newton search say nothing
+    # Re-evaluate cleanly at the solution: clamps during a Newton search say nothing
     # about whether the answer sits inside the data.
-    maps.reset_clamps()
-    f = frame(st, wf_pps, amb)
-    at_solution = maps.clamp_report()
+    with maps.clamp_scope() as log:
+        f = frame(st, wf_pps, amb)
+    at_solution = log.counts
 
     return TrimResult(
         state=st,

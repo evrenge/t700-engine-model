@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from t700 import constants as c
 from t700 import maps, realtime, trim
 from t700.engine import Ambient, frame
 from t700.units import wf_pps_from_pph
@@ -222,3 +223,61 @@ def test_every_published_trim_is_a_fixed_point(wf_pph: float):
     st, wf, qreq = _seed(wf_pph)
     tr = realtime.run(st, lambda t: wf, AMB, duration_s=1.0, q_req_ftlbf=qreq)
     assert abs(tr["ng"][-1] - tr["ng"][0]) < 1e-6
+
+
+def test_the_two_to_one_multirate_costs_little_but_is_the_reports():
+    """`FRAME_NP_S = 0.014` was declared and referenced nowhere in `src/` until 2026-09-13.
+
+    [pdf p.47]: "the engine model is updated twice for each rotor routine cycle, or once
+    every 7 msec", with the NP degree of freedom on the 14 ms rotor frame. Every NP
+    integration here ran at the 7 ms engine frame instead -- a single-rate model wearing a
+    multirate constant.
+
+    `realtime.run(multirate=True)` is now the default and advances NP on alternate frames
+    over the 14 ms it spans. What that is worth, measured on an open-loop 400 -> 775
+    lbm/hr step with NP free against a constant load torque -- deliberately the worst case,
+    since a free turbine with no aerodynamic damping runs far off design:
+
+        NP    up to 81.6 rpm apart, 0.39 % of NP_DES
+        NG    0.000 rpm apart
+
+    NG is untouched to the bit, which is structural rather than lucky: NP enters the gas
+    generator through nothing at all. Eq. 41's power-turbine torque depends on NP, but
+    Eq. 45 differences only Q_GT and Q_C.
+
+    And with `integrate_np=False` -- the configuration Figures 9 and 10 run in [pdf p.39]
+    -- the switch is a **bit-identical no-op**, which is why no transient comparison in
+    this repository moved when it was implemented.
+    """
+    wf0 = wf_pps_from_pph(400.0)
+    r0 = trim.solve(wf0, c.NP_DES, AMB)
+    f0 = frame(r0.state, wf0, AMB)
+
+    def go(multirate: bool, integrate_np: bool):
+        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        return realtime.run(
+            st,
+            lambda t: wf0 if t < 0.5 else wf_pps_from_pph(775.0),
+            AMB,
+            duration_s=2.0,
+            q_req_ftlbf=f0.q_pt_ftlbf,
+            heat_sink=True,
+            integrate_np=integrate_np,
+            multirate=multirate,
+        )
+
+    single, multi = go(False, True), go(True, True)
+    d_np = float(np.abs(multi["np"] - single["np"]).max())
+    assert 50.0 < d_np < 120.0, (
+        f"the multirate moves NP by {d_np:.1f} rpm, against 81.6 on record; if this has "
+        f"collapsed to zero the 2:1 is no longer being applied"
+    )
+    assert np.array_equal(multi["ng"], single["ng"]), (
+        "NP must not reach NG: Eq. 45 differences Q_GT and Q_C, neither of which sees NP"
+    )
+
+    a, b = go(False, False), go(True, False)
+    assert all(np.array_equal(a[k], b[k]) for k in a), (
+        "with the NP integration suppressed the multirate must be a bit-identical no-op, "
+        "which is what makes every Figure 9 and 10 comparison independent of it"
+    )

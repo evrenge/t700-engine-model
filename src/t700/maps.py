@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import csv
 from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -45,6 +47,63 @@ SCHEDULE_DIR = DATA_ROOT / "schedules"
 belong to different phases and different appendices."""
 
 _clamps: Counter[str] = Counter()
+"""The one piece of mutable module state in the model core, and it is diagnostic only.
+
+CLAUDE.md sanctions exactly one exception to "no global mutable state" -- the thermo
+backend interface -- so this is a second, and it is recorded here rather than left to be
+rediscovered (the 2026-09-13 engine-physics audit found it).
+
+**Why it is kept.** A clamp is a property of an *evaluation*, not of a component: `f6` is
+asked for a fuel-air ratio outside its table by the combustor, which has no way to return
+that fact to whoever is interpreting the result three call levels up. Threading a log
+through `frame`, `step`, `run`, `trim.solve` and every map call would put diagnostic
+plumbing in the signature of every function in the model to carry something no model
+equation reads.
+
+**What it costs, bounded.** `frame()` is impure: calling it twice runs the counter up.
+Nothing downstream of a map lookup reads the counter, so no model output can depend on
+it -- `tests/test_maps.py::test_the_clamp_counter_cannot_influence_any_model_output`
+asserts that behaviourally. And clamp accounting is not reentrant, which is what
+`clamp_scope` exists to fix: nesting a measurement inside another one used to have the
+inner `reset_clamps()` destroy the outer one's count.
+"""
+
+
+class ClampLog:
+    """What fell outside a map's data during one scoped measurement."""
+
+    __slots__ = ("counts",)
+
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+
+
+@contextmanager
+def clamp_scope() -> Iterator[ClampLog]:
+    """Measure clamps over a block without destroying an enclosing measurement.
+
+    `trim.solve` counts clamps over the whole Newton search and then again at the solution
+    alone, and `validation/` counts them over a run that contains trims. Each of those was
+    calling `reset_clamps()`, so an outer count was silently zeroed by an inner one.
+
+        with maps.clamp_scope() as log:
+            ...
+        log.counts        # only what happened inside the block
+
+    The enclosing counter is restored on exit with the block's counts added, so nesting
+    composes.
+    """
+    global _clamps
+    outer = _clamps
+    inner: Counter[str] = Counter()
+    _clamps = inner
+    log = ClampLog()
+    try:
+        yield log
+    finally:
+        log.counts = dict(inner)
+        outer.update(inner)
+        _clamps = outer
 
 
 def clamp_report() -> dict[str, int]:
@@ -58,7 +117,10 @@ def clamp_report() -> dict[str, int]:
 
 
 def reset_clamps() -> None:
-    """Zero the clamp counters. Call at the start of a run you intend to report."""
+    """Zero the clamp counters. Call at the start of a run you intend to report.
+
+    Prefer `clamp_scope()` where a measurement may be nested inside another.
+    """
     _clamps.clear()
 
 
@@ -97,6 +159,12 @@ class Curve:
 
     def __call__(self, xq):
         xa = np.asarray(xq, dtype=float)
+        if not np.all(np.isfinite(xa)):
+            raise ValueError(
+                f"{self.name} was asked for a non-finite abscissa ({xa}). A NaN reaching a "
+                f"function table means something upstream has already failed; propagating "
+                f"it silently makes the failure surface hundreds of frames later."
+            )
         lo, hi = self.domain
         outside = int(np.count_nonzero((xa < lo) | (xa > hi)))
         if outside:
@@ -111,8 +179,23 @@ class SpeedMap:
     `f1` is the only one in the engine -- corrected compressor mass flow against static
     pressure ratio, parameterised by corrected gas generator speed. Each speed line is
     its own `Curve` with its own x range, so evaluation interpolates *along* the two
-    bracketing lines first and *between* them second. That order matters: the lines do
-    not share breakpoints, so there is no rectangular grid to interpolate on.
+    bracketing lines first and *between* them second.
+
+    **The order does not matter, and this docstring said it did until 2026-09-13.** The
+    claim was "that order matters: the lines do not share breakpoints, so there is no
+    rectangular grid to interpolate on." The premise is true and the conclusion does not
+    follow. Both lines are piecewise linear, so blending them is linear in the line values
+    at any fixed x; resampling both onto the union of their knots and blending there gives
+    a function that agrees with interpolate-then-blend at every x, and does so **to
+    2.9e-16 relative** -- measured over 67 speeds and 41 abscissae each, including the
+    range where the two lines' domains differ and the shorter one clamps.
+
+    What the unshared breakpoints really cost is the clamp, and it is not a subtlety of
+    ordering: below 80 %NGc the lower bracketing line is the 65 % one, whose x range ends
+    at 3.753 against the 80 % line's 6.671, so every evaluation past 3.753 is asking a
+    clamped 65 % line to bracket an unclamped 80 % one. `f1` has **no digitized speed line
+    at all between 65 and 80 %** -- eleven lines, and a 15-point hole across the band the
+    Figure 10 chop occupies. See open question #58.
     """
 
     name: str
@@ -125,6 +208,17 @@ class SpeedMap:
         return float(self.params[0]), float(self.params[-1])
 
     def __call__(self, xq: float, pq: float) -> float:
+        # `nan < lo or nan > hi` is False, `np.clip(nan, lo, hi)` is nan, and
+        # `np.searchsorted(params, nan)` returns len(params) -- so a NaN speed used to
+        # select the TOP speed line and return the 100 % value, with an empty clamp
+        # report. A corrupted speed yielding maximum compressor flow is the worst
+        # available failure mode. Found by the 2026-09-13 numerical-mathematics audit.
+        if not (np.isfinite(xq) and np.isfinite(pq)):
+            raise ValueError(
+                f"{self.name} was asked for a non-finite argument (x={xq}, param={pq}). "
+                f"A NaN reaching a function table means something upstream has already "
+                f"failed; silently returning the top speed line hides that."
+            )
         lo, hi = self.param_range
         if pq < lo or pq > hi:
             _clamps[f"{self.name}:parameter"] += 1

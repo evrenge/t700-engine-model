@@ -142,7 +142,13 @@ class Frame:
     dng_dt: float
     dnp_dt: float
     # diagnostics
-    combustor_dp_negative: bool
+    combustor_flow_substituted: bool
+    """True when Eq. 18's pressure drop was not positive and the combustor flow and
+    fuel-air ratio were substituted rather than computed. See `frame`.
+
+    It was `combustor_dp_negative` until 2026-09-13 and missed `dp == 0` exactly, which
+    takes the same `far = 0` branch with a non-negative drop. It was also computed and
+    read by nothing, which is how a silent substitution stays silent."""
 
 
 # The report writes 778.12 * (60 / 2*pi) * (1/N) in Eqs. 39-41. Torque is power over
@@ -213,9 +219,21 @@ def frame(
     wa3 = wa2 - wa24_bl  # (17)
 
     # --- combustor and station 4.1, Eqs. 18-25 ----------------------------------------
+    # Eq. 18 inverts the combustor pressure-drop law, so it needs P3 > P41. Two guards
+    # sit on it and both are SILENT SUBSTITUTIONS rather than clamps: `max(dp, 0)`
+    # replaces a reversed pressure drop with zero flow, and the `far` fallback then
+    # replaces an infinite fuel-air ratio with zero -- which injects fuel into the mass
+    # balance (Eq. 43 carries `wa31 + wf`) and releases none of its heat, since Eq. 21's
+    # `eta_b * far * HVF` term vanishes. The state is unphysical either way; what matters
+    # is that the model says so instead of returning a number.
+    #
+    # **Latent, and measured**: zero occurrences at every trim from 100 to 800 lbm/hr and
+    # across both published transients. `combustor_flow_substituted` is what makes that a
+    # checked claim rather than an assumption -- see
+    # `tests/test_mass_conservation.py::test_the_combustor_flow_guards_never_fire`.
     dp = p3 * (p3 - p41)
-    negative_dp = dp < 0.0
     wa31 = float(np.sqrt(max(dp, 0.0) / (c.K_DPB * t3)))  # (18)
+    substituted = dp <= 0.0 or wa31 <= 0.0
     far = wf_pps / wa31 if wa31 > 0.0 else 0.0  # (19)
     eta_b = float(maps.f6()(far))  # (20)
     h41_ns = (h3 + eta_b * far * c.HVF) / (1.0 + far)  # (21)
@@ -314,7 +332,7 @@ def frame(
         dp45_dt=dp45,
         dng_dt=dng,
         dnp_dt=dnp,
-        combustor_dp_negative=bool(negative_dp),
+        combustor_flow_substituted=bool(substituted),
     )
 
 

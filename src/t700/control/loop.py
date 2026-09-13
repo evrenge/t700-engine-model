@@ -135,6 +135,13 @@ def step(
     residual against ours precisely because `dQreq/dNP` is a Gen Hel quantity we do not
     have, and open question #6 recovers it as roughly 1.78 / 1.45 / 1.18 times
     `|dQ_PT/dNP|` at the three trims -- positive, because rotor torque rises with speed.
+
+    `dt_np` passes the report's 2:1 multirate through to the engine [pdf p.47]: a caller
+    driving this at 7 ms who wants the shipped configuration calls it with
+    `dt_np=realtime.FRAME_NP_S` on even frames and `integrate_np` suppressed on odd ones.
+    It cannot move a settled result -- at equilibrium `dNP/dt` is zero whatever step it is
+    multiplied by -- so every closed-loop comparison against Table B.1 here is
+    rate-independent by construction, and only the path there responds.
     """
     e_in = ecu_mod.ECUInputs(
         np_rpm=state.engine.np_rpm,

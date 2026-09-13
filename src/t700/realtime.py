@@ -77,12 +77,25 @@ every 7 msec"."""
 
 FRAME_NP_S = 0.014
 """NP update interval [pdf p.47]. NP is the drive-train degree of freedom and moves at the
-host rotor rate, so the model is multirate 2:1."""
+host rotor rate, so the model is multirate 2:1 -- "the engine model is updated twice for
+each rotor routine cycle, or once every 7 msec".
+
+**Declared and not implemented until 2026-09-13**: this constant was referenced nowhere in
+`src/`, and every NP integration ran at the 7 ms engine frame. `run(multirate=...)` and
+`step(dt_np=...)` implement it now; `run` defaults to the report's 2:1 because that is the
+configuration the report describes shipping."""
 
 MAX_STEP_S = 0.010
 """Maximum time step [pdf p.38], set by a 0.1 % maximum allowable error between steps.
 
-Note this is *smaller* than FRAME_NP_S. The report states both; open question #33."""
+Note this is *smaller* than FRAME_NP_S. The report states both; open question #33.
+
+**This is a recorded statement, not a runtime constraint, and it cannot be one.** The
+report's own configuration violates it -- NP runs at 14 ms -- so a check here would reject
+the model the report describes. `validation/test_discrete_map.py` also sweeps dt out to
+14 ms deliberately, to show the discrete map converging. The constant is kept because it
+is printed and because #33 is unresolved; nothing enforces it, and that is deliberate
+rather than an omission."""
 
 
 @dataclass(frozen=True)
@@ -131,6 +144,9 @@ class FrameOut:
     p45_exit: Exit
     """How the P45 iteration finished. `DIVERGING` below roughly 76 %NG is expected, not a
     fault -- see `_p45_loop`."""
+    wa31_substituted: bool
+    """True when Eq. 74's carried mass flow came back non-positive and was replaced. See
+    `step`; it has never been observed True."""
     t41_degR: float
     t41_ns_degR: float
     """T41 before the heat sink. Equal to `t41_degR` when `heat_sink=False` [Eq. 23]."""
@@ -468,6 +484,7 @@ def step(
     lag_whole_flow: bool = True,
     heat_sink: bool = False,
     tol: float = TOL_PRESSURE,
+    dt_np: float | None = None,
 ) -> tuple[RTState, FrameOut]:
     """Advance one engine frame.
 
@@ -478,6 +495,10 @@ def step(
             printed**, lagging only the bleed. Open question #22; see the module docstring.
         integrate_np: False suppresses the NP integration, which is what the report does
             for the open-loop fuel steps of Figs. 9 and 10 [pdf p.39].
+        dt_np: the NP integration step, when it differs from the engine frame. `None`
+            means `dt`, which is the single-rate model. The report's shipped configuration
+            is multirate 2:1 -- NP at 14 ms against the engine's 7 -- so `run` advances NP
+            on alternate frames with `dt_np = FRAME_NP_S`. See `FRAME_NP_S`.
     """
     p2 = ambient.p_amb_psia
     t2 = ambient.t_amb_degR
@@ -502,8 +523,15 @@ def step(
     wa3 = wa2 - wa2 * (b1 + b2)  # (15), (17)
 
     # --- Eq. 74, the opened iteration -------------------------------------------------
+    # The guard is a SILENT SUBSTITUTION, like Eq. 18's in `engine.frame`: a non-positive
+    # carried flow is replaced by this frame's equilibrium estimate, floored at 1e-6 lbm/s
+    # so Eq. 19 cannot divide by zero. The floor is ours and the report prints nothing
+    # like it -- it is a guard against a state that cannot occur rather than a modelling
+    # choice, and `wa31_substituted` is what keeps that claim checkable. Measured: it
+    # never fires over either published transient or any trim from 100 to 800 lbm/hr.
     wa31 = st.wa31_carry_pps if lag_whole_flow else (wa3 - st.wa31_carry_pps)
-    if wa31 <= 0.0:
+    wa31_substituted = wa31 <= 0.0
+    if wa31_substituted:
         wa31 = max(wa3 - wa3_bl, 1e-6)
 
     # --- combustor, once per frame ----------------------------------------------------
@@ -550,9 +578,9 @@ def step(
     ng = st.ng_rpm + dt * RAD_PER_SEC_TO_RPM * (q_gt - q_c) / c.J_GT  # (45)
     np_ = st.np_rpm
     if integrate_np:
-        np_ = st.np_rpm + dt * RAD_PER_SEC_TO_RPM * (q_pt - q_req_ftlbf) / (
-            c.J_PT + j_load
-        )  # (46), (47)
+        np_ = st.np_rpm + (dt if dt_np is None else dt_np) * RAD_PER_SEC_TO_RPM * (
+            q_pt - q_req_ftlbf
+        ) / (c.J_PT + j_load)  # (46), (47)
 
     # The carried scalar is a DIFFERENT quantity in the two readings, and getting that
     # wrong is what invalidated open question #22's first verdict: this line read
@@ -567,6 +595,7 @@ def step(
         p45_iters=p45_iters,
         inner_exit=inner_exit,
         p45_exit=p45_exit,
+        wa31_substituted=wa31_substituted,
         t41_degR=t41,
         t41_ns_degR=t41_ns,
         t45_degR=t45,
@@ -635,12 +664,21 @@ def run(
     ambient: Ambient = STANDARD_DAY,
     duration_s: float = 2.0,
     dt: float = FRAME_ENGINE_S,
+    multirate: bool = True,
     **kw,
 ) -> dict[str, np.ndarray]:
     """Integrate for `duration_s`, returning traces keyed by name.
 
     `wf_of_t` is a callable of time in seconds returning fuel flow in lbm/sec, so a step
     input is just a lambda.
+
+    `multirate` runs the report's 2:1 configuration [pdf p.47]: the engine every frame, NP
+    on alternate frames with `dt_np = 2*dt`. It was declared in `FRAME_NP_S` and not
+    implemented until 2026-09-13, so every NP integration ran at the engine frame. The
+    cost is small and now measured -- see
+    `validation/test_transient.py::test_the_two_to_one_multirate_costs_little_but_is_the_reports`
+    -- but "small" was an assumption before it was a measurement. It is a no-op when
+    `integrate_np=False`, which is the configuration Figures 9 and 10 run in.
 
     Two of the traces are diagnostics rather than model outputs. `inner_iters` and
     `p45_iters` are the pass counts, and `inner_capped` / `p45_capped` / `p45_diverging`
@@ -669,11 +707,20 @@ def run(
         "inner_capped",
         "p45_capped",
         "p45_diverging",
+        "wa31_substituted",
     )
     tr = {k: np.zeros(n) for k in keys}
+    want_np = kw.get("integrate_np", True)
+    if multirate:
+        kw["dt_np"] = 2.0 * dt
     for i in range(n):
         t = i * dt
         wf = float(wf_of_t(t))
+        if multirate:
+            # NP advances on even frames only, over the two engine frames it spans.
+            # `want_np` is read once outside the loop: assigning into `kw` from
+            # `kw.get(...)` would latch False after the first odd frame.
+            kw["integrate_np"] = want_np and (i % 2 == 0)
         tr["t"][i] = t
         # NG and NP are integrator states and are already at t_i. The three pressures are
         # NOT: they are algebraic, solved *inside* the frame from the state at t_i, and
@@ -700,6 +747,7 @@ def run(
         tr["inner_capped"][i] = out.inner_exit is Exit.CAPPED
         tr["p45_capped"][i] = out.p45_exit is Exit.CAPPED
         tr["p45_diverging"][i] = out.p45_exit is Exit.DIVERGING
+        tr["wa31_substituted"][i] = out.wa31_substituted
     return tr
 
 
@@ -720,6 +768,7 @@ def iteration_report(tr: dict[str, np.ndarray]) -> dict[str, float]:
         "p45_iters_max": float(tr["p45_iters"].max()),
         "p45_capped_frac": float(tr["p45_capped"].mean()),
         "p45_diverging_frac": float(tr["p45_diverging"].mean()),
+        "wa31_substituted_frac": float(tr["wa31_substituted"].mean()),
     }
 
 

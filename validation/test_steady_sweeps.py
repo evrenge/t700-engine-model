@@ -191,3 +191,58 @@ def test_the_sweep_still_passes_through_table_b1(pph: float, ng_b1: float):
     got = _ladder([pph])
     dev = (got[pph]["ng_pct"] * c.NG_DES / 100.0 - ng_b1) / ng_b1 * 100.0
     assert abs(dev) < 0.2, f"{pph} lb/hr: NG {dev:+.3f} % from Table B.1"
+
+
+def test_which_tables_are_extrapolated_at_which_trims():
+    """The map extrapolation at the operating point: counted since day one, never surfaced.
+
+    `TrimResult.clamps_at_solution` has always recorded this and `trustworthy` has always
+    ignored all of it but `f1:parameter`, so a trim reading three tables outside their
+    data reported clean. The 2026-09-13 engine-physics and numerical-mathematics audits
+    both landed on it; this is the shape, measured:
+
+        110 lbm/hr   f3, f8, f9      NGc 65.0 %, the bottom of f1's parameter range
+        125          f8
+        150          f1@65, f8       NGc 74.0 %, inside f1's 65-80 % data hole
+        200-550      none
+        590 and up   f6              FAR passes f6's tabulated 0.02000
+
+    Two things worth stating plainly about the ends.
+
+    **`f6` is clamped at every trim above about 590 lbm/hr** -- the top third of the power
+    range, Figure 9's 775 lbm/hr endpoint included. It is numerically harmless: `f6` is a
+    two-point, nearly constant table (0.98504 at FAR 0.00999, 0.98496 at 0.02000), so
+    clamping a combustor efficiency that barely varies costs about 1e-4 however far outside
+    you go. It is still extrapolation and it is still reported.
+
+    **`f1@65` is clamped at 150 lbm/hr**, which is the 65 % speed line being asked for
+    pressure ratios past its own last knot while it brackets the 80 % line from below.
+    That is open question #58 and it is where Figure 10's residual now lives.
+
+    `trustworthy` is deliberately not tightened to `fully_on_data`: that would reject the
+    top third of the power range over an `f6` clamp worth 1e-4.
+    """
+    expected = {
+        110.0: ("f3", "f8", "f9"),
+        125.0: ("f8",),
+        200.0: (),
+        300.0: (),
+        400.0: (),
+        550.0: (),
+        600.0: ("f6",),
+        700.0: ("f6",),
+    }
+    for pph, tables in expected.items():
+        r = trim.solve(wf_pps_from_pph(pph), c.NP_DES, AMB)
+        assert r.trustworthy, f"{pph:.0f} lbm/hr no longer trims"
+        assert r.extrapolated_tables == tables, (
+            f"{pph:.0f} lbm/hr extrapolates {r.extrapolated_tables}, on record "
+            f"{tables}. A change here moves which results carry an extrapolation caveat."
+        )
+        assert r.fully_on_data == (not tables)
+
+    top = trim.solve(wf_pps_from_pph(700.0), c.NP_DES, AMB)
+    assert top.trustworthy and not top.fully_on_data, (
+        "the f6 clamp above ~590 lbm/hr must not make a trim untrustworthy -- see the "
+        "docstring for why that line is drawn where it is"
+    )

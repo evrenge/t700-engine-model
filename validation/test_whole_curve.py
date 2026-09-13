@@ -343,6 +343,82 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
     )
 
 
+def test_the_frame_map_has_its_own_equilibria_below_flight_idle():
+    """Between about 125 and 175 lbm/hr the real-time frame settles somewhere the
+    differential model does not, and Eq. 80's repelling fixed point is the whole of it.
+
+    Found by the 2026-09-13 numerical-mathematics audit as "three more sub-idle equilibria,
+    none pinned", and measured here after the P3/P41 stopping rule was corrected -- which
+    removed the 75.7 %NG false root at 125 lbm/hr (see the test above) but left these:
+
+        lbm/hr   differential   frame settles at   deviation
+           175       78.509 %          78.509 %      +0.00 %
+           150       74.009           68.781         -7.07 %
+           140       71.727           68.153         -4.98 %
+           130       68.897           67.520         -2.00 %
+           125       67.039           66.895         -0.21 %
+
+    **These are not convergence artifacts.** Every figure above is identical at tol 1e-3
+    and at 1e-9, and each run is dead still at the end -- the spread over the last five
+    seconds of a sixty-second run is 2.4e-5 %NG. Two formulations of the same physics are
+    settling in different places.
+
+    ## The cause, established constructively
+
+    Replace Eq. 80's fixed-point iteration with a **bracketed** root-find on the same
+    residual `P45 - N/f9(Ps9/P45)` -- same equation, same map, same data, but convergence
+    guaranteed by the bracket rather than by contraction -- and the frame lands on the
+    differential trim to **0.00 % at all four fuel flows**. So the deviation is entirely
+    the iteration's inability to reach its own root, and not a disagreement between the
+    quasi-steady and differential formulations.
+
+    That is the same mechanism as the test above: f9's elasticity crosses -1 near
+    Ps9/P45 = 0.77, so the fixed point is repelling, and eight passes then land wherever
+    they land. `_p45_loop` reports `Exit.DIVERGING` on 58-65 % of the frames of these runs,
+    against 0.7 % at 125 lbm/hr -- which is why 125 is nearly right and 150 is 7 % out.
+
+    ## Why the printed iteration is kept anyway
+
+    The report specifies Eq. 80 and eight passes [pdf p.37]. A bracketed solver would be an
+    improvement, not a replication, and this is a replication. It also matters that the
+    report removes this regime explicitly: below-flight-idle fuel control was one of the
+    features eliminated from the real-time model [pdf p.38], so Ballin's own model was not
+    intended to sit here. The behaviour is pinned rather than fixed. Open question #57.
+    """
+    r0 = trim.solve(WF0, c.NP_DES, AMB)
+    f0 = frame(r0.state, WF0, AMB)
+
+    ON_RECORD = {175.0: 0.00, 150.0: -7.07, 140.0: -4.98, 130.0: -2.00}
+
+    for pph, expected in ON_RECORD.items():
+        sub = trim.solve(wf_pps_from_pph(pph), c.NP_DES, AMB)
+        differential = 100.0 * sub.state.ng_rpm / c.NG_DES
+        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        tr = realtime.run(
+            st,
+            lambda t, g=pph: WF0 if t < OUR_STEP else wf_pps_from_pph(g),
+            AMB,
+            duration_s=60.0,
+            dt=0.007,
+            q_req_ftlbf=f0.q_pt_ftlbf,
+            integrate_np=False,
+            heat_sink=True,
+        )
+        t = np.asarray(tr["t"])
+        late = (100.0 * np.asarray(tr["ng"]) / c.NG_DES)[t > 55.0]
+        assert late.max() - late.min() < 0.01, (
+            f"{pph:.0f} lbm/hr has not settled by 55 s (spread {late.max() - late.min():.4f} "
+            f"%NG); the table in this docstring is about settled values"
+        )
+        dev = 100.0 * (float(np.median(late)) - differential) / differential
+        assert abs(dev - expected) < 0.25, (
+            f"{pph:.0f} lbm/hr: the frame settles {dev:+.2f} % from the differential trim "
+            f"of {differential:.3f} %NG, against {expected:+.2f} % on record. If these have "
+            f"collapsed toward zero, Eq. 80's iteration is reaching its root and open "
+            f"question #57 can be closed."
+        )
+
+
 # --------------------------------------------------------- why the transient cannot be tightened
 
 

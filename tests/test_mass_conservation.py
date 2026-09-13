@@ -321,3 +321,57 @@ def test_station_4_5_mixing_loses_energy_as_the_report_specifies(wf_pph: float):
         f"the flow-weighted equivalent of K_H45 is {equivalent:.4f}; on record is "
         f"0.974-0.979 across the trims"
     )
+
+
+def test_the_combustor_flow_guards_never_fire():
+    """Two silent substitutions in the gas path, and the claim that they are latent.
+
+    Eq. 18 inverts the combustor pressure-drop law and so needs P3 > P41. `engine.frame`
+    guards it with `max(dp, 0)` and then falls back to `far = 0`, which puts fuel into the
+    mass balance (Eq. 43 carries `wa31 + wf`) and releases none of its heat. `realtime.step`
+    has a second one on Eq. 74's carried flow, floored at 1e-6 lbm/s -- a number of ours
+    that the report prints nothing like.
+
+    Neither is a clamp: a clamp returns the nearest value in a table, while these return a
+    *different equation*. Both are defensible as guards against states that cannot occur,
+    and "cannot occur" is the part that has to be checked rather than asserted. It was
+    computed and discarded until 2026-09-13: `Frame.combustor_dp_negative` existed, read
+    by nothing, and missed `dp == 0` exactly.
+
+    Checked across the whole operating range and both published transients.
+    """
+    from t700 import maps, realtime, trim
+    from t700.units import wf_pps_from_pph
+
+    amb = Ambient(14.696, 518.67)
+
+    for pph in range(100, 801, 25):
+        r = trim.solve(wf_pps_from_pph(float(pph)), c.NP_DES, amb)
+        if not r.trustworthy:
+            continue
+        assert not r.frame.combustor_flow_substituted, (
+            f"Eq. 18's pressure drop is not positive at the {pph} lbm/hr trim, so the "
+            f"combustor is being fed a substituted flow and burning none of its fuel"
+        )
+
+    wf0 = wf_pps_from_pph(400.0)
+    r0 = trim.solve(wf0, c.NP_DES, amb)
+    f0 = frame(r0.state, wf0, amb)
+    for target in (775.0, 125.0):
+        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        tr = realtime.run(
+            st,
+            lambda t, g=target: wf0 if t < 0.5 else wf_pps_from_pph(g),
+            amb,
+            duration_s=3.0,
+            q_req_ftlbf=f0.q_pt_ftlbf,
+            integrate_np=False,
+            heat_sink=True,
+        )
+        rep = realtime.iteration_report(tr)
+        assert rep["wa31_substituted_frac"] == 0.0, (
+            f"Eq. 74's carried flow came back non-positive on "
+            f"{rep['wa31_substituted_frac']:.1%} of the frames of the {target:.0f} lbm/hr "
+            f"step, so the 1e-6 floor is load-bearing rather than latent"
+        )
+    maps.reset_clamps()
