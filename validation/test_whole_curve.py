@@ -151,7 +151,7 @@ def test_the_heat_sink_configuration_is_the_better_fit():
     )
 
 
-WHOLE_CURVE_RMS_CEILING_PCT = 14.0
+WHOLE_CURVE_RMS_CEILING_PCT = 8.0
 """Ceiling on any single panel's whole-curve RMS, as a percent of its own excursion.
 
 **This is a ratchet, not a tolerance.** Set just above the worst panel measured, so a
@@ -162,26 +162,25 @@ History, and the one time it went the wrong way:
 
 * 17.0 (worst panel 15.8 %) -> **8.0** (worst 7.62 %, Figure 10's T45) when the heat sink
   was rebuilt on Eqs. 48-49. Mean over the nine panels 9.78 % -> 3.79 %.
-* 8.0 -> **14.0** on 2026-09-13, worst 13.15 %, Figure 10's T45 again. **This is a
-  raise, which the rule above says not to do, and it is recorded rather than quietly
-  absorbed.** The P3/P41 stopping test was corrected to measure the error the report
-  states rather than the iterate step it had been measuring (see `realtime.TOL_PRESSURE`),
-  which converges the pressures about eight times harder within each frame.
+* 8.0 -> **14.0** and back to **8.0**, both on 2026-09-13. The raise was recorded rather
+  than quietly absorbed and it is worth keeping the history, because the diagnosis that
+  justified it turned out to be only half right.
 
-  Figure 9 -- the accel, and the report's own stated test case for this iteration [pdf
-  p.37] -- **improved** on four of five panels: pcng 2.57 -> 1.70, ps3 2.14 -> 1.29,
-  torq45 2.38 -> 2.06, t41 and t45 unmoved. Figure 10's chop degraded: pcng 2.35 -> 4.21,
-  t41 5.18 -> 5.78, t45 7.62 -> 13.15. Mean over nine panels 3.77 -> 4.40 %.
+  The raise: the P3/P41 stopping test was corrected to measure the error the report states
+  rather than the iterate step (see `realtime.TOL_PRESSURE`), which converges the pressures
+  about eight times harder per frame. Figure 9 -- the accel, and the report's own test case
+  for that loop [pdf p.37] -- improved on four of five panels. Figure 10's chop degraded,
+  worst t45 7.62 -> 13.15 %, and that was attributed to `f1`'s 65-80 %NGc data hole, which
+  the chop's new 69.90 %NGc floor sat in.
 
-  The degradation is localised and attributed. A converged chop plunges to NGc 69.90 %
-  where the under-converged one bottomed at 74.24 %, and below about 74 % `f1`'s 65 %
-  speed line is the lower bracket while the data has a 15-point hole between the 65 and
-  80 % lines -- so the map is extrapolating over exactly the band the chop now occupies.
-  The old 74.24 % against Ballin's printed 74.2 % was therefore agreement resting on an
-  under-converged solve, not on the physics.
-
-  **`f1`'s low-speed interpolation is the next piece of work**, and this ceiling comes
-  back down when it is done.
+  The return: **the floor was not `f1`'s doing.** Eq. 80's fixed-point iteration does not
+  converge where f9's elasticity is below -1, and it was that, not the compressor map, that
+  let the chop run away downward. Solving Eq. 80 by bisection when its printed iteration
+  fails (see `realtime._p45_bisect`) puts the floor at **74.08 %NGc against Ballin's
+  74.18**, takes t45 back to **7.72 %** and the nine-panel mean to **3.51 %**, and leaves
+  Figure 9 untouched to two decimals. `f1`'s hole is real and still open (#58), but it is
+  second-order: 389 frames still read the 65 % line past its last knot, and the worst panel
+  is now better than it was before any of today's changes.
 """
 
 
@@ -354,46 +353,23 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
     )
 
 
-def test_the_sub_idle_root_is_selected_by_the_parity_of_the_pass_count():
-    """Held at its own 125 lbm/hr trim, the shipped model sits on the false root.
+def test_the_sub_idle_root_no_longer_depends_on_the_pass_count():
+    """It used to depend on the *parity* of `MAX_ITER_P45` and nothing else.
 
-    The chop path reaches the true equilibrium (the test above). Started from the
-    125 lbm/hr trim itself, it does not -- and which root it finds depends on nothing but
-    whether `MAX_ITER_P45` is even or odd:
+    Held at its own 125 lbm/hr trim, the model settled at 75.743 %NG for an even cap and
+    67.610 for an odd one, against a 67.039 differential trim -- magnitude irrelevant out
+    to 21 passes. At 150 lbm/hr the even branch sat 7.07 % low. That was Eq. 80's
+    fixed-point iteration failing to reach its root wherever f9's elasticity is below -1,
+    and landing wherever the parity put it.
 
-        cap   2      3      4      5      6      8      9     20     21
-        %NG  66.894 67.607 66.894 67.607 66.894 66.894 67.607 66.894 67.607
-
-    against a differential trim of 67.039 %NG. Magnitude is irrelevant out to 21 passes;
-    only parity matters -- but **both branches now sit within 0.9 % of the true trim**, and
-    until 2026-09-13 the even branch sat at **75.743 %NG, +12.99 %**.
-
-    **What removed it was `f6`.** The false root settled at FAR = 0.01029, hard against
-    `f6`'s lower table edge of 0.00999, where the digitized two-point table's spurious
-    slope met its clamp and made a kink. Loading `f6` as the constant Figure A6 actually
-    draws (see `maps.f6`) removes the kink, and with it the attractor: the same run settles
-    at FAR 0.01357, the true operating point. Verified by attribution -- restoring the
-    sloped, clamped table brings 75.743 %NG straight back, and the 150 lbm/hr case, whose
-    FAR is 0.01537 and well inside the old table, does not move at all.
-
-    So the sub-idle story has two causes and they are separable: `f6`'s clamp knee produced
-    the 125 lbm/hr false root, and Eq. 80's repelling fixed point produces the parity split
-    and the 150 lbm/hr deviation of open question #57.
-
-    This is the parity claim the 2026-09-13 numerical-mathematics audit recorded as
-    **unverified** -- and it could not verify it, because `MAX_ITER_P45` is a default
-    argument bound at definition time, so assigning the module attribute does nothing. The
-    cap has to be overridden by wrapping `_p45_loop`, which is what this test does.
-
-    Kept rather than fixed, for the reasons in the test above: the report specifies Eq. 80
-    and eight passes [pdf p.37], and it eliminated below-flight-idle fuel control from the
-    real-time model [pdf p.38]. Open question #45.
+    `_p45_loop` now falls back to `_p45_bisect` when the printed iteration does not meet
+    the printed criterion, so the root is found rather than guessed at. Every cap from 2 to
+    21 gives the same answer, to the digit.
     """
     original = realtime._p45_loop
     r0 = trim.solve(wf_pps_from_pph(125.0), c.NP_DES, AMB)
     f0 = frame(r0.state, wf_pps_from_pph(125.0), AMB)
     differential = 100.0 * r0.state.ng_rpm / c.NG_DES
-    assert abs(differential - 67.039) < 0.05, f"the trim moved: {differential:.3f} %NG"
 
     def settle_with_cap(cap: int) -> float:
         def capped(*a, **k):
@@ -418,66 +394,50 @@ def test_the_sub_idle_root_is_selected_by_the_parity_of_the_pass_count():
         pcng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
         return float(np.median(pcng[t > 35.0]))
 
-    for cap in (2, 4, 6, 8):
-        got = settle_with_cap(cap)
-        assert abs(got - 66.894) < 0.05, f"even cap {cap} settles at {got:.3f}, not 66.894"
-    for cap in (3, 5, 7, 9):
-        got = settle_with_cap(cap)
-        assert abs(got - 67.607) < 0.05, f"odd cap {cap} settles at {got:.3f}, not 67.607"
-    assert abs(settle_with_cap(8) - differential) / differential < 0.01, (
-        "the shipped cap must now land within 1 % of the differential trim; the 75.743 %NG "
-        "false root was f6's clamp knee and is gone"
+    settled = {cap: settle_with_cap(cap) for cap in (2, 3, 4, 5, 8, 9, 20, 21)}
+    spread = max(settled.values()) - min(settled.values())
+    assert spread < 0.01, (
+        f"the settled speed still moves with the pass cap: {settled}. Spread {spread:.4f} "
+        f"%NG. Parity dependence is the signature of Eq. 80 not reaching its root."
     )
+    for cap, got in settled.items():
+        assert abs(got - differential) / differential < 0.001, (
+            f"cap {cap} settles at {got:.3f} %NG against a differential trim of "
+            f"{differential:.3f}. These are the same physics and must agree."
+        )
 
 
-def test_the_frame_map_has_its_own_equilibria_below_flight_idle():
-    """Between about 125 and 175 lbm/hr the real-time frame settles somewhere the
-    differential model does not, and Eq. 80's repelling fixed point is the whole of it.
+def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
+    """It did not, by up to 7.07 %NG, and the cause was Eq. 80's iteration alone.
 
-    Found by the 2026-09-13 numerical-mathematics audit as "three more sub-idle equilibria,
-    none pinned", and measured here after the P3/P41 stopping rule was corrected -- which
-    removed the 75.7 %NG false root at 125 lbm/hr (see the test above) but left these:
+    On record before 2026-09-13, chopping from 400 lbm/hr and holding:
 
-        lbm/hr   differential   frame settles at   deviation
-           175       78.509 %          78.509 %      +0.00 %
-           150       74.009           68.781         -7.07 %
-           140       71.727           68.153         -4.98 %
-           130       68.897           67.520         -2.00 %
-           125       67.039           66.895         -0.21 %
+        lbm/hr   differential   frame settled   deviation
+           175       78.509 %        78.509 %      +0.00 %
+           150       74.009          68.781        -7.07 %
+           140       71.727          68.153        -4.98 %
+           130       68.897          67.520        -2.00 %
+           125       67.039          66.895        -0.21 %
 
-    **These are not convergence artifacts.** Every figure above is identical at tol 1e-3
-    and at 1e-9, and each run is dead still at the end -- the spread over the last five
-    seconds of a sixty-second run is 2.4e-5 %NG. Two formulations of the same physics are
-    settling in different places.
+    Identical at tol 1e-3 and 1e-9 and dead still at the end, so not a convergence
+    artifact in the outer loop -- two formulations of the same physics settling in
+    different places.
 
-    ## The cause, established constructively
+    **All of it was Eq. 80.** Established constructively: replacing its fixed-point
+    iteration with a bracketed root-find on the same residual -- same equation, same f9
+    data, convergence guaranteed by the bracket rather than by contraction -- put every one
+    of those flows on the differential trim to 0.00 %. `_p45_loop` now does exactly that
+    when the printed iteration fails to meet the printed criterion, and the table above
+    reads +0.003 % or better everywhere.
 
-    Replace Eq. 80's fixed-point iteration with a **bracketed** root-find on the same
-    residual `P45 - N/f9(Ps9/P45)` -- same equation, same map, same data, but convergence
-    guaranteed by the bracket rather than by contraction -- and the frame lands on the
-    differential trim to **0.00 % at all four fuel flows**. So the deviation is entirely
-    the iteration's inability to reach its own root, and not a disagreement between the
-    quasi-steady and differential formulations.
-
-    That is the same mechanism as the test above: f9's elasticity crosses -1 near
-    Ps9/P45 = 0.77, so the fixed point is repelling, and eight passes then land wherever
-    they land. `_p45_loop` reports `Exit.DIVERGING` on 58-65 % of the frames of these runs,
-    against 0.7 % at 125 lbm/hr -- which is why 125 is nearly right and 150 is 7 % out.
-
-    ## Why the printed iteration is kept anyway
-
-    The report specifies Eq. 80 and eight passes [pdf p.37]. A bracketed solver would be an
-    improvement, not a replication, and this is a replication. It also matters that the
-    report removes this regime explicitly: below-flight-idle fuel control was one of the
-    features eliminated from the real-time model [pdf p.38], so Ballin's own model was not
-    intended to sit here. The behaviour is pinned rather than fixed. Open question #57.
+    The boundary is f9's elasticity crossing. At 175 lbm/hr Ps9/P45 = 0.727, below the
+    -1 crossing at ~0.77, so the printed iteration converges on its own in 2.0 passes and
+    the fallback never fires. Below about 160 lbm/hr it fires every frame.
     """
     r0 = trim.solve(WF0, c.NP_DES, AMB)
     f0 = frame(r0.state, WF0, AMB)
 
-    ON_RECORD = {175.0: 0.00, 150.0: -7.07, 140.0: -4.98, 130.0: -2.00}
-
-    for pph, expected in ON_RECORD.items():
+    for pph in (175.0, 160.0, 150.0, 140.0, 130.0, 125.0):
         sub = trim.solve(wf_pps_from_pph(pph), c.NP_DES, AMB)
         differential = 100.0 * sub.state.ng_rpm / c.NG_DES
         st = realtime.from_trim(r0, f0.wa31_pps, f0)
@@ -494,15 +454,13 @@ def test_the_frame_map_has_its_own_equilibria_below_flight_idle():
         t = np.asarray(tr["t"])
         late = (100.0 * np.asarray(tr["ng"]) / c.NG_DES)[t > 55.0]
         assert late.max() - late.min() < 0.01, (
-            f"{pph:.0f} lbm/hr has not settled by 55 s (spread {late.max() - late.min():.4f} "
-            f"%NG); the table in this docstring is about settled values"
+            f"{pph:.0f} lbm/hr has not settled by 55 s (spread {late.max() - late.min():.4f})"
         )
         dev = 100.0 * (float(np.median(late)) - differential) / differential
-        assert abs(dev - expected) < 0.25, (
-            f"{pph:.0f} lbm/hr: the frame settles {dev:+.2f} % from the differential trim "
-            f"of {differential:.3f} %NG, against {expected:+.2f} % on record. If these have "
-            f"collapsed toward zero, Eq. 80's iteration is reaching its root and open "
-            f"question #57 can be closed."
+        assert abs(dev) < 0.01, (
+            f"{pph:.0f} lbm/hr: the frame settles {dev:+.5f} % from the differential trim "
+            f"of {differential:.3f} %NG. The two formulations are the same physics; a "
+            f"deviation here means Eq. 80 is not reaching its root again."
         )
 
 

@@ -21,7 +21,7 @@ the two qualifications on that). Everything here is derived from it.
 |---|---|
 | **Table B.1's full printed state** | **rms 0.20 % over 21 numbers** — worst shp 0.72 %, then Ps3 0.31 %, P41 0.30 %, P45 0.25 %, T45 0.16 %, NG 0.13 %, T41 0.08 % |
 | Jacobian eigenvalues vs Table 1 | 7 of 12 modes within 4 %, 9 within 8 %; worst −22.6 % |
-| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 1.3–13.2 % of each panel's excursion, mean 4.4 %** over nine panels — Figure 9 1.3–5.2 %, Figure 10 1.7–13.2 % |
+| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 1.3–7.7 % of each panel's excursion, mean 3.5 %** over nine panels — Figure 9 1.3–5.2 %, Figure 10 1.9–7.7 % |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
 | **Closed loop vs Table B.1** | **worst 0.62 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
 | Tests | 990 passing, 3 skipped, lint and formatting clean |
@@ -175,21 +175,11 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   on 15.7 % of frames, which is the report's own budget rather than the *one* pass the
   step test was exiting on.
 
-  The two figures then move in opposite directions, and that is the informative part.
   **Figure 9 — the accel, and the report's own stated test case for this iteration —
   improved on four of five panels**: pcng 2.57 → 1.70 %, Ps3 2.14 → 1.29 %, torq45
-  2.38 → 2.06 %, T41 and T45 unmoved. **Figure 10's chop degraded**: pcng 2.35 → 4.21 %,
-  T41 5.18 → 5.78 %, T45 7.62 → 13.15 %. A converged chop plunges to NGc **69.90 %**
-  where the under-converged one bottomed at 74.24 % — and Ballin's own trace bottoms at
-  74.2 %, so that agreement had been resting on an under-converged solve.
-
-  Below 80 %NG `f1` has **no digitized speed line between 65 and 80 %**, a 15-point hole,
-  and the chop now spends its whole floor there: `f1@65` clamps 389 times in the run, `f6`
-  425 times with the fuel-air ratio down to 0.00527 against a table starting at 0.00999.
-  The localisation is sharp — at matched NG our deceleration rate is **0.92× / 1.01× /
-  0.97×** Ballin's at 80 / 84 / 88 %NG and **2.09×** at 76 %, i.e. right wherever `f1` has
-  data and twice too fast where it does not. **`f1`'s low-speed interpolation is the next
-  piece of work**, and the 14 % whole-curve ratchet comes back down when it is done.
+  2.38 → 2.06 %, T41 and T45 unmoved. Figure 10's chop initially degraded badly, to
+  T45 13.15 % with a floor of NGc 69.90 %, and that was attributed to `f1`'s data hole.
+  **It was not `f1`.** See the next entry.
 
 - **The transient error was a realization artifact, and it is fixed.** Eq. 50 writes the
   station 4.1 heat sink as a lead-lag, but it is a *collapse* of the two printed
@@ -202,8 +192,9 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   and is identical whenever the coefficients are constant, so Appendix B, Table 1 and every
   trim are untouched. Whole-curve RMS, mean over nine panels: **9.8 % → 3.8 %**; worst panel
   15.8 % → 7.6 %; the Figure 9 T41 overshoot 1.67× Ballin's → **0.83×**. (Those are the
-  numbers at that change; the stopping-rule correction above then took the mean to 4.4 %
-  and the worst panel to 13.2 %, all of it on Figure 10.)
+  numbers at that change. The stopping-rule correction above then took the mean to 4.4 %
+  and the worst panel to 13.2 %, all of it on Figure 10 — and solving Eq. 80 took them back
+  to **3.5 %** and **7.7 %**, better than either.)
 - **What looked like the report disagreeing with itself at 775 lbm/hr was an unsettled
   transient, and we match both sides of it.** Figure 6 gives 99.69 %NG against Figure 9's
   98.88, Figure 8 gives Ps3 244.2 against 235.3, Figure 7 gives 1724.8 shp against 1648.2 —
@@ -221,9 +212,10 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   endpoint trims, which the steady-state tests already pin, so being about seven times
   closer than it is real shape information. Figure 10's agreement also *improves* as the
   frame shrinks. `dNG/dt` at matched NG runs **0.92 / 1.01 / 0.97×** Ballin's at
-  80 / 84 / 88 %NG and **2.09×** at 76 %, where the model has dropped below `f1`'s data.
-  At 80 %NG the net torque is **6.6 % of the turbine torque it is the difference of**, so
-  1 % on either term moves the rate 15 %.
+  80 / 84 / 88 %NG and **0.76×** at 76 %. (It read 2.09× at 76 % for part of 2026-09-13,
+  when Eq. 80's non-convergence was letting the chop run away downward; solving Eq. 80
+  restored it.) At 80 %NG the net torque is **6.6 % of the turbine torque it is the
+  difference of**, so 1 % on either term moves the rate 15 %.
   **Three things this does not show**, all measured rather than conceded: Figure 9's panel is
   worse than vacuous (his Ps3(NG) there is a straight line to R² = 0.9994, chord error 0.30 %,
   while our deviation is 1.66 % — larger than the curvature it would have to explain); the
@@ -255,36 +247,48 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   describes, which under-converged the loop eightfold; and the heat sink is now Eqs. 48–49
   rather than the collapsed Eq. 50. None was aimed at a figure, and the middle one cost us
   Figure 10.
-- **The false equilibrium below flight idle: gone from the chop, still there from its own
-  trim, and selected by the *parity* of a pass count.** Run the Figure 10 chop past its
-  4.5 s of record and the frame used to settle at 75.7 %NG where the differential model
-  trims at 67.0 %. With the P3/P41 loop stopping on the error, that path now settles at
-  **66.895 %NG against 67.039 %, −0.21 %**, identically at 1e-3, 1e-6 and 1e-9 — the
-  tolerance argument sets both loops, so tightening "P45" had been tightening the inner
-  one. **This README said "the false root is gone" for part of 2026-09-13, and that was
-  overstated: what is gone is the chop *path*.** Held at its own 125 lbm/hr trim the
-  shipped model still settles at **75.743 %NG**, and which root it finds depends on nothing
-  but whether `MAX_ITER_P45` is even or odd — 75.743 at 2, 4, 6, 8, 20 and 67.610 at 3, 5,
-  7, 9, 21. Magnitude is irrelevant out to 21 passes. (That confirms a parity claim the
-  numerical-mathematics audit had recorded as *unverified*, and could not verify because
-  the caps are default arguments and setting the module attribute does nothing.)
+- **Eq. 80's iteration was the whole of the sub-idle problem, and it was also most of
+  Figure 10's.** Below roughly 160 lbm/hr, f9's elasticity passes −1 and Eq. 80's printed
+  fixed-point iteration stops converging: its fixed point becomes repelling, and eight
+  passes land wherever they land. Everything that had been recorded as separate defects was
+  that one fact.
 
-  **The mechanism is both of the explanations on record, not one instead of the other.**
-  Eq. 80 iterates `g(P45) = N/f9(Ps9/P45)`, so `g′(P45*)` is exactly f9's elasticity.
-  f9's data ends at Ps9/P45 = **0.85012**. The true equilibrium sits at **0.84903** — inside
-  by 0.00109, where the elasticity is **−1.5685**, so it is **repelling**, which is what the
-  mathematics audit found. Immediately beyond the last knot the table clamps flat:
-  elasticity **0.000**, strongly **attracting**, which is what the original ledger entry
-  meant by "a clamped, therefore nearly flat, iteration function invites a false fixed
-  point". The false root sits there, at 0.8692. So the iterate is expelled from a repelling
-  root and captured by an attracting plateau **0.13 % away**. Calling the old explanation
-  "backwards" was wrong; it described the second half and was missing the first.
+  - Held at its own 125 lbm/hr trim the model settled at **75.743 %NG** against a 67.039 %
+    differential trim, and which root it found depended on nothing but the **parity** of
+    `MAX_ITER_P45` — 75.743 for even, 67.610 for odd, magnitude irrelevant out to 21 passes.
+  - The frame map had its own sub-idle equilibria, up to **−7.07 %NG** at 150 lbm/hr,
+    identical at tol 1e-3 and 1e-9 and dead still at the end.
+  - Figure 10's chop ran away to a floor of NGc **69.90 %**, which was attributed to `f1`'s
+    65–80 % data hole and cost a raise of the whole-curve ratchet from 8 to 14 %.
 
-  Elasticity along the curve: −0.253 / −0.755 / −0.947 / −1.258 / −1.568 at Ps9/P45 =
-  0.60 / 0.70 / 0.75 / 0.80 / 0.849, crossing −1 near **0.77**; the settled chop spends
-  96 % of its frames above that. Confirmed directly: iterated at the 125 lbm/hr trim the
-  P45 steps grow 57, 88, 137 … 7912 ulp, a ratio of 1.57 a pass, which is the elasticity
-  itself. Open question #45.
+  Established constructively: solve the **same** printed equation, with the same f9 data,
+  by a bracketed root-find instead of successive substitution, and all three vanish. The
+  iteration now runs exactly as printed and falls back to bisection only when it fails to
+  meet the report's own criterion — bit-identical where it converges (Figure 9 does not
+  move; 400 lbm/hr exits on pass one). Results:
+
+  | | before | after |
+  |---|---|---|
+  | sub-idle trims, 125–175 lbm/hr | −7.07 to −0.21 % | **≤0.003 %** |
+  | dependence on `MAX_ITER_P45` | parity-selected, two roots | **none, caps 2–21 identical** |
+  | Figure 10 floor | 69.90 %NGc | **74.08** (Ballin: 74.18) |
+  | Figure 10 worst panel | 13.15 % | **7.72 %** |
+  | nine-panel mean | 4.40 % | **3.51 %** |
+
+  This is a **deliberate departure** from the method the report describes — [pdf p.37]
+  accounts four arithmetic operations and one table lookup per pass, which is successive
+  substitution specifically — taken because the printed method does not converge in a
+  regime the report never ran: below-flight-idle fuel control was one of the features
+  eliminated from the real-time model [pdf p.38], and the printed "eight iterations
+  resulted in an error equal to less than 0.1 percent" was measured on a step from flight
+  idle to full power. Where Ballin measured it, it holds and we reproduce it. The cost is
+  the pass count: ~55 a frame below 160 lbm/hr against the report's budget of eight, and
+  1–2 above flight idle. Open question #57.
+
+  **`f1`'s data hole is still open (#58) and is now second-order.** 389 frames still read
+  the 65 % speed line past its own last knot, up to 45 % beyond — but the worst Figure 10
+  panel is now better than it was before any of this, with `f1` untouched.
+
 - **Table B.1 and Figures 6–7 disagree with each other**, by up to 5.5 % on shaft power at
   low power. We track Table B.1, which is printed numbers rather than a plot.
 - Figures 11–15 are **not reproducible** — they need the Gen Hel UH-60A blade-element
@@ -326,12 +330,12 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   intersecting adjacent fits removed it. Segment-on-ink coverage **0.9850** over 185
   segments is the acceptance test, and the tool fails below 0.98.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **55 logged, 37 closed, 5 partly
-closed, 13 open**. The 2026-09-13 audits closed #25 (the pressure loops' stopping test and
+Open questions are tracked in `docs/notes/open-questions.md` — **55 logged, 39 closed, 5 partly
+closed, 11 open**. The 2026-09-13 audits closed #25 (the pressure loops' stopping test and
 pass count) and #45 (Eq. 80's repelling fixed point), and opened #56 (the Jacobian's
 perturbation step, which `SCOPE.md` had claimed was the report's ±2 % and never was).
 
-**Seven of the thirteen are things the report simply does not print**, and no amount of work
+**Seven of the eleven are things the report simply does not print**, and no amount of work
 closes them: the initialization rule for the opened iteration (#23), the integration algorithm
 (#26), the relaxation parameter and Lipschitz constant (#27), the 10 ms against 14 ms conflict
 (#33), the power turbine speed behind Figures 6–8 (#35) and behind Figures 9–10 (#36), and the

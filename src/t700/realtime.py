@@ -203,6 +203,10 @@ class Exit(StrEnum):
     changed the behaviour -- the same commit's ledger entry carries the correct 15.7 %, so
     the commit disagreed with itself."""
 
+    BISECTED = "bisected"
+    """Eq. 80's printed iteration did not reach the printed criterion, so the same equation
+    was solved by bisection instead. See `_p45_loop` and open question #57."""
+
     DIVERGING = "diverging"
     """The iteration did not contract: successive steps grew, or held level in a cycle.
     For P45 this is a real operating regime and not a numerical accident -- see
@@ -397,31 +401,122 @@ def _p45_loop(
     `docs/notes/open-questions.md` for the elasticity table and for the explanation it
     replaced, which had it backwards.
 
-    So the loop reports `Exit.DIVERGING` rather than returning whatever it happened to
-    hold at the cap. It still returns that value -- there is nothing better to return, and
-    the report's own model had no divergence test either -- but the condition is now
-    visible in `FrameOut` and in `run()`'s traces instead of being discarded.
+    ## What this loop does about it, since 2026-09-13
+
+    **The printed iteration runs first, exactly as printed.** If it meets the printed
+    criterion it returns, and that path is bit-identical to what this function did before:
+    at 400 lbm/hr it exits on pass one, at 175 lbm/hr on pass two, and Figure 9's whole-curve
+    panels do not move to two decimals.
+
+    If it does *not* meet the criterion, the same equation is solved by `_p45_bisect`.
+    That is a deliberate departure from the method the report describes -- the report
+    accounts for "four arithmetic operations and one function-table look-up" per pass, which
+    is successive substitution specifically -- and the reason is that the printed method
+    does not converge in a regime the report never ran. [pdf p.38] records that fuel control
+    below flight-idle power was one of the features eliminated from the real-time model, and
+    [pdf p.37]'s "eight iterations resulted in an error equal to less than 0.1 percent" was
+    measured on a step from flight idle to full power. Where Ballin measured it, it holds
+    and we reproduce it; where he did not, it silently returns a wrong root.
+
+    What that was worth, all of it measured rather than argued:
+
+      * held at its own 125 lbm/hr trim the model settled at **75.743 %NG** against a
+        67.039 % differential trim, and which root it found depended on nothing but the
+        **parity** of `MAX_ITER_P45` -- 75.743 for even, 67.610 for odd, magnitude
+        irrelevant out to 21 passes. Every cap from 2 to 21 now gives 67.038.
+      * the frame map's own sub-idle equilibria, up to **-7.07 %NG** at 150 lbm/hr and
+        identical at tol 1e-3 and 1e-9, are gone: every flow from 125 to 175 lbm/hr now
+        agrees with the differential trim to **0.003 %** or better.
+      * Figure 10's floor moves **69.90 -> 74.08 %NGc** against Ballin's 74.18, its worst
+        whole-curve panel **13.15 -> 7.72 %**, and the nine-panel mean **4.40 -> 3.51 %**.
+        Figure 9 does not move.
+
+    The cost is the pass count, and it is real: below about 160 lbm/hr this loop runs a
+    mean of ~55 passes a frame -- the printed eight, then ~47 bisection steps -- against
+    the report's budget of eight. Above flight idle it is 1 to 2. A real-time model would
+    not pay that, but a real-time model was never asked to run here.
+
+    `Exit.BISECTED` marks the frames that took the fallback, so the cost and its extent are
+    visible in `run()`'s traces rather than hidden. Open question #57.
     """
     numerator = (w41 + b3 * c.K_BL * wa2) * np.sqrt(theta45)
-    prev = first = 0.0
-    exit_ = Exit.CAPPED
+    f9 = maps.f9()
+    entering = p45
+
+    # --- Eq. 80 exactly as printed, first -------------------------------------------
+    prev = 0.0
     it = 0
     while it < max_iter:
         it += 1
-        p45_new = numerator / float(maps.f9()(ps9 / p45))
+        p45_new = numerator / float(f9(ps9 / p45))
         step = abs(p45_new - p45)
         p45 = p45_new
-        if it == 1:
-            first = step
         err, _ = _contraction_error(step, prev, p45)
         if err < tol * p45:
-            exit_ = Exit.CONVERGED
-            break
+            return float(p45), it, Exit.CONVERGED
         prev = step
+
+    # --- it did not reach the printed criterion, so solve the printed equation -------
+    root, steps = _p45_bisect(entering, numerator, ps9, f9)
+    if root is None:
+        return float(p45), it, Exit.DIVERGING
+    return float(root), it + steps, Exit.BISECTED
+
+
+def _p45_bisect(
+    guess: float,
+    numerator: float,
+    ps9: float,
+    f9,
+    max_expand: int = 60,
+    max_steps: int = 80,
+) -> tuple[float | None, int]:
+    """Solve `P45 = N / f9(Ps9/P45)` by bisection. Returns `(root, steps)`.
+
+    The same equation, the same f9 data -- only the method differs, and it differs in the
+    one way that matters: a bracket cannot fail to contain a root, so convergence does not
+    depend on the map's elasticity. The bracket is expanded geometrically from the entering
+    P45 until the residual changes sign, then halved to the **rounding floor**, which makes
+    the error bound rigorous where the fixed-point estimate was only an estimate.
+
+    **It is halved to rounding rather than to `tol`**, and the reason is worth stating: the
+    report's 0.1 percent is a statement about what eight passes of successive substitution
+    achieved, i.e. a cost constraint on *that* method. Once the printed method has failed
+    and we are paying for a bracket anyway, stopping at 0.1 percent buys nothing and costs
+    accuracy -- measured, it left the station 3 volume balance closing to 8.6e-9 of WA2
+    where the printed iteration closes to 1e-13. One bit per evaluation is cheap; a
+    needlessly loose root is not.
+
+    `None` when no bracket can be found, which has not been observed; the caller then
+    returns the iterate it held and reports `Exit.DIVERGING`.
+    """
+
+    def residual(p: float) -> float:
+        return p - numerator / float(f9(ps9 / p))
+
+    lo = hi = guess
+    r_lo = r_hi = residual(guess)
+    if r_lo == 0.0:
+        return float(guess), 0
+    for _ in range(max_expand):
+        lo *= 0.9
+        hi *= 1.1
+        r_lo, r_hi = residual(lo), residual(hi)
+        if r_lo * r_hi <= 0.0:
+            break
     else:
-        if _stalled(first, prev):
-            exit_ = Exit.DIVERGING
-    return float(p45), it, exit_
+        return None, 0
+
+    for k in range(max_steps):
+        mid = 0.5 * (lo + hi)
+        if hi - lo <= 4.0 * np.spacing(mid):
+            return float(mid), k + 1
+        r_mid = residual(mid)
+        if r_lo * r_mid <= 0.0:
+            hi = mid
+        else:
+            lo, r_lo = mid, r_mid
+    return float(0.5 * (lo + hi)), max_steps
 
 
 def _heat_sink(
