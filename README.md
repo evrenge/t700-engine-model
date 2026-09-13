@@ -23,7 +23,7 @@ public domain). Everything here is derived from it.
 | Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 2.0–7.6 % of each panel's excursion, mean 3.8 %** over nine panels |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
 | **Closed loop vs Table B.1** | **worst 0.74 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
-| Tests | 865 passing, 3 skipped, lint and formatting clean |
+| Tests | 866 passing, 3 skipped, lint and formatting clean |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
@@ -228,8 +228,8 @@ required, and he ties the two figures together himself on pdf p.39.
   intersecting adjacent fits removed it. Segment-on-ink coverage **0.9850** over 185
   segments is the acceptance test, and the tool fails below 0.98.
 
-Open questions are tracked in `docs/notes/open-questions.md` — **51 logged, 34 closed, 5 partly
-closed, 12 open**.
+Open questions are tracked in `docs/notes/open-questions.md` — **51 logged, 35 closed, 6 partly
+closed, 10 open**.
 
 **Seven of the eleven are things the report simply does not print**, and no amount of work
 closes them: the initialization rule for the opened iteration (#23), the integration algorithm
@@ -237,10 +237,19 @@ closes them: the initialization rule for the opened iteration (#23), the integra
 (#33), the power turbine speed behind Figures 6–8 (#35) and behind Figures 9–10 (#36), and the
 fuel-step time (#37).
 
-The other three are work, not gaps in the source: **#45** the model running outside its own
-digitized envelope on the 775 lbm/hr step; **#46** the Table B.1 against Figure 7 low-power
-disagreement; and **#49** linearizing the discrete real-time map. (**#50**, Figure C30's
-seven crossing curves, closed on 2026-09-13 — see below.)
+Of the three that remained work rather than gaps in the source, two are now closed. **#50**
+(Figure C30's seven crossing curves) was extracted on 2026-09-13. **#45** — the model running
+outside its own digitized envelope on the 775 lbm/hr step — turned out to be an artifact of
+*prescribing* a fuel step the control would never command: with the loop closed, a harder
+demand leaves `f1`, `f7` and `f9` entirely unclamped, because that is what the acceleration
+limit is for. **#49**, linearizing the discrete real-time map, is the one piece of analysis
+still undone.
+
+Phase 5 added **#54** (is a hysteresis constant the whole band or the half?) and **#55** (the
+report states no initial condition for any of the 22 block diagrams). Neither can be closed
+from the source, so both are **bounded by measurement instead**: #54 is worth ≤0.09 % on NG
+and at worst 1.08 % on descent shaft power, and #55 ≤0.61 % on the settled state, because
+the governor absorbs it. No conclusion here turns on either.
 
 ## Running it
 

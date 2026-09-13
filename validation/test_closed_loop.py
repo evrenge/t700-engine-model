@@ -43,7 +43,7 @@ from __future__ import annotations
 import pytest
 
 from t700 import constants as engine_c
-from t700 import trim
+from t700 import maps, trim
 from t700.control import loop
 from t700.engine import Ambient, State, frame
 from t700.units import shp_from_torque, wf_pps_from_pph
@@ -216,4 +216,59 @@ def test_a_load_step_is_rejected():
     assert abs(dev) < 0.5, f"NP did not recover after a 15 % load step: {dev:+.3f} %"
     assert wf_after > 1.05 * wf, (
         f"a 15 % load step should raise fuel flow well above {wf}, got {wf_after:.1f}"
+    )
+
+
+def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope():
+    """This is open question #45, and closing the loop answers it.
+
+    An open-loop 400 -> 775 lbm/hr step drives the model well outside the data it was
+    built from: the compressor map, the gas generator turbine energy function and the
+    power turbine flow function all clamp. That has been recorded as a limitation since
+    Phase 4.
+
+    But it is an artifact of prescribing a fuel step **the control would never command**.
+    `F_HM7` exists precisely to cap fuel during an acceleration, and with the loop closed a
+    *harder* demand than Figure 9's -- collective slammed 52.75 -> 95 % and the power lever
+    to 120 deg -- leaves `f1`, `f7` and `f9` untouched. The acceleration limit binds for
+    about a hundred frames and does its job.
+
+    So the envelope excursion is a property of the open-loop test, not of the model.
+    """
+    _name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    wf_pps = wf_pps_from_pph(wf)
+    r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
+    f = frame(r.state, wf_pps, AMB)
+    slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
+
+    def load(np_rpm: float) -> float:
+        return q + slope * (np_rpm - NP_TRIM_RPM)
+
+    cruise = loop.Pilot(
+        xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES
+    )
+    s = loop.seed(r, f.wa31_pps, f, cruise, AMB)
+    for _ in range(300):
+        s, _e, _h, _fr = loop.step(
+            s, cruise, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A, heat_sink=True
+        )
+
+    slam = loop.Pilot(xcpc_pct=95.0, pas_deg=120.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES)
+    maps.reset_clamps()
+    limits = {}
+    for _ in range(1200):
+        s, _e, h, _fr = loop.step(
+            s, slam, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A, heat_sink=True
+        )
+        limits[h.limit] = limits.get(h.limit, 0) + 1
+
+    report = {k: v for k, v in maps.clamp_report().items() if v}
+    escaped = {k: v for k, v in report.items() if k.startswith(("f1", "f7", "f9"))}
+    assert not escaped, (
+        f"a closed-loop slam left the digitized envelope: {escaped}. The acceleration "
+        f"limit should have prevented that -- open question #45."
+    )
+    assert limits.get("accel", 0) > 20, (
+        f"the acceleration limit never bound during a slam ({limits}), so this test is "
+        f"not exercising what it claims to"
     )
