@@ -75,14 +75,25 @@ worst remaining panel is Ps3 at +6.9 %. **Tightened, never widened** -- and this
 belongs in `SCOPE.md` per CLAUDE.md rather than inline here."""
 
 
-UNTRUSTED = {(10, "torq45")}
-"""Panels excluded from the comparison, with the evidence.
+UNTRUSTED: set[tuple[int, str]] = set()
+"""Panels excluded from the comparison, with the evidence. **Currently none.**
 
 Both figures begin at the same 400 lbm/hr trim, so their t = 0 values must agree with each
-other regardless of any model. Five of six panels do, to within 0.62 %. Figure 10's
-`TORQ45` disagrees with Figure 9's by **5.10 %** -- and that panel also yielded only 16
-markers against 45 everywhere else. The reference data is wrong there, not the model, so
-using it would be measuring our digitizer.
+other regardless of any model. `(10, "torq45")` sat here from 2026-09-12 to 2026-09-14 on
+the evidence that it disagreed with Figure 9's by **5.10 %** while the other five panels
+agreed to 0.62 %, so "the reference data is wrong there, not the model".
+
+**That was our own page skew.** pdf p.46 is scanned at a slight rotation and every panel
+frame on it descends 11-14 px across the panel width; the digitizer mapped rows to values
+through the frame positions at the panel's *left* edge only, which laid a monotone ramp of
+up to 4.2 % of panel height onto every trace. TORQ45 has the smallest data excursion of the
+six panels relative to its axis, so it showed the artifact most. With the frames fitted
+along their length the two figures agree on TORQ45 to **0.93 %**, and the panel is back in
+the comparison.
+
+What remains true of it is the marker count -- 13 slots against 45 on every other panel --
+but that is the GE status-81 reference series, not the model trace this file compares
+against, and it is recorded in the CSV header rather than here.
 """
 
 
@@ -266,9 +277,10 @@ def test_the_two_figures_agree_at_their_shared_trim(key: str):
 
     Figures 9 and 10 both start from the same 400 lbm/hr trim, so their t = 0 values must
     agree with each other whatever our model says. This caught Figure 10's TORQ45 panel
-    disagreeing with Figure 9's by 5.10 % while every other panel agreed to 0.62 % -- and
-    that is how we know the fault is in that panel's digitization rather than in the
-    engine.
+    disagreeing with Figure 9's by 5.10 % while every other panel agreed to 0.62 %, which
+    put that panel on `UNTRUSTED` for two days. The cause turned out to be the page skew the
+    digitizer corrects as of 2026-09-14, and all six panels now agree: worst 0.93 % on
+    TORQ45, 0.25 % on the other five.
     """
     vals = []
     for fig in (9, 10):
@@ -278,12 +290,6 @@ def test_the_two_figures_agree_at_their_shared_trim(key: str):
         t, v = _reference(fig, key)
         vals.append(v[t < 0.48].mean())
     dev = (vals[1] - vals[0]) / abs(vals[0]) * 100.0
-    if key == "torq45":
-        assert abs(dev) > 2.0, (
-            "Figure 10's TORQ45 panel is on file as disagreeing with Figure 9's by 5.1 %. "
-            "If it now agrees, it has been re-digitized and should leave UNTRUSTED."
-        )
-        return
     assert abs(dev) < 1.5, (
         f"{key}: the two figures' shared trim disagrees by {dev:+.2f} % -- one of the "
         f"two digitizations is wrong"

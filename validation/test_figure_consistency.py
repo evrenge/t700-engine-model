@@ -41,12 +41,17 @@ AMB = Ambient(14.696, 518.67)
 PHASE_PLANE_TOL_PCT = 2.5
 BOTH_SIDES_TOL_PCT = 3.0
 SHARED_TRIM_TOL_PCT = 1.5
-READ_ERROR_CEILING_PCT_FS = 1.6
+READ_ERROR_CEILING_PCT_FS = 0.6
 """All four declared in `SCOPE.md`; none is derived from the report, which states no
 transient tolerance at all.
 
 The last one is expressed **as a fraction of each panel's full scale**, which is the only
-currency it can honestly be quoted in -- see `PANEL_SPAN` below."""
+currency it can honestly be quoted in -- see `PANEL_SPAN` below.
+
+**Tightened 1.6 -> 0.6 on 2026-09-14**, never widened. 1.6 covered an uncorrected page
+skew of up to 4.2 % of panel height that the digitizer now takes out. What is left is what
+the two measurements below actually read: 0.38 %FS worst against the WFPH caption, 0.40
+%FS worst between the two figures' reads of one state. 0.6 is those with headroom."""
 
 # Full-scale span of each panel's y axis, from `tools/digitize_fig910.py`'s PANEL_RANGES.
 # `calibrate()` there maps pixels to values by a straight line between the two frame rows,
@@ -63,12 +68,36 @@ T2_WF_PPH = np.array([140.1, 297.2, 372.0, 458.4, 560.6, 694.4])
 T2_P2_PSIA = np.array([14.37, 14.17, 14.16, 14.09, 14.02, 13.92])
 T2_T2_DEGR = np.array([516.7, 515.6, 508.3, 508.0, 507.2, 507.2])
 
-# Ballin's pre-step plateau, digitized from both figures' own panels. Both figures begin
-# at the same 400 lbm/hr trim, so these are two independent reads of one state.
-PRE_STEP = {
-    9: dict(pcng=90.903, ps3=156.953, t41=2188.33, t45=1563.46, torq45=175.20),
-    10: dict(pcng=91.235, ps3=157.543, t41=2193.50, t45=1571.79, torq45=184.11),
-}
+PRE_STEP_KEYS = ("pcng", "ps3", "t41", "t45", "torq45")
+"""Ballin's pre-step plateau is **measured from the files**, not transcribed into this
+module.
+
+It used to be a literal dict. That went stale the moment the digitizer changed: the frame
+deskew of 2026-09-14 moved every one of the ten numbers, and two tests went on comparing
+the new WFPH panels against the old plateaus without failing, because the plateaus were
+constants. Measuring them here costs ten CSV reads and cannot go stale.
+
+For the record, the values this file asserted against until then, and what they read now:
+
+| panel | fig 9 was | is | fig 10 was | is |
+|---|---|---|---|---|
+| pcng | 90.903 | 90.764 | 91.235 | 90.756 |
+| ps3 | 156.953 | 156.017 | 157.543 | 155.629 |
+| t41 | 2188.33 | 2183.83 | 2193.50 | 2185.95 |
+| t45 | 1563.46 | 1555.28 | 1571.79 | 1557.39 |
+| torq45 | 175.20 | 172.84 | 184.11 | 174.45 |
+"""
+
+
+def _pre_step(fig: int) -> dict[str, float]:
+    """Both figures begin at the same 400 lbm/hr trim, so these are two reads of one state."""
+    t_step = WFPH_PRINTED[fig][2]
+    out = {}
+    for key in PRE_STEP_KEYS:
+        t, v = _trace(f"fig{fig:02d}_{key}_model.csv")
+        out[key] = float(v[t < t_step - 0.05].mean())
+    return out
+
 
 # The WFPH panel is the input, and the caption prints both of its levels.
 WFPH_PRINTED = {9: (400.0, 775.0, 0.539), 10: (400.0, 125.0, 0.545)}
@@ -138,57 +167,66 @@ def test_the_figures_own_read_error_is_measured_not_estimated(fig: int):
         )
 
 
-def test_the_read_error_is_a_pixel_offset_not_a_fraction_of_value():
-    """Two figures read one state, so their difference is pure read error. Predict it.
+def test_the_two_figures_read_one_state_to_within_a_pixel():
+    """Two figures read one state, so their disagreement is pure read error. Bound it.
 
-    Figures 9 and 10 are both trimmed at 400 lbm/hr, and their y axes have different
-    spans. If the error is a pixel offset then the offset measured on each figure's WFPH
-    panel -- the only panel whose truth is printed -- predicts the disagreement on every
-    other panel, after conversion through that panel's own span. If the error were a
-    fraction of value, it could not.
+    Figures 9 and 10 are both trimmed at 400 lbm/hr on axes of different span, so the
+    difference between their pre-step plateaus contains no model and no physics -- only
+    what the digitizer did. That makes it the honest measurement of the read floor, and a
+    broader one than the WFPH caption check, which constrains one panel per page.
 
-    On PCNG the prediction is exact: **+0.340 %NG predicted, +0.340 measured.** That is
-    the whole case for the %FS model, and it is why the floor on PCNG is ~0.2 % rather
-    than the 1.8 % this project briefly quoted. T45 and TORQ45 are not predicted, and
-    TORQ45 is independently known to be bad reference data.
+    **This test replaced a predictor.** The earlier version calibrated a single pixel
+    offset per page from the WFPH panel and predicted the other panels from it, which was
+    the argument for quoting the floor in percent of full scale. The predictor is gone
+    because what it predicted is gone: until 2026-09-14 the digitizer mapped every panel
+    through one pair of frame rows taken at the panel's left edge, and the pages are
+    skewed, so a single per-page offset really did describe most of the error. Each panel's
+    frames are now fitted along their own length and the residual is sub-pixel and
+    uncorrelated between panels. What survives is the currency argument, as a measurement:
+
+    | panel | fig10 - fig9 | % of full scale | % of value |
+    |---|---|---|---|
+    | pcng | -0.008 %NG | 0.02 | 0.009 |
+    | ps3 | -0.388 psia | 0.19 | 0.249 |
+    | t41 | +2.12 degR | 0.21 | 0.097 |
+    | t45 | +2.11 degR | 0.21 | 0.136 |
+    | torq45 | +1.61 ft*lbf | 0.40 | 0.929 |
+
+    Before the deskew those five ran 0.33 %NG, 0.59 psia, 5.2 degR, 8.3 degR and 8.9
+    ft*lbf -- the last of which had been written up as a defect in Figure 10's TORQ45 panel
+    and excluded from the comparison. It was our own uncorrected page skew.
     """
-    off_fs = {}
-    for fig in (9, 10):
-        lo, _, t_step = WFPH_PRINTED[fig]
-        t, v = _trace(f"fig{fig:02d}_wfph_model.csv")
-        pre = v[t < t_step - 0.05].mean()
-        off_fs[fig] = (pre - lo) / PANEL_SPAN[fig]["wfph"]
-
-    for key, tol in (("pcng", 0.05), ("ps3", 0.25)):
-        predicted = off_fs[10] * PANEL_SPAN[10][key] - off_fs[9] * PANEL_SPAN[9][key]
-        measured = PRE_STEP[10][key] - PRE_STEP[9][key]
-        assert abs(predicted - measured) < tol, (
-            f"{key}: a pixel-offset read error predicts fig10 - fig9 = {predicted:+.3f}, "
-            f"measured {measured:+.3f}. If this stops holding, the read-error model in "
-            f"SCOPE.md is wrong and every floor derived from it moves."
+    a, b = _pre_step(9), _pre_step(10)
+    for key in PRE_STEP_KEYS:
+        span = max(PANEL_SPAN[9][key], PANEL_SPAN[10][key])
+        dev_fs = 100.0 * (b[key] - a[key]) / span
+        assert abs(dev_fs) < READ_ERROR_CEILING_PCT_FS, (
+            f"{key}: fig 9 reads {a[key]:.3f}, fig 10 reads {b[key]:.3f}, "
+            f"{dev_fs:+.3f} % of the {span:.0f} full scale. Two reads of one state cannot "
+            f"disagree by more than the read error, so either the digitizer has drifted or "
+            f"the floor in SCOPE.md is too tight."
         )
 
 
 def test_figures_9_and_10_share_one_trim_and_agree_on_it():
     """Both figures start at 400 lbm/hr, so their pre-step states must agree.
 
-    `torq45` is excluded: Figure 10's panel yielded 16 markers against 45 everywhere else
-    and disagrees with Figure 9's by 4.84 %. That exclusion is recorded in
-    `test_fuel_step.py`'s UNTRUSTED and this test is where the 5.1 % is pinned, so the
-    exclusion cannot quietly become permanent without evidence.
+    The same data as the test above, asserted in percent of value rather than of full
+    scale, because that is the currency every other tolerance in this project is quoted in.
+
+    **`torq45` is no longer excluded.** It used to be, on the evidence that Figure 10's
+    panel disagreed with Figure 9's by 5.10 % while the other five agreed to 0.62 %, and
+    this test asserted the disagreement was still there so the exclusion could not quietly
+    become permanent. That assertion fired on 2026-09-14, which is what it was for: the
+    disagreement was page skew, not the panel. It is now 0.93 %.
     """
+    a, b = _pre_step(9), _pre_step(10)
     worst = 0.0
-    for key in ("pcng", "ps3", "t41", "t45"):
-        a, b = PRE_STEP[9][key], PRE_STEP[10][key]
-        dev = abs(100.0 * (a / b - 1.0))
+    for key in PRE_STEP_KEYS:
+        dev = abs(100.0 * (a[key] / b[key] - 1.0))
         worst = max(worst, dev)
-        assert dev < SHARED_TRIM_TOL_PCT, f"{key}: fig 9 {a} vs fig 10 {b}, {dev:.2f} %"
+        assert dev < SHARED_TRIM_TOL_PCT, f"{key}: fig 9 {a[key]} vs fig 10 {b[key]}, {dev:.2f} %"
     assert worst < SHARED_TRIM_TOL_PCT
-    tq = abs(100.0 * (PRE_STEP[9]["torq45"] / PRE_STEP[10]["torq45"] - 1.0))  # 4.84 %
-    assert tq > 2.0, (
-        f"fig 9/10 torq45 now agree to {tq:.2f} %; if the digitizer has been fixed, drop "
-        f"the UNTRUSTED exclusion in test_fuel_step.py"
-    )
 
 
 def test_ballins_own_cross_reference_between_figures_9_and_6_holds():
@@ -198,7 +236,7 @@ def test_ballins_own_cross_reference_between_figures_9_and_6_holds():
     transient figure and in the steady sweep. It is: +1.27 % in Figure 9, +1.03 % in
     Figure 6 at the same fuel flow, against his stated 1-2 %.
     """
-    ng9_b, ng9_g = PRE_STEP[9]["pcng"], 89.759  # Ballin's line, GE '+' markers
+    ng9_b, ng9_g = _pre_step(9)["pcng"], 89.759  # Ballin's line, GE '+' markers
     gap_transient = 100.0 * (ng9_b / ng9_g - 1.0)
 
     wf_b, nb = _trace("fig06_realtime.csv")
@@ -252,7 +290,8 @@ def test_figures_9_and_10_are_sea_level_standard():
             t41=f.t41_degR,
             t45=f.t45_degR,
         )
-        dev = [100.0 * (ours[k] / PRE_STEP[9][k] - 1.0) for k in ours]
+        ref9 = _pre_step(9)
+        dev = [100.0 * (ours[k] / ref9[k] - 1.0) for k in ours]
         rms[label] = float(np.sqrt(np.mean(np.square(dev))))
 
     assert rms["standard"] < rms["lewis"], (

@@ -43,7 +43,7 @@ BALLIN_STEP = 0.545
 
 STEPS = {9: 775.0, 10: 125.0}
 PANELS = ("pcng", "ps3", "t41", "t45", "torq45")
-UNTRUSTED = {(10, "torq45")}
+UNTRUSTED: set[tuple[int, str]] = set()  # see test_fuel_step.UNTRUSTED
 
 
 def _split_strays(x, y):

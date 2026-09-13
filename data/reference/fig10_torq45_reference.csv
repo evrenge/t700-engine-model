@@ -3,24 +3,22 @@
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig910.py
 # t_s: time, seconds (shared axis, 0 to 5.0)
 # value: TORQ45, axis range 0.0 to 400.0, no unit printed on the figure
-# points: 16
+# points: 13
 # x tick check: worst interior major tick off by 0.1555 s
-# sample lattice: pitch 33.01 px = 0.0989 s
+# frame tilt corrected: top +13.70 px, bottom +14.37 px across the panel (+4.25 % of panel height). The page is skewed; see `frame_tilt`.
+# sample lattice: pitch 32.93 px = 0.0987 s
 # NOT transcribed. Values carry read error.
 t_s,value
-0.08573,196.87646
-0.18468,197.05839
-0.28688,195.97576
-0.38885,195.74120
-0.48709,194.05622
-0.58357,120.58651
-0.68157,103.31258
-0.78070,81.57395
-0.87619,60.74459
-0.97509,48.59504
-1.07354,41.24885
-1.17136,35.15152
-1.27022,32.72727
-1.36981,30.15674
-1.56608,29.26829
-1.66567,28.48485
+0.08573,186.45219
+0.18468,186.97071
+0.28688,186.23730
+0.38885,186.35011
+0.48709,185.00179
+0.58357,111.96361
+0.68157,95.05103
+0.78070,73.68561
+0.87619,53.21719
+0.97509,41.42842
+1.07354,34.43471
+1.17136,29.89629
+1.27022,29.63382

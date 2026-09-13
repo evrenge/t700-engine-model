@@ -70,8 +70,29 @@ PANEL_RANGES = {
         ("torq45", "TORQ45", 0.0, 400.0),
     ],
 }
-# the caption states the fuel step exactly, so WFPH validates its own calibration
+# The caption states the fuel step exactly [pdf pp.45-46: "from 400 to 775 lb_m per hour",
+# "from 400 to 125 lb_m per hour"], so the WFPH panel is the one place on either page where
+# the truth behind a plotted curve is known. That makes it the calibration check for the
+# whole page: the commanded flow is constant either side of the step, so both its LEVEL and
+# its FLATNESS are checkable.
+#
+# It was declared here and used nowhere until 2026-09-14, with a comment saying the check
+# "is run". It was not, and running it failed: on Figure 10 the pre-step level read +1.70 %
+# and the post-step level fell 4.0 % of panel height across the record, which is the page
+# skew now corrected in `frame_tilt`. A gate that cannot fail is not a gate.
 FUEL_STEP = {9: (400.0, 775.0), 10: (400.0, 125.0)}
+
+FUEL_LEVEL_TOL_PCT_HEIGHT = 1.0
+FUEL_TILT_TOL_PCT_HEIGHT = 1.0
+"""Tolerances for that check, both as a percentage of panel height -- the unit the error
+is actually made in, since a read error is a pixel error and the panels do not share a
+data range.
+
+Set from the trace's own centroid noise, not from what happens to pass: the model trace is
+4-6 px thick and its per-column centroid scatters 0.5-1.1 px (1 sigma) about a fitted
+frame, which on a 330 px panel is 0.15-0.33 percent of height. 1.0 percent is three sigma
+of that, and 3.3 px -- it admits ordinary line-centroid error and rejects the 11-14 px
+skew that was there before."""
 N_PANELS = 6
 T_LO, T_HI = 0.0, 5.0
 
@@ -80,12 +101,40 @@ T_LO, T_HI = 0.0, 5.0
 class Panel:
     key: str
     label: str
-    top: int
-    bottom: int
+    top: float
+    bottom: float
     left: int
     right: int
     v_lo: float
     v_hi: float
+    top_slope: float = 0.0
+    bot_slope: float = 0.0
+    """Tilt of the panel's two horizontal frame lines, in rows per column, measured at
+    `left`. **The pages are skewed and the frames are not horizontal**: on pdf p.46 every
+    frame descends 11-14 px across the panel width, 3.3-4.2 percent of panel height, and
+    on pdf p.45 2-5 px, 0.7-1.6 percent. Ignoring that put a ramp of exactly that size
+    into every digitized trace on both pages -- a monotone fake decay on top of the real
+    one, worst on Figure 10, which is the chop transient.
+
+    It was found by checking the one panel whose truth is printed: the caption states the
+    fuel step exactly, and the WFPH trace -- a commanded constant either side of the step
+    -- read 4.0 percent of panel height lower at t=5 than at t=0 on Figure 10, matching
+    the frames' own 3.35 percent to within the trace's centroid noise. `check_fuel_panel`
+    below is that check, run every time rather than remembered."""
+
+    def top_at(self, x: float) -> float:
+        """Row of the upper frame at column `x`."""
+        return self.top + self.top_slope * (x - self.left)
+
+    def bot_at(self, x: float) -> float:
+        """Row of the lower frame at column `x`."""
+        return self.bottom + self.bot_slope * (x - self.left)
+
+    @property
+    def tilt_pct_height(self) -> float:
+        """Mean frame drop across the panel, as a percentage of panel height."""
+        rise = 0.5 * (self.top_slope + self.bot_slope) * (self.right - self.left)
+        return 100.0 * rise / (self.bottom - self.top)
 
 
 GLYPH_BAR_MIN_PX = 14
@@ -137,6 +186,47 @@ def longest_run(col: np.ndarray) -> int:
         if cur > best:
             best = cur
     return best
+
+
+FRAME_HALF_BAND_PX = 7
+"""How far either side of a nominal frame row to look for the frame's own ink.
+
+The skew moves a frame by up to 14 px end to end, so the search band has to be wider than
+the tilt it is measuring -- but not so wide that it catches the trace where the trace runs
+along the frame. 7 px is measured: every frame's ink lands within 7 px of the row the
+arithmetic-progression fit puts it at, and the residual about the fitted tilt is 0.45-1.45
+px on all twenty-four frame lines."""
+
+FRAME_MIN_COLUMNS = 50
+"""Below this many usable columns the tilt is not measured and the panel stays level."""
+
+
+def frame_tilt(ink: np.ndarray, y0: int, left: int, right: int) -> tuple[float, float, float]:
+    """Fit one horizontal frame line: `(slope, row at `left`, residual)`, all in pixels.
+
+    The frame is the only thing inked across the whole panel width at that height, so
+    taking the ink centroid of a narrow vertical band per column and fitting a line
+    recovers both its tilt and its true position. Columns whose band holds more than 8
+    inked rows are dropped: that is the trace crossing the frame, or a tick, not the frame.
+
+    The fitted row replaces the one the panel search produced, which was a centroid of the
+    *smeared* tilted line plus a modal panel height applied uniformly. That approximation
+    left the Figure 10 fuel panel reading 1.2 percent of panel height high even after the
+    tilt was taken out; fitting each frame on its own removes it.
+    """
+    xs: list[int] = []
+    ys: list[float] = []
+    for x in range(left + 5, right - 4, 4):
+        band = ink[y0 - FRAME_HALF_BAND_PX : y0 + FRAME_HALF_BAND_PX + 1, x]
+        idx = np.flatnonzero(band)
+        if idx.size and idx.size <= 8:
+            xs.append(x)
+            ys.append(y0 - FRAME_HALF_BAND_PX + float(idx.mean()))
+    if len(xs) < FRAME_MIN_COLUMNS:
+        return 0.0, float(y0), float("nan")
+    a, b = np.polyfit(xs, ys, 1)
+    res = float(np.std(np.asarray(ys) - (a * np.asarray(xs) + b)))
+    return float(a), float(a * left + b), res
 
 
 def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
@@ -219,7 +309,16 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
 
     out = []
     for t, (key, label, lo, hi) in zip(tops, ranges, strict=True):
-        out.append(Panel(key, label, int(round(t)), int(round(t + height)), left, right, lo, hi))
+        t0, b0 = int(round(t)), int(round(t + height))
+        ts, ty, _ = frame_tilt(ink, t0, left, right)
+        bs, by, _ = frame_tilt(ink, b0, left, right)
+        # A frame the fit could not reach falls back to the other one rather than to zero:
+        # the two frames of a panel are parallel to well under a pixel across the width.
+        if ts == 0.0:
+            ts = bs
+        if bs == 0.0:
+            bs = ts
+        out.append(Panel(key, label, ty, by, left, right, lo, hi, ts, bs))
     return out
 
 
@@ -262,9 +361,19 @@ def marker_centres(ink: np.ndarray, p: Panel, bar: int = 7, margin: int = 16) ->
     Figure 9 the vertical strokes run 19-25 px (median 21) and 4-6 px wide; the outliers
     at 85-212 px are the trace's own steep segments, which is what the upper bound excludes.
     """
-    lo, hi = p.top + margin, p.bottom - margin
+    # The rectangle spans the whole data region -- shrinking it to the part no tilted
+    # frame reaches costs 28 px of a 330 px panel and lost five of Figure 10's sixteen
+    # TORQ45 markers, which sit near the bottom of that axis. Instead the rectangle stays
+    # and the two tilted frames are blanked out of it, which is what `margin` was doing
+    # before the tilt was known.
+    lo = int(np.floor(min(p.top_at(p.left), p.top_at(p.right)))) + margin
+    hi = int(np.ceil(max(p.bot_at(p.left), p.bot_at(p.right)))) - margin
     x0, x1 = p.left + margin, p.right - margin
-    sub = ink[lo:hi, x0:x1]
+    sub = ink[lo:hi, x0:x1].copy()
+    _rows = np.arange(lo, hi)[:, None]
+    _cols = np.arange(x0, x1)[None, :]
+    sub[_rows < (p.top + p.top_slope * (_cols - p.left)) + margin] = False
+    sub[_rows > (p.bottom + p.bot_slope * (_cols - p.left)) - margin] = False
     horiz = ndimage.binary_opening(sub, structure=np.ones((1, bar)))
     vert = ndimage.binary_opening(sub, structure=np.ones((bar, 1)))
     horiz_near = ndimage.binary_dilation(horiz, structure=np.ones((5, 5)))
@@ -406,14 +515,20 @@ def trace_line(
     """
     cand = []
     for x in range(p.left + margin, p.right - margin):
-        col = ink[p.top + margin : p.bottom - margin, x]
+        # The window follows the tilted frames. A fixed window is wrong by the tilt at the
+        # far end of the panel: on pdf p.46 the frames drop 11-14 px across the width, so a
+        # window pinned to the left-hand frame rows leaves only 2 px of clearance under the
+        # top frame at x = right, and the frame's own ink then enters the column as "trace".
+        y0 = int(np.ceil(p.top_at(x))) + margin
+        y1 = int(np.floor(p.bot_at(x))) - margin
+        col = ink[y0:y1, x]
         ys = np.flatnonzero(col)
         if ys.size == 0:
             continue
         runs = np.split(ys, np.flatnonzero(np.diff(ys) > 1) + 1)
         if len(runs) != 1 or runs[0].size > 6:
             continue  # legend text, a marker, a crossing, or a near-vertical segment
-        y = float(runs[0].mean()) + p.top + margin
+        y = float(runs[0].mean()) + y0
         if marks.size:
             near = marks[np.abs(marks[:, 0] - x) < clear]
             if near.size and np.min(np.abs(near[:, 1] - y)) < clear:
@@ -473,17 +588,29 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     and the *interior major ticks* become the held-out check -- the reverse of the
     appendix test, and just as strong: fit on two numbers, predict the ones you were not
     given.
+
+    **`v_of` needs the column as well as the row.** The frames are tilted (see
+    `Panel.top_slope`), so the row that means `v_hi` depends on where along the panel you
+    are. Reading the value off the left-hand frame position alone put a ramp of up to 4
+    percent of panel height into every trace on pdf p.46.
     """
 
     def x_of(px):
         return T_LO + (np.asarray(px, float) - p.left) / (p.right - p.left) * (T_HI - T_LO)
 
-    def v_of(py):
-        f = (np.asarray(py, float) - p.top) / (p.bottom - p.top)
+    def v_of(py, px):
+        dx = np.asarray(px, float) - p.left
+        top = p.top + p.top_slope * dx
+        bottom = p.bottom + p.bot_slope * dx
+        f = (np.asarray(py, float) - top) / (bottom - top)
         return p.v_hi + f * (p.v_lo - p.v_hi)
 
-    band = ink[p.bottom - 16 : p.bottom - 4, p.left : p.right + 1]
-    hits = np.flatnonzero(band.sum(axis=0) >= 8)
+    # The tick band follows the lower frame too, for the same reason the trace window does.
+    counts = np.zeros(p.right - p.left + 1, dtype=int)
+    for i, x in enumerate(range(p.left, p.right + 1)):
+        yb = p.bot_at(x)
+        counts[i] = int(ink[int(round(yb)) - 16 : int(round(yb)) - 4, x].sum())
+    hits = np.flatnonzero(counts >= 8)
     ticks_px = []
     if hits.size:
         for g in np.split(hits, np.flatnonzero(np.diff(hits) > 3) + 1):
@@ -498,9 +625,53 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     return x_of, v_of, err
 
 
+def check_fuel_panel(fig: int, ts: np.ndarray, vs: np.ndarray, span: float) -> list[str]:
+    """The WFPH panel against the caption. Returns a list of failures, empty if it passes.
+
+    Two things are checked, and the second is the one that matters. The **level** of each
+    plateau against the caption's stated flow catches a wrong axis range (it caught Figure
+    10 being digitized on Figure 9's 250-1000 axis). The **tilt** of each plateau catches
+    a wrong axis *orientation* -- a commanded constant that is not flat is the page skew,
+    and nothing else on either page can reveal it.
+    """
+    lo, hi = FUEL_STEP[fig]
+    mid = 0.5 * (lo + hi)
+    # the FIRST crossing of the half level, not the nearest sample to it: the post-step
+    # plateau of Figure 10 sits only 137 lbm/hr below the half level and wins an argmin.
+    cross = np.flatnonzero(np.diff(np.sign(vs - mid)) != 0)
+    edge = float(ts[int(cross[0])]) if cross.size else float("nan")
+    out: list[str] = []
+    for name, mask, want in (
+        ("pre-step", (ts > 0.15) & (ts < edge - 0.05), lo),
+        ("post-step", ts > edge + 0.60, hi),
+    ):
+        w, u = ts[mask], vs[mask]
+        if w.size < 20:
+            out.append(f"Figure {fig} WFPH {name}: only {w.size} samples, cannot check")
+            continue
+        level = 100.0 * (float(np.median(u)) - want) / span
+        slope = float(np.polyfit(w, u, 1)[0]) * (T_HI - T_LO) / span * 100.0
+        tag = "ok"
+        if abs(level) > FUEL_LEVEL_TOL_PCT_HEIGHT:
+            out.append(
+                f"Figure {fig} WFPH {name} level {level:+.2f} % of panel height "
+                f"(median {np.median(u):.2f} against the caption's {want:.0f})"
+            )
+            tag = "FAIL"
+        if abs(slope) > FUEL_TILT_TOL_PCT_HEIGHT:
+            out.append(
+                f"Figure {fig} WFPH {name} tilt {slope:+.2f} % of panel height over "
+                f"the record -- a commanded constant is not flat, so the panel is skewed"
+            )
+            tag = "FAIL"
+        print(f"    caption check {name:9} level {level:+6.2f} %h  tilt {slope:+6.2f} %h  [{tag}]")
+    return out
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     REF.mkdir(parents=True, exist_ok=True)
+    failures: list[str] = []
     for page, fig in ((45, 9), (46, 10)):
         ink = native_bitmap(page, OUT / f"p{page}.pbm")
         panels = find_panels(ink, PANEL_RANGES[fig])
@@ -549,6 +720,13 @@ def main() -> int:
                     )
                     fh.write(f"# points: {pts.shape[0] - len(dropped)}\n")
                     fh.write(f"# x tick check: worst interior major tick off by {terr:.4f} s\n")
+                    fh.write(
+                        f"# frame tilt corrected: top "
+                        f"{p.top_slope * (p.right - p.left):+.2f} px, bottom "
+                        f"{p.bot_slope * (p.right - p.left):+.2f} px across the panel "
+                        f"({p.tilt_pct_height:+.2f} % of panel height). "
+                        f"The page is skewed; see `frame_tilt`.\n"
+                    )
                     if kind == "reference":
                         fh.write(
                             f"# sample lattice: pitch {info['pitch']:.2f} px "
@@ -581,8 +759,9 @@ def main() -> int:
                             f"t = {', '.join(f'{ts[i]:.5f}' for i in dropped)} s, behind an "
                             f"x-gap of {gaps[cut - 1] / med:.0f}x the median sample interval "
                             f"({med:.5f} s). The curve ends at t={ts[cut - 1]:.5f} s with "
-                            f"value {v_of(pts[cut - 1][1]):.5f}; the dropped samples read "
-                            f"{', '.join(f'{v_of(pts[i][1]):.2f}' for i in dropped)}. "
+                            f"value {v_of(pts[cut - 1][1], pts[cut - 1][0]):.5f}; "
+                            f"the dropped samples read "
+                            f"{', '.join(f'{v_of(pts[i][1], pts[i][0]):.2f}' for i in dropped)}. "
                             f"Re-acquired ink past the end of the plotted curve, not data. "
                             f"See open question #48.\n"
                         )
@@ -591,11 +770,24 @@ def main() -> int:
                     keep = set(range(len(pts))) - set(dropped)
                     for i, (px, py) in enumerate(pts):
                         if i in keep:
-                            fh.write(f"{x_of(px):.5f},{v_of(py):.5f}\n")
+                            fh.write(f"{x_of(px):.5f},{v_of(py, px):.5f}\n")
             print(
                 f"  {p.label:7} model {line.shape[0]:5d} pts | "
-                f"reference {marks.shape[0]:3d} | x tick worst {terr:.4f} s"
+                f"reference {marks.shape[0]:3d} | x tick worst {terr:.4f} s | "
+                f"tilt {p.tilt_pct_height:+.2f} %h"
             )
+            if p.key == "wfph" and line.shape[0]:
+                failures += check_fuel_panel(
+                    fig,
+                    np.array([x_of(px) for px, _ in line]),
+                    np.array([v_of(py, px) for px, py in line]),
+                    abs(p.v_hi - p.v_lo),
+                )
+    if failures:
+        print("\nCAPTION CHECK FAILED -- the digitization does not reproduce the printed step:")
+        for f in failures:
+            print(f"  {f}")
+        return 1
     return 0
 
 
