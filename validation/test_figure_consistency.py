@@ -287,17 +287,19 @@ def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
     Ballin's Figure 9 Ps3(NG) over 92-98 %NG is a straight line -- R^2 = 0.9994, and the
     chord through its two endpoints reproduces the trace to 0.30 %. So a model that
     merely lands on the 400 and 775 lbm/hr trims traces an indistinguishable path there,
-    and Figure 9's 0.59 % agreement adds almost nothing to the steady-state tests.
-    Figure 10 is different: its chord error is **7.24 %**, so our 1.07 % means the
-    trajectory is 6.8x closer to Ballin's than a straight line is.
+    and Figure 9's agreement -- **1.42 %** -- is in fact *larger* than the curvature it
+    would have to explain, so that panel carries nothing.
+    Figure 10 is different: its chord error is **7.24 %**, so our **1.02 %** means the
+    trajectory is about seven times closer to Ballin's than a straight line is.
     `test_the_phase_plane_is_not_a_degenerate_comparison` pins that distinction.
 
     Two further limits, both measured. The metric is **blind to the volume constants**:
     perturbing `K_V3` and `K_V41` by +/-30 % leaves it bit-identical, because the
     real-time formulation solves the pressures algebraically and they drop out. And it is
-    **not converged in dt on Figure 9** -- 1.49 / 1.25 / 0.59 / 1.46 % at dt = 3.5 / 5 /
-    7 / 10 ms, so 0.59 % at the shipped 7 ms is partly cancellation. Figure 10 *is*
-    monotone in dt and improves as the frame shrinks: 0.86 / 0.94 / 1.07 / 1.25 %.
+    **not converged in dt on Figure 9**, so its number at the shipped 7 ms is partly
+    cancellation. Figure 10 behaves properly: monotone in dt, improving as the frame
+    shrinks. (Both were re-measured after the 2026-09-13 trace-alignment fix, which moved
+    Figure 9 from an apparent 0.59 % to a true 1.42 %.)
     """
     tb_n, vb_n = _trace(f"fig{fig:02d}_pcng_model.csv")
     tb_p, vb_p = _trace(f"fig{fig:02d}_ps3_model.csv")

@@ -177,16 +177,17 @@ dynamic; and the printed 0.1 % iteration tolerance costs a further 10–19 % on 
   +0.30 / +0.81 % at the same time — which a real contradiction would forbid.
 - **The state trajectory is right; what is left is the rate along it.** Comparing Ps3 against
   NG instead of against time discards the unprinted step time, leaving the thermodynamic path
-  through the state space. On **Figure 10** ours matches Ballin's to **1.07 % over 78–90 %NG
+  through the state space. On **Figure 10** ours matches Ballin's to **1.02 % over 78–90 %NG
   against a 7.24 % chord baseline** — the chord being the straight line between the two
-  endpoint trims, which the steady-state tests already pin, so being 6.8× closer than it is
-  real shape information. Figure 10's agreement also *improves* as the frame shrinks
-  (1.25 / 1.07 / 0.94 / 0.86 % at dt = 10 / 7 / 5 / 3.5 ms). `dNG/dt` at matched NG runs
+  endpoint trims, which the steady-state tests already pin, so being about seven times
+  closer than it is real shape information. Figure 10's agreement also *improves* as the
+  frame shrinks. `dNG/dt` at matched NG runs
   0.75× Ballin's at 76 %NG and approaches 1 by 88 %, and at 76 % the net torque is **7.5 % of
   the turbine torque it is the difference of**, so 1 % on either term moves the rate 13.3 %.
   **Three things this does not show**, all measured rather than conceded: Figure 9's panel is
-  nearly vacuous (his Ps3(NG) there is a straight line to R² = 0.9994, chord error 0.30 %, so
-  its 0.59 % agreement adds almost nothing to the endpoint trims); the metric is *blind* to
+  worse than vacuous (his Ps3(NG) there is a straight line to R² = 0.9994, chord error 0.30 %,
+  while our deviation is 1.42 % — larger than the curvature it would have to explain); the
+  metric is *blind* to
   the volume constants (±30 % on `K_V3`/`K_V41` is bit-identical, since the real-time
   formulation solves the pressures algebraically); and it cannot exonerate the inertia — ±20 %
   on `J_GT` moves it by about as much as the residual itself.

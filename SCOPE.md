@@ -307,7 +307,7 @@ unprinted step time (open question #37). Tolerances for the last two, ours:
 
 | Comparison | Tolerance | Basis |
 |---|---|---|
-| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | measured 0.59 % worst on Fig. 9, 1.07 % on Fig. 10 over the 78-90 %NG grid the test asserts; 2.15 % at 76 %NG, the last point of his record, which the test does not check |
+| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | measured 1.42 % worst on Fig. 9 and 1.02 % on Fig. 10 over the 78-90 %NG grid the test asserts (both after the 2026-09-13 trace-alignment fix; Fig. 9 previously read 0.59 % against a mis-aligned trace). Fig. 9's panel is uninformative regardless -- a chord through its endpoints fits Ballin's own trace to 0.30 % |
 | Settled state vs the Fig. 6-8 sweep | +/-3 % | the gas-path P,T row above |
 | Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | five of six panels agree to 0.54 % worst (t45); the sixth, torq45, disagrees by 4.84 % and is excluded as bad reference data |
 | Fig. 9/10 initial trim vs the figure | +/-1.5 % | `test_fuel_step.INITIAL_TOL_PCT`; this is the same physics the steady tests already check |
