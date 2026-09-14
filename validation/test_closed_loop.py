@@ -40,6 +40,7 @@ to +1.62.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from t700 import constants as engine_c
@@ -59,10 +60,21 @@ inertia; everything is inside 0.05 % of its final value by 20 s."""
 NP_TRIM_RPM = 20895.0
 """Table B.1's power turbine speed, printed at all three trims [pdf p.67]."""
 
-CLOSED_LOOP_TOL_PCT = 1.0
-"""Ours, declared in `SCOPE.md`. Generous against the measured worst of 0.74 %, which is
-itself inherited: the descent shaft power is 0.72 % out open-loop too, so the control adds
-essentially nothing to it."""
+CLOSED_LOOP_TOL_PCT = 0.5
+"""Ours, declared in `SCOPE.md`. This is the Phase 5 gate.
+
+Measured worst **0.337 %**, descent fuel flow, as a cycle mean over the fifteen
+comparisons. **Tightened 1.0 -> 0.5 on 2026-09-14**, never widened, and the model did not
+change: what changed is the statistic. The loop settles to a limit cycle rather than to a
+point (open question #61), and this file compared a *terminal sample* of it -- one phase,
+depending on where the run happened to stop. That number is 0.876 %, and versions of it
+have been quoted as the headline closed-loop result at 0.74, 0.696, 0.62 and 0.865 % as
+the run length and the seeding moved around. The cycle mean is 0.337 % and does not move.
+
+The worst is still descent fuel flow and it is still partly inherited: descent shaft power
+is -0.900 % out open-loop. The governor converts that error rather than adding to it --
+closed loop, descent shp is -0.019 % and the fuel flow carries it instead, because fuel is
+an output here and the loop trims it until the torque matches."""
 
 # name, Wf lbm/hr, NG rpm, Ps3 psia, shaft torque ft*lbf, dQreq/dNP ratio (#6), shp
 TRIMS = [
@@ -112,10 +124,35 @@ def _dqpt_dnp(result, wf_pps: float) -> float:
     return (q[1] - q[0]) / (2.0 * h)
 
 
+CYCLE_FRAMES = 1500
+"""How many trailing frames to average a closed-loop result over: 10.5 s at 7 ms.
+
+**The loop does not settle to a point. It settles to a limit cycle**, and a terminal
+sample is a phase of that cycle rather than a steady state -- see open question #61, where
+it is traced to `CH`, the printed 0.05 %NG hysteresis on the gas-generator speed sensor
+[Fig. C15, pdf p.91]. Measured peak-to-peak at the three trims: NP 7.5 / 12.0 / 16.7 rpm,
+NG 10.7 / 24.8 / 39.8 rpm, period 5.8 / 4.9 / 4.8 s. It survives step refinement to
+1.75 ms, so it is the model's and not the integrator's.
+
+1500 frames covers at least two full periods at every trim, so the mean is a cycle mean
+and not a phase. It matters: the worst deviation from Table B.1 is **0.308 %** as a cycle
+mean and **0.876 %** as a terminal sample, and this project quoted the terminal number --
+0.62 %, then 0.865 % -- for as long as it has had a closed loop.
+"""
+
+
+def mean_over_cycle(values) -> float:
+    """Mean of a trailing window that spans a whole number of limit-cycle periods."""
+    return float(np.mean(np.asarray(values)[-CYCLE_FRAMES:]))
+
+
 def settle(wf_pph, q_shaft, ratio, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, name=None):
     """Close the loop from the open-loop trim and run it to steady state.
 
     `xcpc_pct` defaults to the collective that trim actually needs -- see `XCPC_PCT`.
+
+    Returns the FINAL state. Use `settle_cycle` where a number is being compared against
+    the report: the final state is one phase of a limit cycle (see `CYCLE_FRAMES`).
     """
     if xcpc_pct is None:
         xcpc_pct = XCPC_PCT[name] if name in XCPC_PCT else 52.75
@@ -141,23 +178,60 @@ def settle(wf_pph, q_shaft, ratio, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, n
     return s, ecu_o, hmu_o, fr
 
 
+def settle_cycle(wf_pph, q_shaft, ratio, name=None, n=SETTLE_FRAMES):
+    """As `settle`, but returning the **mean over the last whole cycles** of each output.
+
+    Also returns the peak-to-peak of each, so a caller can say how much of a deviation is
+    the cycle and how much is the model.
+    """
+    xcpc = XCPC_PCT.get(name, 52.75)
+    wf = wf_pps_from_pph(wf_pph)
+    r = trim.solve(wf, engine_c.NP_DES, AMB)
+    f = frame(r.state, wf, AMB)
+    slope = abs(_dqpt_dnp(r, wf)) * ratio
+    pilot = loop.Pilot(
+        xcpc_pct=xcpc,
+        pas_deg=100.0,
+        pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
+    )
+    st = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+    hist: dict[str, list[float]] = {k: [] for k in ("NG", "NP", "Wf", "Ps3", "shp")}
+    for _ in range(n):
+        st, _e, h, fr = loop.step(
+            st,
+            pilot,
+            AMB,
+            dt=DT,
+            load=lambda v: q_shaft + slope * (v - NP_TRIM_RPM),
+            j_load=engine_c.J_LOAD_UH60A,
+            heat_sink=True,
+        )
+        hist["NG"].append(st.engine.ng_rpm)
+        hist["NP"].append(st.engine.np_rpm)
+        hist["Wf"].append(h.wf_pph)
+        hist["Ps3"].append(engine_c.K_PS3 * st.engine.p3_psia)
+        hist["shp"].append(shp_from_torque(fr.q_pt_ftlbf, st.engine.np_rpm))
+    mean = {k: mean_over_cycle(v) for k, v in hist.items()}
+    ptp = {k: float(np.ptp(np.asarray(v)[-CYCLE_FRAMES:])) for k, v in hist.items()}
+    return mean, ptp
+
+
 @pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
-def test_the_closed_loop_settles_on_the_printed_trim(name, wf, ng, ps3, q, ratio, shp):
-    """Fuel flow is an **output** here. Nothing tells the loop what it should be."""
-    s, _e, h, fr = settle(wf, q, ratio, name=name)
-    got = {
-        "NG": s.engine.ng_rpm,
-        "NP": s.engine.np_rpm,
-        "Wf": h.wf_pph,
-        "Ps3": engine_c.K_PS3 * s.engine.p3_psia,
-        "shp": shp_from_torque(fr.q_pt_ftlbf, s.engine.np_rpm),
-    }
+def test_the_closed_loop_governs_to_the_printed_trim(name, wf, ng, ps3, q, ratio, shp):
+    """Fuel flow is an **output** here. Nothing tells the loop what it should be.
+
+    Compared as a **cycle mean**, not as a terminal sample: the loop settles to a limit
+    cycle rather than to a point (open question #61, `CYCLE_FRAMES`). This test was named
+    `..._settles_on_the_printed_trim` and took the last frame until 2026-09-14, which is
+    both the wrong statistic and the wrong word.
+    """
+    got, ptp = settle_cycle(wf, q, ratio, name=name)
     want = {"NG": ng, "NP": NP_TRIM_RPM, "Wf": wf, "Ps3": ps3, "shp": shp}
     for key, w in want.items():
         dev = 100.0 * (got[key] / w - 1.0)
         assert abs(dev) < CLOSED_LOOP_TOL_PCT, (
-            f"{name} {key}: closed loop settles at {got[key]:.2f} against Table B.1's "
-            f"{w}, {dev:+.3f} %"
+            f"{name} {key}: closed loop governs to {got[key]:.2f} against Table B.1's "
+            f"{w}, {dev:+.3f} % (cycle peak-to-peak {ptp[key]:.3f})"
         )
 
 
@@ -328,3 +402,26 @@ def test_the_closed_loop_stays_inside_its_digitized_data(name, wf, ng, ps3, q, r
         f"way to its settled state. Every number this file reports would then be resting "
         f"on extrapolated maps."
     )
+
+
+def test_the_limit_cycle_is_what_it_is_measured_to_be():
+    """Pin the limit cycle, so it cannot grow or vanish unnoticed.
+
+    It is a property of the report's control system as specified, not a defect in this
+    implementation, and open question #61 sets out the three measurements behind that: it
+    survives step refinement to 1.75 ms, it collapses when `CH` alone is removed, and its
+    amplitude scales with the printed band width.
+
+    `CH` is the gas-generator speed sensor's hysteresis, 0.05 %NG [Fig. C15, pdf p.91] --
+    22 rpm on NG_DES. The governor cannot resolve speed more finely than that, and the loop
+    cycles at 0.5 to 1.8 times the band. Every closed-loop number in this project is a mean
+    over it; `CYCLE_FRAMES` is why.
+    """
+    want = {"hover": (7.5, 10.9), "level 80 kt": (12.0, 24.8), "descent 80 kt": (16.7, 39.8)}
+    for name, wf, _ng, _ps3, q, ratio, _shp in TRIMS:
+        _mean, ptp = settle_cycle(wf, q, ratio, name=name)
+        np_pp, ng_pp = want[name]
+        assert ptp["NP"] == pytest.approx(np_pp, abs=1.0), f"{name} NP p-p {ptp['NP']:.3f}"
+        assert ptp["NG"] == pytest.approx(ng_pp, abs=2.0), f"{name} NG p-p {ptp['NG']:.3f}"
+        # and it must remain small enough that the mean is the honest summary
+        assert 100.0 * ptp["NG"] / _ng < 0.15, f"{name} NG cycle is {ptp['NG']:.1f} rpm"
