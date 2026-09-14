@@ -1,3 +1,6 @@
+<!doctype html>
+<html lang="en">
+<head>
 <title>T700 Replication Report</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -183,6 +186,8 @@ picture{display:block}
 #theme:focus-visible{outline:2px solid var(--ours);outline-offset:2px}
 @media print{#theme{display:none}}
 </style>
+</head>
+<body>
 <button id="theme" type="button" aria-label="Switch colour theme">Theme</button>
 <div class="wrap">
 <header>
@@ -856,28 +861,61 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
 </div>
 <script>
 (function () {
-  var root = document.documentElement, btn = document.getElementById("theme");
-  function apply(mode) {
-    if (mode) { root.setAttribute("data-theme", mode); }
-    var dark = mode === "dark" ||
-      (!mode && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    document.querySelectorAll("img[data-stem]").forEach(function (img) {
-      img.src = "assets/" + img.dataset.stem + "-" + (dark ? "dark" : "light") + ".png";
-    });
-    btn.textContent = dark ? "Light" : "Dark";
+  "use strict";
+  var root = document.documentElement;
+  var btn = document.getElementById("theme");
+  var DARK_MEDIA = "(prefers-color-scheme: dark)";
+  var mq = window.matchMedia(DARK_MEDIA);
+
+  // A <picture> chooses its <source> before the <img>, and it keeps that choice: setting
+  // `img.src` afterwards changes nothing a reader can see while a <source> still matches.
+  // So the toggle drives the SOURCE's media query -- "all" to force the dark asset, "not
+  // all" to rule it out -- and only falls back to the real query when nothing is stamped.
+  // With no JavaScript the query alone still picks the right figure.
+  function applyFigures(mode) {
+    var sources = document.querySelectorAll("picture > source[data-dark]");
+    for (var i = 0; i < sources.length; i++) {
+      sources[i].media = mode === "dark" ? "all" : mode === "light" ? "not all" : DARK_MEDIA;
+    }
   }
+
+  function apply(mode) {
+    if (mode) {
+      root.setAttribute("data-theme", mode);
+    } else {
+      root.removeAttribute("data-theme");
+    }
+    applyFigures(mode);
+    var dark = mode === "dark" || (!mode && mq.matches);
+    btn.textContent = dark ? "Light" : "Dark";
+    btn.setAttribute("aria-label", "Switch to " + (dark ? "light" : "dark") + " theme");
+  }
+
   var stored = null;
-  try { stored = localStorage.getItem("t700-theme"); } catch (e) { stored = null; }
-  apply(stored);
+  try {
+    stored = localStorage.getItem("t700-theme");
+  } catch (e) {
+    stored = null;
+  }
+  apply(stored === "dark" || stored === "light" ? stored : null);
+
   btn.addEventListener("click", function () {
-    var now = root.getAttribute("data-theme") ||
-      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    var now = root.getAttribute("data-theme") || (mq.matches ? "dark" : "light");
     var next = now === "dark" ? "light" : "dark";
-    try { localStorage.setItem("t700-theme", next); } catch (e) { /* private mode */ }
+    try {
+      localStorage.setItem("t700-theme", next);
+    } catch (e) {
+      /* private browsing: the choice just does not persist */
+    }
     apply(next);
   });
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
-    if (!root.hasAttribute("data-theme")) { apply(null); }
+
+  mq.addEventListener("change", function () {
+    if (!root.hasAttribute("data-theme")) {
+      apply(null);
+    }
   });
 })();
 </script>
+</body>
+</html>

@@ -1,3 +1,6 @@
+<!doctype html>
+<html lang="en">
+<head>
 <title>T700 Replication Report</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -183,6 +186,8 @@ picture{display:block}
 #theme:focus-visible{outline:2px solid var(--ours);outline-offset:2px}
 @media print{#theme{display:none}}
 </style>
+</head>
+<body>
 <button id="theme" type="button" aria-label="Switch colour theme">Theme</button>
 <div class="wrap">
 <header>
@@ -269,7 +274,7 @@ picture{display:block}
   <div class="col"><p>Before any comparison: what the engine does across the range the
   report declares it valid over. Nothing on this page is a fit to reference data.</p></div>
 
-  <figure><picture><source srcset="assets/engine-operating-line-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/engine-operating-line-light.png" data-stem="engine-operating-line" alt="Six panels of the equilibrium operating line against gas generator speed: station pressures, station temperatures, air path mass flows, shaft power, specific fuel consumption and bleed fraction." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/engine-operating-line-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/engine-operating-line-light.png" data-stem="engine-operating-line" alt="Six panels of the equilibrium operating line against gas generator speed: station pressures, station temperatures, air path mass flows, shaft power, specific fuel consumption and bleed fraction." loading="lazy"></picture>
     <figcaption>The equilibrium operating line, trimmed at 159 fuel flows from 130 to
     810&nbsp;lbm/hr with the power turbine held at design speed.</figcaption></figure>
 
@@ -293,7 +298,7 @@ picture{display:block}
   exactly zero above 89 %NG and stays there, which the digitizer enforces rather than
   leaving as read noise.</p></div>
 
-  <figure><picture><source srcset="assets/open-loop-family-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/open-loop-family-light.png" data-stem="open-loop-family" alt="Four fuel steps from the same 400 lbm per hour trim plotted together: gas generator speed, turbine inlet temperature, power turbine torque and compressor discharge pressure." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/open-loop-family-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/open-loop-family-light.png" data-stem="open-loop-family" alt="Four fuel steps from the same 400 lbm per hour trim plotted together: gas generator speed, turbine inlet temperature, power turbine torque and compressor discharge pressure." loading="lazy"></picture>
     <figcaption>Open loop, power turbine held at design speed. The T4.1 spike is the
     signature of a fuel step into a fixed air flow: the burner temperature moves before the
     spool can respond, and the station&#8209;4.1 heat sink is what damps it.</figcaption>
@@ -344,7 +349,7 @@ Limit arbitration [Fig. C18] is a fixed cascade, not a min-max soup:
 Everything above is a fuel-flow PARAMETER, Wf/Ps3.  It becomes a fuel flow only at
 the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
 
-  <figure><picture><source srcset="assets/control-schedules-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/control-schedules-light.png" data-stem="control-schedules" alt="Eight panels, one per Appendix C scheduling function, each showing the printed markers and the interpolated curve the model evaluates." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/control-schedules-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/control-schedules-light.png" data-stem="control-schedules" alt="Eight panels, one per Appendix C scheduling function, each showing the printed markers and the interpolated curve the model evaluates." loading="lazy"></picture>
     <figcaption>All eight scheduling functions. Six are single curves; <code>F_HM7</code>
     and <code>F_EC1</code> are two-dimensional and were the hardest extractions in the
     project &mdash; their curves converge and overprint, so they are traced column by column
@@ -369,7 +374,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   <p style="margin-bottom:0">It does, to <strong>0.34 %</strong> worst over fifteen numbers
   &mdash; NG, NP, Wf, Ps3 and shaft power at three trims.</p></div>
 
-  <figure><picture><source srcset="assets/closed-loop-response-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/closed-loop-response-light.png" data-stem="closed-loop-response" alt="Twelve panels: three closed-loop manoeuvres, each showing power turbine speed, fuel flow, gas generator speed and the ECU torque-motor demand." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/closed-loop-response-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/closed-loop-response-light.png" data-stem="closed-loop-response" alt="Twelve panels: three closed-loop manoeuvres, each showing power turbine speed, fuel flow, gas generator speed and the ECU torque-motor demand." loading="lazy"></picture>
     <figcaption>Three manoeuvres at the hover trim. Fuel flow is an output in every one of
     these panels. The collective slam is the load-demand feedforward exercised alone &mdash;
     the load here is a function of speed only, so moving the collective moves what the
@@ -436,7 +441,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     </tbody>
   </table></div>
 
-  <figure><picture><source srcset="assets/engine-maps-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/engine-maps-light.png" data-stem="engine-maps" alt="Twelve panels covering Appendix A's eleven engine function tables plus a comparison of the compressor map's 89 percent speed line drawn two ways." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/engine-maps-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/engine-maps-light.png" data-stem="engine-maps" alt="Twelve panels covering Appendix A's eleven engine function tables plus a comparison of the compressor map's 89 percent speed line drawn two ways." loading="lazy"></picture>
     <figcaption>Appendix&nbsp;A&rsquo;s function tables. Crosses are the printed markers; the
     line is what the model actually evaluates. Axis titles are read from each data
     file&rsquo;s own provenance header rather than typed.</figcaption></figure>
@@ -592,7 +597,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   </div>
 
   <h3 style="margin-top:42px">6.1 &nbsp;Table B.1 &mdash; the printed engine state</h3>
-  <figure><picture><source srcset="assets/table-b1-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/table-b1-light.png" data-stem="table-b1" alt="Bar chart of the deviation from each of Table B.1's 21 printed numbers, with the closed-loop result overlaid as diamonds." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/table-b1-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/table-b1-light.png" data-stem="table-b1" alt="Bar chart of the deviation from each of Table B.1's 21 printed numbers, with the closed-loop result overlaid as diamonds." loading="lazy"></picture>
     <figcaption>Bars are the open loop, fuel prescribed. Diamonds are the closed loop, where
     fuel is an output and the engine must find the printed state on its own.</figcaption></figure>
   <div class="scroll"><table>
@@ -603,7 +608,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   </table></div>
 
   <h3 style="margin-top:42px">6.2 &nbsp;Table 1 &mdash; every printed eigenvalue</h3>
-  <figure><picture><source srcset="assets/eigenvalues-all-models-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/eigenvalues-all-models-light.png" data-stem="eigenvalues-all-models" alt="Left: all 27 eigenvalues Table 1 prints, each paired with ours, on a log scale. Right: the 3-DOF and 6-DOF spectra, which Table 1 does not print, taken from Ballin's own matrices." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/eigenvalues-all-models-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/eigenvalues-all-models-light.png" data-stem="eigenvalues-all-models" alt="Left: all 27 eigenvalues Table 1 prints, each paired with ours, on a log scale. Right: the 3-DOF and 6-DOF spectra, which Table 1 does not print, taken from Ballin's own matrices." loading="lazy"></picture>
     <figcaption>Left, everything Table&nbsp;1 prints, across three model variants. Right, the
     two spectra it does <em>not</em> &mdash; recovered from Ballin&rsquo;s own printed
     matrices, which is the only way those variants can be checked by eigenvalue at
@@ -635,7 +640,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   no figure digitization, no read error and no eyeballing. A structural error in any component
   equation shows up as a wrong matrix element that points straight at the offending partial
   derivative.</p></div>
-  <figure><picture><source srcset="assets/appendix-b-elements-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/appendix-b-elements-light.png" data-stem="appendix-b-elements" alt="Left: every non-zero printed element plotted against ours on log-log axes, hugging the identity line over eight decades. Right: the same deviations grouped by block." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/appendix-b-elements-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/appendix-b-elements-light.png" data-stem="appendix-b-elements" alt="Left: every non-zero printed element plotted against ours on log-log axes, hugging the identity line over eight decades. Right: the same deviations grouped by block." loading="lazy"></picture>
     <figcaption>Eight decades, 10<sup>&minus;2</sup> to 10<sup>6</sup>. The right panel is
     where the structure is.</figcaption></figure>
   <div class="scroll"><table>
@@ -653,7 +658,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   unprinted time constants, not about the structure.</p></div>
 
   <h3 style="margin-top:42px">6.4 &nbsp;Figures 6&ndash;8 &mdash; the steady sweeps</h3>
-  <figure><picture><source srcset="assets/figures-6-8-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figures-6-8-overlay-light.png" data-stem="figures-6-8-overlay" alt="Three overlay plots: our model against Ballin's real-time series and two GE reference series." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/figures-6-8-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figures-6-8-overlay-light.png" data-stem="figures-6-8-overlay" alt="Three overlay plots: our model against Ballin's real-time series and two GE reference series." loading="lazy"></picture>
     <figcaption>Our curve drawn over Ballin&rsquo;s markers, with both GE series shown for
     context. The GE data is not the target &mdash; agreeing with it more closely than Ballin
     does would not be evidence of anything.</figcaption></figure>
@@ -672,11 +677,11 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   further is fitting to one of two sources that contradict each other.</p></div>
 
   <h3 style="margin-top:42px">6.5 &nbsp;Figures 9 and 10 &mdash; the fuel transients</h3>
-  <figure><picture><source srcset="assets/figure-9-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figure-9-overlay-light.png" data-stem="figure-9-overlay" alt="Six panels of Figure 9, the fuel step up from 400 to 775 lbm per hour." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/figure-9-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figure-9-overlay-light.png" data-stem="figure-9-overlay" alt="Six panels of Figure 9, the fuel step up from 400 to 775 lbm per hour." loading="lazy"></picture>
     <figcaption>The step up. The sixth panel is the input &mdash; both its levels are printed
     in the caption, so drawing it shows the step our model was given is the step Ballin&rsquo;s
     was.</figcaption></figure>
-  <figure><picture><source srcset="assets/figure-10-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figure-10-overlay-light.png" data-stem="figure-10-overlay" alt="Six panels of Figure 10, the fuel chop from 400 to 125 lbm per hour." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/figure-10-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figure-10-overlay-light.png" data-stem="figure-10-overlay" alt="Six panels of Figure 10, the fuel chop from 400 to 125 lbm per hour." loading="lazy"></picture>
     <figcaption>The chop. Ballin&rsquo;s trace stops at about t&nbsp;=&nbsp;4.47&nbsp;s on every
     panel, with the speed still falling at &minus;2.09 %NG per second &mdash; so neither trace
     has settled and comparisons must be made at matched times.</figcaption></figure>
@@ -693,7 +698,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
       <th scope="col">against the 4 % ratchet</th></tr></thead>
     <tbody><tr><td class="mono">Fig 9 &middot; torq45</td><td class="mono">0.673</td><td><span class="bar solo"><i class="pos" style="left:0;width:17%"></i></span></td></tr><tr><td class="mono">Fig 9 &middot; t41</td><td class="mono">0.706</td><td><span class="bar solo"><i class="pos" style="left:0;width:18%"></i></span></td></tr><tr><td class="mono">Fig 9 &middot; ps3</td><td class="mono">0.760</td><td><span class="bar solo"><i class="pos" style="left:0;width:19%"></i></span></td></tr><tr><td class="mono">Fig 9 &middot; t45</td><td class="mono">0.836</td><td><span class="bar solo"><i class="pos" style="left:0;width:21%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; pcng</td><td class="mono">1.447</td><td><span class="bar solo"><i class="pos" style="left:0;width:36%"></i></span></td></tr><tr><td class="mono">Fig 9 &middot; pcng</td><td class="mono">1.474</td><td><span class="bar solo"><i class="pos" style="left:0;width:37%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; ps3</td><td class="mono">1.698</td><td><span class="bar solo"><i class="pos" style="left:0;width:42%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; torq45</td><td class="mono">2.421</td><td><span class="bar solo"><i class="pos" style="left:0;width:61%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; t45</td><td class="mono">2.937</td><td><span class="bar solo"><i class="pos" style="left:0;width:73%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; t41</td><td class="mono">3.820</td><td><span class="bar solo"><i class="pos" style="left:0;width:95%"></i></span></td></tr></tbody>
   </table></div>
-  <figure><picture><source srcset="assets/phase-plane-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/phase-plane-light.png" data-stem="phase-plane" alt="Both transients plotted as compressor discharge pressure against gas generator speed, with the Figure 8 equilibrium locus dashed." loading="lazy"></picture>
+  <figure><picture><source data-dark srcset="assets/phase-plane-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/phase-plane-light.png" data-stem="phase-plane" alt="Both transients plotted as compressor discharge pressure against gas generator speed, with the Figure 8 equilibrium locus dashed." loading="lazy"></picture>
     <figcaption>The same transients with the time axis discarded &mdash; the comparison that
     does not depend on when the step happened. Both run below the equilibrium locus by
     construction: a choked station&#8209;4.1 nozzle passes the same flow at a lower pressure
@@ -844,28 +849,61 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
 </div>
 <script>
 (function () {
-  var root = document.documentElement, btn = document.getElementById("theme");
-  function apply(mode) {
-    if (mode) { root.setAttribute("data-theme", mode); }
-    var dark = mode === "dark" ||
-      (!mode && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    document.querySelectorAll("img[data-stem]").forEach(function (img) {
-      img.src = "assets/" + img.dataset.stem + "-" + (dark ? "dark" : "light") + ".png";
-    });
-    btn.textContent = dark ? "Light" : "Dark";
+  "use strict";
+  var root = document.documentElement;
+  var btn = document.getElementById("theme");
+  var DARK_MEDIA = "(prefers-color-scheme: dark)";
+  var mq = window.matchMedia(DARK_MEDIA);
+
+  // A <picture> chooses its <source> before the <img>, and it keeps that choice: setting
+  // `img.src` afterwards changes nothing a reader can see while a <source> still matches.
+  // So the toggle drives the SOURCE's media query -- "all" to force the dark asset, "not
+  // all" to rule it out -- and only falls back to the real query when nothing is stamped.
+  // With no JavaScript the query alone still picks the right figure.
+  function applyFigures(mode) {
+    var sources = document.querySelectorAll("picture > source[data-dark]");
+    for (var i = 0; i < sources.length; i++) {
+      sources[i].media = mode === "dark" ? "all" : mode === "light" ? "not all" : DARK_MEDIA;
+    }
   }
+
+  function apply(mode) {
+    if (mode) {
+      root.setAttribute("data-theme", mode);
+    } else {
+      root.removeAttribute("data-theme");
+    }
+    applyFigures(mode);
+    var dark = mode === "dark" || (!mode && mq.matches);
+    btn.textContent = dark ? "Light" : "Dark";
+    btn.setAttribute("aria-label", "Switch to " + (dark ? "light" : "dark") + " theme");
+  }
+
   var stored = null;
-  try { stored = localStorage.getItem("t700-theme"); } catch (e) { stored = null; }
-  apply(stored);
+  try {
+    stored = localStorage.getItem("t700-theme");
+  } catch (e) {
+    stored = null;
+  }
+  apply(stored === "dark" || stored === "light" ? stored : null);
+
   btn.addEventListener("click", function () {
-    var now = root.getAttribute("data-theme") ||
-      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    var now = root.getAttribute("data-theme") || (mq.matches ? "dark" : "light");
     var next = now === "dark" ? "light" : "dark";
-    try { localStorage.setItem("t700-theme", next); } catch (e) { /* private mode */ }
+    try {
+      localStorage.setItem("t700-theme", next);
+    } catch (e) {
+      /* private browsing: the choice just does not persist */
+    }
     apply(next);
   });
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
-    if (!root.hasAttribute("data-theme")) { apply(null); }
+
+  mq.addEventListener("change", function () {
+    if (!root.hasAttribute("data-theme")) {
+      apply(null);
+    }
   });
 })();
 </script>
+</body>
+</html>

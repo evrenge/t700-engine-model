@@ -134,6 +134,7 @@ Every number in the Tolerance column is checked against the constant the code as
 not.
 
 | Comparison | Tolerance | Basis |
+|---|---|---|
 | Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | `test_figure_consistency.PHASE_PLANE_TOL_PCT`. Measured **1.03 %** worst on Fig. 9 and **1.76 %** on Fig. 10, rms 0.77 and 1.24, over the grids the test asserts. These have moved four times: the … |
 | Settled state vs the Fig. 6-8 sweep | +/-0.5 % | `test_figure_consistency.BOTH_SIDES_TOL_PCT`. **Tightened 3 -> 0.5 on 2026-09-14**, never widened: the two digitizer corrections of that day (#63, #64) took the worst of the six comparisons from 1.92 … |
 | Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | `test_figure_consistency.SHARED_TRIM_TOL_PCT`. All six panels agree since the 2026-09-14 deskew (#63): worst **0.93 %** on torq45, 0.25 % on the other five. It was five of six, with torq45 … |
@@ -161,6 +162,7 @@ There is no single per-element tolerance. Fifteen distinct bounds exist across
 magnitude because the printed elements do:
 
 | block | bound | test |
+|---|---|---|
 | `b`, the fuel column, 5-DOF | +/-0.2 % | `test_the_fuel_column_is_essentially_exact` |
 | 6-DOF T41 column | +/-1.0 % | `test_six_dof_t41_column_is_close` |
 | P3 / P41 pressure block, 5-DOF | +/-1.5 % | `test_the_pressure_block_agrees_closely` |

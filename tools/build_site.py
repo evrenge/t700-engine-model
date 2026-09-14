@@ -139,7 +139,8 @@ def picture(stem: str, alt: str) -> str:
     """A figure that follows the reader's theme, and can be swapped by the toggle."""
     return (
         f"<picture>"
-        f'<source srcset="assets/{stem}-dark.png" media="(prefers-color-scheme: dark)">'
+        f'<source data-dark srcset="assets/{stem}-dark.png" '
+        f'media="(prefers-color-scheme: dark)">'
         f'<img src="assets/{stem}-light.png" data-stem="{stem}" alt="{alt}" loading="lazy">'
         f"</picture>"
     )
