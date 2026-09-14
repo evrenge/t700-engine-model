@@ -53,7 +53,7 @@ flight power and the unwind at >= 2 s.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from t700 import constants as engine_c
 from t700.control import constants as c
@@ -252,8 +252,11 @@ def step(state: ECUState, u: ECUInputs, dt: float) -> tuple[ECUState, ECUOutputs
     spdsp = c.XKPROP * spdss + pi_int
     spdg_lag = lag(state.spdg_lag, spdsp, c.CT16, dt)
 
-    new = replace(
-        state,
+    # Every field of `ECUState` is rewritten here, so this is a construction and not a
+    # modification; `dataclasses.replace` introspects the field list on each call to
+    # rediscover that, which cost ~4 us a frame for nothing. Naming them keeps the
+    # positional order from mattering.
+    new = ECUState(
         pcnp_lag=pcnp_lag,
         trql_lag1=trql_lag1,
         trql_lag2=trql_lag2,

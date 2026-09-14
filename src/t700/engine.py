@@ -36,6 +36,7 @@ The report's, throughout: lbm, lbm/sec, psia, deg R, rpm, ft*lbf, Btu/lbm. See
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import sqrt
 
 import numpy as np
 
@@ -232,7 +233,7 @@ def frame(
     # checked claim rather than an assumption -- see
     # `tests/test_mass_conservation.py::test_the_combustor_flow_guards_never_fire`.
     dp = p3 * (p3 - p41)
-    wa31 = float(np.sqrt(max(dp, 0.0) / (c.K_DPB * t3)))  # (18)
+    wa31 = sqrt(max(dp, 0.0) / (c.K_DPB * t3))  # (18)
     substituted = dp <= 0.0 or wa31 <= 0.0
     far = wf_pps / wa31 if wa31 > 0.0 else 0.0  # (19)
     eta_b = float(maps.f6()(far))  # (20)
@@ -251,7 +252,7 @@ def frame(
     # --- gas generator turbine, Eqs. 26-28 --------------------------------------------
     dh_gt = theta41 * float(maps.f7()(p45 / p41))  # (26)
     h44 = h41 - dh_gt  # (27)
-    w41 = c.K_WGT * p41 / np.sqrt(theta41)  # (28)
+    w41 = c.K_WGT * p41 / sqrt(theta41)  # (28)
 
     # --- station 4.5 mixing, Eqs. 29-31 -----------------------------------------------
     h45 = thermo.h45_from_h44(h44)  # (29)
@@ -265,7 +266,7 @@ def frame(
     # --- power turbine, Eqs. 32-36 ----------------------------------------------------
     dh_pt = theta45 * float(maps.f8()(p49 / p45))  # (32)
     w45c = float(maps.f9()(ps9 / p45))  # (33)
-    w45 = w45c * p45 / np.sqrt(theta45)  # (34)
+    w45 = w45c * p45 / sqrt(theta45)  # (34)
     h49 = h45 - dh_pt  # (35)
     t49 = thermo.t49_from_h49(h49)  # (36)
 

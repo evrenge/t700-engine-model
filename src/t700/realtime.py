@@ -60,6 +60,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from math import sqrt
 from typing import Final
 
 import numpy as np
@@ -384,15 +385,23 @@ def _inner_pressure_loop(
     median. The true median, 0.0746 %, supports the claim better than the number quoted
     for it.)
     """
+    # T3, theta_41 and WA31 are held fixed across the sweep -- that is what makes it
+    # "eleven arithmetic operations for each pass" [pdf p.37] -- so everything built from
+    # them alone is formed once. The groupings are the printed expressions' own
+    # left-to-right association, lifted verbatim, so every pass sees the same bits it did
+    # when the products were rebuilt each time.
+    sqrt_theta41 = sqrt(theta41)
+    dpb_t3 = t3 * c.K_DPB
+    four_dpb_t3_wa31_sq = 4.0 * c.K_DPB * t3 * wa31 * wa31
     prev3 = prev41 = 0.0
     first3 = first41 = 0.0
     exit_ = Exit.CAPPED
     it = 0
     while it < max_iter:
         it += 1
-        p3_new = 0.5 * (p41 + np.sqrt(p41 * p41 + 4.0 * c.K_DPB * t3 * wa31 * wa31))  # (76)
-        w41 = c.K_WGT * p41 / np.sqrt(theta41)
-        p41_new = p3_new - t3 * c.K_DPB * (w41 - wf) ** 2 / p3_new  # (78) with (77)
+        p3_new = 0.5 * (p41 + sqrt(p41 * p41 + four_dpb_t3_wa31_sq))  # (76)
+        w41 = c.K_WGT * p41 / sqrt_theta41
+        p41_new = p3_new - dpb_t3 * (w41 - wf) ** 2 / p3_new  # (78) with (77)
         step3, step41 = abs(p3_new - p3), abs(p41_new - p41)
         p3, p41 = p3_new, p41_new
         if it == 1:
@@ -480,7 +489,7 @@ def _p45_loop(
     `Exit.BISECTED` marks the frames that took the fallback, so the cost and its extent are
     visible in `run()`'s traces rather than hidden. Open question #57.
     """
-    numerator = (w41 + b3 * c.K_BL * wa2) * np.sqrt(theta45)
+    numerator = (w41 + b3 * c.K_BL * wa2) * sqrt(theta45)
     f9 = maps.f9()
     entering = p45
 
@@ -498,10 +507,71 @@ def _p45_loop(
         prev = step
 
     # --- it did not reach the printed criterion, so solve the printed equation -------
-    root, steps = _p45_bisect(entering, numerator, ps9, f9)
-    if root is None:
-        return float(p45), it, Exit.DIVERGING
-    return float(root), it + steps, Exit.BISECTED
+    root = _p45_exact(numerator, ps9, f9)
+    if root is None:  # f9 not non-increasing, so phi may not be monotone: bracket instead
+        root, steps = _p45_bisect(entering, numerator, ps9, f9)
+        if root is None:
+            return float(p45), it, Exit.DIVERGING
+        return float(root), it + steps, Exit.BISECTED
+    f9(ps9 / root)  # one lookup, so a root off the end of f9's table still counts a clamp
+    return float(root), it + 1, Exit.BISECTED
+
+
+def _p45_exact(numerator: float, ps9: float, f9) -> float | None:
+    """Solve `P45 = N / f9(Ps9/P45)` exactly, on f9's own piecewise-linear table.
+
+    Same equation, same data, same root -- and no iteration at all. Substituting
+    `u = Ps9/P45` turns Eq. 80 into
+
+        Ps9/u = N/f9(u)     <=>     f9(u) = (N/Ps9) * u
+
+    a piecewise-linear function against a straight line through the origin. So the root is
+    where a line crosses one of f9's segments, which is one division once the segment is
+    known.
+
+    **`phi(u) = f9(u) - m*u` is strictly decreasing**, because f9 is conditioned
+    non-increasing (`maps.f9`: corrected flow cannot rise as back pressure rises) and
+    `m = N/Ps9 > 0`. So the root is unique and a binary search over the 23 knots finds its
+    segment in five comparisons. Off either end f9 is its clamped constant and the root is
+    `y_end/m` -- still exact, because a constant is still a segment.
+
+    This is what `_p45_bisect` was approximating, and the elasticity argument in
+    `_p45_loop` is why the printed successive substitution could not: bracketing was the
+    right response to a repelling fixed point, but Eq. 80 did not need a *numerical* root
+    finder at all once the table it looks up is the piecewise-linear thing it is.
+
+    Measured over every fallback the published transients take -- 801 of them, across
+    Figure 10's chop and held trims from 110 to 175 lbm/hr -- the bisection's answer sits
+    within **3.05e-6** relative of this one, inside its own `TOL_P45_BISECT` of 1e-5 as it
+    must, at a mean of **16.0** bisection steps and sixteen f9 lookups apiece. The root
+    here satisfies Eq. 80 to better than **1e-12** relative on all 801, so the move is
+    toward the true root and not away from it. What it costs downstream is bounded and
+    small: over Figure 10's chop the largest movement in any channel is **0.00045 % of
+    that channel's own excursion** (P45; NG moves 0.0046 rpm in 8188), and every trim,
+    every Appendix B matrix and Figure 9's accel are bit-identical because none of them
+    ever takes this path.
+
+    Returns `None` if f9 is not non-increasing, in which case `phi` may not be monotone and
+    the caller falls back to bracketing. That cannot happen for the shipped table.
+    """
+    m = numerator / ps9
+    if not f9.non_increasing:
+        return None
+    xl, yl, n = f9._xl, f9._yl, f9._n
+    if yl[0] - m * xl[0] <= 0.0:  # the root sits on the left clamped extension
+        return ps9 / (yl[0] / m)
+    if yl[n - 1] - m * xl[n - 1] >= 0.0:  # ... or on the right one
+        return ps9 / (yl[n - 1] / m)
+    lo, hi = 0, n - 1
+    while hi - lo > 1:
+        mid = (lo + hi) >> 1
+        if yl[mid] - m * xl[mid] >= 0.0:
+            lo = mid
+        else:
+            hi = mid
+    x0, y0 = xl[lo], yl[lo]
+    s = (yl[lo + 1] - y0) / (xl[lo + 1] - x0)
+    return ps9 / ((s * x0 - y0) / (s - m))
 
 
 def _p45_bisect(
@@ -714,7 +784,7 @@ def step(
     p3, p41, inner_iters, inner_exit = _inner_pressure_loop(
         st.p3_psia, st.p41_psia, t3, theta41, wa31, wf_pps, tol=tol
     )
-    w41 = c.K_WGT * p41 / np.sqrt(theta41)  # (28)
+    w41 = c.K_WGT * p41 / sqrt(theta41)  # (28)
 
     ps9 = p2  # (37)
     p49 = ps9 * float(maps.f10()(ngc_pct))  # (38)
@@ -728,7 +798,7 @@ def step(
     p45, p45_iters, p45_exit = _p45_loop(st.p45_psia, w41, b3, wa2, theta45, ps9, tol=tol)
 
     dh_pt = theta45 * float(maps.f8()(p49 / p45))  # (32)
-    w45 = float(maps.f9()(ps9 / p45)) * p45 / np.sqrt(theta45)  # (33), (34)
+    w45 = float(maps.f9()(ps9 / p45)) * p45 / sqrt(theta45)  # (33), (34)
 
     # --- torques and the two surviving integrations -----------------------------------
     q_c = _TORQUE_SCALE / st.ng_rpm * (wa2 * (c.K_QC_1 * h3 - h2) + wa3 * c.K_QC_2 * h3)  # (39)

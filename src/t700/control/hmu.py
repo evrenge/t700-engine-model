@@ -50,7 +50,7 @@ CLAUDE.md's architecture constraint. Every state is named for the block that own
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from t700 import constants as engine_c
 from t700.control import constants as c
@@ -271,8 +271,8 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
     wfmv_lag = lag(state.wfmv_lag, clamp(wfmv, c.WFMIN, c.WFMAX), c.CLMV, dt)
     history, wf_pph = delay(state.wf_history, wfmv_lag, c.FUEL_TRANSPORT_DELAY, dt)
 
-    new = replace(
-        state,
+    # All ten fields are rewritten -- see the note in `ecu.step`.
+    new = HMUState(
         tm_leadlag=tm_leadlag,
         tm_integrator=tm_integrator,
         ps3_lag=ps3_lag,

@@ -35,7 +35,7 @@ restatement. `validation/test_closed_loop.py` is where it is made.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from t700 import constants as engine_c
 from t700 import realtime
@@ -187,8 +187,8 @@ def step(
         heat_sink=heat_sink,
         dt_np=dt_np,
     )
-    new = replace(
-        state,
+    # All six fields are rewritten -- see the note in `ecu.step`.
+    new = LoopState(
         engine=eng_state,
         ecu=ecu_state,
         hmu=hmu_state,
