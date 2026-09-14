@@ -19,12 +19,15 @@ the two qualifications on that). Everything here is derived from it.
 
 | | |
 |---|---|
-| **Table B.1's full printed state** | **rms 0.24 % over 21 numbers** — worst shp 0.91 % at descent |
-| Jacobian eigenvalues vs Table 1 | worst **+7.6 %** on the 2-DOF NG mode, down from −22.6 % |
-| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 1.3–7.7 % of each panel's excursion, mean 3.5 %** over nine panels — Figure 9 1.3–5.2 %, Figure 10 1.9–7.7 % |
-| Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants the report prints; ~150 numerically compared element by element; `b` worst 0.15 % |
-| **Closed loop vs Table B.1** | **worst 0.62 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output*** |
-| Tests | 997 passing, 3 skipped, lint and formatting clean |
+| **Table B.1's full printed state** | **rms 0.24 % over 21 numbers** — worst shp −0.90 % at descent |
+| Figure 6, gas generator speed vs fuel flow | mean **−0.00 %NG**, rms 0.24, worst −1.01 over 28 points |
+| Figure 7, shaft power vs fuel flow | mean −0.13 %, rms **0.64 %**, worst −1.72 over 14 points |
+| Figure 8, Ps3 vs gas generator speed | mean −0.32 %, rms **0.43 %**, worst −0.94 over 26 points |
+| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 1.2–4.7 % of each panel's excursion, mean 2.7 %** over ten panels |
+| Jacobian eigenvalues vs Table 1 | worst **+7.6 %** on the 2-DOF NG mode; the *discrete* frame map, which is what Ballin ran, does better — −3.2 / +4.1 / −1.0 % |
+| Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants; 200 non-zero elements compared, A rms **7.3 %**, and the 5-DOF fuel column `b` to **0.06–0.12 %** |
+| **Closed loop vs Table B.1** | **worst 0.34 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output***, averaged over the governor's own limit cycle |
+| Tests | 1044 passing, 1 skipped, lint and formatting clean; the whole suite runs in 30 s |
 
 Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
@@ -56,7 +59,7 @@ data/reference/  transient and sweep traces to validate against
 tools/           the digitizers; each reproduces its CSV byte for byte
 tests/           fast unit tests, and the architecture rules as executable checks
 validation/      comparisons against the report, and the figure set
-docs/notes/      ~7,400 lines: equations, symbols, inventories, open questions
+docs/notes/      ~7,500 lines: equations, symbols, inventories, open questions
 ```
 
 ## The rules this was built under
@@ -141,13 +144,14 @@ the real-time numerics. Linearizing **our** `realtime.step` as a six-state discr
 including Eq. 74's carried mass flow, which the continuous model does not have — and
 converting with `logm(A_d)/dt` puts a number on that:
 
-| hover NG mode | value | vs Ballin's −2.69 |
-|---|---|---|
-| continuous 2-DOF / reduced-5 | −2.444 | −9.1 % |
-| **discrete map at the report's own 7 ms frame** | **−2.728** | **+1.4 %** |
+| NG mode, per second | hover | level | descent |
+|---|---|---|---|
+| Table 1, printed | −2.69 | −2.23 | −1.82 |
+| continuous 2-DOF / reduced-5 | −2.539 (−5.6 %) | −2.399 (+7.6 %) | −1.897 (+4.2 %) |
+| **discrete map at the report's own 7 ms frame** | **−2.605 (−3.2 %)** | **−2.321 (+4.1 %)** | **−1.802 (−1.0 %)** |
 
-So most of the gap is the frame, not the physics, and Table 1 column 4 becomes an
-independent check we pass at two trims of three. Refining the frame converges it back to
+So part of the gap is the frame, not the physics — the discrete map is closer at all three
+trims — and Table 1 column 4 becomes an independent check rather than a puzzle. Refining the frame converges it back to
 the continuous value first-order. Two by-products: **two** of the frame map's six modes are
 discretization artifacts rather than dynamics — their *discrete* eigenvalues stay a fixed
 fraction per **frame** as the frame shrinks, so neither has a continuous limit. P45's
@@ -218,7 +222,7 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   difference of**, so 1 % on either term moves the rate 15 %.
   **Three things this does not show**, all measured rather than conceded: Figure 9's panel is
   worse than vacuous (his Ps3(NG) there is a straight line to R² = 0.9994, chord error 0.30 %,
-  while our deviation is 1.66 % — larger than the curvature it would have to explain); the
+  while our deviation is 1.03 % — larger than the curvature it would have to explain); the
   metric is *blind* to
   the volume constants (±30 % on `K_V3`/`K_V41` is bit-identical, since the real-time
   formulation solves the pressures algebraically); and it cannot exonerate the inertia — ±20 %
@@ -269,10 +273,16 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
 
   | | before | after |
   |---|---|---|
-  | sub-idle trims, 125–175 lbm/hr | −7.07 to −0.21 % | **≤0.003 %** |
+  | sub-idle trims, 125–175 lbm/hr | −7.07 to −0.21 % | **0.0000 %** |
   | dependence on `MAX_ITER_P45` | parity-selected, two roots | **none, caps 2–21 identical** |
-  | Figure 10 floor | 69.90 %NGc | **74.08** (Ballin: 74.18) |
-  | Figure 10 worst panel | 13.15 % | **7.72 %** |
+  | Figure 10 floor | 69.90 %NGc | **73.77** (Ballin: 74.93) |
+  | Figure 10 worst panel | 13.15 % | **4.71 %** |
+
+  The sub-idle figure is exactly zero because Eq. 80 does not need a numerical root finder
+  at all: substituting `u = Ps9/P45` makes it a piecewise-linear function against a line
+  through the origin, `f9` is conditioned non-increasing, and the root is therefore unique
+  and one divide away once its segment is found. `_p45_bisect` was approximating what
+  `_p45_exact` now computes. Found by the performance audit, which was looking for speed.
   | nine-panel mean | 4.40 % | **3.51 %** |
 
   This is a **deliberate departure** from the method the report describes — [pdf p.37]
@@ -338,12 +348,22 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   started, not discovered at the end. The check that *is* available turns out to be a
   strong one, because the engine and the control were digitized from different halves of
   the report and neither knows the other exists: close the loop, hold the load at Table
-  B.1's printed shaft torque, and the model settles on the printed trims **with fuel flow
-  as an output** — worst **0.62 %** across NG, NP, Wf, Ps3 and shp at three conditions, on
+  B.1's printed shaft torque, and the model governs to the printed trims **with fuel flow
+  as an output** — worst **0.337 %** across NG, NP, Wf, Ps3 and shp at three conditions, on
   descent fuel flow. **The governor does not inherit the open-loop shaft-power error, it
-  converts it**: descent shp is −0.724 % open-loop and **+0.101 %** closed, because fuel
+  converts it**: descent shp is −0.900 % open-loop and **−0.019 %** closed, because fuel
   flow is an output and the loop trims it until the torque matches, absorbing the error
-  into Wf instead. This paragraph said "worst 0.74 %, and that one is inherited (the
+  into Wf instead.
+
+  **It governs; it does not settle.** The loop runs a sustained limit cycle — NP 7.5 / 12.0
+  / 16.7 rpm peak to peak at the three trims, NG 10.7 / 24.8 / 39.8, period 4.8–5.8 s — and
+  every number above is a mean over whole cycles. It is `CH`, the printed 0.05 %NG
+  hysteresis on the gas-generator speed sensor [Fig. C15]: remove that one block and the
+  amplitude collapses by 96 %, it survives refining the frame to 1.75 ms, and it scales
+  with the band. A hysteretic sensor inside a governor does this, and the report prints no
+  closed-loop time history to compare an amplitude against. What it costs is the statistic:
+  a *terminal sample* of that cycle is 0.876 % and depends on where the run stops, and this
+  project quoted terminal samples — 0.74, 0.696, 0.62, 0.865 % — until 2026-09-14. This paragraph said "worst 0.74 %, and that one is inherited (the
   descent shaft power is 0.72 % out open-loop too)" until 2026-09-13; the 2026-09-13
   accuracy audit rebuilt the tree at the commit that wrote it and measured 0.696 % with
   descent shp +0.115 %, so both the number and the attribution were wrong when written. The

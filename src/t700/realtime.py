@@ -477,8 +477,11 @@ def _p45_loop(
       * the frame map's own sub-idle equilibria, up to **-7.07 %NG** at 150 lbm/hr and
         identical at tol 1e-3 and 1e-9, are gone: every flow from 125 to 175 lbm/hr now
         agrees with the differential trim to **0.003 %** or better.
-      * Figure 10's floor moves **69.90 -> 74.08 %NGc** against Ballin's 74.18, its worst
-        whole-curve panel **13.15 -> 7.72 %**, and the nine-panel mean **4.40 -> 3.51 %**.
+      * Figure 10's floor moves **69.90 -> 73.77 %NGc** against Ballin's 74.93, its worst
+        whole-curve panel **13.15 -> 4.71 %**, and the ten-panel mean **4.40 -> 2.65 %**.
+        (Ballin's floor reads 74.93 and not the 74.18 this note carried until 2026-09-14;
+        pdf p.46 is skewed and every trace on it was low by up to 4.2 % of panel height.
+        Open question #63.)
         Figure 9 does not move.
 
     The cost is the pass count, and it is real: below about 160 lbm/hr this loop runs a

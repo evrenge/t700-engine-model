@@ -244,9 +244,14 @@ def test_which_tables_are_extrapolated_at_which_trims():
     and **a constant has no domain to leave**, so what was the most-reported clamp in the
     project has ceased to exist rather than been suppressed. See `maps.f6`.
 
-    **`f1@65` is clamped at 150 lbm/hr**, which is the 65 % speed line being asked for
-    pressure ratios past its own last knot while it brackets the 80 % line from below.
-    That is open question #58 and it is where Figure 10's residual now lives.
+    **`f1` no longer appears in this census at any trim.** It was clamped at 150 lbm/hr --
+    the 65 % speed line asked for pressure ratios past its own last knot while it brackets
+    the 80 % line from below -- and that was open question #58, "f1's 15-point data hole",
+    believed to be where Figure 10's residual lived. On the beta grid each speed line ends
+    at its own surge limit and blending two lines blends their limits too, so the query
+    stays on the map: **zero of 715 frames** on either published transient. #58 closed
+    2026-09-14 and the row records that the hole was real as a statement about the data and
+    irrelevant as a diagnosis.
 
     `trustworthy` is deliberately not tightened to `fully_on_data`: that would reject the
     top third of the power range over an `f6` clamp worth 1e-4.

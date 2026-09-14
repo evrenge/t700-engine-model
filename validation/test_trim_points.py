@@ -362,8 +362,10 @@ STATE_B1 = {
 STATE_TOL_PCT = 0.5
 """Tolerance on the printed station pressures and temperatures.
 
-Measured worst deviations are Ps3 0.31 %, P41 0.30 %, P45 0.25 %, T45 0.16 % and T41
-0.08 %, so 0.5 % is a ratchet a little above the worst rather than a target. Note the
+Measured worst deviations are Ps3 **0.366 %**, P41 0.358, P45 0.283, T45 0.188 and T41
+0.099, all at descent, so 0.5 % is a ratchet a little above the worst rather than a target.
+(This line read 0.31 / 0.30 / 0.25 / 0.16 / 0.08 until 2026-09-14 -- all five understated,
+measured before the `f1` beta grid landed.) Note the
 printed T41 and T45 carry only four significant figures with a trailing decimal point --
 "2292." -- so a quarter of a degree is the printing resolution at T41 and the agreement
 there is at that limit."""
@@ -382,11 +384,15 @@ def test_the_printed_station_state_matches(case: TrimCase):
     (open question #53 records the retraction) -- while a printed Ps3 sat in Table B.1 the
     whole time.
 
-    It is also the anchor that settled the f1 interpolation question. Scored on all
-    twenty-one printed numbers, the shipped constant-pressure-ratio blend gives an rms
-    deviation of 0.202 % against 0.244 % for interpolation along Figure A1's own beta
-    lines -- so the structurally tidier construction is measurably worse here, and is not
-    shipped. See open question #52.
+    It is also the anchor against which the `f1` interpolation question was scored, and
+    this paragraph had the answer backwards until 2026-09-14. Over all twenty-one printed
+    numbers, interpolation at constant **pressure ratio** gives rms **0.2018 %** and
+    interpolation at constant **beta** gives **0.2439 %** -- and beta is what ships. It is
+    measurably worse on this table and better on everything derivative: the worst Table 1
+    NG mode goes -22.6 % to +7.6 %, and the chop stops leaving the compressor map entirely,
+    389 frames to zero. The trade was made deliberately and is recorded in open questions
+    **#43** (the interpolation ambiguity) and **#60** (the beta grid as a departure); the
+    "#52" this line cited is Eq. 29's energy balance, a different subject.
     """
     want = STATE_B1[case.name]
     r = _solve(case)

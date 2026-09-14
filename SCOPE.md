@@ -184,7 +184,9 @@ Two independent lines:
    **`f1` is interpolated at constant beta** as of 2026-09-14 -- 0 at the choked end of a
    speed line, 1 at surge -- along the beta grid Figure A1 prints for itself. That closed
    open question #58 (there was no data hole) and took the worst Table 1 NG mode from
-   -22.6 % to -11.8 %, at a cost of 0.2018 -> 0.2355 % on Table B.1's rms. It redistributed
+   -22.6 % to **+7.57 %**, at a cost of 0.2018 -> **0.2439 %** on Table B.1's rms -- the
+   analytic beta grid that ships, not the printed-marker variant, whose numbers (-11.8 %
+   and 0.2355 %) this line quoted until 2026-09-14. It redistributed
    the #43 derivative ambiguity rather than closing it.
 
    Two limits found during extraction, both real:
@@ -330,7 +332,7 @@ unprinted step time (open question #37). Tolerances for the last two, ours:
 
 | Comparison | Tolerance | Basis |
 |---|---|---|
-| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | measured **1.66 %** worst on Fig. 9 and **1.30 %** on Fig. 10 over the 78-90 %NG grid the test asserts. Both moved twice on 2026-09-13: the trace-alignment fix (Fig. 9 read 0.59 % against a mis-aligned trace, then 1.42 %) and the P3/P41 stopping-rule correction. Fig. 9's panel is uninformative regardless -- a chord through its endpoints fits Ballin's own trace to 0.30 % |
+| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | `test_figure_consistency.PHASE_PLANE_TOL_PCT`. Measured **1.03 %** worst on Fig. 9 and **1.76 %** on Fig. 10, rms 0.77 and 1.24, over the grids the test asserts. These have moved four times: the 2026-09-13 trace-alignment fix and P3/P41 stopping-rule correction, then the 2026-09-14 page deskew and per-panel time axis (#63). Fig. 9's panel is uninformative regardless -- a chord through its endpoints fits Ballin's own trace to 0.30 % |
 | Settled state vs the Fig. 6-8 sweep | +/-0.5 % | `test_figure_consistency.BOTH_SIDES_TOL_PCT`. **Tightened 3 -> 0.5 on 2026-09-14**, never widened: the two digitizer corrections of that day (#63, #64) took the worst of the six comparisons from 1.92 % to 0.179 % |
 | Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | `test_figure_consistency.SHARED_TRIM_TOL_PCT`. All six panels agree since the 2026-09-14 deskew (#63): worst **0.93 %** on torq45, 0.25 % on the other five. It was five of six, with torq45 disagreeing by 5.10 % and excluded as bad reference data -- which was our own page skew |
 | Fig. 9/10 initial trim vs the figure | +/-1.5 % | `test_fuel_step.INITIAL_TOL_PCT`; this is the same physics the steady tests already check |

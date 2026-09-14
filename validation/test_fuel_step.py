@@ -179,7 +179,7 @@ def test_settled_state_matches_the_figure(fig: int, wf_hi: float, t_step: float,
     # question #48). Widening this window silently corrupts the comparison.
     late_them = vb[(tb > 4.0) & (tb < 4.6)]
     if late_them.size == 0:
-        pytest.skip("no settled reference samples")
+        pytest.skip("no settled reference samples")  # fig 10 TORQ45 ends before t = 4.0
     dev = (late_us.mean() - late_them.mean()) / abs(late_them.mean()) * 100.0
     assert abs(dev) < FINAL_TOL_PCT[fig], (
         f"fig {fig} {key}: settled {late_us.mean():.1f} against Ballin's "
@@ -202,7 +202,7 @@ def test_step_up_stays_inside_the_compressor_map():
 
 
 def test_step_down_runs_off_the_bottom_of_the_maps():
-    """Figure 10 still reads `f1` outside its data, and the floor is now Ballin's.
+    """Figure 10 stays inside `f1`, and the floor is 1.16 %NG below Ballin's.
 
     ## The history, because it is the point of this test
 
@@ -214,9 +214,15 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     | inner `tol=1e-10` on the step, cap 40 -- invented, pre-2026-09-12 | 70.94 % |
     | inner `tol=1e-3` on the **step** -- the printed number, wrong quantity | 74.64 % |
     | inner on the **error**, Eq. 80 as printed | 69.92 % |
-    | inner on the error, **Eq. 80 solved** when its iteration fails | **74.09 %** |
+    | inner on the error, **Eq. 80 solved** when its iteration fails | **73.77 %** |
 
-    Against Ballin's own 74.18 %. The second row looked like a triumph and was not: testing
+    Against Ballin's own **74.93 %**, which is itself a corrected number: pdf p.46 is
+    scanned at a slight rotation and every trace on it read low by up to 4.2 % of panel
+    height until 2026-09-14, putting his floor at 74.18 (open question #63). So the gap is
+    -1.16 %NG, not the -0.09 this docstring claimed, and it is the largest single
+    disagreement left on either transient figure.
+
+    The second row looked like a triumph and was not: testing
     the iterate step rather than the error under-converges the inner loop by a factor of
     `rho/(1-rho)` ~ 8, and the lag damped the plunge into near-agreement. The third row is
     what the inner loop honestly gives with Eq. 80 left as printed. The fourth is what both
@@ -225,7 +231,7 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     So the deep plunge was **Eq. 80's fixed-point iteration**, which does not converge where
     f9's elasticity is below -1, and not the compressor map. That matters because the third
     row was attributed to `f1` at the time, and on that attribution the whole-curve ratchet
-    was raised from 8 to 14 %. It is back at 8.
+    was raised from 8 to 14 %. It is at 5.
 
     ## And the `f1` extrapolation was never real either
 
@@ -249,20 +255,24 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     anything: `f6` is loaded as the constant Figure A6 draws, and a constant has no domain
     to leave. See `maps.f6`.
 
-    Figure 10's reference data is also the weaker of the two: its `WFPH` settles 4.35 %
-    from the value its caption states, against 0.23 % for Figure 9, and its `TORQ45`
-    panel yielded only 16 markers against 45 elsewhere and is not used.
+    Figure 10's reference data was also thought to be the weaker of the two, and that was
+    ours as well: its `WFPH` settled 4.35 % from the value its caption states against 0.23 %
+    for Figure 9, and its `TORQ45` panel disagreed with Figure 9's by 5.10 % and was
+    excluded. Both were the page skew. The fuel panel now settles **0.87 % of panel height**
+    from the caption and TORQ45 agrees with Figure 9 to 0.93 %, so it is back in the
+    comparison. What remains true of that panel is the marker count, 13 against 45 -- but
+    those are the GE reference series, not the model trace this file compares against.
     """
     maps.reset_clamps()
     tr = _run(10, 125.0, STEP_TIME[10])
     ngc = 100.0 * tr["ng"] / c.NG_DES
     rep = maps.clamp_report()
 
-    # Ours bottoms at 74.09 %, Ballin's at 74.18. The window is tight on both sides: a
+    # Ours bottoms at 73.77 %, Ballin's at 74.93. The window is tight on both sides: a
     # floor that fell back toward 70 % would mean a pressure solve has stopped converging,
     # and one that rose would mean the fuel cut is no longer being followed.
-    assert 73.0 < ngc.min() < 75.0, (
-        f"NGc bottoms at {ngc.min():.2f} %, against Ballin's 74.18 % and our 74.09 % on "
+    assert 73.4 < ngc.min() < 74.2, (
+        f"NGc bottoms at {ngc.min():.2f} %, against Ballin's 74.93 % and our 73.77 % on "
         f"record. If this has fallen, check that both pressure solves still converge "
         f"before believing the model changed physically."
     )

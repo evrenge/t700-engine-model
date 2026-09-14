@@ -82,16 +82,21 @@ class TrimResult:
         Measured across the fuel-flow range, so the shape of it is on record rather than
         discovered per-caller:
 
-            110 lbm/hr   f3, f8, f9         (NGc 65.0 %, the bottom of f1's parameter range)
+            115 lbm/hr   f8, f9             (NGc 65.0 %, the bottom of f1's parameter range)
             125          f8
-            150          f1@65, f8          (NGc 74.0 %, inside f1's 65-80 % data hole)
-            200-550      none
-            590 and up   f6                 (FAR passes f6's tabulated 0.02000)
+            150          f8
+            200-700      none
+            775          f9                 (Ps9/P45 passes f9's tabulated 0.85012)
 
-        `f6` is therefore clamped at **every trim above about 590 lbm/hr**, which is the
-        top third of the power range including the 775 lbm/hr endpoint of Figure 9. It is
-        numerically harmless -- f6 is a two-point, nearly constant table, 0.98504 to
-        0.98496, so clamping it costs 1e-4 -- but it is extrapolation and it is reported.
+        **Two entries this table used to carry have ceased to exist**, and both are worth
+        knowing about rather than quietly dropping. `f1@65` appeared at 150 lbm/hr while the
+        map was interpolated at constant abscissa; on the beta grid every speed line ends at
+        its own surge limit and the blend carries the limit with it, so the query no longer
+        leaves the map. `f6` appeared at every trim above about 590 lbm/hr -- the top third
+        of the power range, Figure 9's endpoint included -- and it is now loaded as the
+        constant Figure A6 draws, which has no domain to leave. See
+        `validation/test_steady_sweeps.py::test_which_tables_are_extrapolated_at_which_trims`,
+        which is where the census is asserted rather than remembered.
         """
         return tuple(sorted(self.clamps_at_solution))
 

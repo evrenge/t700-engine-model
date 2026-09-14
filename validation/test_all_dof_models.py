@@ -109,9 +109,16 @@ def test_np_stays_decoupled_in_every_variant(dof: DOF, trim_no: int):
 def test_two_dof_ng_mode_against_table_1_column_4(trim_no: int):
     """Our quasi-steady model's NG mode against Table 1's 2-DOF column.
 
-    -9.1 / -0.3 / -22.6 % at the three trims. The shape of that is the `f1` knot story
-    again, not a new fault: level sits mid-segment on the compressor map's speed lines and
-    lands within 0.3 %, while hover and descent sit on a knot and do not.
+    **-5.62 / +7.57 / +4.21 %** at hover / level / descent, in this file's own magnitude
+    convention. The shape is the `f1` knot story of `docs/notes/derivative-ambiguity.md`,
+    not a new fault -- but which trim carries it moved when `f1` went onto a beta grid.
+    It read -9.1 / -0.3 / -22.6 % with level mid-segment and the other two on a knot; the
+    beta grid redistributed that rather than removing it, and level is now the worst.
+    Open question #43.
+
+    The *discrete* frame map -- the thing Ballin actually ran -- is closer than this
+    continuous model at all three trims: -3.17 / +4.10 / -1.01 %. See
+    `validation/test_discrete_map.py`.
     """
     ng = _model(DOF.TWO, trim_no).comparable_eigenvalues[-1]
     want = TABLE_1_2DOF[trim_no]
