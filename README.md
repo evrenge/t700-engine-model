@@ -29,7 +29,8 @@ the two qualifications on that). Everything here is derived from it.
 | **Closed loop vs Table B.1** | **worst 0.34 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output***, averaged over the governor's own limit cycle |
 | Tests | 1044 passing, 1 skipped, lint and formatting clean; the whole suite runs in 30 s |
 
-Phases 0–4 and 6 of `SCOPE.md` are complete for the engine: the report is ingested, the data
+Phases 0–4 of `SCOPE.md` are complete for the engine and Phase 6 is substantially
+complete — `SCOPE.md` names the remaining gaps: the report is ingested, the data
 captured, and the engine trims and runs transients in **either of the two configurations
 Ballin published** — with or without the station 4.1 heat-sink model.
 
