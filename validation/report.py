@@ -38,6 +38,7 @@ for _p in (HERE, HERE.parent / "src"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+import plotstyle  # noqa: E402
 from t700 import appendix_b as ab  # noqa: E402
 from t700 import constants as c  # noqa: E402
 from t700 import trim  # noqa: E402
@@ -45,16 +46,40 @@ from t700.engine import Ambient, frame  # noqa: E402
 from t700.linear import DOF, extract  # noqa: E402
 from t700.units import shp_from_torque, wf_pps_from_pph  # noqa: E402
 
-OUT = HERE / "out" / "report"
+OUT = HERE.parent / "site" / "assets"
 REF = HERE.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
 
-OURS = "#2a78d6"
-BALLIN = "#eb6834"
-GE = "#1baf7a"
-GE2 = "#8d6cd1"
-MUTED = "#52514e"
-GRID = "#e3e2df"
+THEME = plotstyle.LIGHT
+"""The theme the next figure is drawn in. Rebound by `use_theme`.
+
+Every sheet draws through the colour names below, and `main` renders the whole set once per
+theme so the page can hand a reader the variant their system asks for. The cost is that each
+sheet's model runs happen twice; this is a build step and not on any hot path, and splitting
+a dozen sheets into compute and draw halves for the sake of it would double the file."""
+
+OURS = THEME.ours
+BALLIN = THEME.ballin
+GE = THEME.ge
+GE2 = THEME.ge2
+MUTED = THEME.muted
+GRID = THEME.grid
+
+
+def use_theme(theme: plotstyle.Theme) -> None:
+    """Point the module's colour names at one theme's tokens."""
+    global THEME, OURS, BALLIN, GE, GE2, MUTED, GRID
+    THEME = theme
+    OURS, BALLIN, GE, GE2 = theme.ours, theme.ballin, theme.ge, theme.ge2
+    MUTED, GRID = theme.muted, theme.grid
+
+
+def save(fig, stem: str) -> None:
+    """Write `<stem>-<theme>.png` into the site's asset directory."""
+    OUT.mkdir(parents=True, exist_ok=True)
+    fig.savefig(OUT / f"{stem}-{THEME.name}.png", dpi=140)
+    plt.close(fig)
+
 
 TRIMS = ("hover", "level 80 kt", "descent 80 kt")
 WF_PPH = {1: 476.3, 2: 349.3, 3: 267.7}
@@ -96,18 +121,12 @@ STATE_B1 = {
 
 
 def _style(ax, xlabel="", ylabel="", title=""):
-    ax.set_facecolor("white")
-    ax.grid(True, color=GRID, lw=0.8, zorder=0)
-    ax.set_axisbelow(True)
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    for side in ("left", "bottom"):
-        ax.spines[side].set_color(GRID)
-    ax.tick_params(colors=MUTED, labelsize=8)
-    ax.set_xlabel(xlabel, color=MUTED, fontsize=9)
-    ax.set_ylabel(ylabel, color=MUTED, fontsize=9)
+    """Labels and title. Grid, spines, tick colours and faces all come from rcParams."""
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
     if title:
-        ax.set_title(title, color="#1a1917", fontsize=10, loc="left", pad=8)
+        ax.set_title(title, fontfamily=[plotstyle.SANS_CONDENSED, plotstyle.SANS])
+    plotstyle.mono_ticks(ax, THEME)
 
 
 def _csv(path: Path, xc: str, yc: str):
@@ -167,7 +186,6 @@ def steady_sweeps() -> dict:
 
     out = {}
     fig, axes = plt.subplots(1, 3, figsize=(16.5, 4.8))
-    fig.patch.set_facecolor("white")
 
     for ax, (no, spec) in zip(axes, sorted(FIG678.items()), strict=True):
         rt = _csv(REF / f"{spec['file']}_realtime.csv", spec["xc"], spec["yc"])
@@ -208,7 +226,7 @@ def steady_sweeps() -> dict:
             "o",
             color=BALLIN,
             ms=5,
-            mec="white",
+            mec=THEME.ground,
             mew=0.8,
             zorder=4,
             label="Ballin real-time",
@@ -233,8 +251,7 @@ def steady_sweeps() -> dict:
         }
 
     fig.tight_layout()
-    fig.savefig(OUT / "figures-6-8-overlay.png", dpi=140)
-    plt.close(fig)
+    save(fig, "figures-6-8-overlay")
     return out
 
 
@@ -263,7 +280,6 @@ def transients() -> dict:
         tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
         t = tr["t"]
         fig, axes = plt.subplots(2, 3, figsize=(16.5, 8.2))
-        fig.patch.set_facecolor("white")
         panels = {}
 
         for ax, key in zip(axes.ravel(), list(PANEL_LABEL), strict=True):
@@ -311,17 +327,13 @@ def transients() -> dict:
             _style(ax, "time, s", unit, f"{label}")
             ax.legend(frameon=False, fontsize=7.5, labelcolor=MUTED, loc="best")
 
-        fig.suptitle(
+        plotstyle.title(
+            fig,
             f"Figure {no} [pdf p.{ {9: 45, 10: 46}[no] }] -- "
             f"fuel step 400 -> {wf_hi:.0f} lbm/hr, heat sink on",
-            color="#1a1917",
-            fontsize=11,
-            x=0.012,
-            ha="left",
         )
         fig.tight_layout(rect=(0, 0, 1, 0.965))
-        fig.savefig(OUT / f"figure-{no}-overlay.png", dpi=135)
-        plt.close(fig)
+        save(fig, f"figure-{no}-overlay")
         out[f"figure_{no}"] = panels
     return out
 
@@ -478,7 +490,6 @@ def eigenvalues() -> dict:
 def eigenvalue_plot(data: dict) -> None:
     """Table 1's 27 printed modes against ours, and the two spectra the report omits."""
     fig, axes = plt.subplots(1, 2, figsize=(15.5, 5.4), width_ratios=[1.35, 1.0])
-    fig.patch.set_facecolor("white")
 
     ax = axes[0]
     rows = data["table_1"]
@@ -561,8 +572,7 @@ def eigenvalue_plot(data: dict) -> None:
     ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="upper left")
 
     fig.tight_layout()
-    fig.savefig(OUT / "eigenvalues-all-models.png", dpi=140)
-    plt.close(fig)
+    save(fig, "eigenvalues-all-models")
 
 
 # ============================================================ Appendix B, 297 elements
@@ -610,7 +620,6 @@ def appendix_b() -> dict:
             blocks.setdefault(f"{dofno}-DOF b", []).append(d)
 
     fig, axes = plt.subplots(1, 2, figsize=(14.5, 5.6))
-    fig.patch.set_facecolor("white")
     ax = axes[0]
     px = np.array([abs(p[0]) for p in pairs])
     py = np.array([abs(p[1]) for p in pairs])
@@ -662,8 +671,7 @@ def appendix_b() -> dict:
         "By block. The 6-DOF b is the one with a shape, and it is the heat sink's",
     )
     fig.tight_layout()
-    fig.savefig(OUT / "appendix-b-elements.png", dpi=140)
-    plt.close(fig)
+    save(fig, "appendix-b-elements")
 
     return {
         "A": _stats(np.array(a_dev)),
@@ -704,7 +712,6 @@ def phase_plane() -> dict:
     import test_fuel_step as tfs
 
     fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.4))
-    fig.patch.set_facecolor("white")
     out = {}
     for ax, (no, wf_hi) in zip(axes, ((9, 775.0), (10, 125.0)), strict=True):
         tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
@@ -733,15 +740,13 @@ def phase_plane() -> dict:
         bal_i = np.interp(grid, vb[o], bal_ps3[o])
         out[f"figure_{no}"] = _stats(100.0 * (ours_i - bal_i) / np.abs(bal_i))
     fig.tight_layout()
-    fig.savefig(OUT / "phase-plane.png", dpi=140)
-    plt.close(fig)
+    save(fig, "phase-plane")
     return out
 
 
 def table_b1_plot(b1: dict, cl: dict) -> None:
     """Open loop and closed loop against the same 21 printed numbers."""
     fig, ax = plt.subplots(figsize=(13.0, 5.2))
-    fig.patch.set_facecolor("white")
     rows = b1["rows"]
     labels = [f"{r['trim'].split()[0][:4]} {r['quantity']}" for r in rows]
     idx = np.arange(len(rows))
@@ -780,13 +785,10 @@ def table_b1_plot(b1: dict, cl: dict) -> None:
     )
     ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
     fig.tight_layout()
-    fig.savefig(OUT / "table-b1.png", dpi=140)
-    plt.close(fig)
+    save(fig, "table-b1")
 
 
-def main() -> int:
-    OUT.mkdir(parents=True, exist_ok=True)
-    data: dict = {}
+def _render(data: dict) -> None:
     print("figures 6-8 ...", flush=True)
     data["steady"] = steady_sweeps()
     print("figures 9-10 ...", flush=True)
@@ -815,9 +817,6 @@ def main() -> int:
     data["schedules"] = sheet_schedules()
     print("engine maps ...", flush=True)
     data["engine_maps"] = sheet_engine_maps()
-    (OUT / "report.json").write_text(json.dumps(data, indent=1))
-    print(f"\nwrote {OUT}/report.json and {len(list(OUT.glob('*.png')))} plots")
-    return 0
 
 
 # ============================================ the model's own behaviour, with no reference
@@ -865,7 +864,6 @@ def sheet_engine_steady() -> dict:
     g["sfc"] = g["wf"] / np.maximum(g["shp"], 1e-9)
 
     fig, axes = plt.subplots(2, 3, figsize=(16.5, 8.0))
-    fig.patch.set_facecolor("white")
     panels = [
         (
             "station pressures",
@@ -898,17 +896,13 @@ def sheet_engine_steady() -> dict:
         _style(ax, "gas generator speed, %NG", unit, title)
         if len(series) > 1:
             ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
-    fig.suptitle(
+    plotstyle.title(
+        fig,
         "The equilibrium operating line, 130 to 810 lbm/hr. No reference data -- this is "
         "the model's own behaviour",
-        color="#1a1917",
-        fontsize=11,
-        x=0.012,
-        ha="left",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.965))
-    fig.savefig(OUT / "engine-operating-line.png", dpi=135)
-    plt.close(fig)
+    save(fig, "engine-operating-line")
 
     return {
         "ng_range_pct": [float(g["ng"].min()), float(g["ng"].max())],
@@ -936,7 +930,6 @@ def sheet_open_loop() -> dict:
     steps = [(125.0, "#9c5bd0"), (250.0, GE), (550.0, OURS), (775.0, BALLIN)]
 
     fig, axes = plt.subplots(1, 4, figsize=(17.0, 4.3))
-    fig.patch.set_facecolor("white")
     out = {}
     for pph, col in steps:
         st = realtime.from_trim(r0, f0.wa31_pps, f0)
@@ -976,17 +969,13 @@ def sheet_open_loop() -> dict:
     ):
         _style(ax, "time, s", ylab, title)
     axes[0].legend(frameon=False, fontsize=7.5, labelcolor=MUTED, loc="best", title="lbm/hr")
-    fig.suptitle(
+    plotstyle.title(
+        fig,
         "Open loop: four fuel steps from the same 400 lbm/hr trim, heat sink on, "
         "power turbine held at design speed",
-        color="#1a1917",
-        fontsize=11,
-        x=0.012,
-        ha="left",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.94))
-    fig.savefig(OUT / "open-loop-family.png", dpi=135)
-    plt.close(fig)
+    save(fig, "open-loop-family")
     return out
 
 
@@ -1060,7 +1049,6 @@ def sheet_closed_loop() -> dict:
     ]
 
     fig, axes = plt.subplots(3, 4, figsize=(17.0, 10.2))
-    fig.patch.set_facecolor("white")
     out = {}
     for row, (label, d) in zip(axes, cases, strict=True):
         for ax, key, ylab, title, col in (
@@ -1081,17 +1069,13 @@ def sheet_closed_loop() -> dict:
             "wf_settled": float(d["wf"][-200:].mean()),
             "limits_used": sorted(set(d["lim"])),
         }
-    fig.suptitle(
+    plotstyle.title(
+        fig,
         "Closed loop: the Appendix C control system on the engine at the hover trim. "
         "Fuel flow is an output",
-        color="#1a1917",
-        fontsize=11,
-        x=0.012,
-        ha="left",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.968))
-    fig.savefig(OUT / "closed-loop-response.png", dpi=130)
-    plt.close(fig)
+    save(fig, "closed-loop-response")
     return out
 
 
@@ -1143,7 +1127,6 @@ def sheet_schedules() -> dict:
         ),
     ]
     fig, axes = plt.subplots(2, 4, figsize=(17.0, 7.6))
-    fig.patch.set_facecolor("white")
     out = {}
     for ax, (name, src, xl, yl, fn, what) in zip(axes.ravel(), specs, strict=False):
         cur = fn()
@@ -1160,7 +1143,7 @@ def sheet_schedules() -> dict:
             color=MUTED,
             va="bottom",
             zorder=5,
-            bbox=dict(fc="white", ec="none", alpha=0.82, pad=1.8),
+            bbox=dict(fc=THEME.ground, ec="none", alpha=0.82, pad=1.8),
         )
         out[name] = {
             "knots": int(cur.x.size),
@@ -1213,17 +1196,13 @@ def sheet_schedules() -> dict:
         "params": [float(v) for v in ec.params],
     }
 
-    fig.suptitle(
+    plotstyle.title(
+        fig,
         "Appendix C's eight scheduling functions. None exists as a table -- the fuel control "
         "is specified entirely as pictures",
-        color="#1a1917",
-        fontsize=11,
-        x=0.012,
-        ha="left",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.955))
-    fig.savefig(OUT / "control-schedules.png", dpi=135)
-    plt.close(fig)
+    save(fig, "control-schedules")
     return out
 
 
@@ -1278,7 +1257,6 @@ def sheet_engine_maps() -> dict:
         ("f_hs", "Fig. A11, p.66", "station 4.1 heat-sink constant, Eq. 52"),
     ]
     fig, axes = plt.subplots(3, 4, figsize=(17.0, 10.0))
-    fig.patch.set_facecolor("white")
     out = {}
     for ax, (name, src, what) in zip(axes.ravel(), single, strict=False):
         cur = getattr(maps, name)()
@@ -1296,7 +1274,7 @@ def sheet_engine_maps() -> dict:
             color=MUTED,
             va="bottom",
             zorder=5,
-            bbox=dict(fc="white", ec="none", alpha=0.82, pad=1.8),
+            bbox=dict(fc=THEME.ground, ec="none", alpha=0.82, pad=1.8),
         )
         out[name] = {
             "knots": int(cur.x.size),
@@ -1346,18 +1324,37 @@ def sheet_engine_maps() -> dict:
     _style(ax, fx, fy, "f1's 89 % line -- the one departure that shows")
     ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc="best")
 
-    fig.suptitle(
+    plotstyle.title(
+        fig,
         "Appendix A's eleven engine function tables, as digitized. Crosses are the printed "
         "markers; the line is what the model evaluates",
-        color="#1a1917",
-        fontsize=11,
-        x=0.012,
-        ha="left",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.958))
-    fig.savefig(OUT / "engine-maps.png", dpi=130)
-    plt.close(fig)
+    save(fig, "engine-maps")
     return out
+
+
+def main() -> int:
+    """Every sheet, once per theme. The numbers are identical, so only the first set keeps.
+
+    `plotstyle.available()` is reported rather than enforced: without IBM Plex installed
+    Matplotlib falls back to DejaVu and the figures are still correct, just not typeset like
+    the page they sit in.
+    """
+    OUT.mkdir(parents=True, exist_ok=True)
+    if not plotstyle.available():
+        print("NOTE: IBM Plex is not installed; figures will fall back to DejaVu Sans.")
+    data: dict = {}
+    for theme in plotstyle.THEMES:
+        print(f"\n=== {theme.name} ===", flush=True)
+        use_theme(theme)
+        with plotstyle.context(theme):
+            _render(data if theme is plotstyle.THEMES[0] else {})
+    (OUT / "report.json").write_text(json.dumps(data, indent=1))
+    pngs = sorted(OUT.glob("*.png"))
+    print(f"\nwrote {OUT}/report.json and {len(pngs)} plots "
+          f"({len(pngs) // len(plotstyle.THEMES)} figures x {len(plotstyle.THEMES)} themes)")
+    return 0
 
 
 if __name__ == "__main__":

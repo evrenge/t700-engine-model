@@ -1,0 +1,45 @@
+# Publish `site/` to GitHub Pages.
+#
+# The site is committed, not built here: `validation/report.py` needs NumPy, SciPy and
+# Matplotlib and it re-runs the whole model to produce the figures, which is a developer
+# step rather than a CI one. What this workflow does is upload what the repository already
+# holds, so the published page is exactly the one in the tree and a reviewer can diff it.
+#
+# To regenerate before committing:
+#     PYTHONPATH=src python validation/report.py
+#     python tools/build_site.py
+#
+# One-time repository setting: Settings -> Pages -> Source -> "GitHub Actions".
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

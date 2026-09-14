@@ -19,7 +19,15 @@ RUN dnf install -y \
         python3 python3-pip \
         poppler-utils \
         git \
+        ibm-plex-sans-fonts ibm-plex-mono-fonts ibm-plex-serif-fonts \
+    && fc-cache -f \
     && dnf clean all
+
+# The three IBM Plex families are what `validation/plotstyle.py` sets Matplotlib to, so
+# the figures in `site/` are typeset in the same faces as the page around them. Without
+# them Matplotlib falls back to DejaVu Sans silently and the plots still render -- the
+# style module says so rather than failing, because a missing font is not a reason to
+# stop a validation run.
 
 COPY pyproject.toml /tmp/t700/pyproject.toml
 COPY requirements-recorded.txt /tmp/t700/requirements-recorded.txt
