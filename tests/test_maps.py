@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from t700 import maps
+from t700._data import DATA_ROOT
 
 ALL_CURVES = ("f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f_hs")
 
@@ -80,6 +81,40 @@ def test_bleed_fractions_are_physical():
 def test_combustor_efficiency_is_near_unity():
     c = maps.f6()
     assert 0.9 < c.y.min() and c.y.max() < 1.0
+
+
+def test_f6_is_loaded_as_the_constant_figure_a6_draws():
+    """Open question #62's departure, pinned so it cannot be undone without a test failing.
+
+    Nothing detected it before 2026-09-14. `test_combustor_efficiency_is_near_unity` above
+    passes on the digitized slope too -- the two printed endpoints are 0.985038 and
+    0.984965, which differ by **7.3e-5**, so every range check in this file is blind to
+    whether `f6` is a constant or a line. That is the same hole
+    `test_f1_is_on_a_beta_grid_not_the_printed_table` exists to close for #60, found the
+    same way: revert the departure and watch the suite stay green.
+
+    Three things are asserted, and the third is what keeps the provenance honest.
+    """
+    c = maps.f6()
+    assert c.y.size >= 2
+    assert len(set(c.y.tolist())) == 1, (
+        f"f6 is not constant: {c.y}. Figure A6 draws one horizontal line, and the tilt on "
+        f"the page is the page (open question #62). If this is deliberate, move #62 to "
+        f"closed and say why here."
+    )
+    # the value is the mean of the two printed endpoints, not either one of them
+    assert c.y[0] == pytest.approx(0.5 * (0.985038 + 0.984965), abs=1e-9), c.y[0]
+    # and the CSV still carries the ink as measured: the conditioning is what makes it
+    # constant, so the chain back to the page is unbroken and the reproducibility gate
+    # still has something to reproduce.
+    raw = [
+        ln.split(",")
+        for ln in (DATA_ROOT / "maps" / "f6_combustor_efficiency.csv").read_text().splitlines()
+        if ln and not ln.startswith("#") and not ln.startswith("x,")
+    ]
+    ys = [float(r[1]) for r in raw]
+    assert len(set(ys)) == 2, f"the f6 CSV should still hold the two measured points: {ys}"
+    assert maps.CONDITIONING["f6"] == pytest.approx(abs(ys[0] - c.y[0]), rel=1e-6)
 
 
 def test_compressor_temperature_ratio_rises_with_pressure_ratio():

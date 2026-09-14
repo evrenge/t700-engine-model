@@ -28,7 +28,7 @@ the two qualifications on that). Everything here is derived from it.
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants; **all 206 non-zero elements carry a numeric per-element comparison** as of 2026-09-14 (it was 117), A rms **7.8 %** over its 158, `b` rms **5.2 %** over its 42, and the 5-DOF fuel column `b` to **0.06–0.12 %** |
 | **Closed loop vs Table B.1** | **worst 0.34 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output***, averaged over the governor's own limit cycle |
 | The report's own printed claim about Figure 6 | reproduced: we overestimate fuel by **+6.17 %** in the 81–86 %NG band the report names, against its own line's +5.82 % and its printed "as much as five percent" |
-| Tests | 1103 passing, 3 skipped, lint and formatting clean; the whole suite runs in 33 s |
+| Tests | 1104 passing, 3 skipped, lint and formatting clean; the whole suite runs in 33 s |
 
 Phases 0–4 of `SCOPE.md` are complete for the engine and Phase 6 is substantially
 complete — `SCOPE.md` names the remaining gaps: the report is ingested, the data

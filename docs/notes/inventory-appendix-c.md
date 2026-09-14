@@ -298,7 +298,7 @@ delay.
 | C-10 | C3 / 86 | pseudo-derivative | (x_CT13 − x_CT14) · (ZK5/CT14) — constant gain, ZK5 ÷ CT14 = 4.0 | no |
 | C-11 | C3 / 86 | compensated error | U = ZK9·SPDER + ZK10·deadband(SPDER) + (ZK5/CT14)·(x_CT13 − x_CT14) | no |
 | C-12 | C3 / 86 | speed-error relay | g(SPDER) = 1 for SPDER < −1 or SPDER > 4, else 0 | no |
-| C-13 | C3 / 86 | torque integrator | Y = ∫(TRQL − CR) dt, limited to [YLOLIM, YHILIM] | **integrator (limited)** |
+| C-13 | C3 / 86 | torque integrator | Y = ∫(TRQL − CR) dt → saturation at [YLOLIM, YHILIM], **drawn as two blocks** | **integrator + saturation** |
 | C-14 | C3 / 86 | nonlinear gain switch | B4 = 1 if (1000·B6·g(SPDER) + Y) > CORR, else 0 | no |
 | C-15 | C3 / 86 | rate-comp output | SPDS1 = ZK7·U + B4·(ZK1·U) | no |
 | C-16 | C4 / 86 | governor dynamics | SPDSF = SPDS1 · (T11·s+1)/(CT2·s+1) · 1/(CT12·s+1) | **lead-lag + lag** |
@@ -308,9 +308,20 @@ delay.
 | C-20 | C5 / 87 | variable time constant | TAU45 = F_EC1(T45L, W45R) | no (table lookup) |
 | C-21 | C5 / 87 | sensed T4.5 | T45EL = T45L / (TAU45·s+1) — **time constant varies with the state** | **lag (variable τ)** |
 | C-22 | C6 / 87 | T45 compensation | TSIG = ET45 · ZK3/(CT9·s+1) · (T8·s+1)/(T10·s+1) | **lag + lead-lag** |
-| C-23 | C7 / 88 | P+I | SPDSP = XKPROP·SPDSS + clamp(∫XKINTG·SPDSS dt, ZLOLIM, ZHILIM) | **integrator (limited)** |
+| C-23 | C7 / 88 | P+I | SPDSP = XKPROP·SPDSS + (∫XKINTG·SPDSS dt → saturation at [ZLOLIM, ZHILIM]), **drawn as two blocks** | **integrator + saturation** |
 | C-24 | C7 / 88 | P+I output lag | SPDG = SPDSP / (CT16·s+1) | **lag** |
 | C-25 | C8 / 88 | integrator lower limit | ZLOLIM = −1.0 if TRQL(eng 2) < 180, else −0.3 | no |
+
+> **The three "integrator + saturation" rows -- C-13, C-23 and C-30 -- were recorded as
+> "integrator (limited)" until 2026-09-14, and that is a different block.** Figures C3 [pdf p.86], C7 [pdf p.88]
+> and C10 [pdf p.89] all draw an **unlimited `1/s` followed by a separate saturation
+> block**, read at 300 dpi. A limited integrator holds its state at the stop; the drawn
+> pair lets the state run on and clips only the output, so it **winds up**. Ours clamps the
+> state, which does not, and that is a deliberate departure recorded as **open question
+> #59** -- whose cell asks for exactly this correction, "which is the same mis-reading and
+> needs correcting either way". The relation column now says what the figure draws; the
+> code still does the other thing, on purpose, and #59 carries the measured cost (invisible
+> until a limit binds; 1240 rpm NP and 330 pph Wf on a load chop when one does).
 
 ### HMU
 
@@ -320,7 +331,7 @@ delay.
 | C-27 | C9 / 89 | metered demand | WFMV = HMUSEL · PS3L | no |
 | C-28 | C10 / 89 | torque motor fwd path | e = (SPDG − 0.44) − TMLVG·x_lim; then e·(0.04·s+1)/(0.2·s+1)·564.0 − 31.0 | **lead-lag** |
 | C-29 | C10 / 89 | torque motor deadband | deadband ±TMDB on that current signal | no |
-| C-30 | C10 / 89 | torque motor integrator | x = ∫TMGN·(deadband output) dt, limited to [XLOLIM, XHILIM] | **integrator (limited)** |
+| C-30 | C10 / 89 | torque motor integrator | x = ∫TMGN·(deadband output) dt → saturation at [XLOLIM, XHILIM], **drawn as two blocks** | **integrator + saturation** |
 | C-31 | C10 / 89 | LVDT feedback / output | feedback = TMLVG·x (volts); TMRU = TMLG·x | no |
 | C-32 | C11 / 90 | PS3 sensor | PS3L = hysteresis(PS3/(CTPS3·s+1), width PS3HYS) | **lag + hysteresis** |
 | C-33 | C12 / 90 | load demand dynamics | DWFPL = DWFP / (CLLDS·s+1) | **lag** |
