@@ -456,11 +456,25 @@ appended to `open-questions.md`:
    The `≈ −2.4` is `−WFIRF` evaluated *at the idle reference*, where `PCNGI − PCNGHL ≈ 0`.
    That is exactly what a droop-line floor should do — it must not override the governor at
    or above idle. With KNDRP = 0.25 and WFIRF ≈ 2.05–2.65, WFIDM turns positive once sensed
-   NG droops `WFIRF/KNDRP` ≈ 8.2–10.6 percentage points below the idle reference, and
-   outbids a 1.5–4 demand at ≈ 14–27 points below. That is deep sub-idle — and the report
-   [pdf p.38] explicitly eliminates *"fuel control below flight-idle power"*. The floor is
-   inactive in every modelled condition **because the model stops above its regime**, not
-   because of a sign error. Implement as printed.
+   NG droops `WFIRF/KNDRP` ≈ 8.2–10.6 percentage points below the idle reference. The floor
+   is inactive in every modelled condition **because the model stops above its regime**, not
+   because of a sign error — the report [pdf p.38] explicitly eliminates *"fuel control
+   below flight-idle power"*. Implement as printed.
+
+   **The second half of that sentence was wrong and is corrected here, 2026-09-14.** It
+   read "and outbids a 1.5–4 demand at ≈ 14–27 points below", which treats `WFPDM` as a
+   constant. It is not: `WFPDM` is itself a droop line **with the same gain `KNDRP` on the
+   same sensed NG**, so `WFPDM − WFIDM` is *exactly independent of NG* — measured
+   −2.4914 at 40, 60, 80 and 100 %NG, identical to nine decimals. The floor cannot catch
+   the governor by drooping at all. Whether it outbids `WFPDM` is set by T2, PAS and the
+   collective; NG then decides only whether the Fig. C18 cascade passes the result, and it
+   passes it over a **window** whose upper edge is where `WFIDM` meets the deceleration
+   floor and whose lower edge is where the acceleration ceiling cuts it off. At
+   T2 = 518.67 °R, PAS = 28°, collective 0 %, that window is NG ∈ [44.569, 53.855] %, and
+   its upper edge is `PCNGI − (WFPDCL + WFIRF)/KNDRP` in closed form to six decimals. The
+   ≈ 14–27 figure happens to bracket the right answer for the wrong reason: the floor it
+   is really competing with there is `WFPDC` ≈ 1.45, not a governor demand. See
+   `tests/test_hmu.py`, the four `_idle_` tests.
 2. **CR / TRQL units (Fig. C3, p.86) — RESOLVED, see open-questions.md #11.** TRQL is
    ft·lbf and is *not* normalised anywhere; the path TORQ45 → 1/(TL1·s+1) → 1/(TL2·s+1) →
    TRQL is unity DC gain, with no gain, divide or lookup before Figs. C3 and C8. The scale

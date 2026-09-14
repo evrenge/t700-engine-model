@@ -462,8 +462,9 @@ collective slam pins `CLLDS` at x2. The NP dip is the discriminator and its band
 about the measured 194.392 rpm, which makes it a tripwire rather than a tolerance -- any
 real change to the loop will trip it and should be looked at. `TMGN` at +10 % moves the dip
 by 0.07 rpm and stays out of reach even so. `TLGE` is bit-identical in every
-configuration the suite runs, and `test_the_t45_harness_lag_is_structurally_unreachable`
-records why."""
+*closed-loop* configuration, and `test_the_t45_harness_lag_is_invisible_to_the_closed_loop`
+records why; it is pinned instead in `tests/test_ecu.py`, where the ECU can be driven into
+the temperature limiter directly."""
 
 
 def test_a_load_step_response_pins_the_torque_motor_linkage():
@@ -544,19 +545,24 @@ def test_a_collective_slam_pins_the_collective_lag():
     )
 
 
-def test_the_t45_harness_lag_is_structurally_unreachable():
-    """`TLGE` cannot be constrained by anything this suite runs, and the reason is the point.
+def test_the_t45_harness_lag_is_invisible_to_the_closed_loop():
+    """`TLGE` cannot be constrained by anything run **against the engine**, and why is the point.
 
     It is the lag on the T45 thermocouple harness, which feeds the ECU's **temperature
     limiter**. At every condition the project exercises the ECU is governing *speed* --
     `test_every_printed_trim_governs_on_the_droop_line` asserts exactly that -- so the T45
     path carries a signal nothing downstream acts on, and changing its time constant is
-    bit-identical on every output.
+    bit-identical on every output of a closed-loop run.
 
-    Reaching it needs an operating point where the temperature limiter takes over, which is
-    a condition the report never publishes and this project has never had a reason to run.
-    Recorded rather than papered over: `TLGE` is carried on the provenance of its Table C.1
-    citation alone.
+    **This test was called `..._is_structurally_unreachable` until 2026-09-14 and claimed
+    `TLGE` "cannot be constrained by anything this suite runs".** That was a statement about
+    the suite mistaken for one about the model. The limiter is unreachable with the engine
+    attached -- `T45REF - T45COR` is 1993 degR against Table B.1's hottest trim of 1632, so
+    reaching it needs an NG past the 100 % ceiling the report declares validity to. It is
+    perfectly reachable in the ECU *alone*, which is a block diagram with inputs, and
+    `tests/test_ecu.py::test_the_thermocouple_lag_shapes_the_overtemperature_handover` now
+    pins `TLGE` to about 5 % and `F_EC1` to about 1 % there. What survives here is the
+    narrower and still-useful fact below.
     """
     from t700.control import constants as control_c
 
@@ -575,6 +581,82 @@ def test_the_t45_harness_lag_is_structurally_unreachable():
         control_c.TLGE = original
     assert before == after, (
         f"TLGE now moves the settled state, {before} -> {after}. If the ECU has started "
-        f"limiting on temperature somewhere in this suite, this test should become a real "
-        f"comparison instead of a record of why it cannot be one."
+        f"limiting on temperature at a Table B.1 trim, that is a change in the engine, not "
+        f"in the control, and it should be explained before this test is relaxed."
     )
+
+
+GENTLE_SLAM_TO_PCT = 70.0
+SLAM_NP_RISE_RPM = (519.0, 531.0)
+SLAM_PEAK_PPH = (683.0, 690.0)
+"""A collective slam small enough that no limit binds -- which is what makes `F_HM4` visible.
+
+`F_HM4` is the load-demand fuel-flow feedforward, `WFQPS3 = F_HM4(XLDSH)` [Fig. C17], and
+it is on the droop line's forward path: it is 0.297 of the 1.341 demand cut at the hover
+collective, 22 % of it. Open question #65 still listed it as observable by nothing, and
+`test_a_collective_slam_pins_the_collective_lag` is the test that ought to have seen it.
+
+**It could not, because that slam saturates.** Going to 85 % collective puts the Figure C18
+cascade on its acceleration ceiling for 24 frames, and `MIN(., WFPAC)` throws the
+feedforward away: `F_HM4` x1.1 moves that slam's fuel peak by **+0.0022 %**. Stopping at
+70 % keeps the cascade on `droop` for every frame of the run, and the same mutation moves
+the peak by **+0.715 %** and the speed rise by **+10.7 rpm**.
+
+Characterizations, in `SCOPE.md`'s third sense -- the report prints no collective transient.
+Measured, with NP rise = peak - 20895 rpm:
+
+| | Wf peak | NP rise |
+|---|---|---|
+| as shipped | 686.49 pph | 525.18 rpm |
+| `F_HM4` x1.1 | 691.40 | 535.87 |
+| `F_HM4` x0.9 | 680.95 | 512.42 |
+
+The NP rise is the better discriminator: it is monotone in the mutation where the fuel peak
+is not, because the peak's *location* moves as well as its height. Its band is +/-6 rpm,
+1.1 % of the rise, matching `NP_DIP_RPM`'s 1 % above.
+
+**This is the feedforward path exercised alone, not a helicopter manoeuvre.** The load here
+is a function of NP only, so moving the collective moves what the control *anticipates*
+without moving what the rotor actually takes -- which is precisely why NP rises rather than
+dipping. Ballin's own load-demand compensation is one of his admitted limits, "weaker than
+the real aircraft" [pdf p.54]; this measures the path, not its adequacy."""
+
+
+def test_a_gentle_collective_slam_pins_the_load_demand_feedforward():
+    """`F_HM4` moves the transient only while the Figure C18 cascade stays on the droop
+    branch, so the test asserts that it does before asserting anything else."""
+    name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    wf_pps = wf_pps_from_pph(wf)
+    r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
+    f = frame(r.state, wf_pps, AMB)
+    slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
+    s, wf_hist, np_hist, limits, at, n = None, [], [], set(), 600, 1800
+    for i in range(n):
+        pilot = loop.Pilot(
+            xcpc_pct=GENTLE_SLAM_TO_PCT if i >= at else XCPC_PCT[name],
+            pas_deg=100.0,
+            pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
+        )
+        if s is None:
+            s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+        s, _e, h, _fr = loop.step(
+            s,
+            pilot,
+            AMB,
+            dt=DT,
+            load=lambda v: q + slope * (v - NP_TRIM_RPM),
+            j_load=engine_c.J_LOAD_UH60A,
+            heat_sink=True,
+        )
+        wf_hist.append(h.wf_pph)
+        np_hist.append(s.engine.np_rpm)
+        limits.add(h.limit)
+
+    assert limits == {"droop"}, (
+        f"a limit bound during the gentle slam ({sorted(limits)}), which is what hides "
+        f"the load-demand feedforward -- pick a smaller slam"
+    )
+    peak = max(wf_hist[at:])
+    rise = max(np_hist[at:]) - NP_TRIM_RPM
+    assert SLAM_PEAK_PPH[0] < peak < SLAM_PEAK_PPH[1], f"Wf peaks at {peak:.2f} pph"
+    assert SLAM_NP_RISE_RPM[0] < rise < SLAM_NP_RISE_RPM[1], f"NP rises {rise:.1f} rpm"

@@ -141,3 +141,97 @@ def test_a_held_input_does_not_make_the_ecu_diverge():
     assert s2.pi_int == pytest.approx(c.ZHILIM, abs=1e-9) or s2.pi_int == pytest.approx(
         s1.pi_int, rel=1e-3
     )
+
+
+# --------------------------------------- the temperature limiter, which nothing measured
+
+OVERTEMP_DEGR = 2050.0
+"""A T4.5 the engine model cannot reach, fed to the ECU directly.
+
+`T45REF` is 2004 degR and `T45COR` adds 11 to the raw measurement, so the Figure C1
+selector hands over above **1993 degR** of true T4.5. Table B.1's hottest trim is 1632
+[pdf p.67], and reaching 1993 needs an NG well past the 100 % ceiling Ballin declares the
+model valid to [pdf p.39]. So the limiter is out of reach of every *closed-loop* run in
+this project, and `validation/test_closed_loop.py` records that as the reason `TLGE` moved
+freely there.
+
+It is not out of reach of the ECU, which is a block diagram with inputs. 2050 degR is
+inside `F_EC1`'s own printed parameter range, whose curves run to 2060 degR [Fig. C23,
+pdf p.94] -- the figure is drawn over the limiter's operating range because that is the
+only place the signal matters."""
+
+OVERTEMP_SPDG = (1.9438, 1.9478)
+"""`SPDG` 8.4 s after a step to `OVERTEMP_DEGR`, from the hover trim's sensed state.
+
+A characterization -- a tripwire on Appendix C's temperature path, not an accuracy claim;
+the report prints no overtemperature transient. It closes the last two holes open question
+#65 left in the ECU. Measured 1.945780, and the band is +/-0.1 %:
+
+| | SPDG | vs band |
+|---|---|---|
+| as shipped | 1.945780 | -- |
+| `F_EC1` x1.1 | 1.720032 | -11.6 %, far outside |
+| `TLGE` x1.1 | 1.942242 | -0.18 %, 1.8x the band |
+| `TLGE` x0.9 | 1.949306 | +0.18 % |
+
+Nothing in this harness touches the engine, the thermodynamics or a digitized engine map:
+every input is a literal. So the only things that can move this number are Appendix C's
+own constants and `F_EC1`, which is what lets the band be this tight."""
+
+
+def _overtemp(t45_hot=OVERTEMP_DEGR, n=1500, at=300):
+    """Hold the hover trim's sensed state, then step T4.5 into the limiter."""
+    base = dict(
+        np_rpm=20895.0,
+        torq45_ftlbf=229.0,
+        w45_pps=8.18,
+        p45_psia=37.42,
+        pcprf_pct=20895.0 * 100.0 / engine_c.NP_DES,
+    )
+    s = ecu.seed(ecu.ECUInputs(t45_degR=1632.0, **base), spdg=0.49496)
+    hot_frames, o = 0, None
+    for i in range(n):
+        s, o = ecu.step(s, ecu.ECUInputs(t45_degR=(t45_hot if i >= at else 1632.0), **base), DT)
+        hot_frames += o.limiting == "t45"
+    return o, hot_frames
+
+
+def test_the_selector_hands_over_at_the_printed_reference_minus_the_correction():
+    """[Figs. C1, C5] `ET45 = T45EL - T45REF` and `T45E = T45 + T45COR`, so the handover
+    is at `T45REF - T45COR` of true temperature and at nothing else.
+
+    This is a wiring test and **it does not pin either constant**: it computes the
+    threshold from the same two rows it brackets, so moving both together moves the test
+    with them. What pins them is `OVERTEMP_SPDG` below, where the step lands at a fixed
+    2050 degR and the distance above the reference sets the whole response."""
+    threshold = c.T45REF - c.T45COR
+    assert _overtemp(threshold - 15.0)[1] == 0, "the limiter took over below the reference"
+    assert _overtemp(threshold + 20.0)[1] > 0, "the limiter did not take over above it"
+
+
+def test_the_thermocouple_lag_shapes_the_overtemperature_handover():
+    """`F_EC1` and `TLGE` were observable by nothing until this test.
+
+    Both sit on the T4.5 path: the harness lag `TLGE`, then a second lag whose own time
+    constant is the `F_EC1` lookup. Downstream of them is the Figure C6 compensation and
+    the Figure C1 maximum selector, so with the limiter governing they set how fast the
+    ECU winds the torque motor up -- and with the limiter *not* governing they set nothing
+    at all, which is why every other test in this project is blind to them.
+    """
+    o, hot_frames = _overtemp()
+    assert o.limiting == "t45", (o.tsig, o.spdsf)
+    assert hot_frames > 0
+    assert OVERTEMP_SPDG[0] < o.spdg < OVERTEMP_SPDG[1], (
+        f"SPDG {o.spdg:.6f} after an overtemperature step is outside "
+        f"{OVERTEMP_SPDG}; the T4.5 path has moved"
+    )
+
+
+def test_the_sensor_time_constant_is_looked_up_inside_its_printed_domain():
+    """[Fig. C23, pdf p.94] `F_EC1` is drawn over W45R 1-15 and T45L 1260-2060 degR. Both
+    arguments must land inside that box at the limiter's own operating point, or the model
+    is extrapolating exactly where the schedule was published to be used."""
+    o, _ = _overtemp()
+    assert 1.0 < o.w45r < 15.0, f"W45R {o.w45r} is outside F_EC1's printed domain"
+    assert 1260.0 < o.t45el < 2060.0, f"T45L {o.t45el} is outside F_EC1's printed domain"
+    assert o.tau45_s > 0.0

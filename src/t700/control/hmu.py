@@ -35,9 +35,19 @@ ceiling.
 
 The report's real-time implementation eliminated **fuel control below flight-idle power**
 [pdf p.38], so the idle floor `WFIDM` is inactive in every condition the engine model is
-valid over -- it only outbids the governor once sensed NG has drooped roughly 8 to 11
-percentage points below the idle reference. It is implemented as printed anyway; see open
-question #10.
+valid over. It is implemented as printed anyway; see open question #10.
+
+**Why it is inactive is not what this docstring said until 2026-09-14.** The claim was that
+the floor "only outbids the governor once sensed NG has drooped roughly 8 to 11 percentage
+points below the idle reference", which is `WFIRF/KNDRP` -- the droop at which `WFIDM`
+turns *positive*. But the floor is compared against `WFPDM`, not against zero, and both
+carry the **same gain `KNDRP` on sensed NG**, so `WFPDM - WFIDM` does not depend on NG at
+all: it is -2.4914 at 40 %NG and at 100 %NG alike. Drooping never brings the floor into
+play. What decides whether it outbids the governor is T2, PAS and the collective; NG
+decides only whether the Fig. C18 cascade then lets the result through -- the acceleration
+ceiling cuts the window off below and the deceleration floor outranks it above.
+`tests/test_hmu.py::test_the_droop_line_and_the_idle_floor_are_parallel_in_ng` pins the
+structure and the window either side of it.
 
 There is no ECU here. `SPDG` is an input, and `SPDG_NULL` is the value at which the torque
 motor sits still.
