@@ -1352,8 +1352,10 @@ def main() -> int:
             _render(data if theme is plotstyle.THEMES[0] else {})
     (OUT / "report.json").write_text(json.dumps(data, indent=1))
     pngs = sorted(OUT.glob("*.png"))
-    print(f"\nwrote {OUT}/report.json and {len(pngs)} plots "
-          f"({len(pngs) // len(plotstyle.THEMES)} figures x {len(plotstyle.THEMES)} themes)")
+    print(
+        f"\nwrote {OUT}/report.json and {len(pngs)} plots "
+        f"({len(pngs) // len(plotstyle.THEMES)} figures x {len(plotstyle.THEMES)} themes)"
+    )
     return 0
 
 

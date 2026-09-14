@@ -55,15 +55,29 @@ class Theme:
 
 LIGHT = Theme(
     name="light",
-    ground="#ffffff", surface="#f6f7f9", ink="#16191d", muted="#5d6673",
-    faint="#8b94a1", grid="#e2e6ec",
-    ours="#2a78d6", ballin="#d95a22", ge="#12996a", ge2="#7c5ccc",
+    ground="#ffffff",
+    surface="#f6f7f9",
+    ink="#16191d",
+    muted="#5d6673",
+    faint="#8b94a1",
+    grid="#e2e6ec",
+    ours="#2a78d6",
+    ballin="#d95a22",
+    ge="#12996a",
+    ge2="#7c5ccc",
 )
 DARK = Theme(
     name="dark",
-    ground="#1b1f26", surface="#20252d", ink="#e7eaef", muted="#9aa4b2",
-    faint="#727c8a", grid="#2e343e",
-    ours="#5d9dea", ballin="#f0834d", ge="#2ec18c", ge2="#a98ae4",
+    ground="#1b1f26",
+    surface="#20252d",
+    ink="#e7eaef",
+    muted="#9aa4b2",
+    faint="#727c8a",
+    grid="#2e343e",
+    ours="#5d9dea",
+    ballin="#f0834d",
+    ge="#2ec18c",
+    ge2="#a98ae4",
 )
 THEMES = (LIGHT, DARK)
 
@@ -124,9 +138,7 @@ def rc(theme: Theme) -> dict:
         "figure.titlesize": 11.5,
         "figure.titleweight": "semibold",
         "lines.solid_capstyle": "round",
-        "axes.prop_cycle": matplotlib.cycler(
-            color=[theme.ours, theme.ballin, theme.ge, theme.ge2]
-        ),
+        "axes.prop_cycle": matplotlib.cycler(color=[theme.ours, theme.ballin, theme.ge, theme.ge2]),
     }
 
 

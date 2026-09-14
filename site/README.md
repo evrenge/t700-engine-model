@@ -18,5 +18,6 @@ with a `<picture>` media query, with a toggle that overrides it.
 open-questions section against `docs/notes/open-questions.md`: if a row opens or closes and
 the summary here is not updated, the build fails rather than publishing a stale claim.
 
-Published by `.github/workflows/pages.yml` on any push that touches this directory. The one
-repository setting it needs is **Settings → Pages → Source → "GitHub Actions"**.
+Published by `.github/workflows/pages.yml` on any push that touches this directory. No
+repository setting is needed — the workflow's `configure-pages` step enables Pages itself on
+the first run.
