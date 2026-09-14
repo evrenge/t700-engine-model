@@ -1246,71 +1246,71 @@
   "f2": {
    "knots": 20,
    "source": "Fig. A2, p.57",
-   "x_axis": "PS3/P2 compressor static pressure ratio, nondimensional",
-   "y_axis": "T3/T2 compressor temperature ratio, nondimensional",
+   "x_axis": "PS3/P2",
+   "y_axis": "T3/T2",
    "conditioning_moved": 0.0
   },
   "f3": {
    "knots": 13,
    "source": "Fig. A3, p.58",
-   "x_axis": "NGC corrected gas generator speed, percent",
-   "y_axis": "B1 bleed fraction, nondimensional",
+   "x_axis": "NGC, percent",
+   "y_axis": "B1",
    "conditioning_moved": 0.000168
   },
   "f4": {
    "knots": 3,
    "source": "Fig. A4, p.59",
-   "x_axis": "WA2C station 2 corrected mass flow, lbm/sec",
-   "y_axis": "B2 bleed fraction, nondimensional",
+   "x_axis": "WA2C, lbm/sec",
+   "y_axis": "B2",
    "conditioning_moved": 0.0
   },
   "f5": {
    "knots": 3,
    "source": "Fig. A5, p.60",
-   "x_axis": "WA2C station 2 corrected mass flow, lbm/sec",
-   "y_axis": "B3 bleed fraction, nondimensional",
+   "x_axis": "WA2C, lbm/sec",
+   "y_axis": "B3",
    "conditioning_moved": 0.0
   },
   "f6": {
    "knots": 2,
    "source": "Fig. A6, p.61",
-   "x_axis": "FAR fuel-to-air ratio, nondimensional (the figure prints",
-   "y_axis": "ETA combustor efficiency, nondimensional",
+   "x_axis": "FAR",
+   "y_axis": "ETA",
    "conditioning_moved": 3.649999999999487e-05
   },
   "f7": {
    "knots": 6,
    "source": "Fig. A7, p.62",
-   "x_axis": "P45/P41 gas generator turbine pressure ratio, nondimensi",
-   "y_axis": "f7, gas generator enthalpy drop parameter, BTU/LBM",
+   "x_axis": "P45/P41",
+   "y_axis": "f7, BTU/LBM",
    "conditioning_moved": 0.0
   },
   "f8": {
    "knots": 12,
    "source": "Fig. A8, p.63",
-   "x_axis": "P49/P45 power turbine pressure ratio (TOTAL over total),",
-   "y_axis": "f8, power turbine enthalpy drop parameter, BTU/LBM",
+   "x_axis": "P49/P45",
+   "y_axis": "f8, BTU/LBM",
    "conditioning_moved": 0.0
   },
   "f9": {
    "knots": 23,
    "source": "Fig. A9, p.64",
-   "x_axis": "Ps9/P45 power turbine pressure ratio (STATIC station 9 o",
-   "y_axis": "f9 = W45C, power turbine corrected mass flow, LBM/SEC",
+   "x_axis": "Ps9/P45",
+   "y_axis": "f9, LBM/SEC",
    "conditioning_moved": 5.050000000000887e-05
   },
   "f10": {
    "knots": 18,
    "source": "Fig. A10, p.65",
-   "x_axis": "NGC corrected gas generator speed, percent",
-   "y_axis": "f10 = P49/PS9, exhaust pressure ratio, nondimensional. T",
+   "x_axis": "NGC, percent",
+   "y_axis": "f10",
    "conditioning_moved": 0.0
   },
   "f_hs": {
    "knots": 6,
    "source": "Fig. A11, p.66",
-   "x_axis": "NGC corrected gas generator speed, percent",
-   "y_axis": "T41SGN heat-sink constant (no unit on the figure or in t",
+   "x_axis": "NGC, percent",
+   "y_axis": "T41SGN",
    "conditioning_moved": 0.0
   },
   "f1": {

@@ -31,6 +31,18 @@ import matplotlib
 import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 
+FIG_SCALE = 0.74
+"""Every figure is drawn this much smaller in inches, at a correspondingly higher dpi.
+
+The pixel count barely moves -- what changes is how large the *content* is relative to the
+frame. A 16.5-inch-wide figure displayed in a 1124 px column renders its 8 pt tick labels at
+about 7.6 CSS px, which is why the figures read sharply in a new tab and softly in the page.
+At 0.74 the same labels land near 10 px and the 0.8 pt grid lines survive the downscale."""
+
+DPI = 190
+"""Chosen with `FIG_SCALE` so an asset is about twice its displayed width: a 16.5 in sheet
+becomes 12.2 in at 190 dpi, or 2320 px against the page's ~1124 px column."""
+
 SANS = "IBM Plex Sans"
 SANS_CONDENSED = "IBM Plex Sans Condensed"
 MONO = "IBM Plex Mono"
@@ -55,30 +67,34 @@ class Theme:
 
 LIGHT = Theme(
     name="light",
-    ground="#ffffff",
-    surface="#f6f7f9",
-    ink="#16191d",
-    muted="#5d6673",
-    faint="#8b94a1",
-    grid="#e2e6ec",
-    ours="#2a78d6",
-    ballin="#d95a22",
-    ge="#12996a",
-    ge2="#7c5ccc",
+    # `ground` is the page's `--surface`, one step off `--ground`, so a figure lifts very
+    # slightly rather than sitting in a white card punched into the page. Both themes do the
+    # same thing. Keep these in step with `--plot-mat` in site/template.html.
+    ground="#f7f8fa",
+    surface="#eceef2",
+    ink="#14171c",
+    muted="#4d5563",
+    faint="#626a77",
+    grid="#dadee5",
+    ours="#2364b5",
+    ballin="#c94f1d",
+    ge="#0d8a5f",
+    ge2="#6f4fc0",
 )
 DARK = Theme(
     name="dark",
-    ground="#1b1f26",
-    surface="#20252d",
+    ground="#171b21",
+    surface="#1e232b",
     ink="#e7eaef",
-    muted="#9aa4b2",
-    faint="#727c8a",
-    grid="#2e343e",
+    muted="#a3adba",
+    faint="#8b95a3",
+    grid="#2b313a",
     ours="#5d9dea",
     ballin="#f0834d",
     ge="#2ec18c",
     ge2="#a98ae4",
 )
+
 THEMES = (LIGHT, DARK)
 
 
@@ -100,7 +116,7 @@ def rc(theme: Theme) -> dict:
         "axes.edgecolor": theme.grid,
         "axes.labelcolor": theme.muted,
         "axes.titlecolor": theme.ink,
-        "axes.linewidth": 0.9,
+        "axes.linewidth": 1.0,
         "axes.grid": True,
         "axes.axisbelow": True,
         "axes.titlesize": 10.5,
@@ -111,7 +127,7 @@ def rc(theme: Theme) -> dict:
         "axes.spines.top": False,
         "axes.spines.right": False,
         "grid.color": theme.grid,
-        "grid.linewidth": 0.8,
+        "grid.linewidth": 0.85,
         "grid.alpha": 1.0,
         "xtick.color": theme.faint,
         "ytick.color": theme.faint,
@@ -137,6 +153,7 @@ def rc(theme: Theme) -> dict:
         "legend.columnspacing": 1.2,
         "figure.titlesize": 11.5,
         "figure.titleweight": "semibold",
+        "lines.linewidth": 2.0,
         "lines.solid_capstyle": "round",
         "axes.prop_cycle": matplotlib.cycler(color=[theme.ours, theme.ballin, theme.ge, theme.ge2]),
     }

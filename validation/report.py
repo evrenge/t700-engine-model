@@ -74,10 +74,15 @@ def use_theme(theme: plotstyle.Theme) -> None:
     MUTED, GRID = theme.muted, theme.grid
 
 
+def fs(w: float, h: float) -> tuple[float, float]:
+    """A figure size in inches, scaled so its content reads at the page's column width."""
+    return (w * plotstyle.FIG_SCALE, h * plotstyle.FIG_SCALE)
+
+
 def save(fig, stem: str) -> None:
     """Write `<stem>-<theme>.png` into the site's asset directory."""
     OUT.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUT / f"{stem}-{THEME.name}.png", dpi=140)
+    fig.savefig(OUT / f"{stem}-{THEME.name}.png", dpi=plotstyle.DPI)
     plt.close(fig)
 
 
@@ -185,7 +190,7 @@ def steady_sweeps() -> dict:
     import test_steady_sweeps as tss
 
     out = {}
-    fig, axes = plt.subplots(1, 3, figsize=(16.5, 4.8))
+    fig, axes = plt.subplots(1, 3, figsize=fs(16.5, 4.8))
 
     for ax, (no, spec) in zip(axes, sorted(FIG678.items()), strict=True):
         rt = _csv(REF / f"{spec['file']}_realtime.csv", spec["xc"], spec["yc"])
@@ -279,7 +284,7 @@ def transients() -> dict:
     for no, wf_hi in ((9, 775.0), (10, 125.0)):
         tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
         t = tr["t"]
-        fig, axes = plt.subplots(2, 3, figsize=(16.5, 8.2))
+        fig, axes = plt.subplots(2, 3, figsize=fs(16.5, 8.2))
         panels = {}
 
         for ax, key in zip(axes.ravel(), list(PANEL_LABEL), strict=True):
@@ -489,7 +494,7 @@ def eigenvalues() -> dict:
 
 def eigenvalue_plot(data: dict) -> None:
     """Table 1's 27 printed modes against ours, and the two spectra the report omits."""
-    fig, axes = plt.subplots(1, 2, figsize=(15.5, 5.4), width_ratios=[1.35, 1.0])
+    fig, axes = plt.subplots(1, 2, figsize=fs(15.5, 5.4), width_ratios=[1.35, 1.0])
 
     ax = axes[0]
     rows = data["table_1"]
@@ -619,7 +624,7 @@ def appendix_b() -> dict:
             b_dev.append(d)
             blocks.setdefault(f"{dofno}-DOF b", []).append(d)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14.5, 5.6))
+    fig, axes = plt.subplots(1, 2, figsize=fs(14.5, 5.6))
     ax = axes[0]
     px = np.array([abs(p[0]) for p in pairs])
     py = np.array([abs(p[1]) for p in pairs])
@@ -711,7 +716,7 @@ def phase_plane() -> dict:
     """Ps3 against NG -- the comparison that discards the time axis, and with it #37."""
     import test_fuel_step as tfs
 
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.4))
+    fig, axes = plt.subplots(1, 2, figsize=fs(13.5, 5.4))
     out = {}
     for ax, (no, wf_hi) in zip(axes, ((9, 775.0), (10, 125.0)), strict=True):
         tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
@@ -746,7 +751,7 @@ def phase_plane() -> dict:
 
 def table_b1_plot(b1: dict, cl: dict) -> None:
     """Open loop and closed loop against the same 21 printed numbers."""
-    fig, ax = plt.subplots(figsize=(13.0, 5.2))
+    fig, ax = plt.subplots(figsize=fs(13.0, 5.2))
     rows = b1["rows"]
     labels = [f"{r['trim'].split()[0][:4]} {r['quantity']}" for r in rows]
     idx = np.arange(len(rows))
@@ -863,7 +868,7 @@ def sheet_engine_steady() -> dict:
     g = {k: np.array([r[k] for r in rows]) for k in rows[0]}
     g["sfc"] = g["wf"] / np.maximum(g["shp"], 1e-9)
 
-    fig, axes = plt.subplots(2, 3, figsize=(16.5, 8.0))
+    fig, axes = plt.subplots(2, 3, figsize=fs(16.5, 8.0))
     panels = [
         (
             "station pressures",
@@ -929,7 +934,7 @@ def sheet_open_loop() -> dict:
     f0 = frame(r0.state, wf0, AMB)
     steps = [(125.0, "#9c5bd0"), (250.0, GE), (550.0, OURS), (775.0, BALLIN)]
 
-    fig, axes = plt.subplots(1, 4, figsize=(17.0, 4.3))
+    fig, axes = plt.subplots(1, 4, figsize=fs(17.0, 4.3))
     out = {}
     for pph, col in steps:
         st = realtime.from_trim(r0, f0.wa31_pps, f0)
@@ -1048,7 +1053,7 @@ def sheet_closed_loop() -> dict:
         ),
     ]
 
-    fig, axes = plt.subplots(3, 4, figsize=(17.0, 10.2))
+    fig, axes = plt.subplots(3, 4, figsize=fs(17.0, 10.2))
     out = {}
     for row, (label, d) in zip(axes, cases, strict=True):
         for ax, key, ylab, title, col in (
@@ -1126,7 +1131,7 @@ def sheet_schedules() -> dict:
             "idle schedule, speed reference",
         ),
     ]
-    fig, axes = plt.subplots(2, 4, figsize=(17.0, 7.6))
+    fig, axes = plt.subplots(2, 4, figsize=fs(17.0, 7.6))
     out = {}
     for ax, (name, src, xl, yl, fn, what) in zip(axes.ravel(), specs, strict=False):
         cur = fn()
@@ -1221,23 +1226,43 @@ MAP_FILE = {
 }
 
 
+def _short_axis(text: str) -> str:
+    """A printed axis title reduced to its symbol and unit, for a small-multiple panel.
+
+    The provenance headers carry the full printed title plus whatever caveat the digitizer
+    needed to record -- `f9`'s runs to 240 characters warning that the facing figure uses a
+    different pressure ratio. Set whole on a 3x4 sheet they overrun their panels and collide
+    with the neighbours. The symbol is the first token; the unit is the last comma-separated
+    clause when it is short and is not the word "nondimensional", which says nothing.
+    """
+    head = text.split(" -- ")[0].split(" (")[0].strip()
+    symbol = head.split(" ")[0].rstrip(",")
+    if symbol.endswith("=") or symbol in {"f9"}:
+        symbol = head.split(",")[0].split(" ")[0].rstrip(",")
+    tail = head.rsplit(",", 1)[-1].strip() if "," in head else ""
+    if tail and len(tail) <= 16 and tail.lower() != "nondimensional":
+        return f"{symbol}, {tail}"
+    return symbol
+
+
 def _axis_labels(fname: str, directory: str = "maps") -> tuple[str, str]:
     """The printed axis titles, read out of the data file's own provenance header.
 
     Not hardcoded here. An earlier draft of this sheet typed them from memory and put
     "NGc, %" on `f4` and `f5`, whose abscissa is corrected mass flow -- a caption wrong in a
-    way no test can see. The digitizers already record what the page prints; use that.
+    way no test can see. The digitizers already record what the page prints; use that, and
+    reduce it to what fits with `_short_axis`.
     """
     path = HERE.parent / "data" / directory / fname
     x = y = ""
     for ln in path.read_text().splitlines():
         if ln.startswith("# x:") and not x:
-            x = ln[4:].strip().split(" -- ")[0].split(",  ")[0]
+            x = ln[4:].strip()
         elif ln.startswith("# y:") and not y:
-            y = ln[4:].strip().split(" -- ")[0].split(",  ")[0]
+            y = ln[4:].strip()
         elif not ln.startswith("#"):
             break
-    return (x[:56], y[:56])
+    return (_short_axis(x), _short_axis(y))
 
 
 def sheet_engine_maps() -> dict:
@@ -1256,7 +1281,7 @@ def sheet_engine_maps() -> dict:
         ("f10", "Fig. A10, p.65", "exhaust pressure loss, Eq. 38"),
         ("f_hs", "Fig. A11, p.66", "station 4.1 heat-sink constant, Eq. 52"),
     ]
-    fig, axes = plt.subplots(3, 4, figsize=(17.0, 10.0))
+    fig, axes = plt.subplots(3, 4, figsize=fs(17.0, 10.0))
     out = {}
     for ax, (name, src, what) in zip(axes.ravel(), single, strict=False):
         cur = getattr(maps, name)()
@@ -1297,7 +1322,9 @@ def sheet_engine_maps() -> dict:
             color=plt.cm.viridis(k / (len(m1.params) - 1)),
             label=f"{param:g}",
         )
-    fx, fy = _axis_labels(MAP_FILE["f1"])
+    # f1's derived file is a beta grid and carries no `# x:` header of its own; the axes it
+    # is *evaluated* on are the raw extraction's, which is what the panel plots.
+    fx, fy = "Ps3/P2", "WA2c, lbm/sec"
     _style(ax, fx, fy, "f1 -- compressor map, 11 speed lines")
     ax.legend(frameon=False, fontsize=5.5, labelcolor=MUTED, ncol=2, title="%NGc", title_fontsize=6)
     out["f1"] = {
@@ -1321,7 +1348,7 @@ def sheet_engine_maps() -> dict:
     ax.plot(
         m1.lines[5].x, m1.lines[5].y, "-", color=OURS, lw=2, zorder=4, label="on the beta grid, 56"
     )
-    _style(ax, fx, fy, "f1's 89 % line -- the one departure that shows")
+    _style(ax, fx, fy, "f1: 89 % line, both ways")
     ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc="best")
 
     plotstyle.title(

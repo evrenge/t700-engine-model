@@ -7,28 +7,34 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
 <style>
 :root{
-  --ink:#16191d; --ground:#f6f7f9; --surface:#ffffff; --raise:#fbfcfd;
-  --rule:#dce0e6; --rule-soft:#e9ecf1; --muted:#5d6673; --faint:#8b94a1;
-  --ours:#2a78d6; --ballin:#d95a22; --ge:#12996a;
-  --neg:#b4453a; --pos:#2f6fb5; --warn:#a8791a;
-  --plot-mat:#ffffff; --plot-edge:#dce0e6;
+  /* Light is an off-white, not paper white: #eceef2, a cool neutral biased toward the
+     accent. `--ground` is also the background Matplotlib paints into every light figure
+     (validation/plotstyle.py LIGHT.ground), so a plot sits on the page rather than on a
+     white card punched into it. Keep the two in step. */
+  --ink:#14171c; --ground:#eceef2; --surface:#f7f8fa; --raise:#ffffff;
+  --rule:#d3d8e0; --rule-soft:#e0e4ea; --muted:#4d5563; --faint:#626a77;
+  --ours:#2364b5; --ballin:#c94f1d; --ge:#0d8a5f;
+  --neg:#a83c31; --pos:#2364b5; --warn:#855c0e;
+  --plot-mat:#f7f8fa; --plot-edge:#d3d8e0;
   --sans:"IBM Plex Sans Condensed",ui-sans-serif,system-ui,sans-serif;
   --serif:"IBM Plex Serif",Georgia,serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --ink:#e7eaef; --ground:#14171c; --surface:#1b1f26; --raise:#20252d;
-    --rule:#2e343e; --rule-soft:#262c35; --muted:#9aa4b2; --faint:#727c8a;
+    --ink:#e7eaef; --ground:#14171c; --surface:#1e232b; --raise:#242a33;
+    --rule:#2e343e; --rule-soft:#262c35; --muted:#a3adba; --faint:#8b95a3;
     --ours:#5d9dea; --ballin:#f0834d; --ge:#2ec18c;
     --neg:#e0776b; --pos:#6ba4e0; --warn:#d3a53f;
+    --plot-mat:#171b21; --plot-edge:#2e343e;
   }
 }
 :root[data-theme="dark"]{
-  --ink:#e7eaef; --ground:#14171c; --surface:#1b1f26; --raise:#20252d;
-  --rule:#2e343e; --rule-soft:#262c35; --muted:#9aa4b2; --faint:#727c8a;
+  --ink:#e7eaef; --ground:#14171c; --surface:#1e232b; --raise:#242a33;
+  --rule:#2e343e; --rule-soft:#262c35; --muted:#a3adba; --faint:#8b95a3;
   --ours:#5d9dea; --ballin:#f0834d; --ge:#2ec18c;
   --neg:#e0776b; --pos:#6ba4e0; --warn:#d3a53f;
+  --plot-mat:#171b21; --plot-edge:#2e343e;
 }
 *{box-sizing:border-box}
 body{background:var(--ground);color:var(--ink);font-family:var(--serif);
@@ -73,6 +79,12 @@ section{margin:0 0 76px;scroll-margin-top:20px}
 
 /* ---------- figures ---------- */
 figure{margin:26px 0 8px}
+@media (min-width:1280px){
+  /* Wide screens give the figures more than the reading column: a 2320 px asset shown at
+     1124 px is downscaled 2.1x, which softens 0.85 pt grid lines. At 1400 px it is 1.66x. */
+  figure,.scroll{width:min(1400px,calc(100vw - 56px));
+    margin-left:calc(50% - min(700px,calc(50vw - 28px)))}
+}
 figure img{display:block;width:100%;height:auto;background:var(--plot-mat);
   border:1px solid var(--plot-edge);border-radius:2px}
 figcaption{font-size:.87rem;color:var(--muted);margin-top:10px;max-width:78ch}
@@ -433,7 +445,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <thead><tr><th scope="col">Table</th><th scope="col">Source</th>
       <th scope="col">Extracted</th><th scope="col">Printed abscissa</th>
       <th scope="col">conditioning moved</th></tr></thead>
-    <tbody><tr><td class="mono">f2</td><td class="mono small">Fig. A2, p.57</td><td class="mono">20</td><td class="mono small">PS3/P2 compressor static pressure ratio, non</td><td class="mono">0</td></tr><tr><td class="mono">f3</td><td class="mono small">Fig. A3, p.58</td><td class="mono">13</td><td class="mono small">NGC corrected gas generator speed, percent</td><td class="mono">1.7e-04</td></tr><tr><td class="mono">f4</td><td class="mono small">Fig. A4, p.59</td><td class="mono">3</td><td class="mono small">WA2C station 2 corrected mass flow, lbm/sec</td><td class="mono">0</td></tr><tr><td class="mono">f5</td><td class="mono small">Fig. A5, p.60</td><td class="mono">3</td><td class="mono small">WA2C station 2 corrected mass flow, lbm/sec</td><td class="mono">0</td></tr><tr><td class="mono">f6</td><td class="mono small">Fig. A6, p.61</td><td class="mono">2</td><td class="mono small">FAR fuel-to-air ratio, nondimensional (the f</td><td class="mono">3.6e-05</td></tr><tr><td class="mono">f7</td><td class="mono small">Fig. A7, p.62</td><td class="mono">6</td><td class="mono small">P45/P41 gas generator turbine pressure ratio</td><td class="mono">0</td></tr><tr><td class="mono">f8</td><td class="mono small">Fig. A8, p.63</td><td class="mono">12</td><td class="mono small">P49/P45 power turbine pressure ratio (TOTAL </td><td class="mono">0</td></tr><tr><td class="mono">f9</td><td class="mono small">Fig. A9, p.64</td><td class="mono">23</td><td class="mono small">Ps9/P45 power turbine pressure ratio (STATIC</td><td class="mono">5.1e-05</td></tr><tr><td class="mono">f10</td><td class="mono small">Fig. A10, p.65</td><td class="mono">18</td><td class="mono small">NGC corrected gas generator speed, percent</td><td class="mono">0</td></tr><tr><td class="mono">f_hs</td><td class="mono small">Fig. A11, p.66</td><td class="mono">6</td><td class="mono small">NGC corrected gas generator speed, percent</td><td class="mono">0</td></tr><tr><td class="mono">f1</td><td class="mono small">Fig. A1, p.56</td><td class="mono">11 lines &times; 56</td><td class="mono small">11 speed lines, beta grid</td><td class="mono">&mdash;</td></tr></tbody>
+    <tbody><tr><td class="mono">f2</td><td class="mono small">Fig. A2, p.57</td><td class="mono">20</td><td class="mono small">PS3/P2</td><td class="mono">0</td></tr><tr><td class="mono">f3</td><td class="mono small">Fig. A3, p.58</td><td class="mono">13</td><td class="mono small">NGC, percent</td><td class="mono">1.7e-04</td></tr><tr><td class="mono">f4</td><td class="mono small">Fig. A4, p.59</td><td class="mono">3</td><td class="mono small">WA2C, lbm/sec</td><td class="mono">0</td></tr><tr><td class="mono">f5</td><td class="mono small">Fig. A5, p.60</td><td class="mono">3</td><td class="mono small">WA2C, lbm/sec</td><td class="mono">0</td></tr><tr><td class="mono">f6</td><td class="mono small">Fig. A6, p.61</td><td class="mono">2</td><td class="mono small">FAR</td><td class="mono">3.6e-05</td></tr><tr><td class="mono">f7</td><td class="mono small">Fig. A7, p.62</td><td class="mono">6</td><td class="mono small">P45/P41</td><td class="mono">0</td></tr><tr><td class="mono">f8</td><td class="mono small">Fig. A8, p.63</td><td class="mono">12</td><td class="mono small">P49/P45</td><td class="mono">0</td></tr><tr><td class="mono">f9</td><td class="mono small">Fig. A9, p.64</td><td class="mono">23</td><td class="mono small">Ps9/P45</td><td class="mono">5.1e-05</td></tr><tr><td class="mono">f10</td><td class="mono small">Fig. A10, p.65</td><td class="mono">18</td><td class="mono small">NGC, percent</td><td class="mono">0</td></tr><tr><td class="mono">f_hs</td><td class="mono small">Fig. A11, p.66</td><td class="mono">6</td><td class="mono small">NGC, percent</td><td class="mono">0</td></tr><tr><td class="mono">f1</td><td class="mono small">Fig. A1, p.56</td><td class="mono">11 lines &times; 56</td><td class="mono small">11 speed lines, beta grid</td><td class="mono">&mdash;</td></tr></tbody>
   </table></div>
 
   <div class="keyed"><h3>Physical conditioning, and why the last column matters</h3>
