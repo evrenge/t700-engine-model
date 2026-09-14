@@ -200,14 +200,17 @@ def test_jacobian_eigenvalues_against_table_1():
 
     Paired by physics, at the hover trim, against Table 1's printed NG / P3 / P45 / P41:
 
-        NG    -2.375 vs -2.66     -10.7 %
-        P3   -52.364 vs -51.6      +1.5 %
+        NG    -2.381 vs -2.66     -10.5 %
+        P3   -53.158 vs -51.6      +3.0 %
         P45 -2603.8  vs -3060.0   -14.9 %
-        P41 -4870.3  vs -4900.0    -0.6 %
+        P41 -4870.4  vs -4900.0    -0.6 %
 
-    NG and P3 improved from -14.0 % and +7.4 % on 2026-09-13, when `f1` moved to constant-k
-    interpolation along Figure A1's construction lines. P45 and P41 do not go through `f1`
-    and did not move.
+    Only NG and P3 go through `f1`, and only they have ever moved: P45 and P41 have read
+    -14.9 % and -0.6 % through every revision of it. NG and P3 were -14.0 % and +7.4 %
+    before 2026-09-13, -10.7 % and +1.5 % after that day's constant-k interpolation along
+    Figure A1's construction lines, and -10.5 % and +3.0 % since the 2026-09-15 traced-line
+    digitisation. NG has improved at every step; P3 went the other way this time, and it
+    is much the smaller of the two residuals.
 
     The NG residual is the one `test_all_dof_models` reports as -9.1 / -0.3 / -22.6 %
     across the three trims, and `docs/notes/derivative-ambiguity.md` attributes it to
@@ -225,7 +228,7 @@ def test_jacobian_eigenvalues_against_table_1():
     # quantity we do not have, and is the same row Appendix B flags as not independently
     # reproducible.
     printed = [-2.66, -51.6, -3060.0, -4900.0]
-    on_record = [-10.7, 1.5, -14.9, -0.6]  # NG and P3 moved with the f1 interpolation
+    on_record = [-10.5, 3.0, -14.9, -0.6]  # only NG and P3 go through f1; only they move
 
     assert ours.size == len(printed), f"expected 4 comparable modes, got {ours}"
     for got, want, expected in zip(ours, printed, on_record, strict=True):

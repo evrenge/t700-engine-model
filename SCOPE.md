@@ -107,14 +107,15 @@ digitized figures every other comparison uses:
 
 | trim | Wf, lbm/hr | Table B.1 vs the figure | our deviation from Table B.1 | nearest printed marker |
 |---|---|---|---|---|
-| hover | 476.3 | −0.289 % shp, +0.043 %NG | −0.040 % shp, −0.007 %NG | 4.9 lbm/hr |
-| level 80 kt | 349.3 | −0.307 % shp, +0.024 %NG | −0.056 % shp, +0.105 %NG | 0.4 lbm/hr |
-| descent 80 kt | 267.7 | **+0.734 %** shp, +0.033 %NG | **−0.900 %** shp, −0.070 %NG | 2.6 lbm/hr |
+| hover | 476.3 | −0.289 % shp, +0.043 %NG | −0.042 % shp, −0.001 %NG | 4.9 lbm/hr |
+| level 80 kt | 349.3 | −0.307 % shp, +0.024 %NG | −0.052 % shp, +0.121 %NG | 0.4 lbm/hr |
+| descent 80 kt | 267.7 | **+0.734 %** shp, +0.033 %NG | **−0.806 %** shp, −0.046 %NG | 2.6 lbm/hr |
 
 **The consequence changes with them.** The report's widest self-disagreement is now 0.734 %,
-not 5.5 %, and at descent our shaft power sits **outside** it — 0.900 % from Table B.1 against
-the report's own 0.734 %. The old shelter for that residual is gone: it is a real discrepancy
-of ours and belongs in the ledger, not behind a rule. The rule itself still holds where it
+not 5.5 %, and at descent our shaft power sits **outside** it — 0.806 % from Table B.1 against
+the report's own 0.734 %. It was 0.900 % until the 2026-09-15 `f1` retrace, so the gap has
+narrowed but has not closed. The old shelter for that residual is gone: it is a real
+discrepancy of ours and belongs in the ledger, not behind a rule. The rule itself still holds where it
 applies — do not tune below the source's own spread — it just no longer covers this point.
 
 Read the last column before quoting a row. Figure 7 prints 15 markers over its whole range
@@ -234,7 +235,8 @@ magnitude because the printed elements do:
 | P3 column outside that block, 5-DOF | +/-3.0 % | `test_appendix_b_elements.P3_COLUMN_TOL_PCT` |
 | T41 row | ratio 0.90-0.96 | `test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio` |
 | 3-DOF T41 column, NP row | +/-12 % | `test_three_dof_elements_against_b7_b9_b11` |
-| 3-DOF NG column | ratio 0.80-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
+| 3-DOF NG column, less descent `A(T41,NG)` | ratio 0.80-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
+| descent `A(T41,NG)`, 3-DOF | ratio 0.6-1.0 | `test_all_dof_models.DESCENT_T41_NG` |
 | 3-DOF `b` | ratio 0.86-1.02 | `test_appendix_b_elements.THREE_DOF_B` |
 | 6-DOF `b`, gas path | ratio 0.93-0.96 | `test_appendix_b_elements.SIX_DOF_B_GAS` |
 | 6-DOF `b`, T41 | ratio 0.87-0.9 | `test_appendix_b_elements.SIX_DOF_B_T41` |

@@ -93,26 +93,34 @@ def test_eigenvalues_are_step_independent(name: str):
     wf = wf_pps_from_pph(TRIMS[name][0])
     r = trim.solve(wf, NP_RPM, AMB)
     ref = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=1e-5).A).real)
-    # 1e-4 dropped on 2026-09-14: the beta-gridded f1 has 56 knots per speed line instead
-    # of 7, so a 1e-4 relative step no longer averages cleanly over the corners and descent
-    # reads 1.1e-3 against this 1e-3 bound. The plateau is still three decades wide, it just
-    # starts a decade lower. More knots, finer structure to resolve.
-    for rel in (1e-6, 1e-7, 1e-8):
+    # 1e-4 was dropped on 2026-09-14 and is back on 2026-09-15. It was dropped because the
+    # beta-gridded `f1` carried 56 knots per speed line instead of 7, so a 1e-4 step no
+    # longer averaged cleanly over the corners between them and descent read 1.1e-3 against
+    # this 1e-3 bound. Tracing the printed line removed the corners rather than the knots:
+    # the knots now sample a curve that is monotone and concave by construction, and the
+    # worst of the three trims reads 1.0e-6. The plateau is four decades wide again.
+    for rel in (1e-4, 1e-6, 1e-7, 1e-8):
         ev = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=rel).A).real)
         assert np.allclose(ev, ref, rtol=1e-3), f"rel={rel:g} moved the spectrum: {ev}"
 
     report = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=0.02).A).real)
     shifts = [100.0 * (b / a - 1.0) for a, b in zip(ref, report, strict=True)]
     worst = max(shifts, key=abs)
-    # Moved by the f1 interpolation change of 2026-09-13, and the shape of the move is the
-    # point: descent collapsed from +22.7 % to +2.0 %, which is what you expect if the
-    # sensitivity to the extraction step was the speed-line knot discontinuity. Hover, which
-    # sits mid-segment and was never knot-dominated, is unmoved at +21.6 %.
-    # Moved again with the beta-gridded f1 of 2026-09-14. Descent has now collapsed to
-    # -2.5 %, from -22.7 % under constant-abscissa interpolation: the sensitivity to the
-    # extraction step really was the speed-line knot discontinuity, and 56 beta values
-    # instead of 7 largely removes it. Hover, which sits mid-segment, is unmoved at +21.6 %.
-    expected = {"hover": 21.6, "level": -7.1, "descent": -2.5}[name]
+    # These have moved with every `f1` revision, and WHICH trim moves is the check that the
+    # cause is understood. The gap measured here is a second-derivative effect -- a +/-2 %
+    # secant against a 1e-5 derivative -- so only a trim whose perturbation lands on the
+    # part of `f1` that changed can move at all.
+    #
+    #   descent  +22.7 % -> +2.0 %  2026-09-13, constant-k along the construction lines
+    #                    -> -2.5 %  2026-09-14, the beta grid
+    #                    -> -1.5 %  2026-09-15, traced from the printed line
+    #   level     -7.1 % -> -7.4 %        hover  +21.6 % throughout
+    #
+    # Hover has read +21.6 % through all four, because it sits mid-segment: in beta it is at
+    # 0.847 against its own knee at 0.862 -- on the flat choked run, short of the corner,
+    # where every revision of `f1` draws the same straight line. Descent, at beta 0.866
+    # against a knee at 0.831, sits past its knee on the part that keeps being redrawn.
+    expected = {"hover": 21.6, "level": -7.4, "descent": -1.5}[name]
     assert abs(worst - expected) < 1.0, (
         f"{name}: the report's +/-2 % perturbation [pdf p.28] moves the 5-DOF spectrum by "
         f"{worst:+.1f} % against rel=1e-5, where {expected:+.1f} % is on record. If this "
