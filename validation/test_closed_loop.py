@@ -561,7 +561,8 @@ def test_the_t45_harness_lag_is_invisible_to_the_closed_loop():
     reaching it needs an NG past the 100 % ceiling the report declares validity to. It is
     perfectly reachable in the ECU *alone*, which is a block diagram with inputs, and
     `tests/test_ecu.py::test_the_thermocouple_lag_shapes_the_overtemperature_handover` now
-    pins `TLGE` to about 5 % and `F_EC1` to about 1 % there. What survives here is the
+    pins `TLGE` to **5.6 %** there, and `F_EC1` to **0.08 %** -- both measured by bisecting
+    the scale factor at which `OVERTEMP_SPDG` starts to fail. What survives here is the
     narrower and still-useful fact below.
     """
     from t700.control import constants as control_c
