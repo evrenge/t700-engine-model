@@ -277,8 +277,15 @@ iteration does. Raising the P45 pass cap from 8 to 400 leaves it at −75.330 to
   |---|---|---|
   | sub-idle trims, 125–175 lbm/hr | −7.07 to −0.21 % | **0.0000 %** |
   | dependence on `MAX_ITER_P45` | parity-selected, two roots | **none, caps 2–21 identical** |
-  | Figure 10 floor | 69.90 %NGc | **73.77** (Ballin: 74.93) |
+  | Figure 10, speed at t = 5 s | 69.90 %NGc | **73.77** |
   | Figure 10 worst panel | 13.15 % | **4.71 %** |
+
+  That last row is not a comparison against Ballin and was labelled "Figure 10 floor
+  ... (Ballin: 74.93)" until 2026-09-14. Neither trace has a floor: his PCNG record stops
+  at t = 4.467 s still falling at −2.09 %NG/s, ours runs to 5.0, and 73.77 is simply our
+  last frame. **At his own last sample we read 74.747 against his 74.931** — 0.18 %NG,
+  inside that panel's 0.236 %NG read error, where the mismatch had been reported as
+  −1.16 %NG and called the largest single disagreement left on either transient.
 
   The sub-idle figure is exactly zero because Eq. 80 does not need a numerical root finder
   at all: substituting `u = Ps9/P45` makes it a piecewise-linear function against a line

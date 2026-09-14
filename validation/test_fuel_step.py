@@ -79,13 +79,27 @@ INITIAL_TOL_PCT = 1.5
 """The trim is the same physics the steady-state tests already check, so it should agree
 tightly -- this is really a check that the figures' own y calibration is sound."""
 
-FINAL_TOL_PCT = {9: 5.0, 10: 8.0}
-"""Figure 10 still gets a looser bound, but far less loose than it needed before.
+FINAL_TOL_PCT = {9: 1.0, 10: 1.0}
+"""One bound for both figures now, and Figure 10 no longer needs the looser one.
 
 It was 20.0 while the settled T41 ran +11.5 % and T45 +17.4 %. Adopting the report's own
-printed convergence criterion [pdf p.37] brought those to +3.2 % and +3.4 %, and the
-worst remaining panel is Ps3 at +6.9 %. **Tightened, never widened** -- and this pair
-belongs in `SCOPE.md` per CLAUDE.md rather than inline here."""
+printed convergence criterion [pdf p.37] brought those to +3.2 % and +3.4 %, which took
+the pair to 5.0 and 8.0. **Tightened, never widened** -- and this pair belongs in
+`SCOPE.md` per CLAUDE.md rather than inline here.
+
+**8.0 was covering a comparison-window mismatch, not a model error, and removing it on
+2026-09-14 took the worst of the nine panels from 1.969 % to 0.595 %.** See
+`_settled_window` below. Measured after the fix:
+
+| panel | Fig. 9 | Fig. 10 |
+|---|---|---|
+| PCNG | -0.014 | **-0.307** |
+| PS3 | +0.035 | **-0.595** |
+| T41 | -0.110 | +0.410 |
+| T45 | -0.156 | +0.419 |
+| TORQ45 | +0.196 | ends before t = 4.0 |
+
+Nothing in the model changed."""
 
 
 UNTRUSTED: set[tuple[int, str]] = set()
@@ -117,6 +131,27 @@ def _reference(fig: int, key: str) -> tuple[np.ndarray, np.ndarray]:
     v = np.array([float(r["value"]) for r in rows])
     o = np.argsort(t)
     return t[o], v[o]
+
+
+def _settled_window(tb, vb):
+    """The reference's own settled samples, and the time its record actually stops.
+
+    The 4.6 upper bound is load-bearing: `fig09_t41_model.csv` and `fig09_torq45_model.csv`
+    each carry a spurious trailing sample at t ~ 4.9 (see their headers, and open question
+    #48). Widening it silently corrupts the comparison.
+
+    **The second return value is the fix of 2026-09-14.** Every one of these records stops
+    at about t = 4.47 s -- that is where Ballin's panel frame ends -- while `_run` goes to
+    5.0. Averaging our 4.0-5.0 against his 4.0-4.47 is only harmless on a channel that has
+    settled, and on Figure 10 **nothing has**: the chop is still falling at -1.92 %NG/s at
+    the last sample Ballin prints, and his own trace is falling at -2.09. So the extra 0.53
+    seconds were being charged to the model as a deviation. On PCNG that was -0.98 % of
+    which -0.31 is real; on Ps3 -1.97 % of which -0.59 is.
+    """
+    sel = (tb > 4.0) & (tb < 4.6)
+    if not sel.any():
+        return vb[sel], 0.0
+    return vb[sel], float(tb[sel].max())
 
 
 def _run(fig: int, wf_hi: float, t_step: float, heat_sink: bool = True):
@@ -173,13 +208,10 @@ def test_settled_state_matches_the_figure(fig: int, wf_hi: float, t_step: float,
     tr = _run(fig, wf_hi, t_step)
     ours = PANELS[key](tr)
 
-    late_us = ours[tr["t"] > 4.0]
-    # The 4.6 upper bound is load-bearing: fig09_t41_model.csv and fig09_torq45_model.csv
-    # each carry a spurious trailing sample at t ~ 4.9 (see their headers, and open
-    # question #48). Widening this window silently corrupts the comparison.
-    late_them = vb[(tb > 4.0) & (tb < 4.6)]
+    late_them, t_last = _settled_window(tb, vb)
     if late_them.size == 0:
         pytest.skip("no settled reference samples")  # fig 10 TORQ45 ends before t = 4.0
+    late_us = ours[(tr["t"] > 4.0) & (tr["t"] <= t_last)]
     dev = (late_us.mean() - late_them.mean()) / abs(late_them.mean()) * 100.0
     assert abs(dev) < FINAL_TOL_PCT[fig], (
         f"fig {fig} {key}: settled {late_us.mean():.1f} against Ballin's "
@@ -202,7 +234,8 @@ def test_step_up_stays_inside_the_compressor_map():
 
 
 def test_step_down_runs_off_the_bottom_of_the_maps():
-    """Figure 10 stays inside `f1`, and the floor is 1.16 %NG below Ballin's.
+    """Figure 10 stays inside `f1`, and our speed at the end of Ballin's record is 0.18 %NG
+    below his.
 
     ## The history, because it is the point of this test
 
@@ -218,9 +251,45 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
 
     Against Ballin's own **74.93 %**, which is itself a corrected number: pdf p.46 is
     scanned at a slight rotation and every trace on it read low by up to 4.2 % of panel
-    height until 2026-09-14, putting his floor at 74.18 (open question #63). So the gap is
-    -1.16 %NG, not the -0.09 this docstring claimed, and it is the largest single
-    disagreement left on either transient figure.
+    height until 2026-09-14, putting his floor at 74.18 (open question #63). That made the
+    gap -1.16 %NG and "the largest single disagreement left on either transient figure".
+
+    ## Except that 0.98 of the 1.16 was a comparison-window mismatch -- 2026-09-14
+
+    **Neither trace has a floor.** `_run` integrates to 5.0 s; Ballin's PCNG record stops at
+    **t = 4.467 s**, where his panel frame ends. At that instant his trace is falling at
+    -2.09 %NG/s and ours at -1.92, and the fuel is cut to 125 lbm/hr, far below what
+    sustains the trim -- so the speed is still on its way down for both of us and 74.93 is
+    simply his last printed sample. `ngc.min()` over our longer run was being compared
+    against it, and our minimum occurs at **t = 4.998 s, the last frame of the run**.
+
+    Matched at his own last sample, ours reads **74.747** against his **74.931**:
+
+    | | %NGc |
+    |---|---|
+    | our minimum over 5.0 s, as compared until now | 73.765 (at t = 4.998) |
+    | ours at t = 4.467, Ballin's last sample | **74.747** |
+    | Ballin's last sample | **74.931** |
+    | the window mismatch | **-0.982 of the -1.166** |
+
+    The remaining **-0.184 %NG** is inside this panel's own read error, which `SCOPE.md`
+    measures at 0.59 % of a 40 %NG full scale, i.e. **0.236 %NG**. So the largest single
+    disagreement left on either transient is not one, and open question #47's residual on
+    this channel closes with it.
+
+    The same mismatch was biasing `test_settled_state_matches_the_figure` on both figures;
+    see `_settled_window`.
+
+    ## Where the GE reference sits, since it is on the same panel
+
+    Figure 10 prints two series and this file compares against the solid one -- Ballin's
+    own real-time model, which is what we are replicating. The `+` markers are the GE
+    reference standard data he was validating *against*, and at t = 4.50 s they read
+    **72.978 %NGc**. So his model ends **+1.95 %NG** above the hardware reference and ours
+    **+1.77**, both inside the "1 to 2 percent" NG overestimate he declares for these two
+    figures [pdf p.39]. Agreeing with GE more closely than Ballin does is not a result --
+    `validation/test_ge_reference.py` is explicit about that -- but it does say the gap
+    against his trace is small next to the gap his trace has with its own reference.
 
     The second row looked like a triumph and was not: testing
     the iterate step rather than the error under-converges the inner loop by a factor of
@@ -268,13 +337,22 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     ngc = 100.0 * tr["ng"] / c.NG_DES
     rep = maps.clamp_report()
 
-    # Ours bottoms at 73.77 %, Ballin's at 74.93. The window is tight on both sides: a
-    # floor that fell back toward 70 % would mean a pressure solve has stopped converging,
-    # and one that rose would mean the fuel cut is no longer being followed.
+    tb, vb = _reference(10, "pcng")
+    ours_at_end = float(np.interp(tb[-1], tr["t"], ngc))
+    gap = ours_at_end - vb[-1]
+    assert abs(gap) < 0.24, (
+        f"at Ballin's last sample (t = {tb[-1]:.3f} s) we read {ours_at_end:.3f} %NGc "
+        f"against his {vb[-1]:.3f}, a gap of {gap:+.3f} %NG. On record: -0.184, inside "
+        f"this panel's 0.236 %NG read error. Compare at his last sample, never our "
+        f"minimum -- neither trace has settled there."
+    )
+
+    # The run's own minimum, which is simply its last frame: kept as a tripwire on the
+    # pressure solves. A minimum back near 70 % would mean one has stopped converging.
     assert 73.4 < ngc.min() < 74.2, (
-        f"NGc bottoms at {ngc.min():.2f} %, against Ballin's 74.93 % and our 73.77 % on "
-        f"record. If this has fallen, check that both pressure solves still converge "
-        f"before believing the model changed physically."
+        f"NGc bottoms at {ngc.min():.2f} % over the full 5 s, against 73.77 on record. "
+        f"This is not a comparison against Ballin -- his record stops at 4.47 s -- it is "
+        f"a check that both pressure solves still converge."
     )
     assert tr["far"].min() < 0.010, "the fuel-air ratio still falls below f6's plotted range"
     assert "f1@65" not in rep and "f1" not in rep, (

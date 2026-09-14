@@ -477,12 +477,18 @@ def _p45_loop(
       * the frame map's own sub-idle equilibria, up to **-7.07 %NG** at 150 lbm/hr and
         identical at tol 1e-3 and 1e-9, are gone: every flow from 125 to 175 lbm/hr now
         agrees with the differential trim to **0.003 %** or better.
-      * Figure 10's floor moves **69.90 -> 73.77 %NGc** against Ballin's 74.93, its worst
-        whole-curve panel **13.15 -> 4.71 %**, and the ten-panel mean **4.40 -> 2.65 %**.
-        (Ballin's floor reads 74.93 and not the 74.18 this note carried until 2026-09-14;
-        pdf p.46 is skewed and every trace on it was low by up to 4.2 % of panel height.
-        Open question #63.)
-        Figure 9 does not move.
+      * Figure 10's end-of-run speed moves **69.90 -> 73.77 %NGc**, its worst whole-curve
+        panel **13.15 -> 4.71 %**, and the ten-panel mean **4.40 -> 2.65 %**. Figure 9 does
+        not move. (Ballin's last sample reads 74.93 and not the 74.18 this note carried
+        until 2026-09-14; pdf p.46 is skewed and every trace on it was low by up to 4.2 %
+        of panel height. Open question #63.)
+
+        **Neither number is a floor and they are not at the same time**, which this note
+        called "Figure 10's floor ... against Ballin's 74.93" until 2026-09-14. His PCNG
+        record stops at t = 4.467 s with the trace still falling at -2.09 %NG/s; ours falls
+        to 4.998. Compared at his own last sample we read **74.747** against his 74.931 --
+        a gap of 0.184 %NG, inside that panel's 0.236 %NG read error. See
+        `validation/test_fuel_step.py::test_step_down_runs_off_the_bottom_of_the_maps`.
 
     The cost is the pass count, and it is real: below about 160 lbm/hr this loop runs a
     mean of **~23 passes a frame** -- the printed eight, then ~15 bisection steps -- against
