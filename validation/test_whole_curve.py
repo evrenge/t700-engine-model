@@ -110,16 +110,67 @@ def _run(fig: int, heat_sink: bool):
     }
 
 
-def _rms_pct(t, ours, tb, vb):
+STEP_JUMP_TOL_PCT = 12.0
+"""How far our motion across the riser may differ from Ballin's, as a percent of the
+panel's own excursion. Declared in `SCOPE.md`.
+
+Generous by design: the riser's two endpoints are the *last* sample before the edge and the
+*first* after it, and where they fall depends on the tracer, so a 3 ms pitch on a curve
+moving 600 degR in 90 ms puts tens of degrees of quantisation into the comparison on its
+own. It is a check that the edge is the right size, not a precision measurement of it."""
+
+RISER_WINDOW_S = 0.30
+"""How far either side of the step to look for the riser hole, in seconds."""
+
+
+def riser(tb: np.ndarray, t_step: float) -> tuple[float, float] | None:
+    """The sampling hole at the step: the times either side of it, or None.
+
+    **A line tracer cannot follow a vertical edge.** Where Ballin's curve moves almost
+    instantaneously at the fuel step, the walker in `tools/digitize_fig910.py` finds no
+    single thin run per column and emits nothing, so every reference trace has a gap there
+    -- 64 to 165 ms wide, against a 3 ms median sampling pitch. `np.interp` then draws a
+    **straight chord** across it, and on Figure 9's T41 panel that chord spans 603.97 degR,
+    99.9 percent of the panel's entire excursion.
+
+    Comparing our near-vertical edge against that fabricated ramp measures the tracer, not
+    the model. It contributed **96.5 %** of the sum of squares on Figure 9's T41 and 93.9 %
+    on its T45, which is what made the two best panels in the set look like the two worst.
+    Found by the 2026-09-14 validation-quality audit.
+
+    The widest gap *near the step*, not the widest in the record: three panels have a wider
+    one elsewhere, where the curve runs flat and the walker lost it against a frame line.
+    Panels whose curve is slow enough to trace through the step -- Figure 10's T41 and
+    PCNG -- have no hole there, and excluding their widest near-step gap costs 0.1 % and
+    0.2 % respectively, so the rule needs no special case.
+    """
+    mid = 0.5 * (tb[:-1] + tb[1:])
+    near = np.flatnonzero(np.abs(mid - t_step) < RISER_WINDOW_S)
+    if near.size == 0:
+        return None
+    i = int(near[np.argmax(np.diff(tb)[near])])
+    return float(tb[i]), float(tb[i + 1])
+
+
+def _rms_pct(t, ours, tb, vb, fig: int, exclude_riser: bool = True):
     """RMS |ours - Ballin| over the common window, as a percent of Ballin's excursion.
 
     No time shift. There was one, `BALLIN_STEP - OUR_STEP` = 6 ms, because our step time
     and his were two different eyeballed guesses; both runs now step at the instant
     measured from his own WFPH panel, so the traces share an origin by construction.
+
+    The riser hole is excluded -- see `riser`. What that region *does* carry is the size and
+    the time of the edge, both readable even though the path between its endpoints is not,
+    and `test_the_step_edge_itself_matches` asserts those separately. `exclude_riser=False`
+    reproduces the number this file reported before 2026-09-14.
     """
     lo, hi = float(tb.min()), min(float(tb.max()), float(t.max()))
     grid = np.linspace(lo, hi, 800)
     d = np.interp(grid, t, ours) - np.interp(grid, tb, vb)
+    if exclude_riser:
+        gap = riser(tb, STEP_TIME[fig])
+        if gap is not None:
+            d = d[(grid < gap[0]) | (grid > gap[1])]
     return 100.0 * float(np.sqrt((d**2).mean())) / float(np.ptp(vb))
 
 
@@ -147,7 +198,7 @@ def test_the_heat_sink_configuration_is_the_better_fit():
                 tb, vb = _ballin(fig, key)
                 if tb is None:
                     continue
-                errs.append(_rms_pct(t, ours[key], tb, vb))
+                errs.append(_rms_pct(t, ours[key], tb, vb, fig))
         means[heat_sink] = float(np.mean(errs))
     assert means[True] < means[False], (
         f"heat sink on gives mean whole-curve RMS {means[True]:.2f} % against "
@@ -160,54 +211,55 @@ def test_the_heat_sink_configuration_is_the_better_fit():
     )
 
 
-WHOLE_CURVE_RMS_CEILING_PCT = 5.0
+WHOLE_CURVE_RMS_CEILING_PCT = 4.0
 """Ceiling on any single panel's whole-curve RMS, as a percent of its own excursion.
 
 **This is a ratchet, not a tolerance.** Set just above the worst panel measured, so a
 regression fails while an improvement is free. Lower it whenever the model improves.
-Declared in `SCOPE.md` per CLAUDE.md, and `tests/test_scope_tolerances.py` now checks that
-the two agree.
+Declared in `SCOPE.md`, and `tests/test_scope_tolerances.py` checks that the two agree.
 
-Current, over **ten** panels -- Figure 10's TORQ45 rejoined the comparison on 2026-09-14
-when its exclusion turned out to be our own page skew:
+Current, over ten panels, with the riser hole excluded (see `riser`):
 
 | panel | Fig. 9 | Fig. 10 |
 |---|---|---|
-| PCNG | 1.479 | 1.437 |
-| PS3 | 1.171 | 1.812 |
-| T41 | 3.712 | 3.790 |
-| T45 | 3.353 | **4.713** |
-| TORQ45 | 2.037 | 3.010 |
+| PCNG | 1.474 | 1.447 |
+| PS3 | 0.760 | 1.698 |
+| T41 | **0.706** | **3.820** |
+| T45 | **0.836** | 2.937 |
+| TORQ45 | 0.673 | 2.421 |
 
-Mean **2.651 %**, worst 4.713 on Figure 10's T45.
+Mean **1.677 %**, worst 3.820 on Figure 10's T41. **Figure 9's two temperature panels are
+now the best two in the set**, and every Figure 9 panel is under 1.5 %. What is left lives
+entirely on Figure 10, the chop.
 
-History, including the one time it went the wrong way and the two times the reference data
-was the thing that moved:
+History, including the one time it went the wrong way and the three times the *measurement*
+was the thing that moved rather than the model:
 
 * 17.0 (worst 15.8 %) -> **8.0** (worst 7.62 %) when the heat sink was rebuilt on Eqs.
   48-49. Nine-panel mean 9.78 % -> 3.79 %.
-* 8.0 -> **14.0** -> **8.0**, both on 2026-09-13. The raise was recorded rather than
-  quietly absorbed and the history is worth keeping, because the diagnosis that justified
-  it turned out to be half right. The P3/P41 stopping test was corrected to measure the
-  error the report states rather than the iterate step, which converges the pressures about
-  eight times harder per frame; Figure 9 improved on four of five panels and Figure 10's
-  chop degraded to t45 13.15 %, attributed to `f1`'s data hole. **It was not `f1`.** Eq. 80's
-  fixed-point iteration does not converge where f9's elasticity is below -1, and solving
-  Eq. 80 where the printed iteration fails took t45 back to 7.72 % with Figure 9 untouched.
-* **8.0 -> 5.0 on 2026-09-14, and the model did not change.** Two defects in our own
-  digitization of pdf pp.45-46 did. The panels are skewed, so every trace carried a ramp of
-  up to 4.2 % of panel height (#63); and each panel's time axis was read against one
-  page-wide pair of vertical frame columns, though those frames drift left going down the
-  page, so the six panels' clocks disagreed by up to 38 ms. Correcting the second is what
-  answers the question this file existed to ask. Before it, the best-fit time offset per
-  panel ran +2 ms on PCNG, +37 on T41, +49 on T45 and +54 on TORQ45 -- a lag that grows
-  down the page, which reads as our temperatures responding too early and is nothing of the
-  kind. After it the offsets are **-24 to +10 ms with mixed signs**, inside three engine
-  frames, and the step time measured from Ballin's own fuel panel is 0.5232 s on Figure 9
-  and 0.5217 on Figure 10 against the 0.539/0.545 eyeballed before.
+* 8.0 -> **14.0** -> **8.0**, both on 2026-09-13, recorded rather than quietly absorbed
+  because the diagnosis that justified the raise turned out to be half right. The P3/P41
+  stopping test was corrected to measure the error the report states rather than the
+  iterate step; Figure 9 improved on four of five panels and Figure 10's chop degraded to
+  t45 13.15 %, attributed to `f1`'s data hole. **It was not `f1`** -- Eq. 80's fixed-point
+  iteration does not converge where f9's elasticity is below -1, and solving Eq. 80 where
+  the printed iteration fails took t45 back to 7.72 % with Figure 9 untouched.
+* **8.0 -> 5.0 on 2026-09-14, model unchanged.** Two defects in our own digitization of
+  pdf pp.45-46: the panels are skewed, so every trace carried a ramp of up to 4.2 % of
+  panel height (#63); and each panel's time axis was read against one page-wide pair of
+  vertical frame columns though those frames drift left going down the page, so the six
+  panels' clocks disagreed by up to 38 ms. The second is what produced the long-standing
+  appearance of our temperatures leading Ballin's -- best-fit offsets of +2 ms on PCNG,
+  +37 on T41, +49 on T45, +54 on TORQ45, a lag growing down the page. After: -24 to +10 ms
+  with mixed signs. Figure 10's T45 went 7.238 -> 4.713.
+* **5.0 -> 4.0 the same day, model unchanged again.** The metric was drawing a straight
+  chord across the reference traces' riser hole and scoring our near-vertical edge against
+  it -- 96.5 % of the sum of squares on Figure 9's T41. See `riser`. Excluding it takes the
+  mean 2.651 -> 1.677 and moves Figure 9's T41 and T45 from the worst two panels to the
+  best two: 3.712 -> 0.706 and 3.353 -> 0.836.
 
-  T45 on Figure 10, the worst panel in the project since the beginning, went 7.238 ->
-  **4.713 %**; T41 4.675 -> 3.790; the mean 3.319 -> 2.651.
+Three of those four moves were our measurement and not our model, which is worth stating
+plainly: this number was for a long time a worse description of the model than it looked.
 """
 
 
@@ -220,7 +272,7 @@ def test_whole_curve_error_does_not_regress(fig: int, key: str):
     if tb is None:
         pytest.skip("not digitized")
     t, ours = _run(fig, heat_sink=True)
-    rms = _rms_pct(t, ours[key], tb, vb)
+    rms = _rms_pct(t, ours[key], tb, vb, fig)
     assert rms < WHOLE_CURVE_RMS_CEILING_PCT, (
         f"fig {fig} {key}: whole-curve RMS {rms:.2f} % of excursion, past the "
         f"{WHOLE_CURVE_RMS_CEILING_PCT} % ratchet"
@@ -585,3 +637,83 @@ def test_ps3_leverage_on_the_speed_derivative_is_what_it_was_measured_to_be():
             f"against {expected:.1f} on record. This is the invariant behind open "
             f"question #47's error budget; if it has moved, the budget needs redoing."
         )
+
+
+@pytest.mark.parametrize("fig", sorted(STEPS))
+@pytest.mark.parametrize("key", PANELS)
+def test_the_step_edge_itself_matches(fig: int, key: str):
+    """What the riser region does carry: the size of the edge, and when it happened.
+
+    `_rms_pct` excludes the hole because the *path* across it is drawn by `np.interp` and
+    not by Ballin. Its two endpoints are his, though, so the jump between them is a real
+    measurement of how far the quantity moved while the fuel changed, and the midpoint is a
+    real measurement of when. Asserting those keeps the fastest part of the transient under
+    test rather than merely excluded.
+
+    The bound is on the *jump*, normalised by the panel's excursion, because that is the
+    quantity the riser measures; the edge time is bounded at 40 ms, which is the widest
+    riser (165 ms on Figure 9's TORQ45) divided by four and about six engine frames.
+    """
+    tb, vb = _ballin(fig, key)
+    gap = riser(tb, STEP_TIME[fig])
+    if gap is None:
+        pytest.skip(f"fig {fig} {key}: no sampling gap near the step")
+    t0, t1 = gap
+    i = int(np.flatnonzero(tb == t0)[0])
+    theirs = vb[i + 1] - vb[i]
+    if abs(theirs) < 0.05 * np.ptp(vb):
+        pytest.skip(f"fig {fig} {key}: no riser, the tracer followed the edge ({theirs:.2f})")
+
+    t, ours = _run(fig, True)
+    o = ours[key]
+    mine = float(np.interp(t1, t, o) - np.interp(t0, t, o))
+    dev = 100.0 * (mine - theirs) / np.ptp(vb)
+    assert abs(dev) < STEP_JUMP_TOL_PCT, (
+        f"fig {fig} {key}: across the riser Ballin moves {theirs:.2f} and we move "
+        f"{mine:.2f}, {dev:+.2f} % of the panel's {np.ptp(vb):.2f} excursion"
+    )
+
+
+def test_the_control_volumes_cannot_be_constrained_by_any_transient_panel():
+    """Doubling K_V3, K_V41, K_V45 or K_DAMP leaves every reference point bit-identical.
+
+    Recorded rather than fixed, because it is a property of the report's own formulation
+    and not a gap we can close from Figures 9 and 10.
+
+    **The volumes.** The real-time frame solves the three pressures algebraically [Eqs.
+    76-80] -- that is what the quasi-steady reduction on pdf p.36 *is*. The control volumes
+    are the coefficients of the pressure derivatives, and the derivatives are what got
+    removed, so `K_V3`, `K_V41` and `K_V45` appear nowhere in `realtime.py`. They survive
+    only in `engine.frame`, i.e. in the continuous 5-DOF model, which is what Appendix B
+    compares against. Those three constants are therefore pinned by the Appendix B
+    element comparison and by nothing else in the project.
+
+    **The damping.** `K_DAMP` (Eq. 41) multiplies `NP - NP_DES`, and Figures 9 and 10 are
+    run with `integrate_np=False` at NP = NP_DES, so that term is identically zero on every
+    transient frame. At the three Table B.1 trims NP is 20895 against NP_DES 20900, so it
+    contributes 0.036 ft*lbf -- 0.016 to 0.048 % of Q_PT -- and `K_DAMP` would have to be
+    wrong by about 60x before the +/-3 % torque comparison noticed.
+
+    Found by the 2026-09-14 validation-quality audit, which mutated 30 constants and
+    measured which tests noticed. This test exists so the four that cannot be noticed here
+    are on record as such, rather than appearing to be covered.
+    """
+    base = {}
+    for fig in STEPS:
+        t, ours = _run(fig, True)
+        base[fig] = {k: v.copy() for k, v in ours.items()}
+
+    for name in ("K_V3", "K_V41", "K_V45", "K_DAMP"):
+        original = getattr(c, name)
+        try:
+            setattr(c, name, original * 2.0)
+            for fig in STEPS:
+                _t, ours = _run(fig, True)
+                for key in PANELS:
+                    assert np.array_equal(base[fig][key], ours[key]), (
+                        f"doubling {name} moved fig {fig} {key}. That is a real change in "
+                        f"the model and this test's premise -- that the transient cannot "
+                        f"see these four constants -- no longer holds."
+                    )
+        finally:
+            setattr(c, name, original)

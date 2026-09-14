@@ -425,3 +425,155 @@ def test_the_limit_cycle_is_what_it_is_measured_to_be():
         assert ptp["NG"] == pytest.approx(ng_pp, abs=2.0), f"{name} NG p-p {ptp['NG']:.3f}"
         # and it must remain small enough that the mean is the honest summary
         assert 100.0 * ptp["NG"] / _ng < 0.15, f"{name} NG cycle is {ptp['NG']:.1f} rpm"
+
+
+# ---------------------------------------------- Appendix C's forward path, which nothing saw
+
+LOAD_STEP_PCT = 15.0
+NP_DIP_RPM = (193.4, 195.4)
+WF_PEAK_PPH = (550.0, 558.0)
+SLAM_RISE_MS = (140.0, 155.0)
+"""Characterizations of the loop's *transient*, not accuracy claims -- see `SCOPE.md`,
+"A third category exists". The report prints no closed-loop time history, so there is
+nothing to be accurate against; what these bounds do is make Appendix C's forward-path
+gains observable at all.
+
+**They were not.** The 2026-09-14 validation-quality audit mutated 30 constants and found
+nine that no test in the project detected, all in the fuel control. The mechanism is
+structural: `test_hmu_trim` bisects the *collective* until the HMU commands the printed
+fuel flow, so a forward-path gain change is absorbed into the collective; and the
+closed-loop tests let the governor trim it out in steady state. Every steady test either
+solves for a free input or integrates the error away, so no forward-path gain in Appendix C
+was observable anywhere.
+
+A transient is where a loop gain shows. Measured:
+
+| perturbation | NP dip | Wf peak | slam rise |
+|---|---|---|---|
+| baseline | 194.4 rpm | 554.1 pph | 147 ms |
+| `TMLG` +10 % | **189.3** | **556.9** | 147 |
+| `TMGN` x10 | 193.1 | 552.8 | 147 |
+| `TMGN` +10 % | 194.3 | 554.1 | 147 |
+| `CLLDS` x2 | 194.4 | 554.1 | **175** |
+| `TLGE` +50 % | 194.4 | 554.1 | 147 (bit-identical) |
+
+So the load step pins `TMLG` at +10 % and `TMGN` at the order-of-magnitude level, and the
+collective slam pins `CLLDS` at x2. The NP dip is the discriminator and its band is 1 % wide
+about the measured 194.392 rpm, which makes it a tripwire rather than a tolerance -- any
+real change to the loop will trip it and should be looked at. `TMGN` at +10 % moves the dip
+by 0.07 rpm and stays out of reach even so. `TLGE` is bit-identical in every configuration the suite runs and
+`test_the_t45_harness_lag_is_structurally_unreachable` records why."""
+
+
+def test_a_load_step_response_pins_the_torque_motor_linkage():
+    """A 15 % load step at hover, characterized -- so a forward-path gain cannot move freely.
+
+    The quantities are the ones a governor is judged on and the ones a loop gain moves: how
+    far NP is dragged down before the fuel catches up, and how much fuel it takes.
+    """
+    name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    xcpc = XCPC_PCT[name]
+    wf_pps = wf_pps_from_pph(wf)
+    r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
+    f = frame(r.state, wf_pps, AMB)
+    slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
+    pilot = loop.Pilot(
+        xcpc_pct=xcpc, pas_deg=100.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES
+    )
+    s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+    step_at, n = 1400, 2600
+    np_min, wf_max = 1e9, 0.0
+    for i in range(n):
+        load_q = q * (1.0 + LOAD_STEP_PCT / 100.0) if i >= step_at else q
+        s, _e, h, _fr = loop.step(
+            s,
+            pilot,
+            AMB,
+            dt=DT,
+            load=lambda v, lq=load_q: lq + slope * (v - NP_TRIM_RPM),
+            j_load=engine_c.J_LOAD_UH60A,
+            heat_sink=True,
+        )
+        if i >= step_at:
+            np_min = min(np_min, s.engine.np_rpm)
+            wf_max = max(wf_max, h.wf_pph)
+    dip = NP_TRIM_RPM - np_min
+    assert NP_DIP_RPM[0] < dip < NP_DIP_RPM[1], f"NP dips {dip:.1f} rpm on a 15 % load step"
+    assert WF_PEAK_PPH[0] < wf_max < WF_PEAK_PPH[1], f"Wf peaks at {wf_max:.1f} pph"
+
+
+def test_a_collective_slam_pins_the_collective_lag():
+    """`CLLDS` is the load-demand-spindle lag, and only a *moving* collective can see it.
+
+    Every other test in the project holds the collective fixed, which is why doubling this
+    constant was undetectable. Slam it from the hover setting to 85 % and the fuel command's
+    10-90 % rise time is the observable: 147 ms as shipped, 175 ms at 2x.
+    """
+    name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    wf_pps = wf_pps_from_pph(wf)
+    r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
+    f = frame(r.state, wf_pps, AMB)
+    slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
+    s, out, at, n = None, [], 600, 1800
+    for i in range(n):
+        pilot = loop.Pilot(
+            xcpc_pct=85.0 if i >= at else XCPC_PCT[name],
+            pas_deg=100.0,
+            pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
+        )
+        if s is None:
+            s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+        s, _e, h, _fr = loop.step(
+            s,
+            pilot,
+            AMB,
+            dt=DT,
+            load=lambda v: q + slope * (v - NP_TRIM_RPM),
+            j_load=engine_c.J_LOAD_UH60A,
+            heat_sink=True,
+        )
+        out.append(h.wf_pph)
+    post = np.asarray(out[at:])
+    lo, hi = post[0], post.max()
+    i10 = int(np.argmax(post > lo + 0.1 * (hi - lo)))
+    i90 = int(np.argmax(post > lo + 0.9 * (hi - lo)))
+    rise = (i90 - i10) * DT * 1e3
+    assert SLAM_RISE_MS[0] < rise < SLAM_RISE_MS[1], (
+        f"the fuel command's 10-90 % rise on a collective slam is {rise:.0f} ms"
+    )
+
+
+def test_the_t45_harness_lag_is_structurally_unreachable():
+    """`TLGE` cannot be constrained by anything this suite runs, and the reason is the point.
+
+    It is the lag on the T45 thermocouple harness, which feeds the ECU's **temperature
+    limiter**. At every condition the project exercises the ECU is governing *speed* --
+    `test_every_printed_trim_governs_on_the_droop_line` asserts exactly that -- so the T45
+    path carries a signal nothing downstream acts on, and changing its time constant is
+    bit-identical on every output.
+
+    Reaching it needs an operating point where the temperature limiter takes over, which is
+    a condition the report never publishes and this project has never had a reason to run.
+    Recorded rather than papered over: `TLGE` is carried on the provenance of its Table C.1
+    citation alone.
+    """
+    from t700.control import constants as control_c
+
+    name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+
+    def settled():
+        st, _e, h, fr = settle(wf, q, ratio, name=name)
+        return (st.engine.ng_rpm, st.engine.np_rpm, h.wf_pph, fr.t45_degR)
+
+    before = settled()
+    original = control_c.TLGE
+    try:
+        control_c.TLGE = original * 1.5
+        after = settled()
+    finally:
+        control_c.TLGE = original
+    assert before == after, (
+        f"TLGE now moves the settled state, {before} -> {after}. If the ECU has started "
+        f"limiting on temperature somewhere in this suite, this test should become a real "
+        f"comparison instead of a record of why it cannot be one."
+    )

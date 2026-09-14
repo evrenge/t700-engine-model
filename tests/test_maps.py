@@ -479,6 +479,31 @@ def test_f1_is_interpolated_on_a_smooth_analytic_beta_grid():
     m = maps.f1()
     assert m.beta_grid, "f1 is no longer a common-beta grid"
 
+    # `beta_grid` alone does NOT detect the departure being undone: it is computed as
+    # "every speed line has the same number of knots", and Ballin's printed seven-point
+    # table satisfies that too. The 2026-09-14 validation-quality audit reverted `f1` to
+    # the printed table and watched this test pass. What separates the two is the knot
+    # count and the spacing: the analytic grid carries 56 values per line, 8 below beta
+    # 0.70 and 48 above, and the printed table carries 7.
+    printed = maps.f1_as_printed()
+    assert printed.beta_grid, "the printed table is a common-knot-count grid as well"
+    assert m.lines[0].x.size > 4 * printed.lines[0].x.size, (
+        f"f1 carries {m.lines[0].x.size} beta values per line against the printed table's "
+        f"{printed.lines[0].x.size}; if these are the same, departure #60 has been undone "
+        f"and `beta_grid` cannot tell"
+    )
+    # and the grid is DENSER above the knee than below it, which the printed table is not.
+    # Beta is the fraction of the line's own span, so it comes from x and not from the
+    # index -- that is the whole point of the scheme.
+    x = m.lines[0].x
+    beta = (x - x[0]) / (x[-1] - x[0])
+    below = int(np.count_nonzero(beta <= 0.70 + 1e-9))
+    above = int(beta.size - below)
+    assert below * 4 < above, (
+        f"the beta grid carries {below} values at or below beta 0.70 and {above} above; "
+        f"it is meant to be much denser through the knee and up to surge"
+    )
+
     for pq in (70.0, 74.0, 86.0, 93.16):
         j = int(np.searchsorted(m.params, pq))
         a, b = m.lines[j - 1], m.lines[j]

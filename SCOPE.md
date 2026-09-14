@@ -251,7 +251,7 @@ as ours**. Provisionally, and only for quantities the report shows in a reproduc
 | Gas path P, T | +/-3% | +/-3% | ours, undeclared by the report |
 | Fuel flow | +/-5% | +/-5% | his 5% band, widened to all NG |
 | Torque / SHP | +/-3% | +/-3% | ours, undeclared by the report |
-| Appendix B matrix elements | +/-5% per element | -- | his own 4% "good agreement" |
+| Appendix B matrix elements | see the per-block bounds below, **not** a single number | -- | his own 4% "good agreement" |
 
 **Three of those page citations were wrong until 2026-09-12** and pointed at the figures
 being discussed rather than at the sentence: the 4 % and the 1-2 % were cited to pp.44 and
@@ -338,7 +338,8 @@ unprinted step time (open question #37). Tolerances for the last two, ours:
 | Fig. 9/10 initial trim vs the figure | +/-1.5 % | `test_fuel_step.INITIAL_TOL_PCT`; this is the same physics the steady tests already check |
 | Steady sweep vs Figure 6's real-time series | rms 0.35 %NG, worst 1.25 %NG | `test_steady_sweeps.FIG6_RMS_PCT_NG` and `FIG6_WORST_PCT_NG`. **New 2026-09-14.** Figure 6 was the one sweep the model did not track, at a whole-curve -2.0 to -0.4 %NG. That was the digitizer reading page 40's y axis off the figure's caption (#64); with it fixed, mean +0.000, rms 0.234, worst 1.006 -- and the worst is one marker's abscissa, 16.7 lb/hr on a stretch where the figure rises 0.060 %NG per lb/hr |
 | Fig. 9/10 settled state vs the figure | +/-5 % (fig 9), +/-8 % (fig 10) | `test_fuel_step.FINAL_TOL_PCT`; tightened from 20 % when the printed convergence criterion replaced an invented tolerance, never widened |
-| Whole-curve RMS, normalised by each panel's excursion | **5 % ratchet** | `test_whole_curve.WHOLE_CURVE_RMS_CEILING_PCT`. Not a tolerance -- set just above the worst measured panel so a regression fails and an improvement is free. Current over ten panels: mean **2.651 %**, worst **4.713 %** (Figure 10 T45), range 1.171-4.713. It went 17 -> 8 -> 14 -> 8 -> **5**; the full history, including the raise that was recorded rather than absorbed and the two corrections to our own digitization of pp.45-46 that produced the last drop, is in that symbol's docstring |
+| Whole-curve RMS, normalised by each panel's excursion | **4 % ratchet** | `test_whole_curve.WHOLE_CURVE_RMS_CEILING_PCT`. Not a tolerance -- set just above the worst measured panel so a regression fails and an improvement is free. Current over ten panels, **riser excluded**: mean **1.677 %**, worst **3.820 %** (Figure 10 T41), range 0.673-3.820. Figure 9's T41 and T45 are the best two panels at 0.706 and 0.836. It went 17 -> 8 -> 14 -> 8 -> 5 -> **4**; three of the last four moves were corrections to our own measurement rather than to the model, and the full history is in that symbol's docstring |
+| Step-edge jump across the riser hole | +/-12 % of panel excursion | `test_whole_curve.STEP_JUMP_TOL_PCT`. **New 2026-09-14.** The reference traces have a 64-165 ms sampling hole at the fuel step -- a line tracer cannot follow a vertical edge -- and `np.interp` drew a chord across it that the whole-curve metric then scored against. The chord is excluded from that metric and the edge's *size* is asserted here instead, since the hole's two endpoints are Ballin's even though the path between them is not. Measured -9.46 to +3.83 % of excursion over the eight panels that have a riser |
 | Table B.1's printed station state | +/-0.5 % | `test_trim_points.STATE_TOL_PCT`. Much tighter than the +/-3 % gas-path row because these are printed *numbers*, with no read error of ours in them at all |
 | Figures 9/10 read error | +/-0.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS` -- see the section above, and note the currency. **Tightened 1.6 -> 0.6 on 2026-09-14**, never widened: 1.6 was covering an uncorrected page skew of up to 4.2 % of panel height, which the digitizer now takes out (#63) |
 | HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. What it tests is that Appendix C and Table B.1 -- digitized independently -- agree at all |
@@ -356,7 +357,41 @@ rather than accuracy claims -- a sign, an ordering, a band that says "this must 
 positive" -- and hoisting those here would bury the dozen that matter. What belongs here is
 every bound that says *how close to the report is close enough*. Both the 2026-09-13
 code-quality and accuracy audits listed the inline survivors; `test_trim_points`'s
-eigenvalue bound was one, and is now `EIGENVALUE_TOL_PCT` below.
+eigenvalue bound was one.
+
+**A third category exists and neither this file nor CLAUDE.md named it until 2026-09-14:
+characterizations.** A bound fitted around the current measurement -- "the f7 group runs
+26 / 16 / 9 percent by trim", "the T41 row is uniformly low by 0.90-0.96" -- is neither a
+structural pin nor an accuracy claim. It is a regression detector wearing a tolerance's
+clothes, and it is where most of the loose numbers in `validation/` live. They are
+legitimate and they are not evidence of agreement with the report; the distinction matters
+when a number from one of them is quoted as a result. Found by the 2026-09-14
+validation-quality audit, which also found seven inline Appendix B bounds widened on
+2026-09-13/14 -- each with a note in place, none of them reaching this file.
+
+### Appendix B, element by element
+
+There is no single per-element tolerance and the row above should not have implied one.
+Seven distinct bounds exist across `test_appendix_b_elements.py` and `test_all_dof_models.py`,
+and they differ by two orders of magnitude because the printed elements do:
+
+| block | bound | test |
+|---|---|---|
+| `b`, the fuel column, 5-DOF | +/-0.2 % | `test_the_fuel_column_is_essentially_exact` |
+| 6-DOF T41 column | +/-1.0 % | `test_six_dof_t41_column_is_close` |
+| P3 / P41 pressure block | +/-1.5 % | `test_the_pressure_block_agrees_closely` |
+| T41 row | ratio 0.90-0.96 | `test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio` |
+| 3-DOF T41 column, NP row | +/-12 % | `test_three_dof_elements_against_b7_b9_b11` |
+| f7 group, by trim | +/-26 / 16 / 9 % | `test_the_f7_group_is_characterized_by_trim` |
+| 2-DOF elements | ratio 0.70-1.20 | `test_two_dof_elements_against_b1_b3_b5` |
+
+The last three are characterizations in the sense above. **Coverage, measured 2026-09-14:**
+297 printed elements, 206 of them non-zero, of which about 117 carry a numeric per-element
+comparison. The gaps are the 3-DOF and 6-DOF `b` vectors (27 numbers), the 6-DOF A matrix
+outside its T41 row and column (48), and three 3-DOF A elements at each trim (9) --
+**about 89 non-zero printed numbers compared against nothing.** This file previously said
+"roughly 150 carry a numeric per-element comparison", which is an overstatement under
+either reading.
 
 ### Two things not to do
 
