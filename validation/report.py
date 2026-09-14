@@ -1,0 +1,814 @@
+"""Every comparison this project can make against the report, as tables and overlay plots.
+
+`plot_validation.py` answers "does the model look sound". This answers a different
+question: **what is the complete list of things the report prints, and where do we stand
+against each one?** It recomputes every headline number rather than quoting one, writes
+`validation/out/report/*.png` for the overlays, and dumps `report.json` so the numbers can
+be checked against `README.md` and `SCOPE.md` mechanically instead of by reading.
+
+Model runs are imported from the test modules that own them, so the report measures the
+same runs the suite does. The statistics are computed here, independently of the tests'
+own assertions -- an audit that shares its arithmetic with the thing it audits is not one.
+
+Four comparison surfaces exist in the report and all four are covered:
+
+    Table B.1   pdf p.67   21 printed numbers, the engine state at three trims
+    Table 1     pdf p.31   27 printed eigenvalues, three model variants
+    Appendix B  pp.68-76   297 printed matrix elements over twelve figures
+    Figures 6-10           five reproducible result figures, ~8,100 digitized points
+
+Matplotlib lives here and nowhere near `src/t700/`, per CLAUDE.md.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+import sys
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+
+HERE = Path(__file__).resolve().parent
+for _p in (HERE, HERE.parent / "src"):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+from t700 import appendix_b as ab  # noqa: E402
+from t700 import constants as c  # noqa: E402
+from t700 import trim  # noqa: E402
+from t700.engine import Ambient, frame  # noqa: E402
+from t700.linear import DOF, extract  # noqa: E402
+from t700.units import shp_from_torque, wf_pps_from_pph  # noqa: E402
+
+OUT = HERE / "out" / "report"
+REF = HERE.parent / "data" / "reference"
+AMB = Ambient(14.696, 518.67)
+
+OURS = "#2a78d6"
+BALLIN = "#eb6834"
+GE = "#1baf7a"
+GE2 = "#8d6cd1"
+MUTED = "#52514e"
+GRID = "#e3e2df"
+
+TRIMS = ("hover", "level 80 kt", "descent 80 kt")
+WF_PPH = {1: 476.3, 2: 349.3, 3: 267.7}
+DQ_REQ_DNP = {1: 0.019471, 2: 0.015869, 3: 0.012950}
+"""Recovered from Appendix B's own NP diagonal -- open question #6. Gen Hel's, not ours."""
+
+TABLE_1 = {
+    # [TM-100991 pdf p.31] read cell by cell from the page image; see
+    # docs/notes/body-realtime.md 5.5. Blank cells are blank in the original.
+    1: {
+        "5dof": {"NG": -2.66, "NP": -0.565, "P3": -51.6, "P41": -4900.0, "P45": -3060.0},
+        "2dof": {"NG": -2.69, "NP": -0.565},
+        "red5": {"NG": -2.81, "NP": -0.565},
+    },
+    2: {
+        "5dof": {"NG": -2.08, "NP": -0.446, "P3": -52.2, "P41": -4640.0, "P45": -4040.0},
+        "2dof": {"NG": -2.23, "NP": -0.446},
+        "red5": {"NG": -2.16, "NP": -0.446},
+    },
+    3: {
+        "5dof": {"NG": -1.75, "NP": -0.357, "P3": -52.6, "P41": -4430.0, "P45": -4530.0},
+        "2dof": {"NG": -1.82, "NP": -0.357},
+        "red5": {"NG": -1.83, "NP": -0.357},
+    },
+}
+
+STATE_B1 = {
+    # [TM-100991 pdf p.67, Table B.1]
+    "hover": dict(
+        wf=476.3, ng=41638.0, ps3=176.34, p41=174.28, t41=2292.0, p45=37.42, t45=1632.0, shp=911.1
+    ),
+    "level 80 kt": dict(
+        wf=349.3, ng=39768.0, ps3=142.13, p41=140.26, t41=2102.0, p45=30.66, t45=1501.0, shp=552.6
+    ),
+    "descent 80 kt": dict(
+        wf=267.7, ng=38072.0, ps3=114.27, p41=112.77, t41=1982.0, p45=25.54, t45=1424.0, shp=302.6
+    ),
+}
+
+
+def _style(ax, xlabel="", ylabel="", title=""):
+    ax.set_facecolor("white")
+    ax.grid(True, color=GRID, lw=0.8, zorder=0)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("left", "bottom"):
+        ax.spines[side].set_color(GRID)
+    ax.tick_params(colors=MUTED, labelsize=8)
+    ax.set_xlabel(xlabel, color=MUTED, fontsize=9)
+    ax.set_ylabel(ylabel, color=MUTED, fontsize=9)
+    if title:
+        ax.set_title(title, color="#1a1917", fontsize=10, loc="left", pad=8)
+
+
+def _csv(path: Path, xc: str, yc: str):
+    rows = list(csv.DictReader(ln for ln in path.open() if not ln.startswith("#")))
+    x = np.array([float(r[xc]) for r in rows])
+    y = np.array([float(r[yc]) for r in rows])
+    o = np.argsort(x)
+    return x[o], y[o]
+
+
+def _stats(dev: np.ndarray) -> dict:
+    dev = np.asarray(dev, dtype=float)
+    return {
+        "n": int(dev.size),
+        "mean": float(dev.mean()),
+        "rms": float(np.sqrt((dev**2).mean())),
+        "worst": float(dev[np.argmax(np.abs(dev))]),
+    }
+
+
+# ============================================================ Figures 6-8, the steady sweeps
+
+FIG678 = {
+    6: dict(
+        file="fig06",
+        xc="wf_pph",
+        yc="ng_pct",
+        key="ng_pct",
+        xlabel="fuel flow Wf, lbm/hr",
+        ylabel="gas generator speed, %NG",
+        title="Figure 6 [pdf p.40] -- NG against fuel flow",
+    ),
+    7: dict(
+        file="fig07",
+        xc="wf_pph",
+        yc="shp",
+        key="shp",
+        xlabel="fuel flow Wf, lbm/hr",
+        ylabel="shaft horsepower",
+        title="Figure 7 [pdf p.41] -- shaft power against fuel flow",
+    ),
+    8: dict(
+        file="fig08",
+        xc="ng_pct",
+        yc="ps3_psia",
+        key="ps3",
+        xlabel="gas generator speed, %NG",
+        ylabel="compressor discharge Ps3, psia",
+        title="Figure 8 [pdf p.42] -- Ps3 against NG",
+    ),
+}
+
+
+def steady_sweeps() -> dict:
+    """Overlay each of Figures 6-8 with all three printed series, and score ours."""
+    import test_steady_sweeps as tss
+
+    out = {}
+    fig, axes = plt.subplots(1, 3, figsize=(16.5, 4.8))
+    fig.patch.set_facecolor("white")
+
+    for ax, (no, spec) in zip(axes, sorted(FIG678.items()), strict=True):
+        rt = _csv(REF / f"{spec['file']}_realtime.csv", spec["xc"], spec["yc"])
+        s81 = _csv(REF / f"{spec['file']}_ge_status81.csv", spec["xc"], spec["yc"])
+        unb = _csv(REF / f"{spec['file']}_ge_unbalanced.csv", spec["xc"], spec["yc"])
+
+        # A dense ladder for the drawn curve, and the *reference's own abscissae* for the
+        # score -- trimmed at each one and dropped where the solve will not go, which is
+        # what `test_steady_sweeps` does. Interpolating a dense curve instead silently
+        # extrapolates past the end of the compressor map and scores a point that is not
+        # reachable: Figure 6's last marker is 100.31 %NG against `f1`'s 100 % top line.
+        dense = np.arange(130.0, 815.0, 5.0)
+        grid = tss._ladder(dense)
+        gx = np.array(sorted(grid))
+        if no == 8:
+            ours_x = np.array([grid[k]["ng_pct"] for k in gx])
+            ours_y = np.array([grid[k]["ps3"] for k in gx])
+            inside = (rt[0] >= ours_x.min()) & (rt[0] <= ours_x.max())
+            at_x, ref_x, ref_y = (
+                np.interp(rt[0][inside], ours_x, ours_y),
+                rt[0][inside],
+                rt[1][inside],
+            )
+            dropped = int((~inside).sum())
+        else:
+            ours_x, ours_y = gx, np.array([grid[k][spec["key"]] for k in gx])
+            at = tss._ladder(rt[0])
+            keep = [i for i, k in enumerate(rt[0]) if k in at]
+            ref_x, ref_y = rt[0][keep], rt[1][keep]
+            at_x = np.array([at[k][spec["key"]] for k in ref_x])
+            dropped = int(rt[0].size - len(keep))
+
+        ax.plot(unb[0], unb[1], "s", color=GE2, ms=4, alpha=0.75, zorder=2, label="GE unbalanced")
+        ax.plot(s81[0], s81[1], "^", color=GE, ms=4, alpha=0.75, zorder=2, label="GE status 81")
+        ax.plot(
+            rt[0],
+            rt[1],
+            "o",
+            color=BALLIN,
+            ms=5,
+            mec="white",
+            mew=0.8,
+            zorder=4,
+            label="Ballin real-time",
+        )
+        ax.plot(ours_x, ours_y, "-", color=OURS, lw=2.2, zorder=3, label="our model")
+        _style(ax, spec["xlabel"], spec["ylabel"], spec["title"])
+        ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
+
+        if no == 6:
+            dev = at_x - ref_y  # %NG points, an absolute difference
+            unit = "%NG"
+        else:
+            dev = 100.0 * (at_x - ref_y) / np.abs(ref_y)
+            unit = "%"
+        out[f"figure_{no}"] = {
+            **_stats(dev),
+            "unit": unit,
+            "against": "Ballin real-time",
+            "printed_points": int(rt[0].size),
+            "dropped_unreachable": dropped,
+            "worst_at": float(ref_x[int(np.argmax(np.abs(dev)))]),
+        }
+
+    fig.tight_layout()
+    fig.savefig(OUT / "figures-6-8-overlay.png", dpi=140)
+    plt.close(fig)
+    return out
+
+
+# ========================================================= Figures 9-10, the fuel transients
+
+PANEL_LABEL = {
+    "pcng": ("gas generator speed", "%NG"),
+    "ps3": ("compressor discharge Ps3", "psia"),
+    "t41": ("turbine inlet T4.1", "deg R"),
+    "t45": ("power turbine inlet T4.5", "deg R"),
+    "torq45": ("power turbine torque", "ft*lbf"),
+    "wfph": ("fuel flow (the INPUT)", "lbm/hr"),
+}
+
+
+def transients() -> dict:
+    """Overlay all six panels of each transient figure, and score the five comparable ones.
+
+    The sixth, `WFPH`, is the input: its two levels are printed in the caption, so drawing
+    it is what shows the step our model was given is the step Ballin's was.
+    """
+    import test_fuel_step as tfs
+
+    out = {}
+    for no, wf_hi in ((9, 775.0), (10, 125.0)):
+        tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
+        t = tr["t"]
+        fig, axes = plt.subplots(2, 3, figsize=(16.5, 8.2))
+        fig.patch.set_facecolor("white")
+        panels = {}
+
+        for ax, key in zip(axes.ravel(), list(PANEL_LABEL), strict=True):
+            mp = REF / f"fig{no:02d}_{key}_model.csv"
+            gp = REF / f"fig{no:02d}_{key}_reference.csv"
+            label, unit = PANEL_LABEL[key]
+            if mp.exists():
+                tb, vb = _csv(mp, "t_s", "value")
+                ax.plot(tb, vb, "-", color=BALLIN, lw=1.6, zorder=3, label="Ballin real-time")
+            if gp.exists():
+                tg, vg = _csv(gp, "t_s", "value")
+                ax.plot(tg, vg, "+", color=GE, ms=5, mew=1.2, zorder=2, label="GE reference")
+            if key == "wfph":
+                ax.plot(
+                    t,
+                    np.where(t < tfs.STEP_TIME[no], 400.0, wf_hi),
+                    "-",
+                    color=OURS,
+                    lw=2,
+                    zorder=4,
+                    label="our input",
+                )
+            else:
+                ours = tfs.PANELS[key](tr)
+                ax.plot(t, ours, "-", color=OURS, lw=2, zorder=4, label="our model")
+                if mp.exists():
+                    late, t_last = tfs._settled_window(tb, vb)
+                    if late.size:
+                        mine = ours[(t > 4.0) & (t <= t_last)]
+                        pre_b = vb[tb < tfs.STEP_TIME[no] - 0.05]
+                        pre_u = ours[t < tfs.STEP_TIME[no] - 0.05]
+                        panels[key] = {
+                            "settled_dev_pct": float(
+                                100.0 * (mine.mean() - late.mean()) / abs(late.mean())
+                            ),
+                            "initial_dev_pct": float(
+                                100.0 * (pre_u.mean() - pre_b.mean()) / abs(pre_b.mean())
+                            )
+                            if pre_b.size
+                            else None,
+                            "ours_settled": float(mine.mean()),
+                            "ballin_settled": float(late.mean()),
+                            "ref_ends_s": float(t_last),
+                        }
+            _style(ax, "time, s", unit, f"{label}")
+            ax.legend(frameon=False, fontsize=7.5, labelcolor=MUTED, loc="best")
+
+        fig.suptitle(
+            f"Figure {no} [pdf p.{ {9: 45, 10: 46}[no] }] -- "
+            f"fuel step 400 -> {wf_hi:.0f} lbm/hr, heat sink on",
+            color="#1a1917",
+            fontsize=11,
+            x=0.012,
+            ha="left",
+        )
+        fig.tight_layout(rect=(0, 0, 1, 0.965))
+        fig.savefig(OUT / f"figure-{no}-overlay.png", dpi=135)
+        plt.close(fig)
+        out[f"figure_{no}"] = panels
+    return out
+
+
+def whole_curve() -> dict:
+    """Shape agreement over the whole record, normalised by each panel's own excursion."""
+    import test_whole_curve as twc
+
+    out = {}
+    for no in (9, 10):
+        t, panels = twc._run(no, heat_sink=True)
+        for key in twc.PANELS:
+            tb, vb = twc._ballin(no, key)
+            if tb is None:
+                continue
+            out[f"fig{no}_{key}"] = float(twc._rms_pct(t, panels[key], tb, vb, no))
+    return out
+
+
+# ================================================================== Table B.1, pdf p.67
+
+
+NP_TRIM_RPM = 20895.0
+"""Table B.1's power turbine speed at all three trims [pdf p.67].
+
+**Not `NP_DES`, which is 20900.** The five rpm between them is 0.024 %, which is nothing on
+a speed and not quite nothing on a shaft power computed from it, and `validation/
+test_trim_points.py` has always used the printed value. This file used `NP_DES` for a few
+hours on 2026-09-14 and the Table B.1 rms read 0.2527 % instead of 0.2521."""
+
+
+def table_b1() -> dict:
+    """The complete printed engine state at three trims: 21 numbers, open loop."""
+    rows, devs = [], []
+    for i, name in enumerate(TRIMS, start=1):
+        p = STATE_B1[name]
+        wf = wf_pps_from_pph(p["wf"])
+        r = trim.solve(wf, NP_TRIM_RPM, AMB)
+        f = frame(r.state, wf, AMB)
+        got = {
+            "ng": r.state.ng_rpm,
+            # Ps3 is the *static* discharge pressure Table B.1 prints; P3 is the total.
+            "ps3": c.K_PS3 * r.state.p3_psia,
+            "p41": r.state.p41_psia,
+            "t41": f.t41_degR,
+            "p45": r.state.p45_psia,
+            "t45": f.t45_degR,
+            "shp": shp_from_torque(f.q_pt_ftlbf, NP_TRIM_RPM),
+        }
+        for k, v in got.items():
+            d = 100.0 * (v - p[k]) / abs(p[k])
+            devs.append(d)
+            rows.append(
+                {
+                    "trim": name,
+                    "quantity": k.upper(),
+                    "printed": p[k],
+                    "ours": float(v),
+                    "dev_pct": float(d),
+                }
+            )
+        _ = i
+    return {"rows": rows, **_stats(np.array(devs))}
+
+
+# =================================================== Table 1 and every other eigenvalue
+
+DOF_FIGS = {2: DOF.TWO, 3: DOF.THREE, 5: DOF.FIVE, 6: DOF.SIX}
+MODE_ORDER = ("NG", "NP", "P3", "P41", "P45")
+
+
+def _our_eigs(dof: DOF, t: int):
+    wf = wf_pps_from_pph(WF_PPH[t])
+    r = trim.solve(wf, c.NP_DES, AMB)
+    m = extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[t])
+    return np.linalg.eigvals(m.A), m
+
+
+def _sorted_real(ev):
+    """Real parts, least negative first -- the order Table 1 prints its modes in."""
+    return np.sort(np.asarray(ev).real)[::-1]
+
+
+def eigenvalues() -> dict:
+    """Every model variant against Table 1, and against Ballin's own printed matrices.
+
+    Two references exist and they are not the same thing.
+
+    **Table 1 [pdf p.31]** prints 27 eigenvalues, for the 5-DOF, the 2-DOF and the
+    order-reduced 5-DOF. It prints none for the 3-DOF or the 6-DOF.
+
+    **The Appendix B matrices themselves** imply a spectrum for all twelve figures, so the
+    3-DOF and 6-DOF *can* be compared by eigenvalue even though the report tabulates
+    none -- with one caution that is not optional. `SCOPE.md` and `t700.appendix_b` both
+    record that the 6-DOF matrices are ill-conditioned as printed: row 6 differences terms
+    of order 2e5 to give order 1e3, so four printed digits carry about +/-50 there, and
+    B8 comes out **unstable at +3.07 /sec**. That is lost precision in the printing, not a
+    claim by the report. It is reported here because hiding it would be worse, and it is
+    labelled at every point it appears.
+    """
+    out = {"table_1": [], "against_printed_matrices": [], "notes": {}}
+
+    for dofno, col in ((5, "5dof"), (2, "2dof"), (None, "red5")):
+        dof = DOF_FIGS.get(dofno, DOF.REDUCED_FIVE)
+        for t in (1, 2, 3):
+            ev = _sorted_real(_our_eigs(dof, t)[0])
+            printed = TABLE_1[t][col]
+            pv = _sorted_real(np.array(list(printed.values())))
+            names = [k for k, _ in sorted(printed.items(), key=lambda kv: -kv[1])]
+            for i, nm in enumerate(names):
+                ours_v = float(ev[i])
+                out["table_1"].append(
+                    {
+                        "model": col,
+                        "trim": TRIMS[t - 1],
+                        "mode": nm,
+                        "printed": float(pv[i]),
+                        "ours": ours_v,
+                        "dev_pct": float(100.0 * (ours_v - pv[i]) / abs(pv[i])),
+                    }
+                )
+
+    for dofno, dof in DOF_FIGS.items():
+        for t in (1, 2, 3):
+            ev, _ = _our_eigs(dof, t)
+            ref = ab.find(dofno, t)
+            bal = np.linalg.eigvals(ref.A)
+            ours = _sorted_real(ev)
+            theirs = _sorted_real(bal)
+            out["against_printed_matrices"].append(
+                {
+                    "model": f"{dofno}-DOF",
+                    "figure": ref.figure,
+                    "trim": TRIMS[t - 1],
+                    "ours": [float(v) for v in ours],
+                    "ballin": [float(v) for v in theirs],
+                    "dev_pct": [
+                        float(100.0 * (a - b) / abs(b)) for a, b in zip(ours, theirs, strict=True)
+                    ],
+                    "ballin_complex": bool(np.max(np.abs(bal.imag)) > 1e-9),
+                    "ballin_unstable": bool(np.max(bal.real) > 0.0),
+                    "ours_complex": bool(np.max(np.abs(np.asarray(ev).imag)) > 1e-9),
+                    "ours_unstable": bool(np.max(np.asarray(ev).real) > 0.0),
+                    "ill_conditioned": dofno == 6,
+                }
+            )
+
+    t1 = np.array([r["dev_pct"] for r in out["table_1"]])
+    out["notes"]["table_1_stats"] = _stats(t1)
+    out["notes"]["table_1_worst_row"] = max(out["table_1"], key=lambda r: abs(r["dev_pct"]))
+    return out
+
+
+def eigenvalue_plot(data: dict) -> None:
+    """Table 1's 27 printed modes against ours, and the two spectra the report omits."""
+    fig, axes = plt.subplots(1, 2, figsize=(15.5, 5.4), width_ratios=[1.35, 1.0])
+    fig.patch.set_facecolor("white")
+
+    ax = axes[0]
+    rows = data["table_1"]
+    labels = [f"{r['model'][:4]} {r['trim'].split()[0][:4]} {r['mode']}" for r in rows]
+    idx = np.arange(len(rows))
+    ax.barh(
+        idx + 0.2,
+        [-r["printed"] for r in rows],
+        height=0.38,
+        color=BALLIN,
+        zorder=3,
+        label="Table 1, printed",
+    )
+    ax.barh(
+        idx - 0.2,
+        [-r["ours"] for r in rows],
+        height=0.38,
+        color=OURS,
+        zorder=3,
+        label="our Jacobian",
+    )
+    ax.set_xscale("log")
+    ax.set_yticks(idx)
+    ax.set_yticklabels(labels, fontsize=6.5)
+    ax.invert_yaxis()
+    for i, r in enumerate(rows):
+        if abs(r["dev_pct"]) > 3.0:
+            ax.text(
+                max(-r["printed"], -r["ours"]) * 1.2,
+                i,
+                f"{r['dev_pct']:+.1f}%",
+                va="center",
+                fontsize=6,
+                color=MUTED,
+            )
+    _style(
+        ax,
+        "|eigenvalue|, 1/sec  (log)",
+        "",
+        "All 27 eigenvalues Table 1 prints [pdf p.31], against ours",
+    )
+    ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="lower right")
+
+    ax = axes[1]
+    got = [r for r in data["against_printed_matrices"] if r["model"] in ("3-DOF", "6-DOF")]
+    y, lab = [], []
+    for k, r in enumerate(got):
+        for a, b in zip(r["ours"], r["ballin"], strict=True):
+            ax.plot([-b], [k], "o", color=BALLIN, ms=6, zorder=3)
+            ax.plot([-a], [k], "o", color=OURS, ms=6, mfc="none", mew=1.6, zorder=4)
+        y.append(k)
+        lab.append(
+            f"{r['figure']} {r['model']} {r['trim'].split()[0][:4]}"
+            + ("  ill-cond." if r["ill_conditioned"] else "")
+        )
+    ax.set_xscale("symlog", linthresh=0.1)
+    ax.set_yticks(y)
+    ax.set_yticklabels(lab, fontsize=7)
+    ax.invert_yaxis()
+    ax.plot([], [], "o", color=BALLIN, ms=6, label="Ballin's printed matrix")
+    ax.plot([], [], "o", color=OURS, ms=6, mfc="none", mew=1.6, label="ours")
+    ax.axvline(0.0, color="#b4453a", lw=1.1, ls=":", zorder=2)
+    for k, r in enumerate(got):
+        if r["ballin_unstable"]:
+            worst = min(r["ballin"])
+            ax.annotate(
+                "B8 as printed is UNSTABLE at +3.07 /sec:\nfour digits carry ~+/-50 in row 6",
+                xy=(-worst, k),
+                xytext=(-worst * 30, k + 0.55),
+                fontsize=7,
+                color="#b4453a",
+                arrowprops=dict(arrowstyle="->", color="#b4453a", lw=0.9),
+            )
+    _style(
+        ax,
+        "-eigenvalue, 1/sec  (symlog).  Left of the dotted line is unstable",
+        "",
+        "The two spectra Table 1 does NOT print, from the matrices themselves",
+    )
+    ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="upper left")
+
+    fig.tight_layout()
+    fig.savefig(OUT / "eigenvalues-all-models.png", dpi=140)
+    plt.close(fig)
+
+
+# ============================================================ Appendix B, 297 elements
+
+
+def appendix_b() -> dict:
+    """Every printed element against ours, as a scatter and as per-block statistics."""
+    figs = {
+        (2, 1): 1,
+        (2, 2): 3,
+        (2, 3): 5,
+        (3, 1): 7,
+        (3, 2): 9,
+        (3, 3): 11,
+        (5, 1): 2,
+        (5, 2): 4,
+        (5, 3): 6,
+        (6, 1): 8,
+        (6, 2): 10,
+        (6, 3): 12,
+    }
+    pairs, blocks = [], {}
+    a_dev, b_dev = [], []
+    for (dofno, t), _ in sorted(figs.items()):
+        dof = DOF_FIGS[dofno]
+        wf = wf_pps_from_pph(WF_PPH[t])
+        r = trim.solve(wf, c.NP_DES, AMB)
+        m = extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[t])
+        ref = ab.find(dofno, t)
+        n = len(ref.states)
+        for i in range(n):
+            for j in range(n):
+                if ref.A[i, j] == 0.0:
+                    continue
+                d = 100.0 * (m.A[i, j] - ref.A[i, j]) / abs(ref.A[i, j])
+                pairs.append((ref.A[i, j], m.A[i, j], f"{dofno}-DOF A"))
+                a_dev.append(d)
+                blocks.setdefault(f"{dofno}-DOF A", []).append(d)
+        for i in range(n):
+            if ref.b[i] == 0.0:
+                continue
+            d = 100.0 * (m.b[i] - ref.b[i]) / abs(ref.b[i])
+            pairs.append((ref.b[i], m.b[i], f"{dofno}-DOF b"))
+            b_dev.append(d)
+            blocks.setdefault(f"{dofno}-DOF b", []).append(d)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14.5, 5.6))
+    fig.patch.set_facecolor("white")
+    ax = axes[0]
+    px = np.array([abs(p[0]) for p in pairs])
+    py = np.array([abs(p[1]) for p in pairs])
+    lim = [min(px.min(), py.min()) * 0.6, max(px.max(), py.max()) * 1.6]
+    ax.plot(lim, lim, "-", color=MUTED, lw=1, zorder=2)
+    for tag, col in (("A", OURS), ("b", GE)):
+        sel = [k for k, p in enumerate(pairs) if p[2].endswith(tag)]
+        ax.plot(
+            px[sel],
+            py[sel],
+            "o",
+            ms=4,
+            color=col,
+            alpha=0.65,
+            zorder=3,
+            label=f"{tag} elements ({len(sel)})",
+        )
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(lim)
+    ax.set_ylim(lim)
+    _style(
+        ax, "|printed|, Appendix B", "|ours|", "All 206 non-zero printed elements, twelve figures"
+    )
+    ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="upper left")
+
+    ax = axes[1]
+    keys = sorted(blocks)
+    ax.axvline(0.0, color=MUTED, lw=1, zorder=2)
+    for k, key in enumerate(keys):
+        v = np.array(blocks[key])
+        ax.plot(
+            v,
+            np.full(v.size, k) + np.random.default_rng(0).normal(0, 0.06, v.size),
+            "o",
+            ms=4,
+            color=OURS if key.endswith("A") else GE,
+            alpha=0.6,
+            zorder=3,
+        )
+    ax.set_yticks(range(len(keys)))
+    ax.set_yticklabels(keys, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlim(-60, 60)
+    _style(
+        ax,
+        "deviation from printed, %",
+        "",
+        "By block. The 6-DOF b is the one with a shape, and it is the heat sink's",
+    )
+    fig.tight_layout()
+    fig.savefig(OUT / "appendix-b-elements.png", dpi=140)
+    plt.close(fig)
+
+    return {
+        "A": _stats(np.array(a_dev)),
+        "b": _stats(np.array(b_dev)),
+        "by_block": {k: _stats(np.array(v)) for k, v in sorted(blocks.items())},
+    }
+
+
+# ======================================================== the closed loop, Phase 5's gate
+
+
+def closed_loop() -> dict:
+    """Table B.1 again, with fuel flow as an *output* -- the hardest test in the project."""
+    import test_closed_loop as tcl
+
+    rows, devs = [], []
+    for name, wf, ng, ps3, q, ratio, shp in tcl.TRIMS:
+        mean, ptp = tcl.settle_cycle(wf, q, ratio, name=name)
+        printed = {"NG": ng, "NP": tcl.NP_TRIM_RPM, "Wf": wf, "Ps3": ps3, "shp": shp}
+        for k, p in printed.items():
+            d = 100.0 * (mean[k] - p) / abs(p)
+            devs.append(d)
+            rows.append(
+                {
+                    "trim": name,
+                    "quantity": k,
+                    "printed": p,
+                    "ours": float(mean[k]),
+                    "dev_pct": float(d),
+                    "cycle_ptp": float(ptp[k]),
+                }
+            )
+    return {"rows": rows, **_stats(np.array(devs))}
+
+
+def phase_plane() -> dict:
+    """Ps3 against NG -- the comparison that discards the time axis, and with it #37."""
+    import test_fuel_step as tfs
+
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.4))
+    fig.patch.set_facecolor("white")
+    out = {}
+    for ax, (no, wf_hi) in zip(axes, ((9, 775.0), (10, 125.0)), strict=True):
+        tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
+        ng = 100.0 * tr["ng"] / c.NG_DES
+        ps3 = c.K_PS3 * tr["p3"]
+        tb, vb = _csv(REF / f"fig{no:02d}_pcng_model.csv", "t_s", "value")
+        tp, vp = _csv(REF / f"fig{no:02d}_ps3_model.csv", "t_s", "value")
+        bal_ps3 = np.interp(tb, tp, vp)
+        eq = _csv(REF / "fig08_realtime.csv", "ng_pct", "ps3_psia")
+        ax.plot(
+            eq[0], eq[1], "--", color=MUTED, lw=1.2, zorder=2, label="Figure 8 equilibrium locus"
+        )
+        ax.plot(vb, bal_ps3, "-", color=BALLIN, lw=1.8, zorder=3, label="Ballin")
+        ax.plot(ng, ps3, "-", color=OURS, lw=2, zorder=4, label="ours")
+        _style(
+            ax,
+            "gas generator speed, %NG",
+            "Ps3, psia",
+            f"Figure {no} in the phase plane -- no time axis",
+        )
+        ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
+        lo, hi = max(vb.min(), ng.min()), min(vb.max(), ng.max())
+        grid = np.linspace(lo + 0.5, hi - 0.5, 40)
+        ours_i = np.interp(grid, ng[np.argsort(ng)], ps3[np.argsort(ng)])
+        o = np.argsort(vb)
+        bal_i = np.interp(grid, vb[o], bal_ps3[o])
+        out[f"figure_{no}"] = _stats(100.0 * (ours_i - bal_i) / np.abs(bal_i))
+    fig.tight_layout()
+    fig.savefig(OUT / "phase-plane.png", dpi=140)
+    plt.close(fig)
+    return out
+
+
+def table_b1_plot(b1: dict, cl: dict) -> None:
+    """Open loop and closed loop against the same 21 printed numbers."""
+    fig, ax = plt.subplots(figsize=(13.0, 5.2))
+    fig.patch.set_facecolor("white")
+    rows = b1["rows"]
+    labels = [f"{r['trim'].split()[0][:4]} {r['quantity']}" for r in rows]
+    idx = np.arange(len(rows))
+    ax.bar(
+        idx,
+        [r["dev_pct"] for r in rows],
+        width=0.55,
+        color=OURS,
+        zorder=3,
+        label="open loop, Wf prescribed",
+    )
+    # the closed loop reports NG / NP / Wf / Ps3 / shp; the open-loop rows are uppercased
+    # station names. Only the three that exist on both sides can be overlaid -- Wf is the
+    # open loop's *input*, and NP is held there.
+    cl_map = {(r["trim"], r["quantity"].upper()): r["dev_pct"] for r in cl["rows"]}
+    xs = [i for i, r in enumerate(rows) if (r["trim"], r["quantity"]) in cl_map]
+    ax.plot(
+        xs,
+        [cl_map[(rows[i]["trim"], rows[i]["quantity"])] for i in xs],
+        "D",
+        color=BALLIN,
+        ms=6,
+        zorder=4,
+        label="closed loop, Wf an output",
+    )
+    ax.axhline(0.0, color=MUTED, lw=1, zorder=2)
+    for s in (0.5, -0.5):
+        ax.axhline(s, color=GRID, lw=1.2, ls="--", zorder=2)
+    ax.set_xticks(idx)
+    ax.set_xticklabels(labels, rotation=60, ha="right", fontsize=7)
+    _style(
+        ax,
+        "",
+        "deviation from printed, %",
+        "Table B.1 [pdf p.67], 21 printed numbers. Dashed lines are our +/-0.5 % bound",
+    )
+    ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
+    fig.tight_layout()
+    fig.savefig(OUT / "table-b1.png", dpi=140)
+    plt.close(fig)
+
+
+def main() -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
+    data: dict = {}
+    print("figures 6-8 ...", flush=True)
+    data["steady"] = steady_sweeps()
+    print("figures 9-10 ...", flush=True)
+    data["transient"] = transients()
+    print("whole curve ...", flush=True)
+    data["whole_curve"] = whole_curve()
+    print("phase plane ...", flush=True)
+    data["phase_plane"] = phase_plane()
+    print("table B.1 ...", flush=True)
+    data["table_b1"] = table_b1()
+    print("closed loop ...", flush=True)
+    data["closed_loop"] = closed_loop()
+    table_b1_plot(data["table_b1"], data["closed_loop"])
+    print("eigenvalues ...", flush=True)
+    data["eigenvalues"] = eigenvalues()
+    eigenvalue_plot(data["eigenvalues"])
+    print("appendix B ...", flush=True)
+    data["appendix_b"] = appendix_b()
+    (OUT / "report.json").write_text(json.dumps(data, indent=1))
+    print(f"\nwrote {OUT}/report.json and {len(list(OUT.glob('*.png')))} plots")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

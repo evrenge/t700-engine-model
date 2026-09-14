@@ -20,11 +20,11 @@ the two qualifications on that). Everything here is derived from it.
 | | |
 |---|---|
 | **Table B.1's full printed state** | **rms 0.24 % over 21 numbers** — worst shp −0.90 % at descent |
-| Figure 6, gas generator speed vs fuel flow | mean **−0.00 %NG**, rms 0.24, worst −1.01 over 28 points |
-| Figure 7, shaft power vs fuel flow | mean −0.13 %, rms **0.64 %**, worst −1.72 over 14 points |
-| Figure 8, Ps3 vs gas generator speed | mean −0.32 %, rms **0.43 %**, worst −0.94 over 26 points |
-| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 0.67–3.82 % of each panel's excursion, mean 1.68 %** over ten panels — Figure 9's T41 and T45 are the best two at 0.71 and 0.84 |
-| Jacobian eigenvalues vs Table 1 | worst **+7.6 %** on the 2-DOF NG mode; the *discrete* frame map, which is what Ballin ran, does better — −3.2 / +4.1 / −1.0 % |
+| Figure 6, gas generator speed vs fuel flow | mean **+0.00 %NG**, rms 0.23, worst −1.01 over all 29 printed points |
+| Figure 7, shaft power vs fuel flow | mean −0.14 %, rms **0.61 %**, worst −1.74 over all 15 printed points |
+| Figure 8, Ps3 vs gas generator speed | mean −0.32 %, rms **0.42 %**, worst −0.94 over 26 of 27 printed points |
+| Fuel-step transients, Figures 9 and 10 | **whole-curve RMS 0.67–3.82 % of each panel's excursion, mean 1.68 %** over ten panels — every Figure 9 panel is under 1.5 %, and the best two are its TORQ45 and T41 at 0.67 and 0.71 |
+| Jacobian eigenvalues vs Table 1 | **all 27 printed modes compared**: rms 5.5 %, worst **+14.9 %** on the 5-DOF P45 mode at hover. Worst NG mode −11.1 % (reduced-5, level); the 2-DOF NG mode runs +5.6 / −7.6 / −4.2 %, and the *discrete* frame map, which is what Ballin ran, does better — −3.2 / +4.1 / −1.0 % |
 | Appendix B, 297 printed elements | all loaded, zero structure exact across the four DOF variants; **all 206 non-zero elements carry a numeric per-element comparison** as of 2026-09-14 (it was 117), A rms **7.8 %** over its 158, `b` rms **5.2 %** over its 42, and the 5-DOF fuel column `b` to **0.06–0.12 %** |
 | **Closed loop vs Table B.1** | **worst 0.34 % over NG, NP, Wf, Ps3, shp at three trims — with fuel flow as an *output***, averaged over the governor's own limit cycle |
 | The report's own printed claim about Figure 6 | reproduced: we overestimate fuel by **+6.17 %** in the 81–86 %NG band the report names, against its own line's +5.82 % and its printed "as much as five percent" |
