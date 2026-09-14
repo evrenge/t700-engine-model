@@ -461,8 +461,9 @@ So the load step pins `TMLG` at +10 % and `TMGN` at the order-of-magnitude level
 collective slam pins `CLLDS` at x2. The NP dip is the discriminator and its band is 1 % wide
 about the measured 194.392 rpm, which makes it a tripwire rather than a tolerance -- any
 real change to the loop will trip it and should be looked at. `TMGN` at +10 % moves the dip
-by 0.07 rpm and stays out of reach even so. `TLGE` is bit-identical in every configuration the suite runs and
-`test_the_t45_harness_lag_is_structurally_unreachable` records why."""
+by 0.07 rpm and stays out of reach even so. `TLGE` is bit-identical in every
+configuration the suite runs, and `test_the_t45_harness_lag_is_structurally_unreachable`
+records why."""
 
 
 def test_a_load_step_response_pins_the_torque_motor_linkage():
