@@ -805,9 +805,559 @@ def main() -> int:
     eigenvalue_plot(data["eigenvalues"])
     print("appendix B ...", flush=True)
     data["appendix_b"] = appendix_b()
+    print("engine operating line ...", flush=True)
+    data["engine_steady"] = sheet_engine_steady()
+    print("open loop family ...", flush=True)
+    data["open_loop"] = sheet_open_loop()
+    print("closed loop response ...", flush=True)
+    data["closed_loop_response"] = sheet_closed_loop()
+    print("control schedules ...", flush=True)
+    data["schedules"] = sheet_schedules()
+    print("engine maps ...", flush=True)
+    data["engine_maps"] = sheet_engine_maps()
     (OUT / "report.json").write_text(json.dumps(data, indent=1))
     print(f"\nwrote {OUT}/report.json and {len(list(OUT.glob('*.png')))} plots")
     return 0
+
+
+# ============================================ the model's own behaviour, with no reference
+#
+# Nothing below is a comparison. These are the engine and its control as this replication
+# runs them, across the range the report declares the model valid over -- which is what a
+# reader needs in order to judge whether the agreements above are agreements about
+# something physical. `SCOPE.md` records the ceiling: NG is claimed to 100 % and no further.
+
+
+def sheet_engine_steady() -> dict:
+    """The equilibrium operating line, station by station, over the whole trim range."""
+    import test_steady_sweeps as tss
+
+    pph = np.arange(130.0, 812.0, 4.0)
+    grid = tss._ladder(pph)
+    ks = np.array(sorted(grid))
+    rows = []
+    for k in ks:
+        wf = wf_pps_from_pph(float(k))
+        r = trim.solve(wf, c.NP_DES, AMB, guess=None)
+        if not r.trustworthy:
+            continue
+        f = frame(r.state, wf, AMB)
+        rows.append(
+            dict(
+                wf=float(k),
+                ng=100.0 * r.state.ng_rpm / c.NG_DES,
+                ps3=c.K_PS3 * r.state.p3_psia,
+                p41=r.state.p41_psia,
+                p45=r.state.p45_psia,
+                t3=f.t3_degR,
+                t41=f.t41_degR,
+                t45=f.t45_degR,
+                t49=f.t49_degR,
+                wa2=f.wa2_pps,
+                wa31=f.wa31_pps,
+                far=f.far,
+                shp=shp_from_torque(f.q_pt_ftlbf, c.NP_DES),
+                pr=c.K_PS3 * r.state.p3_psia / AMB.p_amb_psia,
+                bleed=100.0 * (f.wa24_bl_pps + f.wa3_bl_pps) / f.wa2_pps,
+            )
+        )
+    g = {k: np.array([r[k] for r in rows]) for k in rows[0]}
+    g["sfc"] = g["wf"] / np.maximum(g["shp"], 1e-9)
+
+    fig, axes = plt.subplots(2, 3, figsize=(16.5, 8.0))
+    fig.patch.set_facecolor("white")
+    panels = [
+        (
+            "station pressures",
+            "psia",
+            [("Ps3", "ps3", OURS), ("P41", "p41", BALLIN), ("P45", "p45", GE)],
+        ),
+        (
+            "station temperatures",
+            "deg R",
+            [
+                ("T3", "t3", GE),
+                ("T4.1", "t41", BALLIN),
+                ("T4.5", "t45", OURS),
+                ("T4.9", "t49", GE2),
+            ],
+        ),
+        ("air path", "lbm/sec", [("Wa2 inlet", "wa2", OURS), ("Wa31 to burner", "wa31", BALLIN)]),
+        ("shaft power", "hp", [("SHP", "shp", OURS)]),
+        ("specific fuel consumption, above 50 hp", "lbm/hr per hp", [("SFC", "sfc", BALLIN)]),
+        ("customer + cooling bleed", "% of inlet flow", [("bleed", "bleed", GE)]),
+    ]
+    # SFC is Wf/SHP and shaft power crosses zero near the bottom of the range -- it reaches
+    # -17 hp at 68 %NG, which is the free turbine absorbing rather than delivering. Plotting
+    # the quotient through that is meaningless, so the panel starts where there is power.
+    usable = g["shp"] > 50.0
+    for ax, (title, unit, series) in zip(axes.ravel(), panels, strict=True):
+        for label, key, col in series:
+            m = usable if key == "sfc" else np.ones_like(usable, dtype=bool)
+            ax.plot(g["ng"][m], g[key][m], "-", color=col, lw=2, zorder=3, label=label)
+        _style(ax, "gas generator speed, %NG", unit, title)
+        if len(series) > 1:
+            ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
+    fig.suptitle(
+        "The equilibrium operating line, 130 to 810 lbm/hr. No reference data -- this is "
+        "the model's own behaviour",
+        color="#1a1917",
+        fontsize=11,
+        x=0.012,
+        ha="left",
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.965))
+    fig.savefig(OUT / "engine-operating-line.png", dpi=135)
+    plt.close(fig)
+
+    return {
+        "ng_range_pct": [float(g["ng"].min()), float(g["ng"].max())],
+        "wf_range_pph": [float(g["wf"].min()), float(g["wf"].max())],
+        "shp_range": [float(g["shp"].min()), float(g["shp"].max())],
+        "pressure_ratio_range": [float(g["pr"].min()), float(g["pr"].max())],
+        "t41_range_degR": [float(g["t41"].min()), float(g["t41"].max())],
+        "bleed_pct_range": [float(g["bleed"].min()), float(g["bleed"].max())],
+        "sfc_best": float(g["sfc"][g["shp"] > 50.0].min()),
+        "sfc_best_at_ng": float(
+            g["ng"][g["shp"] > 50.0][int(np.argmin(g["sfc"][g["shp"] > 50.0]))]
+        ),
+        "shp_zero_crossing_ng": float(np.interp(0.0, g["shp"], g["ng"])),
+        "points": len(rows),
+    }
+
+
+def sheet_open_loop() -> dict:
+    """A family of fuel steps from the same trim, both heat-sink configurations."""
+    from t700 import realtime
+
+    wf0 = wf_pps_from_pph(400.0)
+    r0 = trim.solve(wf0, c.NP_DES, AMB)
+    f0 = frame(r0.state, wf0, AMB)
+    steps = [(125.0, "#9c5bd0"), (250.0, GE), (550.0, OURS), (775.0, BALLIN)]
+
+    fig, axes = plt.subplots(1, 4, figsize=(17.0, 4.3))
+    fig.patch.set_facecolor("white")
+    out = {}
+    for pph, col in steps:
+        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        hi = wf_pps_from_pph(pph)
+        tr = realtime.run(
+            st,
+            lambda t, v=hi: wf0 if t < 0.5 else v,
+            AMB,
+            duration_s=5.0,
+            dt=0.007,
+            q_req_ftlbf=f0.q_pt_ftlbf,
+            integrate_np=False,
+            heat_sink=True,
+        )
+        t = tr["t"]
+        lab = f"400 -> {pph:.0f}"
+        for ax, key, fn in (
+            (axes[0], "ng", lambda v: 100.0 * v / c.NG_DES),
+            (axes[1], "t41", lambda v: v),
+            (axes[2], "q_pt", lambda v: v),
+            (axes[3], "p3", lambda v: c.K_PS3 * v),
+        ):
+            ax.plot(t, fn(np.asarray(tr[key])), "-", color=col, lw=1.8, zorder=3, label=lab)
+        ng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
+        out[f"step_{pph:.0f}"] = {
+            "ng_start": float(ng[0]),
+            "ng_end": float(ng[-1]),
+            "t41_peak": float(np.max(tr["t41"])),
+            "t41_end": float(tr["t41"][-1]),
+            "t41_overshoot": float(np.max(tr["t41"]) - tr["t41"][-1]),
+        }
+    for ax, ylab, title in (
+        (axes[0], "%NG", "gas generator speed"),
+        (axes[1], "deg R", "turbine inlet T4.1"),
+        (axes[2], "ft*lbf", "power turbine torque"),
+        (axes[3], "psia", "compressor discharge Ps3"),
+    ):
+        _style(ax, "time, s", ylab, title)
+    axes[0].legend(frameon=False, fontsize=7.5, labelcolor=MUTED, loc="best", title="lbm/hr")
+    fig.suptitle(
+        "Open loop: four fuel steps from the same 400 lbm/hr trim, heat sink on, "
+        "power turbine held at design speed",
+        color="#1a1917",
+        fontsize=11,
+        x=0.012,
+        ha="left",
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "open-loop-family.png", dpi=135)
+    plt.close(fig)
+    return out
+
+
+def sheet_closed_loop() -> dict:
+    """The governor doing its job: a load step, a collective slam, a reference change."""
+    import test_closed_loop as tcl
+    from t700.control import loop
+
+    name, wf, _ng, _ps3, q, ratio, _shp = tcl.TRIMS[0]
+    wf_pps = wf_pps_from_pph(wf)
+    r = trim.solve(wf_pps, c.NP_DES, AMB)
+    f = frame(r.state, wf_pps, AMB)
+    slope = abs(tcl._dqpt_dnp(r, wf_pps)) * ratio
+    base = dict(pas_deg=100.0, pcprf_pct=tcl.NP_TRIM_RPM * 100.0 / c.NP_DES)
+
+    def run(n, at, xcpc_of, load_of, ref_of=None):
+        s, rec = None, {k: [] for k in ("t", "np", "ng", "wf", "t41", "spdg", "lim")}
+        for i in range(n):
+            pilot = loop.Pilot(
+                xcpc_pct=xcpc_of(i),
+                pas_deg=100.0,
+                pcprf_pct=(ref_of(i) if ref_of else base["pcprf_pct"]),
+            )
+            if s is None:
+                s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+            s, e, h, fr = loop.step(
+                s, pilot, AMB, dt=tcl.DT, load=load_of(i), j_load=c.J_LOAD_UH60A, heat_sink=True
+            )
+            rec["t"].append(i * tcl.DT)
+            rec["np"].append(s.engine.np_rpm)
+            rec["ng"].append(100.0 * s.engine.ng_rpm / c.NG_DES)
+            rec["wf"].append(h.wf_pph)
+            rec["t41"].append(fr.t41_degR)
+            rec["spdg"].append(e.spdg)
+            rec["lim"].append(h.limit)
+        _ = at
+        return {k: (np.asarray(v) if k != "lim" else v) for k, v in rec.items()}
+
+    xc = tcl.XCPC_PCT[name]
+    cases = [
+        (
+            "15 % load step",
+            run(
+                2600,
+                1400,
+                lambda i: xc,
+                lambda i: (
+                    lambda v, s=1.15 if i >= 1400 else 1.0: q * s + slope * (v - tcl.NP_TRIM_RPM)
+                ),
+            ),
+        ),
+        (
+            "collective 52.75 -> 70 %",
+            run(
+                1800,
+                600,
+                lambda i: 70.0 if i >= 600 else xc,
+                lambda i: lambda v: q + slope * (v - tcl.NP_TRIM_RPM),
+            ),
+        ),
+        (
+            "speed reference 100 -> 102 %",
+            run(
+                2600,
+                1200,
+                lambda i: xc,
+                lambda i: lambda v: q + slope * (v - tcl.NP_TRIM_RPM),
+                lambda i: base["pcprf_pct"] * (1.02 if i >= 1200 else 1.0),
+            ),
+        ),
+    ]
+
+    fig, axes = plt.subplots(3, 4, figsize=(17.0, 10.2))
+    fig.patch.set_facecolor("white")
+    out = {}
+    for row, (label, d) in zip(axes, cases, strict=True):
+        for ax, key, ylab, title, col in (
+            (row[0], "np", "rpm", "power turbine speed NP", OURS),
+            (row[1], "wf", "lbm/hr", "fuel flow, an OUTPUT here", BALLIN),
+            (row[2], "ng", "%NG", "gas generator speed", GE),
+            (row[3], "spdg", "volts", "ECU torque-motor demand SPDG", GE2),
+        ):
+            ax.plot(d["t"], d[key], "-", color=col, lw=1.8, zorder=3)
+            _style(ax, "time, s", ylab, f"{title}")
+        row[0].set_ylabel(f"{label}\n\nrpm", color=MUTED, fontsize=9)
+        out[label] = {
+            "np_min": float(d["np"].min()),
+            "np_max": float(d["np"].max()),
+            "np_settled": float(d["np"][-200:].mean()),
+            "wf_min": float(d["wf"].min()),
+            "wf_max": float(d["wf"].max()),
+            "wf_settled": float(d["wf"][-200:].mean()),
+            "limits_used": sorted(set(d["lim"])),
+        }
+    fig.suptitle(
+        "Closed loop: the Appendix C control system on the engine at the hover trim. "
+        "Fuel flow is an output",
+        color="#1a1917",
+        fontsize=11,
+        x=0.012,
+        ha="left",
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.968))
+    fig.savefig(OUT / "closed-loop-response.png", dpi=130)
+    plt.close(fig)
+    return out
+
+
+def sheet_schedules() -> dict:
+    """All eight Appendix C scheduling functions, as digitized. They exist only as plots."""
+    from t700.control import schedules as sch
+
+    specs = [
+        (
+            "F_HM1",
+            "Fig. C24, pdf p.95",
+            "T2, deg R",
+            "WFPTP",
+            sch.f_hm1,
+            "topping line -- the fuel ceiling",
+        ),
+        ("F_HM2", "Fig. C25, pdf p.96", "PAS, deg", "WFPRF", sch.f_hm2, "power available spindle"),
+        (
+            "F_HM3",
+            "Fig. C26, pdf p.97",
+            "XLDSH, deg",
+            "PNG",
+            sch.f_hm3,
+            "load demand -> NG reference",
+        ),
+        (
+            "F_HM4",
+            "Fig. C27, pdf p.98",
+            "XLDSH, deg",
+            "WFQPS3",
+            sch.f_hm4,
+            "load demand -> fuel feedforward",
+        ),
+        (
+            "F_HM5",
+            "Fig. C28, pdf p.99",
+            "T2, deg R",
+            "WFIRF",
+            sch.f_hm5,
+            "idle schedule, fuel term",
+        ),
+        (
+            "F_HM6",
+            "Fig. C29, pdf p.100",
+            "T2, deg R",
+            "PCNGI",
+            sch.f_hm6,
+            "idle schedule, speed reference",
+        ),
+    ]
+    fig, axes = plt.subplots(2, 4, figsize=(17.0, 7.6))
+    fig.patch.set_facecolor("white")
+    out = {}
+    for ax, (name, src, xl, yl, fn, what) in zip(axes.ravel(), specs, strict=False):
+        cur = fn()
+        xs = np.linspace(cur.x.min(), cur.x.max(), 400)
+        ax.plot(xs, [float(cur(v)) for v in xs], "-", color=OURS, lw=2, zorder=3)
+        ax.plot(cur.x, cur.y, "x", color=BALLIN, ms=7, mew=1.6, zorder=4)
+        _style(ax, xl, yl, f"{name} -- {what}")
+        ax.text(
+            0.02,
+            0.04,
+            f"{cur.x.size} printed markers\n{src}",
+            transform=ax.transAxes,
+            fontsize=6.8,
+            color=MUTED,
+            va="bottom",
+            zorder=5,
+            bbox=dict(fc="white", ec="none", alpha=0.82, pad=1.8),
+        )
+        out[name] = {
+            "knots": int(cur.x.size),
+            "source": src,
+            "x_range": [float(cur.x.min()), float(cur.x.max())],
+            "y_range": [float(cur.y.min()), float(cur.y.max())],
+        }
+
+    ax = axes.ravel()[6]
+    m7 = sch.f_hm7()
+    for k, param in enumerate(m7.params):
+        line = m7.lines[k]
+        ax.plot(
+            line.x,
+            line.y,
+            "-",
+            lw=1.6,
+            zorder=3,
+            color=plt.cm.viridis(k / max(len(m7.params) - 1, 1)),
+            label=f"{param:g}",
+        )
+    _style(ax, "PCNGHL, %NG", "WFPAC", "F_HM7 -- acceleration limit, 7 T2 lines")
+    ax.legend(
+        frameon=False, fontsize=6, labelcolor=MUTED, ncol=2, title="T2, deg R", title_fontsize=6
+    )
+    out["F_HM7"] = {
+        "lines": int(len(m7.params)),
+        "source": "Fig. C30, pdf p.101",
+        "params": [float(v) for v in m7.params],
+    }
+
+    ax = axes.ravel()[7]
+    ec = sch.f_ec1()
+    for k, param in enumerate(ec.params):
+        line = ec.lines[k]
+        ax.plot(
+            line.x,
+            line.y,
+            "-",
+            lw=1.8,
+            zorder=3,
+            color=plt.cm.plasma(0.15 + 0.7 * k / max(len(ec.params) - 1, 1)),
+            label=f"{param:g}",
+        )
+    _style(ax, "W45R", "TAU45, sec", "F_EC1 -- thermocouple time constant")
+    ax.legend(frameon=False, fontsize=6, labelcolor=MUTED, title="T45L, deg R", title_fontsize=6)
+    out["F_EC1"] = {
+        "lines": int(len(ec.params)),
+        "source": "Fig. C23, pdf p.94",
+        "params": [float(v) for v in ec.params],
+    }
+
+    fig.suptitle(
+        "Appendix C's eight scheduling functions. None exists as a table -- the fuel control "
+        "is specified entirely as pictures",
+        color="#1a1917",
+        fontsize=11,
+        x=0.012,
+        ha="left",
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.955))
+    fig.savefig(OUT / "control-schedules.png", dpi=135)
+    plt.close(fig)
+    return out
+
+
+MAP_FILE = {
+    "f2": "f2_compressor_temperature.csv",
+    "f3": "f3_seal_bleed_fraction.csv",
+    "f4": "f4_pt_balance_bleed_fraction.csv",
+    "f5": "f5_tip_leak_cooling_bleed_fraction.csv",
+    "f6": "f6_combustor_efficiency.csv",
+    "f7": "f7_gg_turbine_energy.csv",
+    "f8": "f8_pt_energy.csv",
+    "f9": "f9_pt_mass_flow.csv",
+    "f10": "f10_exhaust_pressure_loss.csv",
+    "f_hs": "fhs_heat_sink_constant.csv",
+    "f1": "f1_compressor_mass_flow_beta.csv",
+}
+
+
+def _axis_labels(fname: str, directory: str = "maps") -> tuple[str, str]:
+    """The printed axis titles, read out of the data file's own provenance header.
+
+    Not hardcoded here. An earlier draft of this sheet typed them from memory and put
+    "NGc, %" on `f4` and `f5`, whose abscissa is corrected mass flow -- a caption wrong in a
+    way no test can see. The digitizers already record what the page prints; use that.
+    """
+    path = HERE.parent / "data" / directory / fname
+    x = y = ""
+    for ln in path.read_text().splitlines():
+        if ln.startswith("# x:") and not x:
+            x = ln[4:].strip().split(" -- ")[0].split(",  ")[0]
+        elif ln.startswith("# y:") and not y:
+            y = ln[4:].strip().split(" -- ")[0].split(",  ")[0]
+        elif not ln.startswith("#"):
+            break
+    return (x[:56], y[:56])
+
+
+def sheet_engine_maps() -> dict:
+    """The eleven engine function tables of Appendix A, as digitized and conditioned."""
+    from t700 import maps
+
+    single = [
+        ("f2", "Fig. A2, p.57", "compressor temperature, Eq. 10"),
+        ("f3", "Fig. A3, p.58", "seal-pressurization bleed B1, Eq. 12"),
+        ("f4", "Fig. A4, p.59", "power-turbine-balance bleed B2, Eq. 13"),
+        ("f5", "Fig. A5, p.60", "tip-leak + cooling bleed B3"),
+        ("f6", "Fig. A6, p.61", "combustor efficiency -- a CONSTANT"),
+        ("f7", "Fig. A7, p.62", "gas generator turbine energy, Eq. 26"),
+        ("f8", "Fig. A8, p.63", "power turbine energy, Eq. 32"),
+        ("f9", "Fig. A9, p.64", "power turbine mass flow, Eq. 33"),
+        ("f10", "Fig. A10, p.65", "exhaust pressure loss, Eq. 38"),
+        ("f_hs", "Fig. A11, p.66", "station 4.1 heat-sink constant, Eq. 52"),
+    ]
+    fig, axes = plt.subplots(3, 4, figsize=(17.0, 10.0))
+    fig.patch.set_facecolor("white")
+    out = {}
+    for ax, (name, src, what) in zip(axes.ravel(), single, strict=False):
+        cur = getattr(maps, name)()
+        xl, yl = _axis_labels(MAP_FILE[name])
+        xs = np.linspace(cur.x.min(), cur.x.max(), 400)
+        ax.plot(xs, [float(cur(v)) for v in xs], "-", color=OURS, lw=2, zorder=3)
+        ax.plot(cur.x, cur.y, "x", color=BALLIN, ms=6, mew=1.4, zorder=4)
+        _style(ax, xl, yl, f"{name} -- {what}")
+        ax.text(
+            0.02,
+            0.05,
+            f"{cur.x.size} knots\n{src}",
+            transform=ax.transAxes,
+            fontsize=6.6,
+            color=MUTED,
+            va="bottom",
+            zorder=5,
+            bbox=dict(fc="white", ec="none", alpha=0.82, pad=1.8),
+        )
+        out[name] = {
+            "knots": int(cur.x.size),
+            "source": src,
+            "x_axis": xl,
+            "y_axis": yl,
+            "conditioning_moved": float(maps.CONDITIONING.get(name, 0.0)),
+        }
+
+    ax = axes.ravel()[10]
+    m1 = maps.f1()
+    for k, param in enumerate(m1.params):
+        line = m1.lines[k]
+        ax.plot(
+            line.x,
+            line.y,
+            "-",
+            lw=1.3,
+            zorder=3,
+            color=plt.cm.viridis(k / (len(m1.params) - 1)),
+            label=f"{param:g}",
+        )
+    fx, fy = _axis_labels(MAP_FILE["f1"])
+    _style(ax, fx, fy, "f1 -- compressor map, 11 speed lines")
+    ax.legend(frameon=False, fontsize=5.5, labelcolor=MUTED, ncol=2, title="%NGc", title_fontsize=6)
+    out["f1"] = {
+        "lines": int(len(m1.params)),
+        "knots_per_line": int(m1.lines[0].x.size),
+        "source": "Fig. A1, p.56",
+    }
+
+    ax = axes.ravel()[11]
+    printed = maps.f1_as_printed()
+    ax.plot(
+        printed.lines[5].x,
+        printed.lines[5].y,
+        "o--",
+        color=BALLIN,
+        ms=5,
+        lw=1.4,
+        zorder=3,
+        label="as printed, 7 markers",
+    )
+    ax.plot(
+        m1.lines[5].x, m1.lines[5].y, "-", color=OURS, lw=2, zorder=4, label="on the beta grid, 56"
+    )
+    _style(ax, fx, fy, "f1's 89 % line -- the one departure that shows")
+    ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc="best")
+
+    fig.suptitle(
+        "Appendix A's eleven engine function tables, as digitized. Crosses are the printed "
+        "markers; the line is what the model evaluates",
+        color="#1a1917",
+        fontsize=11,
+        x=0.012,
+        ha="left",
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.958))
+    fig.savefig(OUT / "engine-maps.png", dpi=130)
+    plt.close(fig)
+    return out
 
 
 if __name__ == "__main__":
