@@ -480,3 +480,293 @@ def test_supplying_the_load_slope_closes_the_np_diagonal_circularly(trim_no: int
                 f"d({S[i]})/d({S[j]}) moved; Q_req enters only dNP/dt and depends only on NP"
             )
     assert np.allclose(fixed.b, bare.b, rtol=1e-9)
+
+
+# ================================================ the blocks nothing compared, 2026-09-14
+#
+# `SCOPE.md` counted 297 printed elements, 206 of them non-zero, of which about 117 carried
+# a numeric per-element comparison -- leaving roughly 89 printed numbers compared against
+# nothing. What follows is most of that remainder: the 3-DOF and 6-DOF fuel columns, the
+# 6-DOF pressure block, and the rest of the 6-DOF `A`.
+#
+# They are characterizations rather than accuracy claims, in `SCOPE.md`'s third sense --
+# the bounds are fitted round the current measurement. What they buy is that a regression
+# in any of them now fails a test instead of going unnoticed, and that the *shape* of each
+# block's disagreement is on the record where a single aggregate would have hidden it.
+
+THREE_DOF_B = (0.86, 1.02)
+"""The 3-DOF fuel column against B7/B9/B11, nine numbers, ratio ours/printed.
+
+Measured: 0.9703 / 0.9840 / **0.8635** at hover, 0.9945 / 1.0036 / 0.9808 at level,
+1.0083 / 0.9387 / **0.8930** at descent, in state order NG, NP, T41. The T41 entry is the
+weak one at two trims of the three and the level value sits between them, so this is
+scatter rather than a trend -- unlike the 6-DOF column below, which has one."""
+
+SIX_DOF_B_GAS = (0.93, 0.96)
+SIX_DOF_B_T41 = (0.87, 0.90)
+"""The 6-DOF fuel column against B8/B10/B12, fifteen non-zero numbers.
+
+`b(P3)` is printed as an exact zero at all three trims and we reproduce that, so the
+column is five numbers per figure, not six.
+
+**The interesting part is the contrast with the 5-DOF, and it is not subtle.** At the same
+three trims the 5-DOF fuel column is exact -- 0.9988 to 1.0011 over twelve numbers, which
+`test_the_fuel_column_is_essentially_exact` already asserts at +/-0.2 %. Turn the heat sink
+on and the same column drops to:
+
+| | NG | NP | P41 | P45 | T41 |
+|---|---|---|---|---|---|
+| hover | 0.9494 | 0.9506 | 0.9564 | 0.9507 | 0.8944 |
+| level | 0.9450 | 0.9452 | 0.9499 | 0.9442 | 0.8820 |
+| descent | 0.9372 | 0.9360 | 0.9443 | 0.9372 | 0.8793 |
+
+The heat sink is the *only* difference between the two models, so the whole deficit is its.
+It is uniform across the four gas-path states, separate and larger on T41, and monotone in
+power at every entry -- the same sign and a comparable size to the T41 row's known 7 %
+lead-lag deficit (`test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio`, open question
+#31), and `d(T41)` sits at 0.951 / 0.944 / 0.942 in the same band as the gas-path entries.
+That is three independent blocks of the heat-sink model low by one ratio, which is what
+says #31's two time constants are the cause rather than the structure."""
+
+SIX_DOF_PRESSURE = (0.99, 1.01)
+"""Rows P3 and P41 against columns P3 and P41 in B8/B10/B12: twelve numbers, 0.9950 to
+1.0013. As tight as the 5-DOF pressure block, which is the point -- promoting T41 to a
+state does not disturb the volume dynamics."""
+
+SIX_DOF_REST = (0.80, 1.26)
+"""Everything left in the 6-DOF `A`: the NG, NP and P45 rows outside the T41 column.
+
+Thirty-three numbers after `A(P45,P3)` is set aside below and the `A(NP,NP)` diagonal with
+it -- that one is Gen Hel's, and this file extracts without `dQreq/dNP` by convention, so
+it reads 0.45 here and 1.00 in the one test that supplies the slope. They span 0.824 to
+1.245 -- the
+same `f1`/`f7` derivative spread the 5-DOF carries in the same places (open questions #31
+and #43), neither better nor worse for the heat sink being on. A bound this wide is a
+tripwire for a sign flip or a dropped term, not evidence of agreement, and it is quoted
+here so nobody reads it as the latter."""
+
+
+def _six(trim_no: int):
+    wf = wf_pps_from_pph(WF_PPH[trim_no])
+    r = trim.solve(wf, NP_RPM, AMB)
+    return extract(r, wf, DOF.SIX, AMB, j_load=c.J_LOAD_UH60A), ab.find(6, trim_no)
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_the_three_dof_fuel_column_against_b7_b9_b11(trim_no: int):
+    """Nine printed numbers with no numeric comparison until now."""
+    wf = wf_pps_from_pph(WF_PPH[trim_no])
+    r = trim.solve(wf, NP_RPM, AMB)
+    ours = extract(r, wf, DOF.THREE, AMB, j_load=c.J_LOAD_UH60A)
+    ref = ab.find(3, trim_no)
+    for i, s in enumerate(ref.states):
+        assert ref.b[i] != 0.0, f"B{ref.figure}: b({s}) is printed zero, which it was not"
+        ratio = ours.b[i] / ref.b[i]
+        assert THREE_DOF_B[0] < ratio < THREE_DOF_B[1], (
+            f"{TRIM_NAME[trim_no]} b({s}) is {ratio:.4f} of printed"
+        )
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_the_six_dof_fuel_column_is_low_where_the_five_dof_one_is_exact(trim_no: int):
+    """Fifteen printed numbers with no numeric comparison until now, and they have a shape.
+
+    Asserted in two groups because they *are* two groups: the four gas-path states move
+    together and T41 sits 5 points below them. Lumping them into one band would hide the
+    only structure the block has.
+    """
+    ours, ref = _six(trim_no)
+    p3 = ref.states.index("P3")
+    assert ref.b[p3] == 0.0, "B8/B10/B12 print b(P3) as zero"
+    # ours is a `np.linalg.solve` residual at ~1e-11 rather than a literal zero, as the
+    # off-row `d` entries are -- compare it against an entry that should be non-zero.
+    assert abs(ours.b[p3]) < 1e-9 * np.abs(ours.b).max(), f"b(P3) is {ours.b[p3]:.3g}"
+    for i, s in enumerate(ref.states):
+        if s == "P3":
+            continue
+        ratio = ours.b[i] / ref.b[i]
+        lo, hi = SIX_DOF_B_T41 if s == "T41" else SIX_DOF_B_GAS
+        assert lo < ratio < hi, f"{TRIM_NAME[trim_no]} b({s}) is {ratio:.4f} of printed"
+
+
+def test_the_six_dof_fuel_column_falls_monotonically_with_power():
+    """Uniform *and* ordered: every entry is lowest at descent and highest at hover.
+
+    Five independent entries agreeing on the ordering is what separates one mechanism from
+    five coincidences, and it is the same direction the `f7` group runs in
+    (`test_the_f7_error_shrinks_monotonically_with_power`) -- except that this one gets
+    worse as power falls rather than better.
+    """
+    by_trim = {}
+    for trim_no in (1, 2, 3):
+        ours, ref = _six(trim_no)
+        by_trim[trim_no] = {
+            s: ours.b[i] / ref.b[i] for i, s in enumerate(ref.states) if ref.b[i] != 0.0
+        }
+    for s in by_trim[1]:
+        assert by_trim[1][s] > by_trim[2][s] > by_trim[3][s], (
+            f"b({s}) is not monotone in power: "
+            f"{by_trim[1][s]:.4f} / {by_trim[2][s]:.4f} / {by_trim[3][s]:.4f}"
+        )
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_the_six_dof_pressure_block_survives_promoting_t41(trim_no: int):
+    """The volume dynamics must not care that T41 became a state. Twelve numbers."""
+    ours, ref = _six(trim_no)
+    idx = [ref.states.index(s) for s in ("P3", "P41")]
+    for i in idx:
+        for j in idx:
+            assert ref.A[i, j] != 0.0
+            ratio = ours.A[i, j] / ref.A[i, j]
+            assert SIX_DOF_PRESSURE[0] < ratio < SIX_DOF_PRESSURE[1], (
+                f"{TRIM_NAME[trim_no]} A({ref.states[i]},{ref.states[j]}) {ratio:.4f}"
+            )
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_the_rest_of_the_six_dof_a_matrix_is_bounded_at_all(trim_no: int):
+    """Thirty-three numbers that were compared against nothing. A tripwire, not a tolerance."""
+    ours, ref = _six(trim_no)
+    t41 = ref.states.index("T41")
+    p3, p45, np_ = ref.states.index("P3"), ref.states.index("P45"), ref.states.index("NP")
+    for i, si in enumerate(ref.states):
+        if i == t41:
+            continue
+        for j, sj in enumerate(ref.states):
+            # A(NP,NP) is the Gen Hel element: it carries dQreq/dNP, which this file
+            # extracts without by convention -- see the circular-closure test above.
+            if j == t41 or ref.A[i, j] == 0.0 or (i, j) in {(p45, p3), (np_, np_)}:
+                continue
+            ratio = ours.A[i, j] / ref.A[i, j]
+            assert SIX_DOF_REST[0] < ratio < SIX_DOF_REST[1], (
+                f"{TRIM_NAME[trim_no]} A({si},{sj}) is {ratio:.3f} of printed"
+            )
+
+
+def test_the_six_dof_p45_p3_element_is_a_cancellation_and_is_excluded_for_that_reason():
+    """`A(P45,P3)` is the one element excluded above, and the exclusion is a finding.
+
+    The 5-DOF prints it as **-269.5 / -255.1 / -261.9** and we reproduce those to 0.982 /
+    0.978 / 0.996. The 6-DOF prints the same partial derivative as **0.0 / -4.315 /
+    -7.397** -- a collapse of forty to sixty times, with the hover value rounding to zero
+    outright. A quantity that small is what is left after the terms building it cancel, and
+    Appendix B prints four significant figures, so the printed residual carries the
+    rounding of everything that cancelled. This is the trap `t700.appendix_b`'s docstring
+    already names for row 6, in a second place.
+
+    Ours collapses too -- which is the part that carries information, and is what this
+    asserts -- but to -3.545 and -10.016, i.e. 0.82x and 1.35x. Bounding that would be
+    bounding Ballin's rounding, not our model.
+    """
+    for trim_no, ref5_val in ((1, -269.5), (2, -255.1), (3, -261.9)):
+        ours, ref = _six(trim_no)
+        p3, p45 = ref.states.index("P3"), ref.states.index("P45")
+        assert abs(ref.A[p45, p3]) < 0.05 * abs(ref5_val), (
+            f"B{ref.figure} A(P45,P3) is no longer the small residual this records"
+        )
+        assert abs(ours.A[p45, p3]) < 0.10 * abs(ref5_val), (
+            f"trim {trim_no}: ours is {ours.A[p45, p3]:.4g}, which is not a collapse "
+            f"against the 5-DOF's {ref5_val}"
+        )
+
+
+P3_COLUMN_TOL_PCT = 3.0
+"""`A(NG,P3)` and `A(P45,P3)` in the 5-DOF -- six numbers, and nothing asserted them.
+
+They are the two elements of the P3 column that sit outside the pressure block, and they
+were missed because that block's test walks a hand-written list of five pairs. Measured
++1.370 / +1.824, +0.701 / +2.191, +2.491 / +0.427 % at hover / level / descent -- which
+puts them among the best-agreeing elements in the whole comparison, better than everything
+in the `f7` group and than most of the NG column. Worth having asserted for that reason
+rather than despite it: they are the elements a regression would be easiest to miss."""
+
+THREE_DOF_NG_COLUMN = (0.80, 1.12)
+"""The 3-DOF NG column against B7/B9/B11 -- the last block with no numeric comparison.
+
+Measured 0.9304 / 0.9895 / **0.8238** at hover, 1.0409 / 1.0955 / 1.0451 at level,
+1.0491 / 0.9900 / 0.8816 at descent, in row order NG, NP, T41. This is the `f1` derivative
+ambiguity of open question #43 in the same place it appears everywhere else, and the
+descent `A(T41,NG)` entry is the one `test_the_descent_t41_ng_element_is_recorded_not_
+forgotten` already tracks to a tighter band of its own."""
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_the_p3_column_outside_the_pressure_block(trim_no: int):
+    """How NG and P45 respond to compressor discharge pressure. Six printed numbers."""
+    ours, ref = _pair(trim_no)
+    j = S.index("P3")
+    for si in ("NG", "P45"):
+        i = S.index(si)
+        assert ref.A[i, j] != 0.0
+        dev = (ours.A[i, j] - ref.A[i, j]) / abs(ref.A[i, j]) * 100.0
+        assert abs(dev) < P3_COLUMN_TOL_PCT, f"trim {trim_no} d({si})/d(P3): {dev:+.3f} %"
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_the_three_dof_ng_column_against_b7_b9_b11(trim_no: int):
+    """Eight printed numbers -- the last of Appendix B with nothing compared against them.
+
+    With this, every non-zero printed element of all twelve figures carries a numeric
+    per-element comparison except the three `A(NP,NP)` diagonals, which are Gen Hel's
+    `dQreq/dNP` and are excluded by `test_the_np_diagonal_still_needs_the_load_torque_slope`
+    for a reason, and the two 6-DOF `A(P45,P3)` residuals recorded above.
+    """
+    wf = wf_pps_from_pph(WF_PPH[trim_no])
+    r = trim.solve(wf, NP_RPM, AMB)
+    ours = extract(r, wf, DOF.THREE, AMB, j_load=c.J_LOAD_UH60A)
+    ref = ab.find(3, trim_no)
+    j = ref.states.index("NG")
+    for i, si in enumerate(ref.states):
+        if ref.A[i, j] == 0.0:
+            continue
+        ratio = ours.A[i, j] / ref.A[i, j]
+        assert THREE_DOF_NG_COLUMN[0] < ratio < THREE_DOF_NG_COLUMN[1], (
+            f"{TRIM_NAME[trim_no]} A({si},NG) is {ratio:.4f} of printed"
+        )
+
+
+NP_DIAGONAL_RESIDUAL_PCT = (-56.0, -50.0)
+"""`A(NP,NP)` without `dQreq/dNP`, in every DOF variant. The last six printed elements.
+
+`test_the_np_diagonal_still_needs_the_load_torque_slope` characterizes the 5-DOF's three;
+its 3-DOF and 6-DOF counterparts were the only printed numbers in Appendix B left with no
+comparison of any kind. Measured -51.78 / -53.45 / -54.58 % at hover / level / descent --
+**the same three numbers in all four variants, to five figures.** That is what a missing
+term in the NP equation alone should do: the power turbine state is decoupled [pdf p.29],
+so nothing about promoting T41 or dropping the volume dynamics reaches it."""
+
+
+@pytest.mark.parametrize("dof_no", [2, 3, 5, 6])
+def test_appendix_b_prints_one_np_diagonal_per_trim_across_all_four_variants(dof_no: int):
+    """A transcription check that owes nothing to our model.
+
+    Four figures per trim were transcribed independently from four pages, and `A(NP,NP)`
+    is the element none of the four model variants can disagree about -- NP is decoupled,
+    so its diagonal is `-(dQ_PT/dNP + dQreq/dNP)/(J_PT + J_load)` whatever else is a state.
+    All four print the same number: -0.5650, -0.4461, -0.3567. If one drifts, a digit was
+    mis-transcribed on one page.
+    """
+    for trim_no in (1, 2, 3):
+        ref = ab.find(dof_no, trim_no)
+        i = ref.states.index("NP")
+        base = ab.find(5, trim_no)
+        assert ref.A[i, i] == base.A[base.states.index("NP"), base.states.index("NP")], (
+            f"B{ref.figure} prints A(NP,NP) = {ref.A[i, i]}, against the 5-DOF's "
+            f"{base.A[1, 1]} at the same trim"
+        )
+
+
+@pytest.mark.parametrize("dof_no,dof", [(3, DOF.THREE), (6, DOF.SIX)])
+def test_the_heat_sink_np_diagonals_carry_the_same_missing_load_slope(dof_no, dof):
+    """The 3-DOF and 6-DOF halves of the residual the 5-DOF test already records."""
+    for trim_no in (1, 2, 3):
+        wf = wf_pps_from_pph(WF_PPH[trim_no])
+        r = trim.solve(wf, NP_RPM, AMB)
+        ours = extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A)
+        ref = ab.find(dof_no, trim_no)
+        i = ref.states.index("NP")
+        dev = (abs(ours.A[i, i]) - abs(ref.A[i, i])) / abs(ref.A[i, i]) * 100.0
+        assert NP_DIAGONAL_RESIDUAL_PCT[0] < dev < NP_DIAGONAL_RESIDUAL_PCT[1], (
+            f"B{ref.figure} A(NP,NP) residual is {dev:+.2f} % without dQreq/dNP"
+        )

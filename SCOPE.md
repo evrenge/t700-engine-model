@@ -145,10 +145,12 @@ Appendix C, implemented and closed around the engine.
 source rather than the work. Done: Table B.1's full printed state, 21 numbers at rms
 0.20 % (worst: shp −0.72 % at the descent trim, NG +0.13 % at level); Table 1
 eigenvalues; **all 297 Appendix B elements loaded and structurally checked across the
-four DOF variants Appendix B prints**, of which roughly 150 carry a numeric per-element
-comparison -- the 2-DOF and 5-DOF models fully, the 3-DOF and 6-DOF through their T41
-row/column, `d`, and the structural zeros. The 3-DOF and 6-DOF `b` vectors (27 elements)
-are not compared to anything. `DOF.REDUCED_FIVE` has **no** Appendix B figure, so "all
+four DOF variants Appendix B prints, and as of 2026-09-14 every one of the 206 non-zero
+ones carries a numeric per-element comparison** -- see "Appendix B, element by element"
+below for what closed the last 89 and what two elements are excluded rather than bounded.
+That line read "roughly 150 carry a numeric per-element comparison ... the 3-DOF and 6-DOF
+`b` vectors (27 elements) are not compared to anything", and the 150 was itself an
+overstatement of a real 117. `DOF.REDUCED_FIVE` has **no** Appendix B figure, so "all
 five linear models" was wrong: the printed elements come from four; the steady-state sweeps of Figures 6–8 across their full range; Figures 9–10
 transients in the configuration they were actually generated in.
 
@@ -372,26 +374,58 @@ validation-quality audit, which also found seven inline Appendix B bounds widene
 ### Appendix B, element by element
 
 There is no single per-element tolerance and the row above should not have implied one.
-Seven distinct bounds exist across `test_appendix_b_elements.py` and `test_all_dof_models.py`,
-and they differ by two orders of magnitude because the printed elements do:
+Fifteen distinct bounds exist across `test_appendix_b_elements.py` and
+`test_all_dof_models.py`, and they differ by two orders of magnitude because the printed
+elements do:
 
 | block | bound | test |
 |---|---|---|
 | `b`, the fuel column, 5-DOF | +/-0.2 % | `test_the_fuel_column_is_essentially_exact` |
 | 6-DOF T41 column | +/-1.0 % | `test_six_dof_t41_column_is_close` |
-| P3 / P41 pressure block | +/-1.5 % | `test_the_pressure_block_agrees_closely` |
+| P3 / P41 pressure block, 5-DOF | +/-1.5 % | `test_the_pressure_block_agrees_closely` |
+| P3 / P41 pressure block, 6-DOF | ratio 0.99-1.01 | `test_appendix_b_elements.SIX_DOF_PRESSURE` |
+| P3 column outside that block, 5-DOF | +/-3.0 % | `test_appendix_b_elements.P3_COLUMN_TOL_PCT` |
 | T41 row | ratio 0.90-0.96 | `test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio` |
 | 3-DOF T41 column, NP row | +/-12 % | `test_three_dof_elements_against_b7_b9_b11` |
+| 3-DOF NG column | ratio 0.80-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
+| 3-DOF `b` | ratio 0.86-1.02 | `test_appendix_b_elements.THREE_DOF_B` |
+| 6-DOF `b`, gas path | ratio 0.93-0.96 | `test_appendix_b_elements.SIX_DOF_B_GAS` |
+| 6-DOF `b`, T41 | ratio 0.87-0.9 | `test_appendix_b_elements.SIX_DOF_B_T41` |
+| rest of the 6-DOF `A` | ratio 0.8-1.26 | `test_appendix_b_elements.SIX_DOF_REST` |
+| `A(NP,NP)` without dQreq/dNP | -56 to -50 % | `test_appendix_b_elements.NP_DIAGONAL_RESIDUAL_PCT` |
 | f7 group, by trim | +/-26 / 16 / 9 % | `test_the_f7_group_is_characterized_by_trim` |
 | 2-DOF elements | ratio 0.70-1.20 | `test_two_dof_elements_against_b1_b3_b5` |
 
-The last three are characterizations in the sense above. **Coverage, measured 2026-09-14:**
-297 printed elements, 206 of them non-zero, of which about 117 carry a numeric per-element
-comparison. The gaps are the 3-DOF and 6-DOF `b` vectors (27 numbers), the 6-DOF A matrix
-outside its T41 row and column (48), and three 3-DOF A elements at each trim (9) --
-**about 89 non-zero printed numbers compared against nothing.** This file previously said
-"roughly 150 carry a numeric per-element comparison", which is an overstatement under
-either reading.
+Most of them are characterizations in the sense above, and the eight naming a symbol are
+checked against the code by `tests/test_scope_tolerances.py`; the seven naming only a test
+function are not, which is a gap in the mechanism rather than in the bounds.
+
+**Coverage, re-measured 2026-09-14 after the gaps were closed: 297 printed elements, 206
+of them non-zero, and all 206 now carry a numeric per-element comparison.** It was about
+117. What closed the rest, in order of how much it added:
+
+- the 6-DOF `A` outside its T41 row and column (45 numbers), split into the pressure block,
+  which agrees to 0.5 %, and everything else, which carries the same `f1`/`f7` spread the
+  5-DOF does in the same places;
+- the 6-DOF `b` vector (15), **uniformly 5-6 % low on the gas-path states and 11-12 % on
+  T41, and monotone in power at every entry, where the 5-DOF `b` at the same trims is exact
+  to 0.2 %.** The heat sink is the only difference between the two models, so the whole
+  deficit is its, and it has the same sign and a comparable size to the T41 row's 7 %
+  lead-lag deficit -- three blocks low by one ratio, which is evidence for open question
+  #31's time constants and against a structural error;
+- the 3-DOF `b` vector (9) and NG column (8);
+- the six `A(NP,NP)` diagonals of the 3-DOF and 6-DOF (6), which carry the same missing
+  `dQreq/dNP` as the 5-DOF's -- **-51.78 / -53.45 / -54.58 % in all four variants, to five
+  figures**, because NP is decoupled and nothing about the engine model's order reaches it;
+- the 5-DOF `A(NG,P3)` and `A(P45,P3)` (6), which had been missed because the pressure
+  block's test walks a hand-written list of pairs. They agree to 0.4-2.5 %.
+
+Two elements are excluded rather than bounded, each with a test that records why. The
+6-DOF `A(P45,P3)` is a **cancellation**: the 5-DOF prints -269.5 / -255.1 / -261.9 for the
+same partial derivative and the 6-DOF prints 0.0 / -4.315 / -7.397, a collapse of forty to
+sixty times with the hover value rounding to zero outright, so the printed residual carries
+the rounding of everything that cancelled. That is the trap `t700.appendix_b`'s docstring
+already names for row 6, found in a second place. The `A(NP,NP)` diagonals are Gen Hel's.
 
 ### Two things not to do
 

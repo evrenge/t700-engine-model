@@ -31,7 +31,14 @@ ROOT = Path(__file__).resolve().parent.parent
 SCOPE = ROOT / "SCOPE.md"
 
 _REF = re.compile(r"`(test_[a-z0-9_]+)\.([A-Z][A-Z0-9_]*)`")
-_NUM = re.compile(r"\d+(?:\.\d+)?")
+_NUM = re.compile(r"(?<![\d+/.])-?\d+(?:\.\d+)?")
+"""A number, with its sign when it has one.
+
+The minus is taken only where it cannot be something else: the lookbehind rejects it after
+a digit or a dot (`ratio 0.90-0.96` is a range, not a negative) and after `+` or `/`
+(`+/-2.5` is a magnitude). Without that, the parser read `-56 to -50 %` as `{50, 56}` and
+a symbol holding `(-56.0, -50.0)` failed against a document that printed it correctly --
+which is this test wrong about the code rather than the code wrong about the document."""
 
 
 def _table_rows() -> list[tuple[str, str, str]]:
