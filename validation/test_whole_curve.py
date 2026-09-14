@@ -33,13 +33,21 @@ from t700 import constants as c
 from t700 import maps, realtime, trim
 from t700.engine import Ambient, frame
 from t700.units import wf_pps_from_pph
+from test_fuel_step import STEP_TIME
 
 REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
 WF0 = wf_pps_from_pph(400.0)
-OUR_STEP = 0.539
-BALLIN_STEP = 0.545
-"""Midpoint of the bracket [0.539, 0.551]; see the module docstring."""
+CHOP_STEP = STEP_TIME[10]
+"""Our step and Ballin's are the same instant, per figure, and `test_fuel_step.STEP_TIME`
+is where it is measured and explained.
+
+There used to be two numbers and a shift between them -- ours at 0.539 for both figures,
+his at 0.545, "midpoint of the bracket [0.539, 0.551]". Both were eyeballed off an
+uncorrected time axis, and the residue showed up as our temperatures leading his by 22-49
+ms while PCNG and Ps3 led by 2. Stepping at the measured instant removes it: the best-fit
+time offset per panel is now -24 to +10 ms with mixed signs, i.e. within three engine
+frames and with no systematic lead left to explain."""
 
 STEPS = {9: 775.0, 10: 125.0}
 PANELS = ("pcng", "ps3", "t41", "t45", "torq45")
@@ -84,7 +92,7 @@ def _run(fig: int, heat_sink: bool):
     st = realtime.from_trim(r0, f0.wa31_pps, f0)
     tr = realtime.run(
         st,
-        lambda t: WF0 if t < OUR_STEP else hi,
+        lambda t: WF0 if t < STEP_TIME[fig] else hi,
         AMB,
         duration_s=5.0,
         dt=0.007,
@@ -103,15 +111,16 @@ def _run(fig: int, heat_sink: bool):
 
 
 def _rms_pct(t, ours, tb, vb):
-    """RMS |ours - Ballin| over the common window, as a percent of Ballin's excursion."""
-    shift = BALLIN_STEP - OUR_STEP
-    lo, hi = float(tb.min()), min(float(tb.max()), float(t.max()) - shift)
+    """RMS |ours - Ballin| over the common window, as a percent of Ballin's excursion.
+
+    No time shift. There was one, `BALLIN_STEP - OUR_STEP` = 6 ms, because our step time
+    and his were two different eyeballed guesses; both runs now step at the instant
+    measured from his own WFPH panel, so the traces share an origin by construction.
+    """
+    lo, hi = float(tb.min()), min(float(tb.max()), float(t.max()))
     grid = np.linspace(lo, hi, 800)
-    return (
-        100.0
-        * float(np.sqrt(((np.interp(grid - shift, t, ours) - np.interp(grid, tb, vb)) ** 2).mean()))
-        / float(np.ptp(vb))
-    )
+    d = np.interp(grid, t, ours) - np.interp(grid, tb, vb)
+    return 100.0 * float(np.sqrt((d**2).mean())) / float(np.ptp(vb))
 
 
 def test_the_heat_sink_configuration_is_the_better_fit():
@@ -151,36 +160,54 @@ def test_the_heat_sink_configuration_is_the_better_fit():
     )
 
 
-WHOLE_CURVE_RMS_CEILING_PCT = 8.0
+WHOLE_CURVE_RMS_CEILING_PCT = 5.0
 """Ceiling on any single panel's whole-curve RMS, as a percent of its own excursion.
 
 **This is a ratchet, not a tolerance.** Set just above the worst panel measured, so a
 regression fails while an improvement is free. Lower it whenever the model improves.
-Belongs in `SCOPE.md` per CLAUDE.md.
+Declared in `SCOPE.md` per CLAUDE.md, and `tests/test_scope_tolerances.py` now checks that
+the two agree.
 
-History, and the one time it went the wrong way:
+Current, over **ten** panels -- Figure 10's TORQ45 rejoined the comparison on 2026-09-14
+when its exclusion turned out to be our own page skew:
 
-* 17.0 (worst panel 15.8 %) -> **8.0** (worst 7.62 %, Figure 10's T45) when the heat sink
-  was rebuilt on Eqs. 48-49. Mean over the nine panels 9.78 % -> 3.79 %.
-* 8.0 -> **14.0** and back to **8.0**, both on 2026-09-13. The raise was recorded rather
-  than quietly absorbed and it is worth keeping the history, because the diagnosis that
-  justified it turned out to be only half right.
+| panel | Fig. 9 | Fig. 10 |
+|---|---|---|
+| PCNG | 1.479 | 1.437 |
+| PS3 | 1.171 | 1.812 |
+| T41 | 3.712 | 3.790 |
+| T45 | 3.353 | **4.713** |
+| TORQ45 | 2.037 | 3.010 |
 
-  The raise: the P3/P41 stopping test was corrected to measure the error the report states
-  rather than the iterate step (see `realtime.TOL_PRESSURE`), which converges the pressures
-  about eight times harder per frame. Figure 9 -- the accel, and the report's own test case
-  for that loop [pdf p.37] -- improved on four of five panels. Figure 10's chop degraded,
-  worst t45 7.62 -> 13.15 %, and that was attributed to `f1`'s 65-80 %NGc data hole, which
-  the chop's new 69.90 %NGc floor sat in.
+Mean **2.651 %**, worst 4.713 on Figure 10's T45.
 
-  The return: **the floor was not `f1`'s doing.** Eq. 80's fixed-point iteration does not
-  converge where f9's elasticity is below -1, and it was that, not the compressor map, that
-  let the chop run away downward. Solving Eq. 80 by bisection when its printed iteration
-  fails (see `realtime._p45_bisect`) puts the floor at **74.08 %NGc against Ballin's
-  74.18**, takes t45 back to **7.72 %** and the nine-panel mean to **3.51 %**, and leaves
-  Figure 9 untouched to two decimals. `f1`'s hole is real and still open (#58), but it is
-  second-order: 389 frames still read the 65 % line past its last knot, and the worst panel
-  is now better than it was before any of today's changes.
+History, including the one time it went the wrong way and the two times the reference data
+was the thing that moved:
+
+* 17.0 (worst 15.8 %) -> **8.0** (worst 7.62 %) when the heat sink was rebuilt on Eqs.
+  48-49. Nine-panel mean 9.78 % -> 3.79 %.
+* 8.0 -> **14.0** -> **8.0**, both on 2026-09-13. The raise was recorded rather than
+  quietly absorbed and the history is worth keeping, because the diagnosis that justified
+  it turned out to be half right. The P3/P41 stopping test was corrected to measure the
+  error the report states rather than the iterate step, which converges the pressures about
+  eight times harder per frame; Figure 9 improved on four of five panels and Figure 10's
+  chop degraded to t45 13.15 %, attributed to `f1`'s data hole. **It was not `f1`.** Eq. 80's
+  fixed-point iteration does not converge where f9's elasticity is below -1, and solving
+  Eq. 80 where the printed iteration fails took t45 back to 7.72 % with Figure 9 untouched.
+* **8.0 -> 5.0 on 2026-09-14, and the model did not change.** Two defects in our own
+  digitization of pdf pp.45-46 did. The panels are skewed, so every trace carried a ramp of
+  up to 4.2 % of panel height (#63); and each panel's time axis was read against one
+  page-wide pair of vertical frame columns, though those frames drift left going down the
+  page, so the six panels' clocks disagreed by up to 38 ms. Correcting the second is what
+  answers the question this file existed to ask. Before it, the best-fit time offset per
+  panel ran +2 ms on PCNG, +37 on T41, +49 on T45 and +54 on TORQ45 -- a lag that grows
+  down the page, which reads as our temperatures responding too early and is nothing of the
+  kind. After it the offsets are **-24 to +10 ms with mixed signs**, inside three engine
+  frames, and the step time measured from Ballin's own fuel panel is 0.5232 s on Figure 9
+  and 0.5217 on Figure 10 against the 0.539/0.545 eyeballed before.
+
+  T45 on Figure 10, the worst panel in the project since the beginning, went 7.238 ->
+  **4.713 %**; T41 4.675 -> 3.790; the mean 3.319 -> 2.651.
 """
 
 
@@ -212,7 +239,7 @@ def test_figure_10_has_not_settled_by_the_end_of_its_record():
     st = realtime.from_trim(r0, f0.wa31_pps, f0)
     tr = realtime.run(
         st,
-        lambda t: WF0 if t < OUR_STEP else wf_pps_from_pph(125.0),
+        lambda t: WF0 if t < CHOP_STEP else wf_pps_from_pph(125.0),
         AMB,
         duration_s=6.0,
         dt=0.007,
@@ -316,7 +343,7 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
         st = realtime.from_trim(r0, f0.wa31_pps, f0)
         tr = realtime.run(
             st,
-            lambda t: WF0 if t < OUR_STEP else wf_pps_from_pph(125.0),
+            lambda t: WF0 if t < CHOP_STEP else wf_pps_from_pph(125.0),
             AMB,
             duration_s=120.0,
             dt=0.007,
@@ -443,7 +470,7 @@ def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
         st = realtime.from_trim(r0, f0.wa31_pps, f0)
         tr = realtime.run(
             st,
-            lambda t, g=pph: WF0 if t < OUR_STEP else wf_pps_from_pph(g),
+            lambda t, g=pph: WF0 if t < CHOP_STEP else wf_pps_from_pph(g),
             AMB,
             duration_s=60.0,
             dt=0.007,
@@ -521,7 +548,7 @@ def test_ps3_leverage_on_the_speed_derivative_is_what_it_was_measured_to_be():
     st = realtime.from_trim(r0, f0.wa31_pps, f0)
     tr = realtime.run(
         st,
-        lambda t: wf0 if t < OUR_STEP else wf_pps_from_pph(125.0),
+        lambda t: wf0 if t < CHOP_STEP else wf_pps_from_pph(125.0),
         AMB,
         duration_s=5.0,
         dt=0.007,

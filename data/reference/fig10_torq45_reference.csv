@@ -1,24 +1,24 @@
 # source: TM-100991 pdf p.46, Figure 10, panel TORQ45
 # quantity: TORQ45 vs time, GE reference standard model data (+ markers) -- the hardware reference Ballin was himself validating against
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig910.py
-# t_s: time, seconds (shared axis, 0 to 5.0)
+# t_s: time, seconds (0 to 5.0). The vertical frames are fitted over THIS panel's rows: left column 480.06 (slope -15.02 m px/row), right 2130.86 (slope -6.47), width 1650.80 px against the page-wide 1669. The page is skewed; see `Panel.left_slope`.
 # value: TORQ45, axis range 0.0 to 400.0, no unit printed on the figure
 # points: 13
-# x tick check: worst interior major tick off by 0.1555 s
+# x tick check: worst interior major tick off by 0.1079 s
 # frame tilt corrected: top +13.70 px, bottom +14.37 px across the panel (+4.25 % of panel height). The page is skewed; see `frame_tilt`.
-# sample lattice: pitch 32.93 px = 0.0987 s
+# sample lattice: pitch 32.93 px = 0.0997 s
 # NOT transcribed. Values carry read error.
 t_s,value
-0.08573,186.45219
-0.18468,186.97071
-0.28688,186.23730
-0.38885,186.35011
-0.48709,185.00179
-0.58357,111.96361
-0.68157,95.05103
-0.78070,73.68561
-0.87619,53.21719
-0.97509,41.42842
-1.07354,34.43471
-1.17136,29.89629
-1.27022,29.63382
+0.10048,186.45219
+0.20042,186.97071
+0.30369,186.23730
+0.40670,186.35011
+0.50599,185.00179
+0.60601,111.96361
+0.70556,95.05103
+0.80639,73.68561
+0.90350,53.21719
+1.00375,41.42842
+1.10337,34.43471
+1.20227,29.89629
+1.30208,29.63382

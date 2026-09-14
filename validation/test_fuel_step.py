@@ -27,7 +27,7 @@ and settled state respond to it.
 They compare the **initial trim** and the **settled final state** on each panel. They do
 not yet compare the shape of the transition, which needs the traces resampled onto a
 common time base and a decision about how to treat the step-time uncertainty (the step
-time is not printed; ours measures 0.539 s and 0.545 s -- open question #37).
+time is not printed; measured at 0.5232 s and 0.5217 s -- open question #37).
 
 Tolerances here are **ours**. The report states no percentage tolerance for any transient
 quantity; its only numeric transient claim is a 1-2 % NG overestimate on the open-loop
@@ -51,7 +51,20 @@ REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
 
 # Figure, final fuel flow, measured step time
-STEPS = [(9, 775.0, 0.539), (10, 125.0, 0.545)]
+STEP_TIME = {9: 0.5232, 10: 0.5217}
+"""When the fuel steps, seconds, **measured from the WFPH panel's own 50 % crossing**.
+
+The caption states both flow levels and not the instant [pdf pp.45-46], so this is read off
+the figure -- open question #37, closed 2026-09-14 by this measurement.
+
+It read 0.539 and 0.545 until then, eyeballed, and the two figures were assumed to differ.
+They do not: measured on the deskewed panels with each panel's own time axis (#63), Figure
+9 steps at **0.5232 s** and Figure 10 at **0.5217 s**, agreeing to 1.5 ms, as one test
+setup should. The 16-23 ms correction is not a nicety on a transient sampled every 7 ms --
+it was the whole of the apparent lag between our temperatures and Ballin's. See
+`test_whole_curve`."""
+
+STEPS = [(9, 775.0, STEP_TIME[9]), (10, 125.0, STEP_TIME[10])]
 
 # Panels comparable to a model output, and how to form that output from a run.
 PANELS = {
@@ -177,7 +190,7 @@ def test_settled_state_matches_the_figure(fig: int, wf_hi: float, t_step: float,
 def test_step_up_stays_inside_the_compressor_map():
     """Figure 9 keeps the engine on data, which is why it agrees to a few percent."""
     maps.reset_clamps()
-    tr = _run(9, 775.0, 0.539)
+    tr = _run(9, 775.0, STEP_TIME[9])
     ngc = 100.0 * tr["ng"] / c.NG_DES
     assert ngc.min() > 88.0, "the step up should not approach the map's lower edge"
     assert ngc.max() < 101.0
@@ -241,7 +254,7 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     panel yielded only 16 markers against 45 elsewhere and is not used.
     """
     maps.reset_clamps()
-    tr = _run(10, 125.0, 0.545)
+    tr = _run(10, 125.0, STEP_TIME[10])
     ngc = 100.0 * tr["ng"] / c.NG_DES
     rep = maps.clamp_report()
 
@@ -265,8 +278,8 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
 
 def test_the_two_figures_step_in_opposite_directions():
     """Guards against the two runs being accidentally identical."""
-    up = _run(9, 775.0, 0.539)
-    down = _run(10, 125.0, 0.545)
+    up = _run(9, 775.0, STEP_TIME[9])
+    down = _run(10, 125.0, STEP_TIME[10])
     assert up["ng"][-1] > up["ng"][0]
     assert down["ng"][-1] < down["ng"][0]
 
@@ -330,7 +343,7 @@ def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
     late_them = float(np.median(vb[(tb > 3.5) & (tb < 4.5)]))
     theirs = float(vb.max()) - late_them
 
-    tr = _run(9, 775.0, 0.539)
+    tr = _run(9, 775.0, STEP_TIME[9])
     ours_trace = PANELS["t41"](tr)
     late_us = float(np.median(ours_trace[tr["t"] > 4.0]))
     ours = float(ours_trace.max()) - late_us
@@ -353,10 +366,10 @@ def test_the_heat_sink_is_what_closed_it():
     silently disabled, `test_heat_sink_closes_most_of_the_t41_overshoot_gap` alone would
     fail with no indication of why.
     """
-    bare = _run(9, 775.0, 0.539, heat_sink=False)
-    sunk = _run(9, 775.0, 0.539, heat_sink=True)
-    off, _ = _t41_overshoot(bare["t"], bare["t41"], 0.539)
-    on, _ = _t41_overshoot(sunk["t"], sunk["t41"], 0.539)
+    bare = _run(9, 775.0, STEP_TIME[9], heat_sink=False)
+    sunk = _run(9, 775.0, STEP_TIME[9], heat_sink=True)
+    off, _ = _t41_overshoot(bare["t"], bare["t41"], STEP_TIME[9])
+    on, _ = _t41_overshoot(sunk["t"], sunk["t41"], STEP_TIME[9])
     assert on < 0.6 * off, (
         f"the heat sink should roughly halve the T41 overshoot; it went {off:.0f} -> {on:.0f} degR"
     )

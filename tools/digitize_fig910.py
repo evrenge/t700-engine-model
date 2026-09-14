@@ -122,6 +122,35 @@ class Panel:
     the frames' own 3.35 percent to within the trace's centroid noise. `check_fuel_panel`
     below is that check, run every time rather than remembered."""
 
+    left_slope: float = 0.0
+    left_at_top: float = 0.0
+    right_slope: float = 0.0
+    right_at_top: float = 0.0
+    """The two VERTICAL frames, fitted over this panel's own rows: columns per row, and
+    the column at the panel's top row.
+
+    **Each panel needs its own time axis.** `find_panels` returns one `left`/`right` pair
+    for the whole page -- the extreme columns of the longest columnar runs -- and until
+    2026-09-14 every panel was calibrated against that one pair. The pages are skewed, so
+    the shared vertical frames drift left going down: on pdf p.45 the left frame sits at
+    column 603.9 in the WFPH panel and 592.6 in TORQ45, and on pdf p.46 at 494.7 and
+    477.6. Against a single `left` taken at the bottom, the upper panels' times read up to
+    **+38 ms too large**, and the error varies from panel to panel down the page.
+
+    That is not a rounding nuisance on a transient sampled every 7 ms. It showed up as our
+    model appearing to respond *earlier* than Ballin's by an amount that grew down the
+    page -- 2 ms on PCNG, 37 on T41, 49 on T45, 54 on TORQ45 -- which reads as a physical
+    lag in the temperatures and is not one.
+
+    The panel's width is per-panel too, for the same reason: 1658.9 px on Figure 9's WFPH
+    against the shared 1671, a 0.75 percent stretch worth 37 ms over the 5 s record."""
+
+    def left_at(self, y: float) -> float:
+        return self.left_at_top + self.left_slope * (y - self.top)
+
+    def right_at(self, y: float) -> float:
+        return self.right_at_top + self.right_slope * (y - self.top)
+
     def top_at(self, x: float) -> float:
         """Row of the upper frame at column `x`."""
         return self.top + self.top_slope * (x - self.left)
@@ -200,6 +229,11 @@ px on all twenty-four frame lines."""
 FRAME_MIN_COLUMNS = 50
 """Below this many usable columns the tilt is not measured and the panel stays level."""
 
+VFRAME_HALF_BAND_PX = 25
+VFRAME_MIN_ROWS = 40
+"""The same, for a vertical frame fitted over one panel's rows. The band starts wide
+because the page-wide `left` can be a dozen pixels from the line inside a given panel."""
+
 
 def frame_tilt(ink: np.ndarray, y0: int, left: int, right: int) -> tuple[float, float, float]:
     """Fit one horizontal frame line: `(slope, row at `left`, residual)`, all in pixels.
@@ -227,6 +261,35 @@ def frame_tilt(ink: np.ndarray, y0: int, left: int, right: int) -> tuple[float, 
     a, b = np.polyfit(xs, ys, 1)
     res = float(np.std(np.asarray(ys) - (a * np.asarray(xs) + b)))
     return float(a), float(a * left + b), res
+
+
+def vframe_fit(ink: np.ndarray, x0: float, y0: int, y1: int) -> tuple[float, float, float]:
+    """Fit one vertical frame over one panel's rows: `(slope, column at y0, residual)`.
+
+    Two passes, wide then narrow, for the same reason `frame_tilt` uses two: the starting
+    guess is the page-wide extreme column and the true line can be a dozen pixels away.
+    """
+    fitted = (0.0, float(x0))
+    half = VFRAME_HALF_BAND_PX
+    res = float("nan")
+    for _pass in (0, 1):
+        ys: list[float] = []
+        xs: list[float] = []
+        for y in range(y0 + 4, y1 - 3, 3):
+            centre = fitted[0] * y + fitted[1]
+            lo = int(round(centre - half))
+            band = ink[y, max(lo, 0) : lo + 2 * half + 1]
+            idx = np.flatnonzero(band)
+            if idx.size and idx.size <= 10:
+                ys.append(float(y))
+                xs.append(lo + float(idx.mean()))
+        if len(ys) < VFRAME_MIN_ROWS:
+            return 0.0, float(x0), float("nan")
+        a, b = np.polyfit(ys, xs, 1)
+        fitted = (float(a), float(b))
+        res = float(np.std(np.asarray(xs) - (a * np.asarray(ys) + b)))
+        half = 6
+    return fitted[0], fitted[0] * y0 + fitted[1], res
 
 
 def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
@@ -318,7 +381,13 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
             ts = bs
         if bs == 0.0:
             bs = ts
-        out.append(Panel(key, label, ty, by, left, right, lo, hi, ts, bs))
+        ls, lx, _ = vframe_fit(ink, left, t0, b0)
+        rs, rx, _ = vframe_fit(ink, right, t0, b0)
+        # The vertical frames are referenced to the panel's own top row, `ty`, not to the
+        # row the fit was anchored at.
+        lx += ls * (ty - t0)
+        rx += rs * (ty - t0)
+        out.append(Panel(key, label, ty, by, left, right, lo, hi, ts, bs, ls, lx, rs, rx))
     return out
 
 
@@ -595,8 +664,10 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     percent of panel height into every trace on pdf p.46.
     """
 
-    def x_of(px):
-        return T_LO + (np.asarray(px, float) - p.left) / (p.right - p.left) * (T_HI - T_LO)
+    def x_of(px, py):
+        lo = p.left_at_top + p.left_slope * (np.asarray(py, float) - p.top)
+        hi = p.right_at_top + p.right_slope * (np.asarray(py, float) - p.top)
+        return T_LO + (np.asarray(px, float) - lo) / (hi - lo) * (T_HI - T_LO)
 
     def v_of(py, px):
         dx = np.asarray(px, float) - p.left
@@ -615,7 +686,7 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     if hits.size:
         for g in np.split(hits, np.flatnonzero(np.diff(hits) > 3) + 1):
             ticks_px.append(float(g.mean()) + p.left)
-    got = np.array([x_of(t) for t in ticks_px])
+    got = np.array([x_of(t, p.bot_at(t)) for t in ticks_px])
     err = float("nan")
     if got.size:
         want = np.arange(T_LO, T_HI + 1e-9, 1.0)
@@ -689,7 +760,7 @@ def main() -> int:
                 if pts.shape[0] == 0:
                     continue
                 path = REF / f"fig{fig:02d}_{p.key}_{kind}.csv"
-                ts_all = np.array([x_of(px) for px, _ in pts])
+                ts_all = np.array([x_of(px, py) for px, py in pts])
                 dropped: list[int] = []
                 if ts_all.size > 8:
                     _g = np.diff(ts_all)
@@ -713,7 +784,14 @@ def main() -> int:
                         "# method: digitized -- native 300 dpi 1-bit scan, "
                         "tools/digitize_fig910.py\n"
                     )
-                    fh.write("# t_s: time, seconds (shared axis, 0 to 5.0)\n")
+                    fh.write(
+                        f"# t_s: time, seconds (0 to 5.0). The vertical frames are fitted "
+                        f"over THIS panel's rows: left column {p.left_at_top:.2f} "
+                        f"(slope {p.left_slope * 1e3:+.2f} m px/row), right "
+                        f"{p.right_at_top:.2f} (slope {p.right_slope * 1e3:+.2f}), width "
+                        f"{p.right_at_top - p.left_at_top:.2f} px against the page-wide "
+                        f"{p.right - p.left}. The page is skewed; see `Panel.left_slope`.\n"
+                    )
                     fh.write(
                         f"# value: {p.label}, axis range {p.v_lo} to {p.v_hi}, "
                         f"no unit printed on the figure\n"
@@ -730,7 +808,7 @@ def main() -> int:
                     if kind == "reference":
                         fh.write(
                             f"# sample lattice: pitch {info['pitch']:.2f} px "
-                            f"= {x_of(p.left + info['pitch']) - T_LO:.4f} s\n"
+                            f"= {x_of(p.left_at_top + info['pitch'], p.top) - T_LO:.4f} s\n"
                         )
                     # The plotted curve ends before the panel does, and past its end the
                     # walker re-acquires ink -- a frame line, a legend rule, a stray glyph
@@ -770,7 +848,7 @@ def main() -> int:
                     keep = set(range(len(pts))) - set(dropped)
                     for i, (px, py) in enumerate(pts):
                         if i in keep:
-                            fh.write(f"{x_of(px):.5f},{v_of(py, px):.5f}\n")
+                            fh.write(f"{x_of(px, py):.5f},{v_of(py, px):.5f}\n")
             print(
                 f"  {p.label:7} model {line.shape[0]:5d} pts | "
                 f"reference {marks.shape[0]:3d} | x tick worst {terr:.4f} s | "
@@ -779,7 +857,7 @@ def main() -> int:
             if p.key == "wfph" and line.shape[0]:
                 failures += check_fuel_panel(
                     fig,
-                    np.array([x_of(px) for px, _ in line]),
+                    np.array([x_of(px, py) for px, py in line]),
                     np.array([v_of(py, px) for px, py in line]),
                     abs(p.v_hi - p.v_lo),
                 )
