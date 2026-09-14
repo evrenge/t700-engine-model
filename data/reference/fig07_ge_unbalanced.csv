@@ -4,16 +4,17 @@
 # wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
 # shp: SHAFT HORSEPOWER (no unit printed), axis -200.0 to 2000.0
 # points: 11
+# shear corrected: left frame leans +19.93 px across the plot height, right +20.48 px; top frame -0.37 px across the width, bottom +2.65 px. The page is sheared; see `fit_frames`.
 # NOT transcribed. Values carry read error.
 wf_pph,shp
-202.3459,77.9418
-253.4311,203.7436
-312.8940,423.8134
-489.7353,914.0858
-580.0998,1177.0404
-656.5936,1391.3708
-713.5416,1510.3917
-760.1794,1611.6629
-795.0487,1693.0589
-817.8340,1737.9340
-862.1524,1803.6607
+196.2496,77.0132
+248.2456,203.0104
+309.0877,423.3138
+489.3437,914.0164
+581.5171,1177.0872
+659.5120,1391.4595
+717.4038,1510.4865
+764.8328,1611.7461
+800.3193,1693.1220
+823.4721,1737.9823
+868.4114,1803.6802

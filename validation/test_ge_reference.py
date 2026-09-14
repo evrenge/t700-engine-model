@@ -140,28 +140,54 @@ def test_our_distance_from_ge_is_comparable_to_ballins(fig: int, series: str):
     )
 
 
-def test_on_figure_6_we_are_closer_to_ge_than_ballin_is():
-    """The finding that reframes open question #46.
+def test_on_figure_6_we_sit_where_ballin_sits_and_he_says_where_that_is():
+    """Ballin's own sentence about Figure 6, reproduced.
 
-    Figure 6 is the one sweep we do not track, at -1.38 %NG. Against GE status-81 -- the
-    hardware performance standard, not a model -- ours is -0.08 %NG mean and Ballin's is
-    +0.89 %NG. He is the one displaced from GE there, not us, and we also sit on Table B.1
-    to 0.13 %. So the gap to Figure 6 is not evidence that we drift.
+    This test asserted the opposite claim until 2026-09-14 -- "Figure 6 is the one sweep we
+    do not track, at -1.38 %NG ... against GE status-81 ours is -0.08 %NG mean and Ballin's
+    is +0.89 %NG. He is the one displaced from GE there, not us." The -1.38 was our own
+    digitizer reading Figure 6's y axis off the figure's caption; see
+    `test_steady_sweeps.test_we_now_track_figure_6_across_its_whole_range`.
 
-    Asserted rather than noted because if it ever reverses, #46's whole reading changes.
+    With the axis right, we and Ballin are the same curve: **ours -- Ballin is +0.034 %NG
+    mean and 0.220 %NG worst** over the fifteen shared points. Both then sit **+0.96 and
+    +1.00 %NG above GE status-81**, which is the number the report prints for itself
+    [pdf p.39]: "Gas generator speed is overestimated by 1 to 2 percent; this is reflected
+    in the trim differences between the real-time model and the status-81 model in figure
+    6." So the displacement from the hardware standard is his, we inherit it exactly, and
+    the report says so in text.
+
+    That is a far stronger statement than the one it replaces, and it is what makes the
+    residual Figure 6 comparison interpretable at all.
     """
     d_bal, d_our = _spreads(6, "ge_status81")
-    assert abs(d_our.mean()) < abs(d_bal.mean()), (
-        f"ours {d_our.mean():+.2f} %NG from GE against Ballin's {d_bal.mean():+.2f} %NG"
+    assert abs(d_our.mean() - d_bal.mean()) < 0.25, (
+        f"ours {d_our.mean():+.3f} %NG from GE against Ballin's {d_bal.mean():+.3f} -- we "
+        f"should inherit his displacement, not have our own"
     )
-    assert abs(d_our.mean()) < 0.5, f"ours should sit on GE: {d_our.mean():+.2f} %NG"
+    for who, d in (("Ballin", d_bal), ("ours", d_our)):
+        assert 0.5 < d.mean() < 2.0, (
+            f"{who} sits {d.mean():+.3f} %NG above GE status-81; pdf p.39 says the "
+            f"real-time model overestimates NG by 1 to 2 percent"
+        )
+
+
+GE_SCATTER_FLOOR = {6: 1.5, 7: 10.0, 8: 8.0}
+"""How far apart GE's own two models must stay, per figure, for the scatter argument to
+hold. Measured worst: **1.83 %NG on Figure 6, 15.1 % on Figure 7, 11.0 % on Figure 8.**
+
+Figure 6's floor was 2.0 until 2026-09-14 and the measurement was 1.98. Both series on that
+page are digitized against the same y axis, so the page-40 frame fix scaled their
+difference down with everything else -- 1.98 -> 1.83, an 8 % reduction that is exactly the
+axis correction and not a change in the report."""
 
 
 def test_the_two_ge_models_disagree_with_each_other_substantially():
     """The scale that makes every other number here readable.
 
-    GE's own two models differ from one another by far more than we differ from Ballin.
-    Whatever "agreement" meant in 1988, it did not mean a few tenths of a per cent.
+    GE's own two models differ from one another by far more than we differ from Ballin:
+    1.83 %NG, 15.1 % and 11.0 % against our 0.22 %NG worst on Figure 6. Whatever
+    "agreement" meant in 1988, it did not mean a few tenths of a per cent.
     """
     for fig in (6, 7, 8):
         stem, xc, yc, mode = SPEC[fig]
@@ -172,7 +198,7 @@ def test_the_two_ge_models_disagree_with_each_other_substantially():
             continue
         s = np.interp(ux[inb], sx, sy)
         d = (s - uy[inb]) if mode == "abs" else (s - uy[inb]) / np.abs(uy[inb]) * 100
-        assert np.abs(d).max() > 2.0, (
+        assert np.abs(d).max() > GE_SCATTER_FLOOR[fig], (
             f"fig {fig}: the two GE models now agree to {np.abs(d).max():.2f}; "
             f"if so, the 1988 scatter argument needs re-reading"
         )

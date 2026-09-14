@@ -4,12 +4,13 @@
 # ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
 # ps3_psia: STATION 3 STATIC PRESSURE, psia, axis 40.0 to 280.0
 # points: 7
+# shear corrected: left frame leans +21.04 px across the plot height, right +17.76 px; top frame -1.41 px across the width, bottom +2.41 px. The page is sheared; see `fit_frames`.
 # NOT transcribed. Values carry read error.
 ng_pct,ps3_psia
-75.8168,70.8056
-79.2524,77.3946
-88.0549,128.8090
-90.9801,155.0051
-95.8642,201.0301
-100.7711,240.8616
-101.7518,243.7998
+75.5180,70.7581
+78.9988,77.3622
+87.9807,128.7887
+90.9809,154.9753
+95.9915,200.9689
+101.0103,240.7579
+102.0040,243.6910

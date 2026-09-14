@@ -3,15 +3,15 @@
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
 # wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
 # ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
-# points: 9
+# points: 8
+# shear corrected: left frame leans -7.57 px across the plot height, right -13.00 px; top frame +20.77 px across the width, bottom +23.51 px. The page is sheared; see `fit_frames`.
 # NOT transcribed. Values carry read error.
 wf_pph,ng_pct
-187.9326,67.5408
-219.0231,84.7762
-312.6320,89.2832
-390.0509,92.0251
-492.1017,94.7929
-662.6004,97.9319
-720.6581,98.3869
-803.6600,101.2029
-872.7090,103.9803
+218.0985,83.0252
+311.1524,87.9150
+388.1770,90.8982
+489.7623,93.9195
+659.5894,97.3688
+717.4893,97.8832
+799.9183,100.9456
+868.3896,103.9601

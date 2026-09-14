@@ -39,7 +39,7 @@ REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
 
 PHASE_PLANE_TOL_PCT = 2.5
-BOTH_SIDES_TOL_PCT = 3.0
+BOTH_SIDES_TOL_PCT = 0.5
 SHARED_TRIM_TOL_PCT = 1.5
 READ_ERROR_CEILING_PCT_FS = 0.6
 """All four declared in `SCOPE.md`; none is derived from the report, which states no
@@ -437,16 +437,24 @@ def test_the_transient_sits_off_the_steady_locus_in_the_right_direction(fig, wf_
 def test_we_match_both_sides_of_the_figure_6_to_9_gap():
     """At 775 lbm/hr the sweep and the transient disagree -- because one has not settled.
 
-    Figure 6 reads 99.69 %NG, Figure 9 reads 98.88 at the end of its record; Figure 8 and
+    Figure 6 reads 99.38 %NG, Figure 9 reads 98.94 at the end of its record; Figure 8 and
     Figure 7 show the same pattern on Ps3 and shp. Ballin's Figure 9 trace is still
-    climbing at +0.14 %NG/s when the record ends, so the two figures are not describing
-    the same instant.
+    climbing when the record ends, so the two figures are not describing the same instant.
 
-    The operative fact is that we match **both**, simultaneously, to 1.92 % worst: a
-    single model cannot fit two mutually contradictory datasets, so there is no
-    contradiction to resolve. Between 39 and 62 % of each gap is reproduced by our own
-    model as an unsettled transient; the remainder is inside the 1.8 % read error measured
-    above.
+    The operative fact is that we match **both**, simultaneously: a single model cannot fit
+    two mutually contradictory datasets, so there is no contradiction to resolve.
+
+    | | sweep | transient | gap | ours vs sweep | ours vs transient | gap we reproduce |
+    |---|---|---|---|---|---|---|
+    | NG | 99.377 | 98.941 | 0.44 % | +0.020 % | +0.062 % | 90 % |
+    | Ps3 | 239.32 | 235.96 | 1.43 % | +0.067 % | +0.074 % | 99 % |
+    | shp | 1712.0 | 1660.0 | 3.13 % | -0.136 % | +0.179 % | 90 % |
+
+    Those last two columns read 1.92 % worst and 39-62 % until 2026-09-14, when the two
+    digitizer corrections landed -- the Figure 9/10 page skew (#63) and the page-40 frame
+    that was the figure's own caption (#64). The gap between the report's steady and
+    transient figures is now accounted for almost entirely by our own model still
+    climbing, which is what the explanation always claimed and could not previously show.
     """
     t_end = 4.46  # where Ballin's Figure 9 record stops
     sweep = trim.sweep(np.arange(400.0, 776.0, 25.0), c.NP_DES, AMB)
@@ -495,14 +503,14 @@ def test_we_match_both_sides_of_the_figure_6_to_9_gap():
 
     for name, (steady, transient, our_steady, our_transient) in cases.items():
         gap = 100.0 * (steady / transient - 1.0)
-        assert gap > 0.5, f"{name}: the sweep/transient gap has vanished ({gap:+.2f} %)"
+        assert gap > 0.4, f"{name}: the sweep/transient gap has vanished ({gap:+.2f} %)"
         d_s = 100.0 * (our_steady / steady - 1.0)
         d_t = 100.0 * (our_transient / transient - 1.0)
         assert abs(d_s) < BOTH_SIDES_TOL_PCT, f"{name} vs the sweep: {d_s:+.2f} %"
         assert abs(d_t) < BOTH_SIDES_TOL_PCT, f"{name} vs the transient: {d_t:+.2f} %"
         # and our own unsettled deficit must account for a real share of the gap
         mine = 100.0 * (our_steady / our_transient - 1.0)
-        assert 0.3 < mine / gap < 0.9, (
+        assert 0.85 < mine / gap < 1.10, (
             f"{name}: our unsettled deficit is {mine:+.2f} % of a {gap:+.2f} % gap "
             f"({100 * mine / gap:.0f} %); the settling explanation has stopped holding"
         )

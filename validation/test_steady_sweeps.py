@@ -42,6 +42,19 @@ from t700.units import shp_from_torque, wf_pps_from_pph
 
 REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
+FIG6_RMS_PCT_NG = 0.35
+FIG6_WORST_PCT_NG = 1.25
+"""Deviation from Figure 6's real-time series, in %NG. Both declared in `SCOPE.md`.
+
+Measured over the 29 digitized points: mean **+0.000**, rms **0.234**, worst **1.006**.
+Before the page-40 frame fix this was a whole-curve systematic running -2.0 %NG at the low
+end to -0.4 at the high.
+
+The rms is the meaningful bound; the worst is one glyph. It sits at 249.2 lb/hr, where the
+figure's own local slope is 0.060 %NG per lb/hr -- so 1.006 %NG is **16.7 lb/hr of abscissa
+error on one marker**, not a speed disagreement. The next worst is 0.585 at 142.2 lb/hr,
+which on that steep part of the curve is 2.1 lb/hr."""
+
 NP_RPM = c.NP_DES
 """Open question #35: the sweeps' power turbine speed is not printed. NP_des is the
 reading the report's own text points at, and NG is decoupled from NP at steady state --
@@ -148,36 +161,44 @@ def test_figure_7_shaft_power_tracks_except_at_the_lowest_power():
     assert dev[0] > dev[-1], "the low-power end should be the worst; the trend has changed"
 
 
-def test_figure_6_offset_is_the_table_b1_conflict():
-    """Figure 6 is the one sweep we do not track, and it is a conflict in the report.
+def test_we_now_track_figure_6_across_its_whole_range():
+    """Figure 6 was the one sweep we did not track. **It was our digitizer.**
 
-    We sit a systematic -1.38 %NG below Figure 6 across its whole range. That is not our
-    error against the report -- it is the report disagreeing with itself, logged as open
-    question #46: at Wf = 267.7 / 349.3 / 476.3 Table B.1 sits -1.50 / -1.18 / -0.83 %NG
-    below Figure 6, and our sweep reproduces -1.55 / -1.07 / -0.83 at those same flows.
-    We match Table B.1 -- printed numbers, no digitization -- to 0.014 / 0.132 / 0.026 %.
+    This test asserted the opposite until 2026-09-14: "we sit a systematic -1.38 %NG below
+    Figure 6 across its whole range ... that is not our error against the report, it is the
+    report disagreeing with itself, logged as open question #46". The disagreement was
+    entirely ours.
 
-    What this test adds to #46 is that the conflict is a **whole-curve** systematic, not
-    three points: it runs from -2.0 %NG at 157 lb/hr to -0.4 % at 709, narrowing
-    monotonically with power. #46 recorded only the three trim conditions.
+    `find_frame` in `tools/digitize_fig678.py` located a horizontal frame by the fraction of
+    a row that is inked. pdf p.40 prints faint frames and is tilted by ~16 px across the
+    plot, so the bottom frame's ink spreads over twenty rows and no row exceeds 0.24 fill --
+    while the figure's **caption**, a dense line of text 190 px lower, reaches 0.42 and won.
+    Figure 6's NG axis was therefore 2958-330 px tall against a true 2768-323, and every
+    digitized speed read high by (105 - NG) * 0.081: +1.2 %NG at 90, +2.8 %NG at 70.
 
-    It asserts the offset's shape rather than its absence, so that if the model ever
-    stopped matching Table B.1 this would move.
+    That is the whole of #46's low-power half. Against Table B.1's three printed trims,
+    Figure 6 read +0.83 / +1.18 / +1.50 %NG high; it now reads **-0.043 / -0.024 / -0.033**,
+    rms 1.201 -> **0.034 %NG**. The two are the same dataset and always were.
+
+    The check that settles it is held out and is in the tool: the sixteen minor ticks on
+    each vertical frame land on Figure 6's printed 2.5 %NG grid to **rms 0.045 %NG**, where
+    the caption-anchored map put them at 102.91, 100.58, 98.23 -- a 2.33 spacing, on no
+    grid at all.
     """
     x, y = _reference("fig06_realtime.csv", "wf_pph", "ng_pct")
     got = _ladder(x)
     pairs = [(k, got[k]["ng_pct"] - v) for k, v in zip(x, y, strict=True) if k in got]
-    flows = np.array([p[0] for p in pairs])
     dev = np.array([p[1] for p in pairs])
 
-    assert dev.max() < 0.0, "the offset should be negative everywhere -- we sit below Fig. 6"
-    assert -2.5 < dev.mean() < -0.9, f"mean offset {dev.mean():+.2f} %NG"
-    lo = dev[flows < 250.0].mean()
-    hi = dev[flows > 600.0].mean()
-    assert lo < hi - 0.8, (
-        f"the offset should narrow with power: {lo:+.2f} %NG below 250 lb/hr against "
-        f"{hi:+.2f} above 600. If it no longer does, #46's reading has changed."
+    rms = float(np.sqrt(np.mean(dev**2)))
+    assert rms < FIG6_RMS_PCT_NG, (
+        f"rms deviation from Figure 6 {rms:.3f} %NG over {dev.size} points"
     )
+    assert np.abs(dev).max() < FIG6_WORST_PCT_NG, (
+        f"worst deviation {dev[np.argmax(np.abs(dev))]:+.3f} %NG at "
+        f"{[p[0] for p in pairs][int(np.argmax(np.abs(dev)))]:.1f} lb/hr"
+    )
+    assert abs(dev.mean()) < 0.2, f"mean offset {dev.mean():+.3f} %NG"
 
 
 @pytest.mark.parametrize("pph,ng_b1", [(267.7, 38072.0), (349.3, 39768.0), (476.3, 41638.0)])
