@@ -9,7 +9,7 @@ thing to suspect would be that we had imported something from the wrong source.
 Audited 2026-09-12, because that suspicion deserves a check rather than a disclaimer:
 **no number in the model derives from the GE or NASA-Lewis series.** The GE traces exist
 only under `data/reference/`, nothing in `src/t700/` reads that directory at all
-(`tests/test_imports.py` now enforces it), and every transient assertion in
+(`tests/test_architecture.py` now enforces it), and every transient assertion in
 `test_fuel_step.py` targets `fig??_*_model.csv` -- Ballin's own curve -- never
 `*_reference.csv`. The GE series has never touched a model value.
 

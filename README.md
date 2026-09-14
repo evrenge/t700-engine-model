@@ -36,7 +36,7 @@ than quoting a stored number.
 | Figures 9 and 10, fuel transients | whole-curve rms **0.67–3.82 %** of each panel's excursion, mean 1.68 % over ten panels |
 | The report's own claim about Figure 6 | reproduced: we overestimate fuel by **+6.17 %** in the 81–86 %NG band it names, against its own line's +5.82 % and its printed "as much as five percent" |
 | Frame cost | **31 µs** at a held trim, against the report's 10 ms budget |
-| Tests | 1150 passing, 3 skipped, lint and formatting clean; the suite runs in 34 s |
+| Tests | 1152 passing, 3 skipped, lint and formatting clean; the suite runs in 34 s |
 
 ## What is in here
 
@@ -60,7 +60,8 @@ data/reference/  transient and sweep traces to validate against
 tools/           the digitizers; each reproduces its CSV byte for byte
 tests/           fast unit tests, and the architecture rules as executable checks
 validation/      comparisons against the report, and the figure set
-docs/notes/      ~7,500 lines: equations, symbols, inventories, open questions
+docs/notes/      5,800 lines: the report transcribed -- equations, symbols, appendix
+                 inventories -- plus the open-questions ledger
 ```
 
 ## The rule this was built under
@@ -81,7 +82,7 @@ pass.** Successive rounds of recalibration took shaft power at the hover and lev
 pixels-to-numbers map, not the report's data.
 
 Both rules, and the architecture constraints that go with them, are enforced by tests rather
-than by intention where that is possible at all: `tests/test_imports.py` walks every core
+than by intention where that is possible at all: `tests/test_architecture.py` walks every core
 module for banned dependencies, clocks and RNGs; `tests/test_scope_tolerances.py` fails if a
 tolerance printed in `SCOPE.md` differs from the one the code asserts; and
 `bash tools/reproduce_all.sh` reruns every digitizer and diffs its output against the
@@ -99,12 +100,14 @@ Gen Hel UH-60A blade-element simulation, which this report consumes and does not
 Table 3 was produced with functions from a different engine and is evidence of method, never
 pass/fail; and nothing above 100 %NG is claimed, because Ballin claims nothing there either.
 
-Six questions remain open and four are partly closed, out of 64 logged in
-`docs/notes/open-questions.md`. Every open one is a place where the report is silent and a
+Seven questions remain open and four are partly closed, out of 66 logged in
+`docs/notes/open-questions.md`, each row stating what was asked and what was decided.
+Every open one is a place where the report is silent and a
 choice was made, not a place where something is unexplained.
 
-`docs/notes/engineering-log.md` is the narrative record of how the numbers above were
-reached — what was wrong, how it was found, and what each correction moved.
+How those numbers were reached — what was wrong, how it was found, and what each
+correction moved — is in git history rather than in the tree. `git log -p` over
+`docs/notes/` and `SCOPE.md` is the record.
 
 ## Running it
 
@@ -115,7 +118,7 @@ declared as a dependency; the digitizers shell out to it to raster the source sc
 ```bash
 pip install -e '.[tools,dev]'
 pytest
-python validation/plot_validation.py     # writes the figure set
+PYTHONPATH=src python validation/report.py   # every comparison, as figures and report.json
 ```
 
 `.[dev]` pulls in `.[tools]`, because `testpaths` includes `validation/` and those modules

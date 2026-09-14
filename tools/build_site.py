@@ -93,6 +93,15 @@ OPEN_SUMMARY = {
         "governor trim the error away. All nine are now pinned; 25 of Table C.1&rsquo;s 57 "
         "rows remain unobservable, most for reasons the report itself creates.",
     ),
+    69: (
+        "The descent shaft-power residual lost its shelter",
+        "Our shaft power sits 0.900 % from Table&nbsp;B.1 at the descent trim, while "
+        "Table&nbsp;B.1 and Figure&nbsp;7 now differ from each other by only 0.734 % there. "
+        "The 2026-09-14 digitizer corrections removed a disagreement that had been assumed "
+        "to be the report&rsquo;s, and this residual had been quoted as sheltering inside "
+        "it. Nothing is tuned; what the row asks for is how much of the 0.900 % is the "
+        "sparse interpolation on Figure&nbsp;7 rather than the model.",
+    ),
 }
 
 
@@ -413,6 +422,22 @@ oq_rows = "".join(
     for n in sorted(OPEN_SUMMARY)
 )
 
+# The internal spread was three hardcoded percentages in the template until 2026-09-14,
+# when `report.py::internal_spread` was written to compute them and found the printed claim
+# seven times the measured value -- stale since the digitizer corrections of that morning.
+# Anything the page asserts about a measurement comes out of report.json; this is one more.
+_SP = D["internal_spread"]
+spread_rows = "".join(
+    f'<tr><th scope="row">{r["trim"]}</th>'
+    f'<td class="mono">{r["wf_pph"]:.1f}</td>'
+    f'<td class="mono">{r["theirs_pct"]:+.3f} {r["unit"]}</td>'
+    f'<td class="mono{" strong" if abs(r["ours_pct"]) > abs(r["theirs_pct"]) else ""}">'
+    f"{r['ours_pct']:+.3f} {r['unit']}</td>"
+    f'<td class="mono small">{r["nearest_marker_pph"]:.1f} lbm/hr</td></tr>'
+    for r in _SP["rows"]
+    if r["quantity"] == "SHP"
+)
+
 html = (SITE / "template.html").read_text()
 for stem in STEMS:
     html = html.replace(f'src="{{{{{stem}}}}}"', f"__PIC__{stem}__")
@@ -422,7 +447,9 @@ html = re.sub(
     html,
 )
 html = (
-    html.replace("{{headline_rows}}", rows)
+    html.replace("{{spread_rows}}", spread_rows)
+    .replace("{{spread_widest}}", f"{abs(_SP['widest_theirs_pct']):.3f}")
+    .replace("{{headline_rows}}", rows)
     .replace("{{b1_rows}}", b1)
     .replace("{{eig_rows}}", eig)
     .replace("{{unprinted_rows}}", unprinted)

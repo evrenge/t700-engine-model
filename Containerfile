@@ -1,11 +1,5 @@
 # The environment every number in this repository was produced under.
 #
-# Until 2026-09-13 there was no container definition, no lock file and no recorded
-# interpreter version: the only description of the environment was the sentence "work
-# inside the t700-dev distrobox" in CLAUDE.md, and that container existed on exactly one
-# machine. A replication whose environment cannot be reproduced is a replication with an
-# unrecorded input.
-#
 #   podman build -t t700-dev -f Containerfile .
 #   distrobox create --name t700-dev --image localhost/t700-dev
 #   distrobox enter t700-dev

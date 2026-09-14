@@ -28,12 +28,13 @@ import pytest
 SCRIPT = Path(__file__).resolve().parent.parent / "tools" / "reproduce_all.sh"
 
 TOOLS = Path(__file__).resolve().parent.parent / "tools"
+DATA = Path(__file__).resolve().parent.parent / "data"
 
 
 def data_tools() -> set[str]:
     """Tools that own a committed file under `data/`, found rather than hardcoded.
 
-    A hardcoded list is what let `digitize_appc_multi` sit outside the gate: it writes the
+    A hardcoded list is what let `digitize_multi_curve` sit outside the gate: it writes the
     seven Appendix C schedules and nobody noticed it was unlisted. `digitize.py` and
     `digitize_native.py` are shared libraries -- they name no output path, so they are
     excluded automatically rather than by exception.
@@ -190,7 +191,7 @@ def test_every_data_writing_tool_is_rerun_by_the_gate(source: str):
     """A tool outside the loop is a committed data file with no reproducibility check.
 
     This is how `data/schedules/` -- the seven Appendix C scheduling functions -- went
-    unchecked: `digitize_appc_multi` writes them and was never added to the loop.
+    unchecked: `digitize_multi_curve` writes them and was never added to the loop.
     """
     loop = source.split("for entry in", 1)[1].split("do", 1)[0]
     listed = set(re.findall(r"digitize_\w+", loop))
@@ -204,3 +205,47 @@ def test_every_data_writing_tool_is_rerun_by_the_gate(source: str):
         assert (TOOLS / f"{name}.py").exists(), (
             f"the gate reruns tools/{name}.py, which does not exist"
         )
+
+
+def test_the_gate_reaches_every_committed_data_file(source: str):
+    """Listing a tool is not the same as running the part of it that writes your file.
+
+    `digitize_single_curve.py` owns thirteen figures. Its `main()` defaulted to
+    `["a8", "a10", "a6"]` -- the three the old filename `digitize_a6810.py` named -- while
+    `FIGS` grew to thirteen, and the gate invokes it with no arguments. So ten committed
+    files (`f3`, `f4`, `f5`, `f_hs`, `F_HM1`-`F_HM6`) carried a header reading "reruns and
+    reproduces this file" that nothing had ever executed.
+
+    The previous check only asked whether each data-writing tool appears in the gate's
+    loop. This one asks whether the *default invocation* covers everything the tool owns,
+    which is the question that matters: a tool in the list that silently does a third of
+    its job leaves the gate reporting success over files it never touched.
+
+    Found 2026-09-14, when renaming the tool rewrote the provenance line in three files
+    and left the other ten reading the old name after a full gate run.
+    """
+    src = (TOOLS / "digitize_single_curve.py").read_text()
+    figs = src[src.index("FIGS = {") : src.index("EDGE = {")]
+    owned = set(re.findall(r'^    "([a-z0-9]+)":', figs, re.M))
+    assert len(owned) >= 13, f"FIGS parse looks wrong, found {sorted(owned)}"
+
+    default = re.search(r"keys = \[a for a in argv if a in FIGS\] or (.+)", src)
+    assert default, "main()'s default figure list has changed shape; re-read it"
+    assert "list(FIGS)" in default.group(1), (
+        f"digitize_single_curve.main() defaults to {default.group(1).strip()} rather than "
+        f"every figure in FIGS. The gate runs it with no arguments, so anything outside "
+        f"that default is a committed file whose provenance header is never executed."
+    )
+
+
+def test_no_committed_data_file_names_a_tool_that_does_not_exist(source: str):
+    """A provenance header is a claim about a file on disk. Renames must carry it."""
+    bad = []
+    for csv in sorted(DATA.rglob("*.csv")):
+        for m in re.finditer(r"tools/(\w+)\.py", csv.read_text()):
+            if not (TOOLS / f"{m.group(1)}.py").exists():
+                bad.append(f"{csv.relative_to(DATA.parent)} -> tools/{m.group(1)}.py")
+    assert not bad, (
+        f"committed data files cite tools that no longer exist: {sorted(set(bad))}. "
+        f"Rerun the digitizers; never hand-edit the header."
+    )

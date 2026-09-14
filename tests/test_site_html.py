@@ -97,3 +97,32 @@ def test_the_build_is_current():
     assert INDEX.stat().st_mtime >= tpl.stat().st_mtime - 1, (
         "site/template.html is newer than site/index.html -- run tools/build_site.py"
     )
+
+
+# ------------------------------------------------------- navigation, added 2026-09-14
+#
+# The page carried nine sections and a table of contents listing eight: section 9, "What is
+# still open", was reachable only by scrolling. Found while repairing a different link --
+# an `href="#open"` written into the template against an id that does not exist, which
+# rendered as a link that silently goes nowhere. Both are the same class of defect and
+# neither shows up in a rendered page without clicking, so they are checked here.
+
+_ANCHOR = re.compile(r'href="#([a-z0-9-]+)"')
+_ID = re.compile(r'\bid="([a-z0-9-]+)"')
+
+
+def test_every_in_page_link_resolves():
+    s = html()
+    ids = set(_ID.findall(s))
+    broken = sorted({a for a in _ANCHOR.findall(s) if a not in ids})
+    assert not broken, f"links to ids the page does not define: {broken}"
+
+
+def test_the_table_of_contents_lists_every_section():
+    """A section missing from the nav is reachable only by scrolling past everything above."""
+    s = html()
+    sections = set(re.findall(r'<section id="(s\d+)"', s))
+    nav = s[s.index('<nav class="toc">') : s.index("</nav>")]
+    listed = set(_ANCHOR.findall(nav))
+    missing = sorted(sections - listed, key=lambda x: int(x[1:]))
+    assert not missing, f"sections with no table-of-contents entry: {missing}"

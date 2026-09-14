@@ -9,7 +9,8 @@ Validate the current model against the report's data.
    deviation against the reference trace.
 3. Print a table: case, quantity, model value, report value, deviation, tolerance from
    `SCOPE.md`, pass/fail.
-4. Write overlay plots (model vs report) to `validation/out/`.
+4. Overlay plots are written by `PYTHONPATH=src python validation/report.py` into
+   `site/assets/`, together with `report.json`; rerun it if a comparison has moved.
 5. Summarize: what passes, what fails, and for each failure your best hypothesis for the
    modelling difference behind it.
 

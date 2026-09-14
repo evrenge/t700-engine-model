@@ -55,10 +55,16 @@ UNTRUSTED: set[tuple[int, str]] = set()  # see test_fuel_step.UNTRUSTED
 
 
 def _split_strays(x, y):
-    """Drop off-curve samples. One rule, matching `plot_validation._split_strays`.
+    """Drop off-curve samples: more than six pixel quanta from the median of the eight
+    neighbours, in a locally flat neighbourhood. The flatness guard keeps a genuine
+    near-vertical segment, where a large jump IS the data, out of the count.
 
     The trailing-sample and trailing-block rules that used to live here are gone: the
-    digitizer drops re-acquired ink at source as of 2026-09-12. See that function.
+    digitizer drops re-acquired ink at source as of 2026-09-12 (open question #51), and
+    the trailing-block rule had begun condemning the last sixteen genuine samples of
+    Figure 10's T41 trace. This is the only copy of the rule; `plot_validation.py` held a
+    character-identical second one until it was deleted on 2026-09-14, which is the same
+    duplication #51 was raised about.
     """
     dy = np.abs(np.diff(y))
     nz = dy[dy > 0]

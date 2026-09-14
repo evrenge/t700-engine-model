@@ -1,10 +1,17 @@
 """Every comparison this project can make against the report, as tables and overlay plots.
 
-`plot_validation.py` answers "does the model look sound". This answers a different
-question: **what is the complete list of things the report prints, and where do we stand
-against each one?** It recomputes every headline number rather than quoting one, writes
-`validation/out/report/*.png` for the overlays, and dumps `report.json` so the numbers can
-be checked against `README.md` and `SCOPE.md` mechanically instead of by reading.
+The question it answers: **what is the complete list of things the report prints, and
+where do we stand against each one?** It recomputes every headline number rather than
+quoting one, writes `site/assets/*.png` for the overlays in both themes, and dumps
+`report.json` so the numbers can be checked against `README.md` and `SCOPE.md`
+mechanically instead of by reading.
+
+This is the only figure pipeline. `plot_validation.py` was a second one -- seven sheets,
+five of them strict subsets of these, with its own hardcoded copy of `plotstyle`'s palette
+and a character-identical copy of `test_whole_curve._split_strays` -- and it was deleted on
+2026-09-14. Its two sheets that framed something new are absorbed: Table B.1's trims are
+drawn onto the Figures 6-7 overlays, and `internal_spread` computes what its `residuals`
+sheet drew.
 
 Model runs are imported from the test modules that own them, so the report measures the
 same runs the suite does. The statistics are computed here, independently of the tests'
@@ -185,6 +192,17 @@ FIG678 = {
 }
 
 
+def _b1_markers(no: int) -> tuple[np.ndarray, np.ndarray]:
+    """Table B.1's three trims plotted on Figure `no`'s own axes."""
+    xs, ys = [], []
+    for p in STATE_B1.values():
+        ng_pct = 100.0 * p["ng"] / c.NG_DES
+        xs.append(ng_pct if no == 8 else p["wf"])
+        ys.append({6: ng_pct, 7: p["shp"], 8: p["ps3"]}[no])
+    o = np.argsort(xs)
+    return np.array(xs)[o], np.array(ys)[o]
+
+
 def steady_sweeps() -> dict:
     """Overlay each of Figures 6-8 with all three printed series, and score ours."""
     import test_steady_sweeps as tss
@@ -237,6 +255,22 @@ def steady_sweeps() -> dict:
             label="Ballin real-time",
         )
         ax.plot(ours_x, ours_y, "-", color=OURS, lw=2.2, zorder=3, label="our model")
+        # Table B.1's three trims, on the same axes. They are printed *numbers* against a
+        # digitized plot, so where the diamond misses the circle the report disagrees with
+        # itself and no model can sit on both -- see `internal_spread` and SCOPE.md, "Which
+        # source wins". Figure 8 carries no fuel flow, so its abscissa is NG instead.
+        b1x, b1y = _b1_markers(no)
+        ax.plot(
+            b1x,
+            b1y,
+            "D",
+            color=THEME.ink,
+            ms=7,
+            mec=THEME.ground,
+            mew=1.2,
+            zorder=5,
+            label="Table B.1 (printed numbers)",
+        )
         _style(ax, spec["xlabel"], spec["ylabel"], spec["title"])
         ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
 
@@ -402,6 +436,67 @@ def table_b1() -> dict:
             )
         _ = i
     return {"rows": rows, **_stats(np.array(devs))}
+
+
+def internal_spread(b1: dict) -> dict:
+    """How far the report disagrees with *itself*, against how far we sit from it.
+
+    Table B.1 prints numbers; Figures 6 and 7 print the same three operating points as
+    plotted markers. They do not agree, and the gap widens as power falls -- SCOPE.md's
+    "Which source wins" rule and open question #46 both turn on it, and the practical
+    consequence is a discipline: **do not tune the model below the report's own internal
+    spread.** That made this a governing number stated in prose and computed nowhere, so
+    it is computed here, from the same digitized figures every other comparison uses.
+
+    Ours is the deviation from Table B.1, which carries no digitizing error of ours at
+    all; theirs is Table B.1 against the figure, which carries only theirs and ours of
+    the figure. A row where `ours_pct` is the smaller of the two is a row where chasing
+    the residual further is chasing noise in the source.
+    """
+    fig6 = _csv(REF / "fig06_realtime.csv", "wf_pph", "ng_pct")
+    fig7 = _csv(REF / "fig07_realtime.csv", "wf_pph", "shp")
+    ours = {(r["trim"], r["quantity"]): r["dev_pct"] for r in b1["rows"]}
+
+    rows = []
+    for name, p in STATE_B1.items():
+        b1_ng_pct = 100.0 * p["ng"] / c.NG_DES
+        for quantity, printed, curve, unit in (
+            ("NG", b1_ng_pct, fig6, "%NG"),
+            ("SHP", p["shp"], fig7, "%"),
+        ):
+            # The figures are sampled at their own abscissae -- 15 markers across Figure 7's
+            # whole range -- so a trim's fuel flow almost never lands on one and the value
+            # is interpolated. That interpolation is itself a source of error and it is
+            # reported rather than buried: `nearest_marker_pph` is how far the trim sits
+            # from the closest printed marker, and on Figure 7's steep low-power end the
+            # curve climbs ~3 shp per lbm/hr, so 5 lbm/hr of it is 1.6 % of hover power.
+            # Read a row whose `nearest_marker_pph` is large as the weaker of the two.
+            fig = float(np.interp(p["wf"], curve[0], curve[1]))
+            near = float(np.min(np.abs(curve[0] - p["wf"])))
+            theirs = printed - fig if unit == "%NG" else 100.0 * (printed - fig) / abs(printed)
+            rows.append(
+                {
+                    "trim": name,
+                    "quantity": quantity,
+                    "wf_pph": p["wf"],
+                    "table_b1": printed,
+                    "figure": fig,
+                    "unit": unit,
+                    "theirs_pct": float(theirs),
+                    "ours_pct": float(ours[(name, quantity)]),
+                    "nearest_marker_pph": near,
+                }
+            )
+    inside = [r for r in rows if abs(r["ours_pct"]) < abs(r["theirs_pct"])]
+    return {
+        "rows": rows,
+        "n": len(rows),
+        "widest_theirs_pct": max(rows, key=lambda r: abs(r["theirs_pct"]))["theirs_pct"],
+        "ours_inside_their_spread": len(inside),
+        "figure_6": "pdf p.40",
+        "figure_7": "pdf p.41",
+        "table_b1": "pdf p.67",
+    }
 
 
 # =================================================== Table 1 and every other eigenvalue
@@ -807,6 +902,7 @@ def _render(data: dict) -> None:
     print("closed loop ...", flush=True)
     data["closed_loop"] = closed_loop()
     table_b1_plot(data["table_b1"], data["closed_loop"])
+    data["internal_spread"] = internal_spread(data["table_b1"])
     print("eigenvalues ...", flush=True)
     data["eigenvalues"] = eigenvalues()
     eigenvalue_plot(data["eigenvalues"])

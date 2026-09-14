@@ -136,3 +136,12 @@ relative, against the test's own 1e-9 bound. (Stated as "~1e-15" until 2026-09-1
 * Which compressor/turbine function set produced Figures 9/10. The report says the
   NASA-Lewis test-engine functions replaced the specification functions for the Tables 2/3
   comparison [pdf p.39], but says nothing about Figures 9/10. Do not assume.
+
+## What comparing element by element turned up
+
+All five of Ballin's linear models extract from one call — `extract(trim, wf, dof="6dof")` —
+and comparing them against Appendix B element by element rather than by eigenvalue recovered
+three quantities the report never prints: the UH-60A load inertia (`9.2503 × J_PT`,
+consistent to 0.186 % across the three flight conditions), `dQreq/dNP`, and the heat-sink
+lead-to-lag ratio. It also showed that the remaining derivative error is not physics but
+interpolation — see `derivative-ambiguity.md`.

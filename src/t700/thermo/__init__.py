@@ -3,7 +3,7 @@
 **No module outside this package may compute an enthalpy, a temperature from an
 enthalpy, or a critical velocity ratio.** That rule (CLAUDE.md) is what lets the backend
 be replaced without touching a line of component code, and it is enforced by
-`tests/test_imports.py`.
+`tests/test_architecture.py`.
 
 The current backend is `LinearFitThermo` -- Ballin's two-coefficient straight lines, in
 pure NumPy. A C++ lookup-table backend can be installed with `set_backend()` when

@@ -44,4 +44,4 @@ def _resolve() -> Path:
 
 
 DATA_ROOT = _resolve()
-"""The directory holding `maps/`, `schedules/`, `linear/`, `constants/`, `reference/`."""
+"""The directory holding `maps/`, `schedules/`, `linear/`, `reference/`."""

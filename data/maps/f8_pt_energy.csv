@@ -11,7 +11,7 @@
 # sigma_x: 1 sigma uncertainty on x, in x's own units, per point (see UNCERTAINTY)
 # sigma_y: 1 sigma uncertainty on y, in y's own units, per point (see UNCERTAINTY)
 # points: 12
-# digitized: 2026-09-11 by tools/digitize_a6810.py -- reruns and reproduces this file
+# digitized: 2026-09-11 by tools/digitize_single_curve.py -- reruns and reproduces this file
 #            exactly; a re-digitisation of the 2026-09-10 extraction (see MOVEMENT)
 #
 # RASTER. `pdfimages -list -f 63` shows pdf p.63 is a single 300 dpi

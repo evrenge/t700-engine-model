@@ -4,7 +4,7 @@ Not "close". Identical. A real-time engine model that drifts between runs cannot
 regression-tested against digitized reference traces at all, because every deviation
 becomes ambiguous: the model, or the machine?
 
-`test_imports.py` enforces this structurally by banning clocks and RNGs. This file
+`test_architecture.py` enforces this structurally by banning clocks and RNGs. This file
 checks it behaviourally.
 
 **It did not grow as the model did.** Until 2026-09-13 it exercised `thermo` (two calls)

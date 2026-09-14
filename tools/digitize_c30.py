@@ -4,7 +4,7 @@
 The last of Appendix C's eight scheduling functions, and the only one that needed its own
 tool. Open question #50.
 
-## Why `digitize_appc_multi` cannot do this one
+## Why `digitize_multi_curve` cannot do this one
 
 That tool identifies a curve by its marker's **rank in y** within a column, which works
 whenever the curves are ordered by the parameter and never cross. C30's seven curves
@@ -79,7 +79,7 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from digitize_a6810 import (  # noqa: E402
+from digitize_single_curve import (  # noqa: E402
     _apply,
     auto_frame_spec,
     calibrate_axis,
@@ -484,7 +484,7 @@ def write_csv(rows, CX, CY, cover, worst_seed):
         "#   open and ordered by T2 (PCNGHL 55-82), and from the printed digit markers where",
         "#   it is not (the bundle at 85-95 and the drops beyond it). Rank is NOT identity",
         "#   through the bundle: the curves emerge from it ordered 4, 3, 5, 6, 7 with 1 and 2",
-        "#   already descending, which is why tools/digitize_appc_multi.py refuses this page.",
+        "#   already descending, which is why tools/digitize_multi_curve.py refuses this page.",
         "# CHECK. Every segment between consecutive knots is sampled and required to lie on",
         f"#   ink: mean coverage {cover:.4f}; the worst seed named a run"
         f" {worst_seed:.3f} WFPAC away.",
@@ -497,7 +497,7 @@ def write_csv(rows, CX, CY, cover, worst_seed):
         f"# RASTER. pdf p.{PAGE} is a single 300 dpi 1-bit CCITT image (2544x3300); this works",
         "#   on that bitmap directly and never resamples it.",
         "# CALIBRATION. Frame, tick lattice and axis polynomials come from",
-        "#   tools/digitize_a6810.py unchanged, so this figure is calibrated exactly as the",
+        "#   tools/digitize_single_curve.py unchanged, so this figure is calibrated exactly as the",
         "#   other fourteen are.",
         f"#   x: order {CX['order']}, interior-tick residual {CX['resid']:.4g}"
         f" over {CX['n']} ticks",

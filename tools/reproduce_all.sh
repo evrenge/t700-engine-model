@@ -54,15 +54,15 @@ if [ -n "$(git status --porcelain data/)" ]; then
 fi
 
 failed=0
-# Every tool that writes a committed file under data/. `digitize_appc_multi` was missing
+# Every tool that writes a committed file under data/. `digitize_multi_curve` was missing
 # from this list until 2026-09-12, which left the seven Appendix C schedules under
 # data/schedules/ with no reproducibility check at all; tests/test_reproducibility_gate.py
 # now fails if a data-writing tool is absent here. `digitize.py` and `digitize_native.py`
 # are shared libraries and write nothing, so they are correctly not listed.
-# Entries are "<tool> [args]". `digitize_appc_multi` takes the figure key as an argument
+# Entries are "<tool> [args]". `digitize_multi_curve` takes the figure key as an argument
 # and only c23 has committed output -- c30 is open question #50 and the tool refuses it.
-for entry in "digitize_a1" "digitize_a2" "digitize_a6810" "digitize_a7" "digitize_a9" \
-             "digitize_appc_multi c23" "digitize_c30" "digitize_fig678" \
+for entry in "digitize_a1" "digitize_a2" "digitize_single_curve" "digitize_a7" "digitize_a9" \
+             "digitize_multi_curve c23" "digitize_c30" "digitize_fig678" \
              "digitize_fig910"; do
     set -- $entry
     t=$1

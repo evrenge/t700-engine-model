@@ -14,29 +14,17 @@ dependencies = ["numpy>=2.0"]
 [project.optional-dependencies]
 # Digitizing, plotting, and validation analysis. NEVER imported from src/t700/.
 tools = ["matplotlib>=3.8", "scipy>=1.11", "pillow>=10.0"]
-# pillow: every digitizer reads the page rasters through PIL.Image. It was undeclared
-# until 2026-09-12, so `pip install -e '.[tools,dev]'` produced a tree that could not run
-# a single digitizer -- the one install line the README gives.
-#
-# `control>=0.10` was declared here with a paragraph about the Appendix B validation line
-# and imported by nothing (`grep -rn "import control"` -> no hits). The Appendix B
-# comparison is element-wise against printed matrices and needs only NumPy, so the
-# dependency was removed rather than kept against a future that did not arrive.
+# pillow: every digitizer reads the page rasters through PIL.Image.
 #
 # `t700[tools]` is a real dependency of the test suite, not a convenience: `testpaths`
-# below includes `validation/`, whose modules import SciPy at module level. Until
-# 2026-09-13 `dev` did not pull it in, so `pip install -e .[dev]` produced a tree where
-# `pytest` died during *collection* -- taking `tests/` down with it, since collection is
-# all-or-nothing.
+# below includes `validation/`, whose modules import SciPy at module level, and pytest's
+# collection is all-or-nothing.
 dev = ["t700[tools]", "pytest>=8.0", "ruff>=0.6"]
 
-# The repository's top-level `data/` directory is mapped onto the `t700.data` package,
-# so a built wheel carries the function tables, the schedules and the Appendix B
-# matrices inside the package. Until 2026-09-13 it did not: `maps.py` resolved data as
-# `<package>/../../data`, which exists only in a source checkout, so `pip install .`
-# produced a tree where the first `maps.f1()` raised FileNotFoundError. Editable
-# installs and pytest's `pythonpath` had masked it. `src/t700/_data.py` probes both
-# layouts; this is what makes the second one exist.
+# The repository's top-level `data/` directory is mapped onto the `t700.data` package, so
+# a built wheel carries the function tables, the schedules and the Appendix B matrices
+# inside the package rather than only in a source checkout. `src/t700/_data.py` probes
+# both layouts; this mapping is what makes the installed one exist.
 #
 # `packages` is listed explicitly rather than found: `package-dir` with more than one
 # entry rules out setuptools' auto-discovery.
@@ -54,7 +42,6 @@ packages = ["t700", "t700.control", "t700.thermo", "t700.data"]
 #
 # `poppler-utils` -- `pdftoppm`, `pdfimages`, `pdfinfo`. Every digitizer under `tools/`
 # shells out to them to raster the source scan, so `tools/reproduce_all.sh` needs them.
-# The string "poppler" appeared nowhere in this repository until 2026-09-13.
 #
 # The model itself needs none of this: `src/t700/` reads only the committed CSVs.
 # See `docs/notes/environment.md` for the versions every published number was produced

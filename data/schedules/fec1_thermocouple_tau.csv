@@ -13,12 +13,12 @@
 # w45r: W45R power turbine flow parameter, nondimensional
 # tau45_s: TAU45 sensor time constant, sec
 # points: 20
-# digitized: 2026-09-12 by tools/digitize_appc_multi.py -- reruns and reproduces
+# digitized: 2026-09-12 by tools/digitize_multi_curve.py -- reruns and reproduces
 #   this file exactly
 # RASTER. pdf p.94 is a single 300 dpi 1-bit CCITT image (2544x3300);
 #   this works on that bitmap directly and never resamples it.
 # CALIBRATION. Frame, tick lattice and axis polynomials come from
-#   tools/digitize_a6810.py unchanged, so this figure is calibrated exactly as the
+#   tools/digitize_single_curve.py unchanged, so this figure is calibrated exactly as the
 #   thirteen single-curve figures are.
 #   x: order 1, interior-tick residual 0.01905 over 14 ticks
 #   y: order 2, interior-tick residual 0.003656 over 8 ticks

@@ -1,13 +1,24 @@
-"""Re-digitize Figures A6, A8 and A10 of TM-100991 (pdf pp.61, 63, 65).
+"""The single-curve digitizer: thirteen figures across both appendices of TM-100991.
 
-Same method as `tools/digitize_a7.py`, applied to the three functions on the power-turbine
-and combustor path:
+Same method as `tools/digitize_a7.py`, generalised. Every figure here plots one curve or
+one marker series per panel, which is what lets the markers be found without reading
+anything off the page; the two Appendix C figures whose curves must be told apart live in
+`digitize_multi_curve.py` and `digitize_c30.py`, and both import their frame location,
+tick lattice and axis calibration from here unchanged.
 
-    A8,  pdf p.63 -> f8   power turbine energy          data/maps/f8_pt_energy.csv
-    A10, pdf p.65 -> f10  exhaust pressure loss         data/maps/f10_exhaust_pressure_loss.csv
-    A6,  pdf p.61 -> f6   combustor efficiency          data/maps/f6_combustor_efficiency.csv
+    A3,  pdf p.58 -> f3    seal-pressurization bleed      data/maps/f3_seal_bleed_fraction.csv
+    A4,  pdf p.59 -> f4    PT-balance bleed               data/maps/f4_pt_balance_bleed_fraction.csv
+    A5,  pdf p.60 -> f5    tip-leak + cooling bleed       data/maps/f5_tip_leak_cooling_bleed...csv
+    A6,  pdf p.61 -> f6    combustor efficiency           data/maps/f6_combustor_efficiency.csv
+    A8,  pdf p.63 -> f8    power turbine energy           data/maps/f8_pt_energy.csv
+    A10, pdf p.65 -> f10   exhaust pressure loss          data/maps/f10_exhaust_pressure_loss.csv
+    A11, pdf p.66 -> f_hs  station 4.1 heat-sink constant data/maps/fhs_heat_sink_constant.csv
+    C24-C29, pp.95-100 -> F_HM1..F_HM6                    data/schedules/fhm[1-6]_*.csv
 
-Why they were redone: re-digitizing A7 showed that a LINEAR axis map cannot fit these
+A1, A2, A7 and A9 have their own tools: each needed something this path does not do.
+
+Why A6, A8 and A10 were redone first, which is where the method here came from:
+re-digitizing A7 showed that a LINEAR axis map cannot fit these
 scans -- the page bows along the scan direction by several pixels -- and that every figure
 which prints a value at a frame edge can test its own calibration model against a number
 the fit was never given.  All three figures here print a value at at least three of their
@@ -34,8 +45,8 @@ What this does:
     (symmetrically about the frame line, so the mask cannot bias the abscissa), never
     modelled.  Seeds come from a morphological opening, which is independent of density.
 
-Run from the repo root.  Writes the three CSVs and overlays under
-validation/out/digitize/a6810/.  Needs `pdfimages` (poppler).
+Run from the repo root.  Writes the thirteen CSVs and overlays under
+validation/out/digitize/.  Needs `pdfimages` (poppler).
 
 This module lives in tools/ and may use SciPy and PIL.  Nothing here is imported by
 src/t700/.
@@ -1640,7 +1651,10 @@ def write_csv(key, r):
     A("# sigma_x: 1 sigma uncertainty on x, in x's own units, per point (see UNCERTAINTY)")
     A("# sigma_y: 1 sigma uncertainty on y, in y's own units, per point (see UNCERTAINTY)")
     A(f"# points: {cfg['nmark']}")
-    A("# digitized: 2026-09-11 by tools/digitize_a6810.py -- reruns and reproduces this file")
+    A(
+        "# digitized: 2026-09-11 by tools/digitize_single_curve.py"
+        " -- reruns and reproduces this file"
+    )
     if old is not None:
         A("#            exactly; a re-digitisation of the 2026-09-10 extraction (see MOVEMENT)")
     else:
@@ -1821,7 +1835,13 @@ def _pixel_to_unit(H, C, axis):
 
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    keys = [a for a in argv if a in FIGS] or ["a8", "a10", "a6"]
+    # Every figure this tool owns, not a subset. It defaulted to ["a8", "a10", "a6"] --
+    # the three the old filename `digitize_a6810.py` named -- while FIGS grew to thirteen,
+    # and `tools/reproduce_all.sh` invokes this with no arguments. So ten committed files
+    # (f3, f4, f5, f_hs and F_HM1-F_HM6) carried a header saying "reruns and reproduces
+    # this file" that nothing had ever checked. Found 2026-09-14 by the rename: a full gate
+    # run rewrote the provenance line in three files and left those ten untouched.
+    keys = [a for a in argv if a in FIGS] or list(FIGS)
     for k in keys:
         if "--csv-only" in argv:
             with (OUT / f"{k}_result.pkl").open("rb") as fh:

@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Figures C23 and C30 -- the two Appendix C functions with more than one curve.
+"""Figure C23 -- the multi-curve path, and why C30 needs a tool of its own.
 
-These are the last of the eight scheduling functions and they do not fit the single-curve
-path in `digitize_a6810`, for two reasons:
+C23 and C30 are the two Appendix C functions with more than one curve. **This tool
+extracts C23 and refuses C30**, by design: the method below separates curves by rank in y,
+and C30's curves cross. `digitize_c30.py` tracks those through the crossings instead. Ask
+for c30 here and it says so rather than emitting something plausible.
+
+Neither fits the single-curve path in `digitize_single_curve`, for two reasons:
 
 **The markers are printed DIGITS, not `x` glyphs.** `fit_glyphs` models two crossing
 strokes and would be fitting the wrong shape, so this tool takes the marker position from
@@ -19,11 +23,11 @@ the assignment is rejected unless every column yields exactly the expected numbe
 points.
 
 Everything upstream of the markers -- the frame location, the tick lattice, the held-out
-frame calibration and the axis polynomials -- is imported from `digitize_a6810` unchanged,
+frame calibration and the axis polynomials -- is imported from `digitize_single_curve` unchanged,
 so these two figures are calibrated exactly as the other thirteen are.
 
-    python3 tools/digitize_appc_multi.py c23
-    python3 tools/digitize_appc_multi.py --probe c23
+    python3 tools/digitize_multi_curve.py c23
+    python3 tools/digitize_multi_curve.py --probe c23
 """
 
 from __future__ import annotations
@@ -37,7 +41,7 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from digitize_a6810 import (  # noqa: E402
+from digitize_single_curve import (  # noqa: E402
     _apply,
     _dist,
     auto_frame_spec,
@@ -204,12 +208,12 @@ def write_csv(cfg, rows, CX, CY, nok, ntot):
         f"# {cfg['xcol']}: {cfg['xdesc']}",
         f"# {cfg['ycol']}: {cfg['ydesc']}",
         f"# points: {len(rows)}",
-        "# digitized: 2026-09-12 by tools/digitize_appc_multi.py -- reruns and reproduces",
+        "# digitized: 2026-09-12 by tools/digitize_multi_curve.py -- reruns and reproduces",
         "#   this file exactly",
         f"# RASTER. pdf p.{cfg['page']} is a single 300 dpi 1-bit CCITT image (2544x3300);",
         "#   this works on that bitmap directly and never resamples it.",
         "# CALIBRATION. Frame, tick lattice and axis polynomials come from",
-        "#   tools/digitize_a6810.py unchanged, so this figure is calibrated exactly as the",
+        "#   tools/digitize_single_curve.py unchanged, so this figure is calibrated exactly as the",
         "#   thirteen single-curve figures are.",
         f"#   x: order {CX['order']}, interior-tick residual {CX['resid']:.4g}"
         f" over {CX['n']} ticks",

@@ -412,6 +412,82 @@
   "rms": 0.09812653625604405,
   "worst": 0.3373637972904921
  },
+ "internal_spread": {
+  "rows": [
+   {
+    "trim": "hover",
+    "quantity": "NG",
+    "wf_pph": 476.3,
+    "table_b1": 93.14988814317674,
+    "figure": 93.10677377614957,
+    "unit": "%NG",
+    "theirs_pct": 0.04311436702717231,
+    "ours_pct": -0.007076562986863662,
+    "nearest_marker_pph": 4.399300000000039
+   },
+   {
+    "trim": "hover",
+    "quantity": "SHP",
+    "wf_pph": 476.3,
+    "table_b1": 911.1,
+    "figure": 913.7345170178243,
+    "unit": "%",
+    "theirs_pct": -0.28915783314940585,
+    "ours_pct": -0.04020216194008609,
+    "nearest_marker_pph": 4.934400000000039
+   },
+   {
+    "trim": "level 80 kt",
+    "quantity": "NG",
+    "wf_pph": 349.3,
+    "table_b1": 88.96644295302013,
+    "figure": 88.9428894355003,
+    "unit": "%NG",
+    "theirs_pct": 0.02355351751982937,
+    "ours_pct": 0.10452230903564742,
+    "nearest_marker_pph": 0.26539999999999964
+   },
+   {
+    "trim": "level 80 kt",
+    "quantity": "SHP",
+    "wf_pph": 349.3,
+    "table_b1": 552.6,
+    "figure": 554.2952262339419,
+    "unit": "%",
+    "theirs_pct": -0.3067727531563276,
+    "ours_pct": -0.05558902462441964,
+    "nearest_marker_pph": 0.43250000000000455
+   },
+   {
+    "trim": "descent 80 kt",
+    "quantity": "NG",
+    "wf_pph": 267.7,
+    "table_b1": 85.17225950782998,
+    "figure": 85.13918645759644,
+    "unit": "%NG",
+    "theirs_pct": 0.0330730502335399,
+    "ours_pct": -0.06971172864663094,
+    "nearest_marker_pph": 2.738299999999981
+   },
+   {
+    "trim": "descent 80 kt",
+    "quantity": "SHP",
+    "wf_pph": 267.7,
+    "table_b1": 302.6,
+    "figure": 300.3774358217244,
+    "unit": "%",
+    "theirs_pct": 0.7344891534288183,
+    "ours_pct": -0.9004164605288821,
+    "nearest_marker_pph": 2.6055999999999813
+   }
+  ],
+  "n": 6,
+  "widest_theirs_pct": 0.7344891534288183,
+  "ours_inside_their_spread": 3,
+  "figure_6": "pdf p.40",
+  "figure_7": "pdf p.41",
+  "table_b1": "pdf p.67"
+ },
  "eigenvalues": {
   "table_1": [
    {

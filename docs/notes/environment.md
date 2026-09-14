@@ -3,7 +3,7 @@
 Two things a replication has as inputs and does not usually write down: the machine that
 produced the numbers, and the exact copy of the document they were read from. Both were
 unrecorded here until the 2026-09-13 dependency audit
-(`docs/notes/audit-2026-09-13.md`, findings 7 and 8) pointed out that the only
+(2026-09-13, findings 7 and 8) pointed out that the only
 description of the environment was the sentence "work inside the `t700-dev` distrobox"
 in CLAUDE.md — and that container existed on exactly one machine.
 

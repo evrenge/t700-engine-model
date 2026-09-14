@@ -154,7 +154,10 @@ def test_figure_7_shaft_power_tracks_except_at_the_lowest_power():
     The exception is the low-power end, +11.3 % at 224 lb/hr, decaying monotonically to
     -0.7 % by 700. That is the same conditioning the descent trim has -- shaft power is a
     small difference of large enthalpies there, so upstream error is amplified -- and the
-    same end where Table B.1 and Figure 7 disagree with *each other* by 5.49 % (#46).
+    same end where Table B.1 and Figure 7 disagree with *each other* most -- though after the
+    2026-09-14 digitizer corrections that disagreement is 0.734 % and not the 5.49 % this
+    docstring used to quote, so it no longer covers the residual (#46; SCOPE.md, "Which
+    source wins", and `report.py::internal_spread`, which computes it).
     """
     x, y = _reference("fig07_realtime.csv", "wf_pph", "shp")
     got = _ladder(x)

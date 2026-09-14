@@ -207,6 +207,7 @@ picture{display:block}
     <a href="#s6"><span class="no">6</span><span>Validation against the report</span></a>
     <a href="#s7"><span class="no">7</span><span>Real-time performance</span></a>
     <a href="#s8"><span class="no">8</span><span>Limits and what is not claimed</span></a>
+    <a href="#s9"><span class="no">9</span><span>What is still open</span></a>
   </nav>
 </header>
 
@@ -676,14 +677,29 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
       <th scope="col">mean</th><th scope="col">rms</th><th scope="col">worst</th></tr></thead>
     <tbody>{{fig_rows}}</tbody>
   </table></div>
-  <div class="note-box"><h3>The report disagrees with itself, and by more than we disagree with either half</h3>
-  <p>Table B.1 against Figure&nbsp;7 differs by <strong>+5.49 / +1.32 / &minus;0.14 %</strong>
-  on shaft power at the three trims, growing as power falls. Table B.1 is primary &mdash; it is
-  printed numbers carrying no digitizing error of ours, it underpins Appendix&nbsp;B, and
-  Table&nbsp;1&rsquo;s modes come from the same trims. The practical consequence is a
-  discipline: <strong>do not tune below the report&rsquo;s own internal spread.</strong> At the
-  descent condition that spread is 5.5 % on power and we sit 0.90 % from Table B.1. Chasing
-  further is fitting to one of two sources that contradict each other.</p></div>
+  <div class="note-box"><h3>Where the report disagrees with itself, and where we are the larger error</h3>
+  <p>Table B.1 and Figures&nbsp;6&ndash;7 describe the same three operating points, one as
+  printed numbers and one as plotted markers. Table B.1 is primary &mdash; it carries no
+  digitizing error of ours, it underpins Appendix&nbsp;B, and Table&nbsp;1&rsquo;s modes come
+  from the same trims &mdash; and the diamonds on the plots above are it, drawn on the
+  figures&rsquo; own axes.</p>
+  <div class="scroll"><table>
+    <caption>Table B.1 against the figure, and us against Table B.1</caption>
+    <thead><tr><th scope="col">Trim</th><th scope="col">W<sub>f</sub>, lbm/hr</th>
+      <th scope="col">Table B.1 vs the figure</th><th scope="col">ours vs Table B.1</th>
+      <th scope="col">nearest printed marker</th></tr></thead>
+    <tbody>{{spread_rows}}</tbody>
+  </table></div>
+  <p>This page used to state that spread as <strong>+5.49 / +1.32 / &minus;0.14 %</strong> on
+  shaft power and draw a rule from it: do not tune below the report&rsquo;s own internal
+  disagreement. Those numbers predate the digitizer corrections of 2026-09-14, which found the
+  disagreement was ours. They were prose that nothing computed, so nothing caught them going
+  stale; the table above is now recomputed on every build. <strong>The consequence changes with
+  them.</strong> The report&rsquo;s widest self-disagreement is {{spread_widest}} %, and at the
+  descent trim our shaft power sits outside it &mdash; that residual is
+  <a href="#s9">question&nbsp;69</a>, not a sheltered one. Read the last column before quoting
+  a row: Figure&nbsp;7 prints fifteen markers over its whole range, and on its steep low-power
+  end the curve climbs about 3&nbsp;shp per lbm/hr.</p></div>
 
   <h3 style="margin-top:42px">6.5 &nbsp;Figures 9 and 10 &mdash; the fuel transients</h3>
   <figure><img src="{{figure-9-overlay}}"

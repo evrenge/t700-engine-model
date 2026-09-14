@@ -123,3 +123,35 @@ def test_the_header_tally_matches_the_rows(verdict: str):
     assert stated[verdict] == counts[verdict], (
         f"header says {stated[verdict]} {verdict}, parsed {counts[verdict]}"
     )
+
+
+def test_every_closed_row_says_what_was_decided():
+    """A verdict word is not an answer. `closed` alone tells a reader nothing.
+
+    The records behind these rows were a separate 26,000-word file for half a day. It was
+    folded back in on 2026-09-14: a finished project needs the decision, not the
+    investigation that reached it, and the investigation is in git history. What this
+    checks is that the fold left every closed row self-contained -- eleven of the
+    forty-nine had a bare `**closed**` as their entire status, and eight more stated a
+    verdict without a finding; all nineteen were written from the record before it went.
+
+    Eight words is deliberately low. Row 28's whole answer is "moot: `R` is never
+    applied" and it is complete; the bar is a finding, not a length.
+    """
+    thin = []
+    for n, c in rows():
+        if verdict_of(c[5]) != "closed":
+            continue
+        words = len(re.sub(r"[*`]", "", c[5]).split())
+        if words < 8:
+            thin.append((n, words))
+    assert not thin, (
+        f"closed rows stating a verdict but not a finding (row, words): {thin}. "
+        f"Say what was decided; the record behind it is no longer in the tree."
+    )
+
+
+def test_nothing_still_points_at_the_deleted_record_file():
+    assert "closed-questions.md" not in LEDGER.read_text(), (
+        "the ledger points at closed-questions.md, which was folded back in and deleted"
+    )

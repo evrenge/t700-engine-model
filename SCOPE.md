@@ -95,11 +95,75 @@ corroborated data in the report.
 absolute value. They are plots we digitized, so they carry our read error on top of whatever
 they are.
 
-They genuinely disagree, and systematically: Table B.1 against Figure 7 differs by
-**+5.49 %, +1.32 %, −0.14 %** on shaft power at the three trims, growing as power falls.
-The practical consequence is a discipline: **do not tune the model below the report's own
-internal spread.** At the descent condition that spread is 5.5 % on power and we sit 0.90 %
-from Table B.1. Chasing further is fitting to one of two sources that contradict each other.
+**They no longer disagree by much, and this paragraph used to say otherwise.** It stated
++5.49 / +1.32 / −0.14 % on shaft power at the three trims and drew a rule from it: do not
+tune below the report's own internal spread, because at descent that spread is 5.5 % and we
+sit 0.90 % inside it. Those numbers predate the 2026-09-14 digitizer corrections (open
+questions #46, #63, #64), which found the disagreement was ours and not the report's. They
+were prose that nothing computed, so nothing caught them going stale.
+
+`validation/report.py::internal_spread` computes it now, into `report.json`, from the same
+digitized figures every other comparison uses:
+
+| trim | Wf, lbm/hr | Table B.1 vs the figure | our deviation from Table B.1 | nearest printed marker |
+|---|---|---|---|---|
+| hover | 476.3 | −0.289 % shp, +0.043 %NG | −0.040 % shp, −0.007 %NG | 4.9 lbm/hr |
+| level 80 kt | 349.3 | −0.307 % shp, +0.024 %NG | −0.056 % shp, +0.105 %NG | 0.4 lbm/hr |
+| descent 80 kt | 267.7 | **+0.734 %** shp, +0.033 %NG | **−0.900 %** shp, −0.070 %NG | 2.6 lbm/hr |
+
+**The consequence changes with them.** The report's widest self-disagreement is now 0.734 %,
+not 5.5 %, and at descent our shaft power sits **outside** it — 0.900 % from Table B.1 against
+the report's own 0.734 %. The old shelter for that residual is gone: it is a real discrepancy
+of ours and belongs in the ledger, not behind a rule. The rule itself still holds where it
+applies — do not tune below the source's own spread — it just no longer covers this point.
+
+Read the last column before quoting a row. Figure 7 prints 15 markers over its whole range
+and the value at a trim is interpolated between them; on its steep low-power end the curve
+climbs ~3 shp per lbm/hr, so hover's 4.9 lbm/hr of interpolation is itself worth 1.6 % of
+hover power. Only the level row is close to a direct read.
+
+## Defects in the source, and four that were ours
+
+Reading a 1988 scan carefully turns up genuine errors in it. Under the replication rule they
+are reproduced as printed and recorded, never silently corrected. Each cites its ledger row.
+
+| Defect | pdf p. | What we do | Row |
+|---|---|---|---|
+| Figure A3's `0.11` axis label is misplaced by 17.0 px, where every other label on the page sits within 5 px | 58 | read the plateau as 0.1091 | #42 |
+| `TC_T41`'s units are printed `sec^(9/5)` in two places; Eq. 51 requires `sec^(1/5)` | 55 | units wrong, value 0.29 right and used | #4 |
+| Figure A10's ordinate label `PS9/P49` is inverted relative to its own values | 65 | use the plotted values as `f10` directly | #5 |
+| Eq. 29 does not conserve energy, by construction and by the report's own words — `H45 = K_H45·H44` is one multiplicative fraction, not a mass-weighted mix | 23 | reproduced as printed; costs −1.52 % on the overall energy balance | #52 |
+
+**Four more looked like the report's and were ours**, which is the more useful list: a torque
+threshold that seemed absurd until we noticed we had read rotor-hub torque as engine torque
+(#11); an exhaust pressure ratio we nearly inverted (#5); Eq. 74 "contradicting its own
+prose", which was a carry bug in our own alternative branch (#22); and a 3–6 % inconsistency
+between Figures 8 and 10 that came from comparing a decelerating engine against an
+equilibrium locus (#46, and "Comparing a transient to a steady-state figure" below).
+
+## What the real-time approximation costs
+
+Table 1 prints two eigenvalue columns for what should be the same system — a 2-DOF model and
+an order-reduced 5-DOF — and Ballin's differ, −2.69 against −2.81 at hover. **Ours are
+identical**, and that is a theorem rather than a bug: linearizing an exactly solved
+quasi-steady system and taking the Schur complement of the full Jacobian are the same
+operation, so any model that converges its pressures must print two identical columns.
+
+His differ because his 2-DOF is a separately coded nonlinear program [pdf p.27] carrying the
+real-time numerics. Linearizing our `realtime.step` as a six-state discrete map — including
+Eq. 74's carried mass flow, which the continuous model does not have — puts a number on it:
+
+| NG mode, per second | hover | level | descent |
+|---|---|---|---|
+| Table 1, printed | −2.69 | −2.23 | −1.82 |
+| continuous 2-DOF / reduced-5 | −2.539 (−5.6 %) | −2.399 (+7.6 %) | −1.897 (+4.2 %) |
+| **discrete map at the report's own 7 ms frame** | **−2.605 (−3.2 %)** | **−2.321 (+4.1 %)** | **−1.802 (−1.0 %)** |
+
+So part of the gap is the frame, not the physics — the discrete map is closer at all three
+trims — which is what makes Table 1's fourth column an independent check rather than a
+puzzle. Two of the frame map's six modes are discretization artifacts rather than dynamics:
+their discrete eigenvalues stay a fixed fraction per *frame* as the frame shrinks, so
+neither has a continuous limit. Bounded by `test_discrete_map.DISCRETE_TOL_PCT` above.
 
 ## Tolerances
 
@@ -257,8 +321,10 @@ the first place.
 
 ## Open questions
 
-Tracked in `docs/notes/open-questions.md` — 64 logged, 54 closed, 4 partly closed, 6 open,
+Tracked in `docs/notes/open-questions.md` — 66 logged, 55 closed, 4 partly closed, 7 open,
 with the tally checked by `tests/test_open_questions_ledger.py` rather than maintained by
-hand. Numbering is deliberately non-contiguous; never renumber a row.
+hand. Numbering is deliberately non-contiguous; never renumber a row. Each row states what
+was asked and what was decided; the investigations that reached those decisions are in git
+history, and that test fails if a closed row states a verdict without a finding.
 
 Anything the report does not answer goes there rather than into the code as a guess.

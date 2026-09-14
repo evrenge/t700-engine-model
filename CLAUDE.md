@@ -163,23 +163,26 @@ A rule that lives only in this file is a wish. Each one below names its mechanis
 marked `advisory` has nothing behind it but judgment — those are the ones that slip late
 in a long session, so mechanize any that proves to matter.
 
-| Rule | Enforced by |
-|---|---|
-| Every number cites a report page | `advisory` — the rule that matters most here has the weakest enforcement; challenge any bare constant on sight |
-| Never tune a constant to make a validation test pass | `advisory` — a diff touching `data/` in the same breath as a failing test is the tell |
-| Never silently widen a tolerance | **live since 2026-09-14** — `tests/test_scope_tolerances.py` parses `SCOPE.md`'s tolerance table, resolves each `` `test_x.SYMBOL` `` it names, and fails if the printed number and the asserted number differ. Until then this row was a wish *and* a misdescription: it said tolerances "live in `SCOPE.md`, never inline in a test file", but every tolerance is a literal beside its assertion and `SCOPE.md` narrates it — nothing read `SCOPE.md`, so the two drifted, and the discrete-map bound shipped at `{8, 15, 7}` for a day while the document still advertised `5 / 5 / 25`. Widening is still allowed; doing it in one place only is not |
-| No SciPy / Matplotlib / pandas / Numba under `src/t700/` | **live** — `tests/test_imports.py` parses every core module's imports |
-| Gas properties only via `t700.thermo` | **live, in two layers** — `tests/test_imports.py` fails any module outside `thermo/` that *names* a `K_H*`/`K_T*`/`K_TH*` constant, and since 2026-09-14 also any that contains one of their *values* as a bare float literal. The first layer alone enforced a naming convention rather than the rule: `(h41 + 86.905) / 0.301` is the `K_T41` fit welded in by hand, and it passed the whole suite until the second layer was added. Neither layer catches an arithmetically rearranged fit, so this rule still wants reading, not only running |
-| Core is deterministic | **live** — `tests/test_imports.py` bans clocks and RNGs structurally; `tests/test_determinism.py` checks it behaviourally. The structural ban was an `import` walk only until 2026-09-13, so `np.random.default_rng()` satisfied it completely — numpy being the one allowed package. `FORBIDDEN_ATTRIBUTES` closes that, and since 2026-09-14 `dotted_attributes` resolves import aliases, which closes the rename route: this line claimed `FORBIDDEN_ATTRIBUTES` closed "the other dotted routes" and it closed the `np.`-spelled one only — `import numpy as _np` then `_np.random.default_rng()` passed the whole suite, found by that day's docs-and-ledger audit. 18 decoys assert each detector still fires |
-| No global mutable state in the core | `advisory`, with three named exceptions — the thermo backend, `maps._clamps` and the write-once `maps.CONDITIONING`. The clamp counter is bounded by behavioural tests that no model output can depend on it, over a trim (`test_maps.py`) and over a whole transient (`test_determinism.py`) |
-| No force-push | `permissions.ask`. A plain `git push` was denied outright until 2026-09-11, when the remote was created and publishing was authorized; force-push still prompts |
-| Never hand-edit a generated data file | **live** — `bash tools/reproduce_all.sh` reruns every digitizer and diffs. **Three of the eleven engine maps are not generated at all**: `f2`, `f7` and `f9` have hand-maintained CSVs whose headers carry provenance no generator writes, and until 2026-09-13 their tools only *printed* their rows — so the gate ran them, they wrote nothing, `data/` stayed clean, and it reported those three as reproducing byte for byte. Demonstrated by corrupting `f9_pt_mass_flow.csv` and watching the gate pass. They now call `digitize.check_against_csv` and exit non-zero on any difference; `tests/test_reproducibility_gate.py` requires every data-owning tool to write its file or check it; a hand-added note is silently wiped by the next rerun, which happened once to the Figure 9 defect annotations. Put it in the tool. **Run it inside the container**, and read its verdict, not its exit alone: until 2026-09-12 it computed the verdict from `git status data/` only, so run from the host — no NumPy — every digitizer crashed on import, `data/` stayed clean *because nothing had written to it*, and a total failure to execute printed "every data file reproduces byte for byte". It now refuses to run on an interpreter without NumPy and a failed tool poisons the verdict. A gate that cannot fail is not a gate. |
-| Python stays formatted and linted | PostToolUse hook: `ruff check --fix` then `ruff format` |
+| Rule | Enforced by | What the mechanism still misses |
+|---|---|---|
+| Every number cites a report page | `advisory` | everything — challenge any bare constant on sight |
+| Never tune a constant to make a validation test pass | `advisory` | a diff touching `data/` in the same breath as a failing test is the tell |
+| Never silently widen a tolerance | `tests/test_scope_tolerances.py` — parses `SCOPE.md`'s tolerance table, resolves each `` `test_x.SYMBOL` `` it names, fails if the two numbers differ | nothing structural. Widening is allowed; doing it in one place only is not |
+| No SciPy / Matplotlib / pandas / Numba under `src/t700/` | `tests/test_architecture.py` — parses every core module's imports | |
+| Gas properties only via `t700.thermo` | `tests/test_architecture.py`, in two layers — any module outside `thermo/` that *names* a `K_H*`/`K_T*`/`K_TH*` constant, or contains one of their *values* as a bare float | **an arithmetically rearranged fit.** `(h41 + 86.905) / 0.301` is `K_T41` welded in by hand and it passed the whole suite until layer two. This rule wants reading, not only running |
+| Core is deterministic | `tests/test_architecture.py` structurally (clocks, RNGs, `FORBIDDEN_ATTRIBUTES`, and `dotted_attributes` to resolve import aliases); `tests/test_determinism.py` behaviourally. 18 decoys assert each detector still fires | |
+| No global mutable state in the core | `advisory`, with three named exceptions — the thermo backend, `maps._clamps`, and the write-once `maps.CONDITIONING` | the clamp counter is bounded behaviourally instead: no model output can depend on it, over a trim (`test_maps.py`) and over a whole transient (`test_determinism.py`) |
+| No force-push | `permissions.ask` | plain `git push` is authorized; force-push still prompts |
+| Never hand-edit a generated data file | `bash tools/reproduce_all.sh` — reruns every digitizer and diffs | **three of the eleven engine maps are not generated**: `f2`, `f7` and `f9` are hand-maintained CSVs whose headers carry provenance no generator writes, so their tools *check* rather than write. **Run it inside the container, and read its verdict rather than its exit code.** A hand-added annotation is wiped by the next rerun — put it in the tool |
+| Python stays formatted and linted | PostToolUse hook: `ruff check --fix` then `ruff format` | |
 
-Those tests are written and passing as of 2026-09-10, so three rules that were wishes
-are now mechanisms. The two that remain `advisory` are the two that matter most, and
-they are the two that cannot be mechanised — a machine cannot tell a cited constant from
-a plausible one. Be correspondingly careful.
+The two that remain `advisory` are the two that matter most, and they are the two that
+cannot be mechanised — a machine cannot tell a cited constant from a plausible one. Be
+correspondingly careful.
+
+Every one of these mechanisms was added after the rule it enforces had already been broken,
+and four were added after a first version of the mechanism was found not to work. Trust a
+mechanism no further than its third column says.
 
 ## Communication
 
