@@ -539,9 +539,13 @@ def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
     # This ladder solved each point cold and compared whatever came back, unchecked. It got
     # away with it until the 2026-09-15 `f1` retrace moved the map by 1.76 px rms and the
     # 160 lbm/hr point fell into that basin: NGc 4.2e9, residual 9.0e-9, `residual_converged`
-    # True, `trustworthy` False. The comparison then read -100 %. A ladder whose answer
-    # depends on a two-pixel map move was never converged in any useful sense; 155 and 165
-    # lbm/hr were unaffected either side of it. Open question #71.
+    # True, `trustworthy` False. The comparison then read -100 %.
+    #
+    # `solve` was fixed the same day -- it now confines the search to `f1`'s speed range
+    # widened by a tenth, and the degenerate root is unreachable, so a cold 160 lbm/hr
+    # trims at NGc 75.5013 on its own. The continuation and the `trustworthy` check stay
+    # anyway: the contract says callers check it, and a ladder that only works because the
+    # solver happens to be well behaved is the thing that failed here. Open question #71.
     ladder = (175.0, 160.0, 150.0, 140.0, 130.0, 125.0)
     subs = trim.sweep(ladder, c.NP_DES, AMB)
     for pph, sub in zip(ladder, subs, strict=True):

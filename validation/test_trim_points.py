@@ -286,26 +286,77 @@ def test_the_model_is_too_stiff_for_explicit_integration_at_the_report_frame_tim
 
 
 def test_a_solution_off_the_compressor_map_is_not_reported_as_good():
-    """Clamping protects against extrapolation but manufactures spurious equilibria.
+    """The degenerate root of the clamped system, and why a cold solve cannot reach it now.
 
-    Once the state leaves the maps every lookup returns a constant, so the residual stops
-    depending on the state and Newton drives it to zero in a region where the model means
-    nothing. At 750 lbm/hr from a design-point guess this converged to a residual of
-    6.6e-9 with NG = 2.16e11 rpm and called itself converged.
+    ## The mechanism, which has not changed
 
-    `trustworthy` is what callers must check: converged AND on the map.
+    Once the state leaves the function tables every lookup returns a constant, so both
+    powers go flat in NG while both torques fall as 1/NG -- torque is power over speed.
+    `dNG/dt` is proportional to a torque imbalance, so it tends to zero as NG tends to
+    infinity **whatever the powers are doing**, and that is a root of the residual which is
+    not an equilibrium of the engine. Newton used to walk to it: 750 lbm/hr reached
+    NG = 2.16e11 rpm with a residual of 6.6e-9 and called itself converged, and after the
+    2026-09-15 `f1` retrace a cold 160 lbm/hr reached NGc 4.19e9.
+
+    This test pins the mechanism directly, because it is the durable part.
+
+    ## What changed on 2026-09-15
+
+    `solve`'s line search now refuses a trial step that leaves `f1`'s speed range widened
+    by a tenth of itself. That is enough: measured across both residual forms and three
+    bound widths, **no configuration carrying a bound produces a degenerate root at all**.
+    Writing the NG residual as a power balance removes the root analytically too, and was
+    rejected -- it under-weights the NG equation at low speed and a cold 125 lbm/hr then
+    wanders to NGc 24.8, so it fixes the top of the range by breaking the bottom.
+
+    A cold 800 lbm/hr now stops at the bound and reports `residual_converged` False, which
+    is an honest failure rather than a confident wrong answer. `test_continuation_reaches_
+    the_top_of_the_map` is how 800 is actually reached. Open question #71.
     """
-    from t700 import trim as _trim
+    import numpy as np
 
-    # 750 lbm/hr until 2026-09-13, when interpolating f1 along Figure A1's own construction
-    # lines widened the solver's good basin: a cold 750 now converges to a legitimate
-    # NG = 44220 rpm at NGc 98.9 % instead of the degenerate root. 800 still degenerates, to
-    # NGc = 8.1e7 %, so the mechanism is unchanged and only the threshold moved.
-    bad = _trim.solve(wf_pps_from_pph(800.0), 20900.0, Ambient(14.696, 518.67))
-    assert bad.residual_converged, "the degenerate root is a real root of the clamped system"
-    assert not bad.on_data, "but it sits off the compressor map and must say so"
-    assert not bad.trustworthy
-    assert "OFF THE MAP" in bad.report()
+    from t700 import trim as _trim
+    from t700.engine import State, frame
+
+    amb = Ambient(14.696, 518.67)
+    wf = wf_pps_from_pph(160.0)
+
+    # 1. The mechanism. Hold the pressures, sweep NG far past the map, and watch the two
+    #    forms of the same imbalance diverge in behaviour.
+    base = _trim.solve(wf, 20900.0, amb)
+    st = base.state
+    powers, torques = [], []
+    for ng in (1.0e5, 1.0e7, 1.0e9):
+        f = frame(State(ng, st.np_rpm, st.p3_psia, st.p41_psia, st.p45_psia), wf, amb)
+        dq = f.q_gt_ftlbf - f.q_c_ftlbf
+        torques.append(abs(dq))
+        powers.append(abs(dq * ng * 2.0 * np.pi / 60.0 / 550.0))
+    assert max(powers) - min(powers) < 1e-6 * max(powers), (
+        f"the power imbalance should not depend on NG once the tables clamp: {powers}"
+    )
+    assert torques[-1] < 1e-3 * torques[0], (
+        f"the torque imbalance must vanish as 1/NG -- that is the spurious root: {torques}"
+    )
+    assert max(powers) > 100.0, (
+        f"and the engine is nowhere near equilibrium there: {max(powers):.1f} hp out"
+    )
+
+    # 2. And the search can no longer get there. Every cold solve across the range either
+    #    trims on the map or refuses; none converges off it.
+    for pph in (110.0, 115.0, 125.0, 160.0, 400.0, 750.0, 800.0, 850.0):
+        r = _trim.solve(wf_pps_from_pph(pph), 20900.0, amb)
+        assert r.trustworthy or not r.residual_converged, (
+            f"{pph:.0f} lbm/hr converged off the map at NGc {r.frame.ngc_pct:.4g} -- the "
+            f"degenerate root is back"
+        )
+
+    # 3. The report path still exists for a caller that hands in a guess already off the
+    #    map, which is the one way to get there and is the escape hatch the bound leaves.
+    far = State(4.0e6, 20900.0, st.p3_psia, st.p41_psia, st.p45_psia)
+    off = _trim.solve(wf, 20900.0, amb, guess=far)
+    assert not off.on_data, "a guess started off the map should stay off it"
+    assert not off.trustworthy
+    assert "OFF THE MAP" in off.report()
 
 
 def test_continuation_reaches_the_top_of_the_map():
