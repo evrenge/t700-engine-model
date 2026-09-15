@@ -162,12 +162,6 @@ class TrimResult:
         return "\n".join(lines)
 
 
-def _ngc_pct(ng_rpm: float, amb: Ambient) -> float:
-    """Corrected gas generator speed in percent, as `engine.frame` computes it. Eqs. 5-6."""
-    theta2 = corrections.theta2(amb.t_amb_degR)
-    return 100.0 * corrections.corrected_speed(float(ng_rpm), theta2) / c.NG_DES
-
-
 def _residuals(x: np.ndarray, np_rpm: float, wf_pps: float, amb: Ambient) -> np.ndarray:
     st = State(float(x[0]), np_rpm, float(x[1]), float(x[2]), float(x[3]))
     f = frame(st, wf_pps, amb)
@@ -175,17 +169,32 @@ def _residuals(x: np.ndarray, np_rpm: float, wf_pps: float, amb: Ambient) -> np.
 
 
 def _jacobian(
-    x: np.ndarray, np_rpm: float, wf_pps: float, amb: Ambient, r0: np.ndarray
+    x: np.ndarray,
+    np_rpm: float,
+    wf_pps: float,
+    amb: Ambient,
+    r0: np.ndarray,
+    ng_hi: float | None = None,
 ) -> np.ndarray:
-    """Forward-difference Jacobian.
+    """One-sided difference Jacobian, differencing INWARD at an active bound.
 
     Steps are relative, because NG is order 4e4 rpm while P45 is order 40 psia -- one
     absolute step cannot serve both.
+
+    The direction matters at the top of `f1`'s speed range and only there. A forward probe
+    from NGc 100 lands outside the map, where every table clamps and the residual stops
+    depending on NG, so the NG column reads zero and the Jacobian is singular -- the solve
+    then sits on the boundary and never returns inside. Stepping inward instead reads the
+    real derivative. Without this, projection alone loses 775 and 800 lbm/hr, which trim at
+    NGc 99.4203 and 99.8904; with it they come back. The lower bound needs no such care
+    because a forward step from NGc 65 already points into the data.
     """
     n = x.size
     jac = np.zeros((n, n))
     for i in range(n):
         h = 1e-6 * max(abs(x[i]), 1.0)
+        if i == 0 and ng_hi is not None and x[i] + h > ng_hi:
+            h = -h
         xp = x.copy()
         xp[i] += h
         jac[:, i] = (_residuals(xp, np_rpm, wf_pps, amb) - r0) / h
@@ -222,23 +231,27 @@ def solve(
     so convergence is judged on a *relative* norm, each residual divided by a
     characteristic magnitude of its own equation.
 
-    **There is no degenerate root to flag any more, as of 2026-09-15.** Two changes did
-    it: `_residuals` writes the NG equation as a power balance rather than a torque one,
-    which removes the root at NG = infinity that clamped tables manufacture; and the line
-    search refuses a trial step that leaves `f1`'s speed range, which stops Newton walking
-    out of the data on its way anywhere. Cold solves, before and after:
+    **There is no degenerate root to flag any more, as of 2026-09-15**, and no constant was
+    needed to remove it. NG is confined to `f1`'s own speed range -- the first and last
+    speed line the figure prints -- by projecting each trial step onto it rather than
+    refusing it, and `_jacobian` differences inward at the upper bound so the boundary is
+    not a trap. Cold solves, before and after:
 
         lbm/hr     before                  after
+          110      NGc  65.0256  ok        NGc  65.0256  ok
+          115      NGc  65.4218  ok        NGc  65.4218  ok
           125      NGc  66.2735  ok        NGc  66.2735  ok
           160      NGc   4.19e9  BAD       NGc  75.5013  ok
           750      NGc  98.9393  ok        NGc  98.9393  ok
+          775      NGc  99.4203  ok        NGc  99.4203  ok
           800      NGc  3.93e7   BAD       NGc  99.8904  ok
           850      NGc  2.1e40   BAD       NGc 100.0000  refused, not converged
+          900      NGc  2.6e40   BAD       NGc 100.0000  refused, not converged
 
-    800 lbm/hr needed continuation before and does not now; 850 is genuinely past the
-    map's 100 % speed line and now says so by failing rather than by returning a number
-    with `trustworthy` False. `sweep` is still the right way to walk a range -- it is
-    cheaper and it keeps every step near its neighbour -- but it is no longer load-bearing
+    800 lbm/hr needed continuation before and does not now. 850 and beyond are genuinely
+    past the map's 100 % speed line and now say so by failing rather than by returning a
+    number with `trustworthy` False. `sweep` is still the right way to walk a range -- it
+    is cheaper and keeps every step near its neighbour -- but it is no longer load-bearing
     for correctness. Open question #71.
     """
     amb = ambient
@@ -250,13 +263,17 @@ def solve(
     # Scoped rather than `reset_clamps()`: a caller measuring clamps over a run that
     # contains trims -- which `validation/` does -- used to have its count silently zeroed
     # by every trim inside it. See `maps.clamp_scope`.
-    lo, hi = maps.f1().param_range
-    span = hi - lo
-    ngc_lo, ngc_hi = lo - 0.10 * span, hi + 0.10 * span
+    # The feasible set for NG is `f1`'s own speed range, carried into physical rpm through
+    # Eqs. 5-6. Nothing here is chosen: the bounds are the first and last speed line the
+    # figure prints.
+    ngc_lo, ngc_hi = maps.f1().param_range
+    root_theta2 = float(np.sqrt(corrections.theta2(amb.t_amb_degR)))
+    ng_lo = ngc_lo / 100.0 * c.NG_DES * root_theta2
+    ng_hi = ngc_hi / 100.0 * c.NG_DES * root_theta2
 
     with maps.clamp_scope() as search:
         r = _residuals(x, np_rpm, wf_pps, amb)
-        started_off_map = not (ngc_lo <= _ngc_pct(x[0], amb) <= ngc_hi)
+        started_off_map = not (ng_lo <= x[0] <= ng_hi)
         converged = False
         it = 0
         while it < max_iter:
@@ -264,7 +281,7 @@ def solve(
             if float(np.linalg.norm(r / scale)) < tol:
                 converged = True
                 break
-            jac = _jacobian(x, np_rpm, wf_pps, amb, r)
+            jac = _jacobian(x, np_rpm, wf_pps, amb, r, None if started_off_map else ng_hi)
             try:
                 step = np.linalg.solve(jac, -r)
             except np.linalg.LinAlgError:
@@ -279,39 +296,37 @@ def solve(
                 if trial[1] <= trial[2] or np.any(trial <= 0.0):
                     lam *= 0.5
                     continue
-                # and keep the search near where `f1` is data.
+                # and keep the search inside the data, by PROJECTION rather than by
+                # refusal.
                 #
                 # THIS IS WHAT REMOVES THE DEGENERATE ROOT. Outside the function tables
-                # every lookup returns a constant, so both powers go flat in NG while both
-                # torques fall as 1/NG -- torque being power over speed -- and `dNG/dt`
-                # therefore tends to zero as NG tends to infinity whatever the powers are
+                # every lookup returns a constant, so the model carries no information
+                # about NG there at all. `dNG/dt` is a torque imbalance and torque is power
+                # over speed, so with the powers pinned flat the torques fall as 1/NG and
+                # `dNG/dt` tends to zero as NG tends to infinity whatever the powers are
                 # doing. Measured at the state a cold 160 lbm/hr solve used to reach, with
                 # the pressures held and NG swept from 4.47e4 to 1e10 rpm, the POWER
                 # imbalance is -667.68 hp at every one of them and does not move a digit;
                 # only the torque form pretends the engine is in equilibrium there. Newton
-                # is then entitled to walk to NG = 4.19e9 and report a residual of 9.0e-9.
+                # walked to NG = 4.19e9 and reported a residual of 9.0e-9.
                 #
-                # Writing the NG residual as a power balance instead removes that root
-                # analytically and was tried first. It works, and it is not what is used:
-                # multiplying by NG/NG_DES under-weights the NG equation at low speed, and
-                # a cold 125 lbm/hr then wanders to NGc 24.8. Confining the search does the
-                # same job without touching the equations -- measured over both residual
-                # forms and three bound widths, no configuration with a bound produces a
-                # degenerate root at all.
+                # Rewriting the NG residual as a power balance was tried and does not fix
+                # it. It removes the root, and replaces it with two flat plateaus -- the
+                # residual reads a constant +633.6 below 65 %NGc and -20530 above 100, with
+                # a derivative of exactly zero in both -- so the Jacobian is singular in NG
+                # and the step is -r/0. A cold 125 lbm/hr then wanders to NGc 24.8. No
+                # residual can do better, because the information is absent rather than
+                # badly expressed.
                 #
-                # The width is `f1`'s own speed range widened by a tenth of itself, 65..100
-                # %NGc becoming 61.5..103.5. It is a numerical guard on the search, not a
-                # physical claim, and it has to be loose: 115 lbm/hr trims at NGc 65.4218,
-                # inside the range, but its Newton path dips below 65 on the way and a
-                # guard set at the range itself pins it at the edge. It is not a robust
-                # knob either -- 0.05 and 0.10 of the span recover 115 and 0.20 does not --
-                # which says the cold-start basin down there is fragile however it is set.
-                # `sweep` remains the documented way to walk a range. The escape hatch
-                # is for a caller handing in a guess already outside the bound, whose every
-                # step would otherwise be rejected and which could not then move at all.
-                if not started_off_map and not (ngc_lo <= _ngc_pct(trial[0], amb) <= ngc_hi):
-                    lam *= 0.5
-                    continue
+                # Projection is the fix that needs no constant. The feasible set is the
+                # map's own speed range; a step that leaves it is put back on the edge and
+                # the search continues from there, so a path that merely grazes the
+                # boundary is not punished. Rejecting such a step instead needs a margin to
+                # let 115 lbm/hr through -- it trims at NGc 65.4218 but dips below 65 on
+                # the way -- and the margin is a knob: 0.05 and 0.10 of the span work and
+                # 0.20 does not.
+                if not started_off_map:
+                    trial[0] = float(np.clip(trial[0], ng_lo, ng_hi))
                 r_new = _residuals(trial, np_rpm, wf_pps, amb)
                 if np.linalg.norm(r_new / scale) < np.linalg.norm(r / scale):
                     x = trial
@@ -349,18 +364,16 @@ def sweep(
 ) -> list[TrimResult]:
     """Trim across a range of fuel flows, continuing from each solution to the next.
 
-    Continuation matters more than it looks. From a fixed design-point guess the solver
-    cannot reach the top of the map: a cold 800 lbm/hr stops at the search bound and
-    reports `residual_converged` False. Walking the guess along the sweep keeps every step
-    near its neighbour, and the sweep then reaches 800 lbm/hr (NG 99.87 %) and refuses at
+    Continuation keeps every step near its neighbour, which is cheaper and better
+    conditioned than a cold start; the sweep reaches 800 lbm/hr (NGc 99.89) and refuses at
     850, which is genuinely past the map's 100 % speed line.
 
     **What it no longer has to do is protect against a wrong answer.** Until 2026-09-15 a
     cold solve above about 700 lbm/hr landed on a spurious equilibrium and called itself
     converged -- clamped tables make `dNG/dt` insensitive to NG, so Newton could drive it
-    to zero somewhere meaningless. `solve` now confines the search and that root is
-    unreachable, so a cold start above the range fails instead of lying. Continuation is a
-    convenience and a cost saving now, not a correctness requirement.
+    to zero somewhere meaningless. `solve` now confines NG to the map by projection and
+    that root is unreachable, so a cold 800 trims on its own and a cold 850 fails instead
+    of lying. Continuation is a convenience now, not a correctness requirement.
 
     Check `trustworthy` on each result before using it.
     """

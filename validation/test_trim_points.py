@@ -375,30 +375,46 @@ def test_continuation_reaches_the_top_of_the_map():
 
 
 def test_the_sweep_refuses_past_the_maps_top_speed_line():
-    """And a sweep must START inside the data -- continuation cannot rescue a cold start.
+    """850 lbm/hr is past `f1`'s 100 % speed line and no amount of continuation reaches it.
 
-    Beginning at 800 lbm/hr from the design-point guess lands off the map immediately, so
-    there is no good solution to continue from and every later point fails too. Begin low,
-    walk up.
+    **The ladder's spacing used to matter near the top, and does not any more.** This test
+    used [400, 600, 800, 850] until 2026-09-13 and the 600 -> 800 jump stopped working when
+    `f6` became the constant Figure A6 draws: the 0.0037 % more combustor efficiency that
+    gave at FAR 0.024 moved the 800 lbm/hr solution from NGc 99.872 to exactly 100.000,
+    `f1`'s top speed line, where `np.clip` pins the parameter, the residual stops depending
+    on NG and the forward-difference Jacobian reads a zero column. `solve` now differences
+    INWARD at that bound and projects trial steps onto it, so the boundary is no longer a
+    trap: a COLD 800 lbm/hr trims at NGc 99.8904 with no continuation at all, where before
+    2026-09-15 it returned a degenerate NGc 3.9e7 with `residual_converged` True.
 
-    **The ladder's spacing matters near the top, and that is not a detail.** This test used
-    [400, 600, 800, 850] until 2026-09-13 and the 600 -> 800 jump stopped working when `f6`
-    became the constant Figure A6 draws: the 0.0037 % more combustor efficiency that gave
-    at FAR 0.024 moved the 800 lbm/hr solution from NGc 99.872 to exactly 100.000, `f1`'s
-    top speed line, where `np.clip` pins the parameter and the residual stops depending on
-    NG. On a finer ladder 800 trims cleanly at **NGc 99.8725**. So the model did not get
-    worse; a 200 lbm/hr continuation step at the very top of the map did.
+    What is left is the genuine limit. 850 lbm/hr asks for more airflow than the 100 %
+    speed line carries, so there is no equilibrium on the map to find, and the solve says
+    so by pinning at NGc 100.0000 and reporting `residual_converged` False -- an honest
+    failure rather than a confident wrong answer. That is the assertion worth keeping.
     """
     from t700 import trim as _trim
 
     results = _trim.sweep([400.0, 600.0, 700.0, 800.0, 850.0])
     assert all(r.trustworthy for r in results[:4])
     assert not results[-1].trustworthy, "850 lbm/hr is past the map's 100 % speed line"
-
-    cold = _trim.sweep([800.0])
-    assert not cold[0].trustworthy, (
-        "a sweep starting above ~700 lbm/hr has no valid point to continue from"
+    assert not results[-1].residual_converged, (
+        "850 must fail honestly, not converge somewhere meaningless"
     )
+
+    # the top of the map no longer needs continuation to reach
+    cold = _trim.solve(wf_pps_from_pph(800.0), 20900.0, Ambient(14.696, 518.67))
+    assert cold.trustworthy, (
+        f"a cold 800 lbm/hr should now trim on the map, got NGc {cold.frame.ngc_pct:.4g}"
+    )
+    assert abs(cold.frame.ngc_pct - 99.8904) < 0.01, cold.frame.ngc_pct
+
+    # and past the map a cold start fails the same way a continued one does
+    for pph in (850.0, 900.0):
+        far = _trim.solve(wf_pps_from_pph(pph), 20900.0, Ambient(14.696, 518.67))
+        assert not far.trustworthy and not far.residual_converged, (
+            f"{pph:.0f} lbm/hr is past the map and must refuse, got "
+            f"NGc {far.frame.ngc_pct:.4g}, converged={far.residual_converged}"
+        )
 
 
 # ------------------------------------------------- the rest of Table B.1, long unused
