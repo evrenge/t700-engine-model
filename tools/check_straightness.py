@@ -43,7 +43,7 @@ Runs on every figure whose CSV header publishes its frame model and axis maps, w
 of the 19. The other four -- f1's raw table, f2, f9, F_EC1 and F_HM7 -- carry their own
 stronger checks and say so in their headers (f2's 20 abscissae land on the integer lattice
 to 0.0155 without the fit being told to expect integers; F_HM7 requires every segment
-between consecutive knots to lie on ink, mean coverage 0.9850).
+between consecutive knots to lie on ink, mean coverage 0.9881).
 
 This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
 src/t700/.
@@ -81,7 +81,7 @@ SKIP_STEMS = {
     "own verification overlay",
     "fec1_thermocouple_tau": "traced multi-curve; validated by the gap-threshold sweep, "
     "<=0.05 in y",
-    "fhm7_accel_limit": "vertices, not a trace; validated by segment ink coverage, mean 0.9850",
+    "fhm7_accel_limit": "vertices, not a trace; validated by segment ink coverage, mean 0.9881",
 }
 
 
