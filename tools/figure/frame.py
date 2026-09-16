@@ -156,9 +156,13 @@ def corners(fc, order=1, guess=None):
             corner_line(fr["bottom"], fr["right"]),
             corner_line(fr["bottom"], fr["left"]),
         )
+    # Seed the fixed-point iteration from the straight-line intersection of the same
+    # edges' linear parts. The arcs depart from those lines by a pixel or two, so the seed
+    # is already inside the basin and the iteration is only polishing.
+    lin = {nm: (float(c[-1]), float(c[-2])) for nm, c in fc.items()}
     g = guess or {}
     return tuple(
-        corner_arc(fc, h, v, g.get((h, v), (1000.0, 1000.0)))
+        corner_arc(fc, h, v, g.get((h, v)) or corner_line(lin[h], lin[v]))
         for h, v in (("top", "left"), ("top", "right"), ("bottom", "right"), ("bottom", "left"))
     )
 

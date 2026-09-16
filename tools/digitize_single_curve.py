@@ -411,8 +411,8 @@ def run(key):
     print(f"\n================ {cfg['fig']}  (pdf p.{cfg['page']})")
     ink = native_bitmap(cfg["page"])
     print("frame lines:")
-    spec = cfg.get("frame_spec") or auto_frame_spec(cfg["page"])
-    fc, frdiag = fit_edges(ink, spec, order=1)
+    fspec = cfg.get("frame_spec") or auto_frame_spec(cfg["page"])
+    fc, frdiag = fit_edges(ink, fspec, order=1)
     fr = as_lines(fc)
     TL = corner(fr["top"], fr["left"])
     TR = corner(fr["top"], fr["right"])
@@ -527,7 +527,7 @@ def run(key):
     #      that bracket each point, done on each ticked edge and averaged
     print("  local two-tick check (bow-free), chosen-model minus local:")
     twotick = {}
-    for ax, t, spec, poly, edges in (
+    for ax, t, aspec, poly, edges in (
         ("x", u, xs, cx, (ub, ut)),
         ("y", v, ys, cy, (vl, vr)),
     ):
@@ -537,9 +537,9 @@ def run(key):
             nodes_t = np.concatenate([[0.0], e, [1.0]])
             nodes_v = np.concatenate(
                 [
-                    [spec["lo"] if "lo" in spec["printed"] else np.polyval(poly, 0.0)],
+                    [aspec["lo"] if "lo" in aspec["printed"] else np.polyval(poly, 0.0)],
                     vals,
-                    [spec["hi"] if "hi" in spec["printed"] else np.polyval(poly, 1.0)],
+                    [aspec["hi"] if "hi" in aspec["printed"] else np.polyval(poly, 1.0)],
                 ]
             )
             o = np.argsort(nodes_t)
@@ -556,6 +556,10 @@ def run(key):
         cfg=cfg,
         key=key,
         fr=fr,
+        fc=fc,
+        allt=allt,
+        fspec=fspec,
+        ink=ink,
         frdiag=frdiag,
         extras=extras,
         sag=sag,

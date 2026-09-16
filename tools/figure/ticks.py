@@ -37,7 +37,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from .frame import EDGE, as_lines, corner_line
+from .frame import EDGE
+from .frame import corners as frame_corners
 
 # --------------------------------------------------------------------------- the lattice
 
@@ -77,11 +78,18 @@ def n_majors(ax):
 
 
 def protrusion(ink, edge, along, sign, lo, hi, maxlen=60):
-    """Contiguous ink growing inward from a straight frame edge, per position along it."""
-    a, b = edge
+    """Contiguous ink growing inward from a frame edge, per position along it.
+
+    `edge` is a polynomial in the along-edge coordinate, **highest power first**, the way
+    `np.polyfit` returns one -- so the arc model works here too, and an order-1 edge gives
+    `b*t + a`, which is the straight-edge form exactly (float addition is commutative, so
+    nothing moves). A caller holding an `(intercept, slope)` pair must reverse it; passing
+    it unreversed silently probes a line with the slope and intercept exchanged, which on
+    Figure A1 walked the probe a million rows off the page.
+    """
     out = np.zeros(hi - lo, int)
     for j, t in enumerate(range(lo, hi)):
-        base = a + b * t
+        base = np.polyval(edge, t)
         k = 0
         while k < maxlen:
             q = int(round(base + sign * (3 + k)))
@@ -166,17 +174,15 @@ def pick_majors(cands, t0, t1, frac, name, max_missing=2, verbose=True):
     return out, lmaj
 
 
-def majors_all_edges(ink, fc, cfg, verbose=True):
+def majors_all_edges(ink, fc, cfg, verbose=True, order=None):
     """Every printed major on all four edges, plus every tick of any length (for masks).
 
-    Straight-edge model only: `protrusion` probes from a line. Returns
+    Works for either frame model: the probe follows the fitted edge polynomial, and the
+    corners come from whichever formula that model admits. Returns
     `(majors, candidates, corners)`.
     """
-    fr = as_lines(fc)
-    TL = corner_line(fr["top"], fr["left"])
-    TR = corner_line(fr["top"], fr["right"])
-    BL = corner_line(fr["bottom"], fr["left"])
-    BR = corner_line(fr["bottom"], fr["right"])
+    order = len(next(iter(fc.values()))) - 1 if order is None else order
+    TL, TR, BR, BL = frame_corners(fc, order=order, guess=cfg.get("corner_guess"))
     span = {
         "left": (TL[1], BL[1]),
         "right": (TR[1], BR[1]),
@@ -188,7 +194,7 @@ def majors_all_edges(ink, fc, cfg, verbose=True):
         along, sign = EDGE[nm]
         a, b = span[nm]
         lo, hi = int(min(a, b)) + 3, int(max(a, b)) - 2
-        pr = protrusion(ink, fr[nm], along, sign, lo, hi)
+        pr = protrusion(ink, fc[nm], along, sign, lo, hi)
         cands = groups(pr, lo, 3)
         allt[nm] = cands
         ax = cfg["y" if nm in ("left", "right") else "x"]

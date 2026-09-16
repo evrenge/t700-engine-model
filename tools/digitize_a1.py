@@ -236,7 +236,10 @@ def calibrate(ink, fr):
     def T(nm, along, sign, lo, hi):
         # maxlen 40, not the shared default 60: A1's ticks are short and its flat
         # speed-line extensions are long, so a deeper probe starts finding data.
-        pr = _protrusion(ink, fr[nm], along, sign, lo, hi, maxlen=40)
+        # `fr` holds (intercept, slope); the shared probe follows a POLYNOMIAL, highest
+        # power first, so the pair is reversed here rather than guessed at inside it.
+        a, b = fr[nm]
+        pr = _protrusion(ink, (b, a), along, sign, lo, hi, maxlen=40)
         return np.array(_groups(pr, lo))
 
     bot = T("bottom", 1, -1, 462, 2110)
