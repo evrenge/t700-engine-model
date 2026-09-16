@@ -76,7 +76,7 @@ Every one is a plot and every one is used: these are the engine's function table
 | **C26** `F_HM3` | 97 | plot | yes | yes | yes | worst bow 0.06 sigma |
 | **C27** `F_HM4` | 98 | plot | yes | yes | yes | worst bow 0.22 sigma |
 | **C28** `F_HM5` | 99 | plot | yes | yes | yes | worst bow 0.18 sigma |
-| **C29** `F_HM6` | 100 | plot | yes | yes | yes | worst bow 4.18 sigma -- the only figure above its own read error. Two printed markers, so Ballin's table is two points and the bow is the draughtsman's pen; there is nothing in the report to represent it with |
+| **C29** `F_HM6` | 100 | plot | yes | yes | yes | worst bow 4.18 sigma. **The printed line is genuinely drawn curved and our two-point table does not carry it** -- see the investigation below. Under-reads the printed line by up to 0.101 PCNGI, 1.05 % of span |
 | **C30** `F_HM7` | 101 | plot | **yes** | **no** | yes | Seven curves, 192 vertices, extracted as vertices rather than traced, so there is no centreline to test. Validated by requiring every segment between consecutive knots to lie on ink. B applied 2026-09-16; coverage 0.9850 -> 0.9879. The audit then found the column selector still weighting the blend at a fixed mid-plot 0.5, worth up to 4.96 columns, and fixed it -> 0.9881 |
 
 ## Summary
@@ -272,12 +272,59 @@ blend. "n/a" is a reasoned no, not an omission; the reason is in the row.
 | **Fig 9** | n/a, same | -- | **no, and tested** | residuals largest at t=1 and t=4, smallest mid-panel: the opposite of a bow. Linear map stands; tick detector fixed instead, 14 -> 35 of 48 ticks found |
 | **Fig 10** | n/a, same | -- | **no, and tested** | as Figure 9 |
 
-**Two figures sit above their own read error and neither is fixable from the report.**
-C29 (F_HM6) at 4.18 sigma prints exactly two markers, so Ballin's table *is* two points and
-the bow between them is the draughtsman's pen -- there is nothing in the report to
-represent it with. A7 (f7) at 1.04 sigma is a genuine printed curvature between sparse
-markers; representing it would mean inventing intermediate points the report does not give.
-Both are recorded rather than smoothed, which is what the replication rule requires.
+**Two figures sit above their own read error, and the first of them is a real defect in
+our data, not an unfixable feature of the report.** That was recorded the other way round
+until it was actually measured; the correction is below.
+
+### C29 is not a straight line, and our table says it is
+
+Figure C29 draws one diagonal between exactly two X markers, and it looks straight. It is
+not. Tracing its centreline and subtracting the chord between the two markers gives a clean
+one-signed arch peaking at **+0.101 PCNGI near T2 = 522**, 1.05 % of the y span, returning
+to zero at both markers. Four things were ruled out before concluding the ink is curved:
+
+* **The markers.** Trimming 30, 60, 90, 120, 160 and 200 columns off each end leaves the
+  bow, and the sagitta falls as span squared exactly as a real parabola must (15.32 px over
+  1608 columns -> 7.92 px over 1208, against 8.64 predicted).
+* **The trace.** Median ink run is 5 px and one column of 1608 exceeds 12 px. A 5 px run
+  centroid cannot scatter the 4.7 px rms seen; the residual is structure, not noise.
+* **The scan, in the obvious sense.** The same page's horizontal frames bow 0.298 and
+  0.456 px across the same columns.
+* **The scan, in the non-obvious sense.** Horizontal frames cannot see the one distortion
+  that bows a diagonal while leaving them flat -- an x scale that varies with row. The
+  vertical frames can, and they do bow, 2.46 and 2.86 px. At this line's slope that
+  accounts for about 2 px of the 15.3, not 15.
+
+The decisive measurement is curvature rather than sagitta, since sagitta grows as span
+squared and C29 has one unusually long segment:
+
+| figure | longest segment | sagitta | curvature 1/R, 1e-6/px |
+|---|---|---|---|
+| **fhm6 (C29)** | 1551 px | **-13.812 px** | **45.9** |
+| f6 | 1626 px | +0.152 px | 0.46 |
+| f7 | 1279 px | +0.396 px | 1.94 |
+| f4 | 1256 px | +0.145 px | 0.74 |
+
+f6's segment is **longer** than C29's and bows ninety times less. Curvature across the
+figures spans three orders of magnitude, which no page-wide reproduction distortion can
+produce. The ink on C29 is drawn curved.
+
+**What follows from that.** A plotter cannot draw a curve through two points; splining two
+points gives a line. So Ballin's own table for F_HM6 has more breakpoints than the two he
+marked with symbols, and our two-point file is a lossy reading of the figure -- the same
+error, in miniature, that f1's marker interpolation was. The fix is the one the f1 rework
+already established: trace the printed line and store breakpoints along it.
+
+**What it costs to leave it.** F_HM6 reaches the model at `hmu.py:256` only, feeding
+`wfidm`, the idle floor, through `max(wfpdm, wfidm)`. Open question #10 establishes that
+floor never binds above flight idle and that the model stops above sub-idle, so 0.101 PCNGI
+here moves a term that is not selected. The defect is in the data file's faithfulness, and
+on current evidence not in any model output.
+
+A7 (f7) at 1.04 sigma is the second, and it is a different case: a genuine printed
+curvature spread across sparse markers, where the report gives no intermediate points to
+recover.
+
 
 **Coverage, finally:** A reaches 14 of the 19 digitized figures and is reasoned-out on the
 other 5. B reaches **all 19**, plus Figures 6-8 of the main body, and is reasoned-out on
