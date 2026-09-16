@@ -64,14 +64,14 @@ from scipy import ndimage
 
 from figure.axis import blend_value
 from figure.axis import calibrate as calibrate_axis
+from figure.frame import EDGE, as_lines, auto_frame_spec, blocked_mask, fit_edges, homography
 from figure.frame import apply_h as _apply
-from figure.frame import as_lines, auto_frame_spec, blocked_mask, fit_edges, homography
 from figure.frame import corner_line as corner
 from figure.frame import dist as _dist
 from figure.glyph import fit_glyphs, glyph_only_windows, windows
 from figure.provenance import poly_str as _poly_str
 from figure.raster import native_bitmap
-from figure.ticks import major_step, major_values, majors_all_edges
+from figure.ticks import fine_lattice, major_step, major_values, majors_all_edges
 from figure.ticks import paired as _paired
 
 PDF = Path("docs/ballin-tm100991.pdf")
@@ -406,6 +406,58 @@ def overlay(ink, fr, C, cx, cy, cfg, tag):
 # --------------------------------------------------------------------------- driver
 
 
+def pick_lattice(lo_maj, hi_maj, lo_fine, hi_fine, spec, label):
+    """Majors alone or the full minor lattice? Let the figure's own held-out test say.
+
+    The fine lattice is five to twenty-five times the data, and on twenty of the twenty-six
+    axes here it predicts the printed frame value better -- A6's x by a factor of 44, C28's
+    y by 9.4, C24's x by 7.8. On six it predicts it WORSE, C27's y by a factor of five,
+    because more ticks also means more chances to mislabel one and those edges are the
+    dirtiest on the page.
+
+    So the choice is not made once for all thirteen figures, and it is not made by hand
+    either. It is made by the same held-out frame test this project already uses to choose
+    the polynomial order (trap 6): fit without the printed frame value, predict it, keep
+    whichever model predicts it better. Ties go to the fine lattice, because more data is
+    the better default when nothing distinguishes them.
+
+    The weakness, stated: that test rests on one or two held-out numbers per axis. It is the
+    strongest thing the page offers and it is not strong. What makes it bearable is that it
+    is the SAME rule everywhere, applied by the tool rather than chosen per figure by
+    whoever is reading the output.
+
+    **A second weakness, which this choice is also the answer to.** Trap 6's guard on the
+    polynomial order -- admit only orders whose leave-one-tick-out error is within 1.2x of
+    the best -- goes inert on a fine lattice. With two hundred ticks the LOO error is set by
+    the scatter of individual ticks and barely moves with order: on A6's x axis it runs
+    0.899, 0.910, 0.906, 0.925 per-mille for orders 1 to 4, so every order clears the guard
+    and the frame test alone decides. That would be a real hole if the frame test were a fit
+    statistic, but it is held out, so an order that bought the interior with noise predicts
+    the frame worse and loses. The six axes where the fine lattice does predict the frame
+    worse -- C24 y, C26 y, C27 y, A10 y, C29 y, A11 x -- are exactly the ones this function
+    then sends back to their majors.
+    """
+    maj = calibrate_axis(lo_maj, hi_maj, spec, label, verbose=False)
+    fine = calibrate_axis(lo_fine, hi_fine, spec, label, verbose=False)
+    e_maj = maj["errs"][maj["order"]]
+    e_fine = fine["errs"][fine["order"]]
+    rng = spec["hi"] - spec["lo"]
+    use_fine = e_fine <= e_maj
+    print(
+        f"  {label} axis -- majors alone ({maj['n']} ticks, order {maj['order']}) predict the "
+        f"printed frame to {e_maj / rng * 1000:.3f} per-mille;"
+    )
+    print(
+        f"    the fine lattice ({fine['n']} ticks, order {fine['order']}) to "
+        f"{e_fine / rng * 1000:.3f} per-mille  ->  {'FINE LATTICE' if use_fine else 'MAJORS'}"
+    )
+    chosen = (lo_fine, hi_fine) if use_fine else (lo_maj, hi_maj)
+    out = calibrate_axis(chosen[0], chosen[1], spec, label)
+    out["lattice"] = "fine" if use_fine else "majors"
+    out["alt_err"] = float(e_maj if use_fine else e_fine)
+    return out
+
+
 def run(key):
     cfg = FIGS[key]
     print(f"\n================ {cfg['fig']}  (pdf p.{cfg['page']})")
@@ -425,6 +477,12 @@ def run(key):
     H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
     print("ticks:")
     maj, allt, _ = majors_all_edges(ink, fc, cfg)
+    span = {
+        "left": (TL[1], BL[1]),
+        "right": (TR[1], BR[1]),
+        "top": (TL[0], TR[0]),
+        "bottom": (BL[0], BR[0]),
+    }
 
     # tick coordinates in the unit square
     def uv_of(nm, pos):
@@ -447,9 +505,54 @@ def run(key):
     ut, _ = uv_of("top", list(pt))
     _, vl = uv_of("left", list(pl))
     _, vr = uv_of("right", list(pr))
+
+    # ---- the MINOR lattice, which until 2026-09-16 this path printed and ignored.
+    # The axis map was fitted on the interior majors alone, four to thirty-four per axis,
+    # while the page prints five, ten or twenty times as many ticks. A7 calibrates on the
+    # fine lattice and says what it buys: enough data "to fit and *test* an order-5 axis
+    # map instead of guessing between order 2 and order 4 on twelve ticks". Nothing about
+    # these thirteen pages made them different; the machinery simply never reached them.
+    print("fine lattice:")
+    fine = {}
+    for nm, (coarse_u, coarse_v, ax) in (
+        ("bottom", (ub, xb, xs)),
+        ("top", (ut, xt, xs)),
+        ("left", (vl, yl, ys)),
+        ("right", (vr, yr, ys)),
+    ):
+        along, sign = EDGE[nm]
+        a, b = span[nm]
+        elo, ehi = int(min(a, b)) + 3, int(max(a, b)) - 2
+        vert = nm in ("left", "right")
+        major_px = abs(b - a) / ((ax["hi"] - ax["lo"]) / major_step(ax))
+        # a map from the MAJORS alone, to label the fine ticks through
+        order = max(1, min(3, coarse_u.size - 2))
+        coarse = np.polyfit(coarse_u, coarse_v, order)
+
+        def to_u(raw, nm=nm, vert=vert):
+            q = uv_of(nm, list(np.atleast_1d(raw)))
+            return q[1] if vert else q[0]
+
+        got = fine_lattice(
+            ink, fc[nm], along, sign, elo, ehi, to_u, coarse, major_px, major_step(ax)
+        )
+        if got is None:
+            print(f"  {nm:6s} no lattice resolves; this edge keeps its majors")
+            fine[nm] = (coarse_u, coarse_v)
+            continue
+        fu, fv, npm, ndet = got
+        resid = fv - np.polyval(coarse, fu)
+        print(
+            f"  {nm:6s} {npm:2d} minors per major, {ndet:4d} ticks detected, "
+            f"{fu.size:4d} labelled ({fu.size / max(coarse_u.size, 1):.1f}x the majors), "
+            f"scatter about the coarse map {resid.std() / (major_step(ax) / npm):.3f} "
+            f"of one minor interval"
+        )
+        fine[nm] = (fu, fv)
+
     print("calibration:")
-    CX = calibrate_axis((ub, xb), (ut, xt), xs, "x")
-    CY = calibrate_axis((vl, yl), (vr, yr), ys, "y")
+    CX = pick_lattice((ub, xb), (ut, xt), fine["bottom"], fine["top"], xs, "x")
+    CY = pick_lattice((vl, yl), (vr, yr), fine["left"], fine["right"], ys, "y")
     cx, cy = CX["c"], CY["c"]
 
     print("markers:")
@@ -912,7 +1015,8 @@ def _cal_block(CA, spec, axis):
         f"#        {side['hi']:6s} {axis} = {_poly_str(CA['edgec'][1], var)}",
         "#      Pooling them, which this tool did until 2026-09-16, averages away a real",
         f"#      difference; the pooled map was {axis} = {_poly_str(CA['c'], var)}",
-        f"#      Fitted on {CA['n']} interior major ticks ({CA['n'] // 2} per edge) plus the frame",
+        f"#      Fitted on {CA['n']} interior ticks ({CA['lattice']} lattice, "
+        f"{CA['n'] // 2} per edge) plus the frame",
         f"#      value(s) {words};",
         f"#      residual rms {CA['resid']:.4g}, i.e. "
         f"{CA['resid'] / (spec['hi'] - spec['lo']) * 1000:.2f} per-mille of the axis range.",
@@ -1000,6 +1104,23 @@ def write_csv(key, r):
         f"#   y majors every {major_step(ys):g} ({len(major_values(ys))} interior, off the"
         f" left and right edges)."
     )
+    A("# The page also prints a MINOR lattice, five to twenty-five times as many ticks, and")
+    A("# until 2026-09-16 this tool detected it and threw it away. Each minor step is")
+    A("# measured from the ticks themselves -- the major spacing divided by the median gap,")
+    A("# which must come out an integer -- and each tick is then labelled through a fit made")
+    A("# on the MAJORS alone, never through the straight line between the frame corners,")
+    A("# which is several pixels out in mid-page and discards a contiguous block of good")
+    A("# ticks. Whether an axis uses the fine lattice or its majors alone is decided per")
+    A("# axis by the held-out frame test below, not chosen: whichever predicts the printed")
+    A("# frame value it was never shown. Both numbers are printed, so the choice is visible.")
+    for CA, ax, nm in ((r["CX"], xs, "x"), (r["CY"], ys, "y")):
+        alt = CA["alt_err"] / (ax["hi"] - ax["lo"]) * 1000
+        here = CA["errs"][CA["order"]] / (ax["hi"] - ax["lo"]) * 1000
+        A(
+            f"#   {nm}: {CA['lattice']} lattice, {CA['n']} ticks, predicting the printed frame"
+            f" to {here:.3f} per-mille"
+        )
+        A(f"#      against {alt:.3f} per-mille for the other choice.")
     L.extend(_cal_block(r["CX"], xs, "x"))
     L.extend(_cal_block(r["CY"], ys, "y"))
     A("#   Independent bow-free cross-check: linear interpolation between the two majors that")

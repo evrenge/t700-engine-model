@@ -37,31 +37,44 @@
 # out-protrudes a major tick, and a flat data line protrudes the whole scan length.
 #   x majors every 20 (4 interior, read off the top and bottom edges);
 #   y majors every 0.2 (7 interior, off the left and right edges).
+# The page also prints a MINOR lattice, five to twenty-five times as many ticks, and
+# until 2026-09-16 this tool detected it and threw it away. Each minor step is
+# measured from the ticks themselves -- the major spacing divided by the median gap,
+# which must come out an integer -- and each tick is then labelled through a fit made
+# on the MAJORS alone, never through the straight line between the frame corners,
+# which is several pixels out in mid-page and discards a contiguous block of good
+# ticks. Whether an axis uses the fine lattice or its majors alone is decided per
+# axis by the held-out frame test below, not chosen: whichever predicts the printed
+# frame value it was never shown. Both numbers are printed, so the choice is visible.
+#   x: fine lattice, 198 ticks, predicting the printed frame to 0.366 per-mille
+#      against 1.116 per-mille for the other choice.
+#   y: majors lattice, 14 ticks, predicting the printed frame to 1.172 per-mille
+#      against 6.174 per-mille for the other choice.
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        left   x = +100.00767 u -0.064505145
-#        right  x = +100.05336 u +0.013726791
+#        left   x = +99.940921 u -0.07824225
+#        right  x = +100.15696 u +0.012737593
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
-#      difference; the pooled map was x = +100.05203 u -0.039541685
-#      Fitted on 8 interior major ticks (4 per edge) plus the frame
+#      difference; the pooled map was x = +100.05267 u -0.034778682
+#      Fitted on 198 interior ticks (fine lattice, 99 per edge) plus the frame
 #      value(s) left = 0, right = 100;
-#      residual rms 0.09418, i.e. 0.94 per-mille of the axis range.
+#      residual rms 0.1179, i.e. 1.18 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
 #      value at the frame, which the fit was never given (leave-one-tick-out rms is
 #      shown beside it, as an independent check that the order is not fitting noise):
-#        order 1 (linear   ): lo frame printed 0 -> -0.111624 (-0.112)
-#                             hi frame printed 100 -> 100.071 (+0.071)
-#                             leave-one-tick-out 1.497 per-mille of range
-#        order 2 (quadratic): lo frame printed 0 -> -0.0346953 (-0.0347)
-#                             hi frame printed 100 -> 100.148 (+0.148)
-#                             leave-one-tick-out 1.803 per-mille of range
-#        order 3 (cubic    ): lo frame printed 0 -> 0.351026 (+0.351)
-#                             hi frame printed 100 -> 99.7626 (-0.237)
-#                             leave-one-tick-out 2.112 per-mille of range
-#        order 4 (quartic  ): lo frame printed 0 -> -44.907 (-44.9)
-#                             hi frame printed 100 -> 54.6961 (-45.3)
-#                             leave-one-tick-out 3.317 per-mille of range
+#        order 1 (linear   ): lo frame printed 0 -> -0.0365678 (-0.0366)
+#                             hi frame printed 100 -> 100.019 (+0.0193)
+#                             leave-one-tick-out 1.203 per-mille of range
+#        order 2 (quadratic): lo frame printed 0 -> 0.0097927 (+0.00979)
+#                             hi frame printed 100 -> 100.064 (+0.0644)
+#                             leave-one-tick-out 1.193 per-mille of range
+#        order 3 (cubic    ): lo frame printed 0 -> 0.100569 (+0.101)
+#                             hi frame printed 100 -> 99.9788 (-0.0212)
+#                             leave-one-tick-out 1.153 per-mille of range
+#        order 4 (quartic  ): lo frame printed 0 -> 0.0945747 (+0.0946)
+#                             hi frame printed 100 -> 99.9733 (-0.0267)
+#                             leave-one-tick-out 1.161 per-mille of range
 #      -> order 1 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   y axis: LINEAR in v, where v = 0 at the bottom frame and 1 at the top frame.
@@ -71,7 +84,7 @@
 #        top    y = +1.6007006 v +2.0997767
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was y = +1.5991671 v +2.1011827
-#      Fitted on 14 interior major ticks (7 per edge) plus the frame
+#      Fitted on 14 interior ticks (majors lattice, 7 per edge) plus the frame
 #      value(s) bottom = 2.1, top = 3.7;
 #      residual rms 0.002352, i.e. 1.47 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
@@ -93,7 +106,7 @@
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   Independent bow-free cross-check: linear interpolation between the two majors that
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
-#   model to 0.0869 in x and 1.18 in y, worst point.
+#   model to 0.0821 in x and 1.18 in y, worst point.
 #
 # MARKERS. 11 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
@@ -114,11 +127,11 @@
 #
 # UNCERTAINTY, per point, 1 sigma, in data units -- the sigma_x and sigma_y columns.
 # Quadrature of four named contributions, each measured, none assumed:
-#   x: tick-fit residual 0.0942 | calibration order spread (deg 1-4) 0.0341 mean, 0.0486 max |
-#      the two ticked edges calibrated separately, half their disagreement 0.0505 mean, 0.062 max |
-#      glyph centre 0.00568 mean, 0.0173 max.  Total 1 sigma 0.115 mean, 0.127 max.
+#   x: tick-fit residual 0.118 | calibration order spread (deg 1-4) 0.04 mean, 0.121 max |
+#      the two ticked edges calibrated separately, half their disagreement 0.0995 mean, 0.153 max |
+#      glyph centre 0.00568 mean, 0.0173 max.  Total 1 sigma 0.18 mean, 0.257 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
-#      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0521.)
+#      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0829.)
 #   y: tick-fit residual 0.00235 | calibration order spread (deg 1-4) 0.000452 mean, 0.000673 max |
 #      the two ticked edges calibrated separately, half their disagreement 0.000482 mean, 0.000969 max |
 #      glyph centre 4.73e-05 mean, 0.000145 max.  Total 1 sigma 0.00253 mean, 0.00283 max.
@@ -152,14 +165,14 @@
 #
 # NOT transcribed. Values carry read error; see validation/out/digitize/a6810/.
 x,y,sigma_x,sigma_y
--0.1022,2.29719,0.1194,0.00283
-9.9382,2.33000,0.1055,0.00273
-20.0101,2.36264,0.1079,0.00264
-30.0260,2.53151,0.1106,0.00249
-40.0069,2.69280,0.1130,0.00248
-50.0098,2.87818,0.1109,0.00252
-60.0397,3.11836,0.1120,0.00252
-70.0447,3.39757,0.1177,0.00239
-79.9643,3.57162,0.1208,0.00239
-89.9620,3.57170,0.1202,0.00239
-100.0021,3.57171,0.1273,0.00239
+-0.1144,2.29719,0.1984,0.00283
+9.9221,2.33000,0.1460,0.00273
+19.9906,2.36264,0.1440,0.00264
+30.0094,2.53151,0.1458,0.00249
+39.9964,2.69280,0.1497,0.00248
+50.0102,2.87818,0.1561,0.00252
+60.0590,3.11836,0.1687,0.00252
+70.0913,3.39757,0.1900,0.00239
+80.0341,3.57162,0.2082,0.00239
+90.0408,3.57170,0.2196,0.00239
+100.0900,3.57171,0.2570,0.00239

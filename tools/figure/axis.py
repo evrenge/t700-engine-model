@@ -180,8 +180,9 @@ def blend_value(edgec, t, across):
 def calibrate(t_lo_edge, t_hi_edge, spec, label, orders=(1, 2, 3, 4), verbose=True):
     """Pick the order by the held-out frame test, then fit -- the single-curve family's path.
 
-    `t_lo_edge` / `t_hi_edge` are (coordinate, value) for the interior majors read off each
-    of the two edges that carry ticks for this axis. Coordinate is u (x axis) or v (y axis);
+    `t_lo_edge` / `t_hi_edge` are (coordinate, value) for the interior ticks read off each
+    of the two edges that carry ticks for this axis -- the majors alone, or the full minor
+    lattice where the page resolves one. Coordinate is u (x axis) or v (y axis);
     0 at the low-side frame, 1 at the high-side frame. The printed frame values are NOT in
     the fit used for the test -- that is the point.
     """
@@ -193,7 +194,7 @@ def calibrate(t_lo_edge, t_hi_edge, spec, label, orders=(1, 2, 3, 4), verbose=Tr
     at = {"lo": 0.0, "hi": 1.0}
     rng = spec["hi"] - spec["lo"]
     if verbose:
-        print(f"  {label} axis -- held-out frame test (fit = the {tt.size} interior majors only):")
+        print(f"  {label} axis -- held-out frame test (fit = the {tt.size} interior ticks only):")
     errs, loos, pred = {}, {}, {}
     for order in orders:
         row, worst = [], 0.0

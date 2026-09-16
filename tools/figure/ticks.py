@@ -334,3 +334,57 @@ def paired(maj, name, vals, descending):
     pos, v = pos[ok], v[ok]
     o = np.argsort(pos)
     return pos[o], v[o]
+
+
+def minors_per_major(pos, major_px):
+    """How many minor intervals the page prints per major, measured from the ticks.
+
+    Reading "five minors per major" off a 1988 scan by eye is the kind of transcription
+    this project forbids, and it is unnecessary: the lattice states its own step. Sort the
+    detected ticks, take the median gap, and divide the major spacing by it. The result
+    must be an integer -- a printed lattice has a whole number of minor intervals per major
+    -- and how far it had to be rounded is the first check on the measurement. Across the
+    thirteen single-curve figures the worst departure is 1.7 %, and the values that come
+    out are 5, 10 and 20.
+
+    Returns `(n, ratio, minor_px)`, or None if the edge carries too few ticks to tell.
+
+    Verified against the printed page on A8 (x, 5 per major) and A11 (y, 20). A11 is the
+    cautionary one: it prints a THREE-level lattice -- a minor, a longer tick every ten
+    minors at the half-major, and the major -- and read by eye the half-major ticks pass
+    for majors and give 10.
+    """
+    pos = np.sort(np.asarray(pos, float))
+    if pos.size < 4:
+        return None
+    gaps = np.diff(pos)
+    gaps = gaps[gaps > 1.0]
+    if gaps.size == 0:
+        return None
+    small = gaps[gaps < 0.75 * major_px]
+    minor_px = float(np.median(small if small.size else gaps))
+    ratio = major_px / minor_px
+    return int(round(ratio)), float(ratio), minor_px
+
+
+def fine_lattice(ink, edge_poly, along, sign, lo, hi, to_u, coarse, major_px, step, thresh=3):
+    """Every printed tick on one edge, labelled with its value through the COARSE fit.
+
+    `to_u` maps pixel positions along the edge to the normalized plot coordinate; `coarse`
+    is a polynomial in that coordinate fitted to the MAJORS alone. Labelling through it
+    rather than through the straight line between the frame corners is the whole trick: the
+    straight line is several pixels out in mid-page -- that is the page bow, the thing being
+    measured -- and on a 13 px minor lattice it discards a contiguous block of perfectly
+    good ticks. A9 lost 29 of its 141 that way, and widening the tolerance instead only
+    discards different ones.
+
+    Returns `(u, values, n_per_major, n_detected)` or None if no lattice resolves.
+    """
+    raw = find_ticks(ink, edge_poly, along, sign, lo, hi, thresh)
+    got = minors_per_major(raw, major_px)
+    if got is None:
+        return None
+    n, _ratio, _minor_px = got
+    u = np.asarray(to_u(raw), float)
+    uk, vk, _keep = label_by_map(u, coarse, step / n)
+    return uk, vk, n, int(raw.size)

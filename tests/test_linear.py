@@ -26,11 +26,11 @@ TRIMS = {
 }
 
 
-def _model(name: str, dof: DOF = DOF.FIVE):
+def _model(name: str, dof: DOF = DOF.FIVE, rel_step: float = 1e-5):
     wf = wf_pps_from_pph(TRIMS[name][0])
     r = trim.solve(wf, NP_RPM, AMB)
     assert r.trustworthy
-    return extract(r, wf, dof, AMB)
+    return extract(r, wf, dof, AMB, rel_step=rel_step)
 
 
 @pytest.mark.parametrize("name", TRIMS)
@@ -137,11 +137,43 @@ def test_two_dof_equals_reduced_five_identically(name: str):
     vs -2.81 at hover) because his reduced-order model is a separate program with the
     opened Eq. 74 iteration and finite loop counts; ours is a Newton solve to 1e-10, so
     it lands exactly on the Schur complement. See open question #49.
+
+    The identity is exact; the two sides are finite differences, and they agree only where
+    BOTH differences are converged. At the shipped `rel_step=1e-5` they do at hover
+    (1.3e-8) and level (3.7e-9) and do NOT at descent, where `A[1,0]` disagrees by 9.6e-4.
+    That is truncation, not noise, and it is one-sided: `REDUCED_FIVE` sits on 3.5895615
+    from rel 1e-5 all the way to 1e-8, while `TWO` walks 3.5895615 -> 3.5930076 ->
+    3.5990306 -> 3.6038432 as the step grows from 1e-6 to 1e-3. The quasi-steady `g(s)`
+    slaves the pressures, so it composes the map nonlinearities and curves harder in NG
+    than the 5-DOF `f(x)` does; at descent a 1e-5 step (0.38 rpm) is already in that
+    curvature.
+
+    So the identity is checked where the numerics can carry it, at 1e-6, and the truncation
+    at the shipped step is measured here rather than left to be rediscovered. It was
+    rediscovered once: the 2026-09-16 fine-lattice recalibration moved the descent trim
+    just far enough for the 9.6e-4 to appear, and this test failed with no indication that
+    the cause was a step size rather than the data.
+
+    **What it does not touch.** `A[0,1]` is exactly zero at all three trims -- NP drives
+    nothing -- so the 2-DOF eigenvalues are `A[0,0]` and `A[1,1]`, and this element is not
+    in them. The truncation reaches the NG->NP coupling and nothing that is compared to a
+    printed eigenvalue.
     """
-    a = _model(name, DOF.TWO)
-    b = _model(name, DOF.REDUCED_FIVE)
+    a = _model(name, DOF.TWO, rel_step=1e-6)
+    b = _model(name, DOF.REDUCED_FIVE, rel_step=1e-6)
     assert np.allclose(a.A, b.A, rtol=1e-6, atol=1e-9), f"\n{a.A}\n{b.A}"
     assert np.allclose(a.b, b.b, rtol=1e-6, atol=1e-9)
+
+    # and the shipped step, measured rather than asserted away: a growth alarm, not a bound
+    # chosen to pass. Measured 2026-09-16: hover 1.3e-8, level 3.7e-9, descent 9.6e-4.
+    a5 = _model(name, DOF.TWO)
+    b5 = _model(name, DOF.REDUCED_FIVE)
+    gap = float(np.max(np.abs(a5.A - b5.A) / np.maximum(np.abs(a5.A), 1e-30)))
+    assert gap < 2e-3, (
+        f"{name}: at the shipped rel_step=1e-5 the two routes to the 2-DOF A now differ by "
+        f"{gap:.2e}, against 9.6e-4 at descent and under 1.4e-8 elsewhere when this was "
+        f"measured. The step has stopped being adequate for the quasi-steady Jacobian."
+    )
 
 
 @pytest.mark.parametrize("name", TRIMS)

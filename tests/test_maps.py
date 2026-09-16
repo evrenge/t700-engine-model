@@ -90,13 +90,23 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
     """Open question #62's departure, pinned so it cannot be undone without a test failing.
 
     Nothing detected it before 2026-09-14. `test_combustor_efficiency_is_near_unity` above
-    passes on the digitized slope too -- the two printed endpoints are 0.985038 and
-    0.984965, which differ by **7.3e-5**, so every range check in this file is blind to
-    whether `f6` is a constant or a line. That is the same hole
+    passes on the digitized slope too -- the two printed endpoints differ by less than a
+    tenth of their own read error -- so every range check in this file is blind to whether
+    `f6` is a constant or a line. That is the same hole
     `test_f1_is_on_a_beta_grid_not_the_printed_table` exists to close for #60, found the
     same way: revert the departure and watch the suite stay green.
 
-    Three things are asserted, and the third is what keeps the provenance honest.
+    Four things are asserted, and the last two are what keep the provenance honest.
+
+    **The expected value is computed from the CSV, not frozen into this file.** It used to
+    be `0.5 * (0.985038 + 0.984965)`, a pair of numbers from an extraction two revisions
+    old: the 2026-09-16 blend of the two ticked edges redistributed those endpoints while
+    leaving their mean untouched, so the assertion went on passing against numbers the file
+    no longer held, and only the fine-lattice recalibration made it fail. A frozen number
+    that survives the data changing underneath it is not pinning anything. What is actually
+    being asserted -- that the loader takes the MEAN of the two measured endpoints, and
+    that those endpoints are the same number to within the page's own read error -- is
+    asserted directly instead.
     """
     c = maps.f6()
     assert c.y.size >= 2
@@ -105,9 +115,7 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
         f"the page is the page (open question #62). If this is deliberate, move #62 to "
         f"closed and say why here."
     )
-    # the value is the mean of the two printed endpoints, not either one of them
-    assert c.y[0] == pytest.approx(0.5 * (0.985038 + 0.984965), abs=1e-9), c.y[0]
-    # and the CSV still carries the ink as measured: the conditioning is what makes it
+    # the CSV still carries the ink as measured: the conditioning is what makes it
     # constant, so the chain back to the page is unbroken and the reproducibility gate
     # still has something to reproduce.
     raw = [
@@ -116,7 +124,17 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
         if ln and not ln.startswith("#") and not ln.startswith("x,")
     ]
     ys = [float(r[1]) for r in raw]
+    sy = [float(r[3]) for r in raw]
     assert len(set(ys)) == 2, f"the f6 CSV should still hold the two measured points: {ys}"
+    # the value is the mean of the two measured endpoints, not either one of them
+    assert c.y[0] == pytest.approx(0.5 * (ys[0] + ys[1]), abs=1e-12), c.y[0]
+    # and #62's premise: those two endpoints ARE one number, as far as the page can say
+    gap = abs(ys[0] - ys[1]) / min(sy)
+    assert gap < 0.5, (
+        f"f6's two printed endpoints now differ by {gap:.2f} of their own 1 sigma read "
+        f"error. Open question #62 rests on them being the same number; if the page really "
+        f"does draw a slope, #62 is answered and this departure has to go."
+    )
     assert maps.CONDITIONING["f6"] == pytest.approx(abs(ys[0] - c.y[0]), rel=1e-6)
 
 

@@ -499,8 +499,9 @@ class Physics:
 
     Declared only where the *ink* says so: `f6` is Figure A6 [pdf p.61], a single
     horizontal line across a y axis spanning 0.88 to 1.10, with an `x` marker at each
-    frame edge and nothing between them. Its two digitized endpoints differ by 7.3e-5
-    against a 1-sigma read error of 4.06e-4 each -- **0.13 sigma on the difference**, and
+    frame edge and nothing between them. Its two digitized endpoints differ by 9.0e-6
+    against a 1-sigma read error of 3.5e-4 and 4.3e-4 -- **0.016 sigma on the
+    difference**, and
     0.46 px at 200 dpi. The page's four frame edges are fitted at +0.209, +0.155, -0.109
     and +0.150 degrees, four *different* angles, so the frame is a genuine quadrilateral
     and a horizontal line across it does not come back horizontal. That skew is what the
@@ -756,8 +757,8 @@ def f6() -> Curve:
 
     **This is a constant, and as of 2026-09-13 it is loaded as one.** Figure A6 draws a
     single horizontal line at 0.985 across a y axis spanning 0.88 to 1.10, with an `x`
-    marker at each frame edge and no other ink. The two digitized endpoints, 0.985038 and
-    0.984965, differ by 7.3e-5 against a 1-sigma read error of 4.06e-4 apiece -- 0.13 sigma
+    marker at each frame edge and no other ink. The two digitized endpoints, 0.984961 and
+    0.984970, differ by 9.0e-6 against a 1-sigma read error of 3.5e-4 and 4.3e-4 -- 0.016 sigma
     on the difference, and 0.46 px at the 200 dpi the figure was read at. The page's four
     frame edges sit at four *different* angles (+0.209, +0.155, -0.109, +0.150 degrees), so
     the frame is a quadrilateral and a printed horizontal line does not come back
