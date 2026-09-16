@@ -339,13 +339,22 @@ def main(argv=None) -> int:
     work = plot_mask(ink, (to_col(51.0), to_col(82.0), to_row(1.7), to_row(0.2)))
     lo_r, hi_r = int(top) + 12, int(bot) - 12
 
-    # column index <-> PCNGHL, through the calibrated axis rather than the raw frame
+    # Column index <-> PCNGHL, through the calibrated axis rather than the raw frame.
+    # The x map's blend coordinate is the normalized height, and the bottom and top scales
+    # disagree by 0.179 PCNGHL -- 4.96 columns here -- so a table built once down the
+    # middle of the plot looks for a seed near either edge five columns from where it was
+    # declared. Every caller knows the WFPAC it wants, and the homography has already
+    # normalized the vertical coordinate, so the blend weight comes from inverting the y
+    # calibration and never needs a row: `to_row` would have to guess one, and on a frame
+    # this tilted its guess is wrong by the full tilt at the right-hand end.
     cols = np.arange(int(lef) + 2, int(rig) - 1)
-    uu, _ = _apply(H, cols.astype(float), np.full(cols.size, (top + bot) / 2.0))
-    xcal = blend_value(CX, uu, 0.5)
+    _tgrid = np.linspace(0.0, 1.0, 2001)
+    _vgrid = np.asarray([blend_value(CY, t, 0.5) for t in _tgrid], float)
+    _uu, _ = _apply(H, cols.astype(float), np.full(cols.size, (top + bot) / 2.0))
 
-    def column_for(x):
-        return int(cols[int(np.argmin(np.abs(xcal - x)))])
+    def column_for(x, v):
+        across = float(np.interp(v, _vgrid, _tgrid))
+        return int(cols[int(np.argmin(np.abs(blend_value(CX, _uu, across) - x)))])
 
     def wfpac_of(col, row):
         u, v = _apply(H, [float(col)], [float(row)])
@@ -372,7 +381,7 @@ def main(argv=None) -> int:
         recovers the vertex without ever measuring inside a glyph.
         """
         xs, ys = [], []
-        lo, hi = column_for(x0 + 0.7), column_for(x1 - 0.7)
+        lo, hi = column_for(x0 + 0.7, v0), column_for(x1 - 0.7, v1)
         for c in range(lo, hi + 1):
             rs = clean_runs(c)
             if not rs:
@@ -394,7 +403,7 @@ def main(argv=None) -> int:
     for k in sorted(seeds):
         pts = []
         for x, v in seeds[k]:
-            c = column_for(x)
+            c = column_for(x, v)
             rs = runs_in_column(work, c, lo_r, hi_r)
             if not rs:
                 raise AssertionError(f"curve {k}: no ink in the column at PCNGHL {x}")

@@ -99,7 +99,7 @@
 #   right: the frame lines were right, and the all-ticks fit was right about the data
 #   and wrong about the model.  The x = 10 major tick really does sit 1.9 px right of
 #   the frame midpoint (that part was a correct measurement, not a warp artefact).
-#   The printed vertical construction line now reads PS3/P2 = 0.9904, against 0.974
+#   The printed vertical construction line now reads PS3/P2 = 0.9904 (0.9913 at the bottom scale, 0.9895 at the top), against 0.974
 #   under the old linear fit and 0.998 under a frame-lines-only calibration.  It is
 #   still not asserted to be exactly 1.0 -- the report does not print that -- but the
 #   cubic moves it most of the way there without ever being told to.

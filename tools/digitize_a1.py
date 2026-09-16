@@ -909,7 +909,13 @@ out = "data/maps/f1_compressor_mass_flow.csv"
 # leverage on dNG/dt). Bump this literal when the calibration actually changes, and say
 # in the commit message what moved.
 RECALIBRATED = "2026-09-11"
-UL = float(blend(CXE, float(to_uv_rect(XV, 0.0)[0]), 0.5))
+# The construction line is vertical, and the x map is blended across the plot, so it does
+# not read as one number: it reads as a band. Quoting only the mid-plot value would hide
+# exactly the spread this calibration exists to measure, so both ends are reported.
+_ULU = float(to_uv_rect(XV, 0.0)[0])
+UL_LO = float(blend(CXE, _ULU, 0.0))
+UL_HI = float(blend(CXE, _ULU, 1.0))
+UL = 0.5 * (UL_LO + UL_HI)
 HDR = [
     "# source: TM-100991 pdf p.56, Figure A1",
     "# quantity: f1 -- compressor mass flow.  WA2c = f1(Ps3/P2, NGc), Eq. 7, pdf p.22",
@@ -1014,7 +1020,8 @@ HDR = [
     "#   right: the frame lines were right, and the all-ticks fit was right about the data",
     "#   and wrong about the model.  The x = 10 major tick really does sit 1.9 px right of",
     "#   the frame midpoint (that part was a correct measurement, not a warp artefact).",
-    f"#   The printed vertical construction line now reads PS3/P2 = {UL:.4f}, against 0.974",
+    f"#   The printed vertical construction line now reads PS3/P2 = {UL:.4f} "
+    f"({UL_LO:.4f} at the bottom scale, {UL_HI:.4f} at the top), against 0.974",
     "#   under the old linear fit and 0.998 under a frame-lines-only calibration.  It is",
     "#   still not asserted to be exactly 1.0 -- the report does not print that -- but the",
     "#   cubic moves it most of the way there without ever being told to.",
