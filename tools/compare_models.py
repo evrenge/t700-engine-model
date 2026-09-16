@@ -46,6 +46,7 @@ from figure.frame import (  # noqa: E402  # noqa: E402
     apply_h,
     auto_frame_spec,
     corners,
+    edge_at,
     fit_edges,
     homography,
     make_sv,
@@ -81,12 +82,7 @@ def edge_positions(ink, fc, cfg, order):
             return q[1] if nm in ("left", "right") else q[0]
     else:
         to_sv, _ = make_sv(fc)
-
-        def at(nm, pos):
-            pos = np.asarray(pos, float)
-            if nm in ("left", "right"):
-                return to_sv(np.polyval(fc[nm], pos), pos)[1]
-            return to_sv(pos, np.polyval(fc[nm], pos))[0]
+        at = edge_at(fc, to_sv)
 
     out = {}
     for nm, ax, desc in (
