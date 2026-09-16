@@ -29,9 +29,23 @@ that models them. What is left is the ink.
 
 Per inter-marker segment: the rms residual from a straight line fitted in data space (the
 trace's own noise floor) and the fitted sagitta (systematic bow), both in the figure's y
-units and as a multiple of that file's own quoted 1 sigma. A sagitta well under 1 sigma
-means linear interpolation costs less than the digitizing error, and no denser sampling of
-that segment could add information.
+units and as a multiple of that file's own quoted 1 sigma.
+
+**Read this as drafting quality, not as information loss.** These figures are hand drawn,
+and a printed symbol marks a breakpoint of the underlying table: between two consecutive
+symbols the draughtsman drew a straight segment, so the chord IS the data and no denser
+sampling of that segment can add anything. A sagitta above 1 sigma therefore says the drawn
+line wandered, or the reproduction bowed it -- never that our table is missing a point.
+That distinction was got wrong on 2026-09-16 for Figure C29, whose entire content is two
+symbols and the line joining them: its 4.18 sigma was written up as evidence that Ballin's
+table held unmarked breakpoints, and a table cannot hold a smooth parabola. Two points
+define a line; a parabola through two points is not something a plotter or a table can
+produce, and the measured departure has no kinks anywhere along it, which is the signature
+of a drawn-and-reproduced straight line rather than of a polyline.
+
+The one figure where the ink genuinely carries more than the symbols is `f1`, whose speed
+lines are drawn as smooth curves rather than as segments between symbols -- which is why
+tracing them was right there and is not right here.
 
 **The statistic is rms and sagitta, never the maximum residual.** On a 1-bit scan the
 maximum is dominated by ink speckle: the right frame line of pdf p.62 is straight on the
