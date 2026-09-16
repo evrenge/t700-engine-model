@@ -740,6 +740,25 @@ def calibrate_axis(t_lo_edge, t_hi_edge, spec, label):
     )
 
 
+def blend_value(CA, t, across):
+    """The axis value at normalized coordinate `t`, blending the two ticked edges.
+
+    `across` runs 0 at the low-side edge to 1 at the high-side edge, so the map used at a
+    point is the one its own end of the plot measured. Fitting the two edges TOGETHER, as
+    this tool did until 2026-09-16, averages away a real difference: on A2 the top and
+    bottom x lattices disagree by 0.026 at the left frame, and `digitize_native.blend_axis`
+    -- which A2, A7 and A9 have always used -- exists for exactly that reason.
+
+    The pooled fit is the average everywhere, so the two agree mid-plot and diverge toward
+    the edges, by up to half the edge disagreement. That term stays in the uncertainty
+    budget: blending fixes the central value but says nothing about how the lattice varies
+    BETWEEN the edges, which linear interpolation only assumes.
+    """
+    lo = np.polyval(CA["edgec"][0], t)
+    hi = np.polyval(CA["edgec"][1], t)
+    return (1.0 - across) * lo + across * hi
+
+
 # --------------------------------------------------------------------------- marker seeds
 
 
@@ -1170,7 +1189,7 @@ def run(key):
     print("checks:")
     extras, sag = segment_check(ink, fr, C)
     u, v = _apply(H, C[:, 0], C[:, 1])
-    Xd, Yd = np.polyval(cx, u), np.polyval(cy, v)
+    Xd, Yd = blend_value(CX, u, v), blend_value(CY, v, u)
 
     # ---- glyph-centre uncertainty: worst case over honest variations of the estimator
     print("  glyph-centre robustness (max |move| over variants, px):")
@@ -1198,8 +1217,8 @@ def run(key):
     # ---- uncertainty budget, per point, 1 sigma, in data units
     print("  uncertainty budget (1 sigma, data units):")
     sig = {}
-    for ax, CA, t, poly in (("x", CX, u, cx), ("y", CY, v, cy)):
-        base = np.polyval(poly, t)
+    for ax, CA, t, poly, across in (("x", CX, u, cx, v), ("y", CY, v, cy, u)):
+        base = blend_value(CA, t, across)
         # a. residual of the anchored fit about the printed ticks
         a = np.full(t.shape, CA["resid"])
         # b. spread over calibration polynomial order 1..4
@@ -1609,8 +1628,13 @@ def _cal_block(CA, spec, axis):
     lines = [
         f"#   {axis} axis: {['', 'LINEAR', 'QUADRATIC', 'CUBIC', 'QUARTIC'][order]} in {var}, "
         f"where {var} = 0 at the {side['lo']} frame and 1 at the {side['hi']} frame.",
-        f"#      {axis} = {_poly_str(CA['c'], var)}",
-        f"#      Fitted on {CA['n']} interior major ticks (both ticked edges) plus the frame",
+        "#      The two ticked edges are fitted SEPARATELY and blended across the plot;",
+        "#      the value at a point is the map its own end of the plot measured.",
+        f"#        {side['lo']:6s} {axis} = {_poly_str(CA['edgec'][0], var)}",
+        f"#        {side['hi']:6s} {axis} = {_poly_str(CA['edgec'][1], var)}",
+        "#      Pooling them, which this tool did until 2026-09-16, averages away a real",
+        f"#      difference; the pooled map was {axis} = {_poly_str(CA['c'], var)}",
+        f"#      Fitted on {CA['n']} interior major ticks ({CA['n'] // 2} per edge) plus the frame",
         f"#      value(s) {words};",
         f"#      residual rms {CA['resid']:.4g}, i.e. "
         f"{CA['resid'] / (spec['hi'] - spec['lo']) * 1000:.2f} per-mille of the axis range.",

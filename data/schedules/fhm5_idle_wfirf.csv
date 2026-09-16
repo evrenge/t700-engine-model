@@ -37,8 +37,13 @@
 #   x majors every 50 (4 interior, read off the top and bottom edges);
 #   y majors every 0.05 (11 interior, off the left and right edges).
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
-#      x = +250.10373 u +389.94657
-#      Fitted on 8 interior major ticks (both ticked edges) plus the frame
+#      The two ticked edges are fitted SEPARATELY and blended across the plot;
+#      the value at a point is the map its own end of the plot measured.
+#        left   x = +250.06834 u +389.88295
+#        right  x = +250.053 u +390.05402
+#      Pooling them, which this tool did until 2026-09-16, averages away a real
+#      difference; the pooled map was x = +250.10373 u +389.94657
+#      Fitted on 8 interior major ticks (4 per edge) plus the frame
 #      value(s) left = 390, right = 640;
 #      residual rms 0.1493, i.e. 0.60 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
@@ -59,8 +64,13 @@
 #      -> order 1 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
-#      y = +0.035533577 v^4 -0.085656208 v^3 +0.062127196 v^2 +0.58781962 v +2.0501221
-#      Fitted on 22 interior major ticks (both ticked edges) plus the frame
+#      The two ticked edges are fitted SEPARATELY and blended across the plot;
+#      the value at a point is the map its own end of the plot measured.
+#        bottom y = +0.024347371 v^4 -0.064458333 v^3 +0.049617883 v^2 +0.5903959 v +2.0500696
+#        top    y = +0.045463597 v^4 -0.10326506 v^3 +0.071334242 v^2 +0.58637191 v +2.0500622
+#      Pooling them, which this tool did until 2026-09-16, averages away a real
+#      difference; the pooled map was y = +0.035533577 v^4 -0.085656208 v^3 +0.062127196 v^2 +0.58781962 v +2.0501221
+#      Fitted on 22 interior major ticks (11 per edge) plus the frame
 #      value(s) bottom = 2.05, top = 2.65;
 #      residual rms 0.0002033, i.e. 0.34 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
@@ -106,12 +116,12 @@
 # Quadrature of four named contributions, each measured, none assumed:
 #   x: tick-fit residual 0.149 | calibration order spread (deg 1-4) 0.0545 mean, 0.0859 max |
 #      the two ticked edges calibrated separately, half their disagreement 0.0817 mean, 0.0854 max |
-#      glyph centre 0.0158 mean, 0.0554 max.  Total 1 sigma 0.181 mean, 0.192 max.
+#      glyph centre 0.0158 mean, 0.0554 max.  Total 1 sigma 0.179 mean, 0.194 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0865.)
 #   y: tick-fit residual 0.000203 | calibration order spread (deg 1-4) 0.000516 mean, 0.000767 max |
 #      the two ticked edges calibrated separately, half their disagreement 0.000127 mean, 0.00027 max |
-#      glyph centre 2.54e-05 mean, 6.76e-05 max.  Total 1 sigma 0.000583 mean, 0.000801 max.
+#      glyph centre 2.54e-05 mean, 6.76e-05 max.  Total 1 sigma 0.000567 mean, 0.000769 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.000607.)
 #   The glyph term is the worst case over: window radius +/-3 px, frame-mask half-width
@@ -139,16 +149,16 @@
 #
 # NOT transcribed. Values carry read error; see validation/out/digitize/a6810/.
 x,y,sigma_x,sigma_y
-395.1587,2.09975,0.1771,0.00058
-415.1094,2.12880,0.1789,0.00070
-435.1025,2.15963,0.1870,0.00066
-455.0703,2.19257,0.1901,0.00063
-475.0523,2.22704,0.1851,0.00050
-494.9042,2.26369,0.1776,0.00032
-514.7567,2.30232,0.1709,0.00044
-534.7300,2.34230,0.1727,0.00066
-554.7650,2.38443,0.1811,0.00080
-574.8625,2.42872,0.1900,0.00080
-594.9650,2.47497,0.1915,0.00065
-615.1498,2.52296,0.1855,0.00041
-634.2283,2.57033,0.1702,0.00044
+395.1087,2.09983,0.1938,0.00050
+415.0646,2.12889,0.1810,0.00061
+435.0634,2.15970,0.1759,0.00059
+455.0372,2.19262,0.1783,0.00058
+475.0256,2.22707,0.1765,0.00047
+494.8842,2.26371,0.1731,0.00031
+514.7440,2.30233,0.1706,0.00044
+534.7246,2.34229,0.1738,0.00065
+554.7675,2.38440,0.1803,0.00077
+574.8732,2.42864,0.1856,0.00072
+594.9844,2.47482,0.1837,0.00052
+615.1781,2.52274,0.1798,0.00056
+634.2653,2.57008,0.1791,0.00063

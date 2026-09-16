@@ -37,8 +37,13 @@
 #   x majors every 50 (4 interior, read off the top and bottom edges);
 #   y majors every 2 (6 interior, off the left and right edges).
 #   x axis: QUADRATIC in u, where u = 0 at the left frame and 1 at the right frame.
-#      x = +0.82877305 u^2 +249.29418 u +389.9344
-#      Fitted on 8 interior major ticks (both ticked edges) plus the frame
+#      The two ticked edges are fitted SEPARATELY and blended across the plot;
+#      the value at a point is the map its own end of the plot measured.
+#        left   x = +0.58791472 u^2 +249.44914 u +389.97585
+#        right  x = +1.0883156 u^2 +249.01808 u +389.94816
+#      Pooling them, which this tool did until 2026-09-16, averages away a real
+#      difference; the pooled map was x = +0.82877305 u^2 +249.29418 u +389.9344
+#      Fitted on 8 interior major ticks (4 per edge) plus the frame
 #      value(s) left = 390, right = 640;
 #      residual rms 0.09538, i.e. 0.38 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
@@ -59,8 +64,13 @@
 #      -> order 2 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   y axis: CUBIC in v, where v = 0 at the bottom frame and 1 at the top frame.
-#      y = -0.48401609 v^3 +0.72018045 v^2 +12.758886 v +61.998173
-#      Fitted on 12 interior major ticks (both ticked edges) plus the frame
+#      The two ticked edges are fitted SEPARATELY and blended across the plot;
+#      the value at a point is the map its own end of the plot measured.
+#        bottom y = -0.46130926 v^3 +0.69230998 v^2 +12.766565 v +61.999402
+#        top    y = -0.47372235 v^3 +0.71659478 v^2 +12.753893 v +61.99843
+#      Pooling them, which this tool did until 2026-09-16, averages away a real
+#      difference; the pooled map was y = -0.48401609 v^3 +0.72018045 v^2 +12.758886 v +61.998173
+#      Fitted on 12 interior major ticks (6 per edge) plus the frame
 #      value(s) bottom = 62, top = 75 (DERIVED, see below);
 #      residual rms 0.005405, i.e. 0.42 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
@@ -98,12 +108,12 @@
 # Quadrature of four named contributions, each measured, none assumed:
 #   x: tick-fit residual 0.0954 | calibration order spread (deg 1-4) 0.0931 mean, 0.0943 max |
 #      the two ticked edges calibrated separately, half their disagreement 0.0162 mean, 0.0181 max |
-#      glyph centre 0.013 mean, 0.0208 max.  Total 1 sigma 0.135 mean, 0.135 max.
+#      glyph centre 0.013 mean, 0.0208 max.  Total 1 sigma 0.146 mean, 0.165 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0363.)
 #   y: tick-fit residual 0.0054 | calibration order spread (deg 1-4) 0.00987 mean, 0.0116 max |
 #      the two ticked edges calibrated separately, half their disagreement 0.00103 mean, 0.00118 max |
-#      glyph centre 0.000455 mean, 0.000705 max.  Total 1 sigma 0.0113 mean, 0.0129 max.
+#      glyph centre 0.000455 mean, 0.000705 max.  Total 1 sigma 0.0107 mean, 0.0113 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0177.)
 #   The glyph term is the worst case over: window radius +/-3 px, frame-mask half-width
@@ -133,5 +143,5 @@
 #
 # NOT transcribed. Values carry read error; see validation/out/digitize/a6810/.
 x,y,sigma_x,sigma_y
-394.9438,63.89630,0.1354,0.01288
-634.2653,73.56721,0.1348,0.00982
+394.9830,63.89808,0.1651,0.01129
+634.2538,73.56747,0.1273,0.01003

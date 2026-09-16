@@ -38,8 +38,13 @@
 #   x majors every 20 (4 interior, read off the top and bottom edges);
 #   y majors every 1 (13 interior, off the left and right edges).
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
-#      x = +100.08171 u +20.002137
-#      Fitted on 8 interior major ticks (both ticked edges) plus the frame
+#      The two ticked edges are fitted SEPARATELY and blended across the plot;
+#      the value at a point is the map its own end of the plot measured.
+#        left   x = +100.00576 u +19.976324
+#        right  x = +100.0899 u +20.040355
+#      Pooling them, which this tool did until 2026-09-16, averages away a real
+#      difference; the pooled map was x = +100.08171 u +20.002137
+#      Fitted on 8 interior major ticks (4 per edge) plus the frame
 #      value(s) left = 20, right = 120;
 #      residual rms 0.1147, i.e. 1.15 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
@@ -60,8 +65,13 @@
 #      -> order 1 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   y axis: LINEAR in v, where v = 0 at the bottom frame and 1 at the top frame.
-#      y = +14.010466 v -2.0015112
-#      Fitted on 26 interior major ticks (both ticked edges) plus the frame
+#      The two ticked edges are fitted SEPARATELY and blended across the plot;
+#      the value at a point is the map its own end of the plot measured.
+#        bottom y = +13.987578 v -1.9932834
+#        top    y = +14.028047 v -2.0079548
+#      Pooling them, which this tool did until 2026-09-16, averages away a real
+#      difference; the pooled map was y = +14.010466 v -2.0015112
+#      Fitted on 26 interior major ticks (13 per edge) plus the frame
 #      value(s) bottom = -2, top = 12;
 #      residual rms 0.03722, i.e. 2.66 per-mille of the axis range.
 #      HELD-OUT FRAME TEST -- fit the interior majors ALONE, then predict the printed
@@ -106,12 +116,12 @@
 # Quadrature of four named contributions, each measured, none assumed:
 #   x: tick-fit residual 0.115 | calibration order spread (deg 1-4) 0.0545 mean, 0.0916 max |
 #      the two ticked edges calibrated separately, half their disagreement 0.0534 mean, 0.0741 max |
-#      glyph centre 0.00521 mean, 0.0177 max.  Total 1 sigma 0.14 mean, 0.162 max.
+#      glyph centre 0.00521 mean, 0.0177 max.  Total 1 sigma 0.153 mean, 0.199 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0845.)
 #   y: tick-fit residual 0.0372 | calibration order spread (deg 1-4) 0.00519 mean, 0.00752 max |
 #      the two ticked edges calibrated separately, half their disagreement 0.00419 mean, 0.0106 max |
-#      glyph centre 0.000414 mean, 0.00117 max.  Total 1 sigma 0.038 mean, 0.0391 max.
+#      glyph centre 0.000414 mean, 0.00117 max.  Total 1 sigma 0.0383 mean, 0.0404 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.00751.)
 #   The glyph term is the worst case over: window radius +/-3 px, frame-mask half-width
@@ -141,14 +151,14 @@
 #
 # NOT transcribed. Values carry read error; see validation/out/digitize/a6810/.
 x,y,sigma_x,sigma_y
-28.4499,10.42855,0.1256,0.03885
-29.9541,9.86889,0.1285,0.03912
-40.1373,7.01289,0.1334,0.03842
-50.1542,5.73592,0.1288,0.03769
-60.1518,4.83460,0.1279,0.03737
-70.1025,3.81297,0.1307,0.03743
-80.0093,2.80733,0.1427,0.03757
-89.9675,1.90543,0.1537,0.03777
-99.9776,1.19592,0.1610,0.03790
-110.0550,0.79271,0.1424,0.03791
-120.1189,0.00590,0.1619,0.03780
+28.4807,10.41826,0.1379,0.04039
+29.9820,9.85968,0.1401,0.03973
+40.1483,7.00868,0.1382,0.03791
+50.1548,5.73383,0.1290,0.03750
+60.1432,4.83370,0.1301,0.03736
+70.0827,3.81276,0.1368,0.03745
+79.9772,2.80723,0.1594,0.03758
+89.9229,1.90490,0.1815,0.03786
+99.9211,1.19458,0.1987,0.03816
+109.9888,0.79044,0.1759,0.03836
+120.0384,0.00197,0.1586,0.03851
