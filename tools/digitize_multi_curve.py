@@ -45,6 +45,7 @@ from digitize_single_curve import (  # noqa: E402
     _apply,
     _dist,
     auto_frame_spec,
+    blend_value,
     calibrate_axis,
     corner,
     frame,
@@ -321,7 +322,10 @@ def main(argv=None):
         vs.append([float(q[0]) for q in vv])
     us = np.array(us)
     vs = np.array(vs)
-    xvals = np.polyval(CX["c"], us)
+    # Blended across the plot, as digitize_single_curve now does. The x map's blend
+    # coordinate is v, which differs per curve at a given column, so the column's mean v
+    # locates the knot; the y map's blend coordinate is that column's own u.
+    xvals = blend_value(CX, us, vs.mean(axis=1))
 
     knots = np.asarray(cfg["knots"], float)
     print(f"sampling at the {knots.size} printed knots: {knots}")
@@ -331,7 +335,7 @@ def main(argv=None):
         if abs(xvals[j] - k) > cfg.get("knot_tol", 0.25):
             raise AssertionError(f"no resolved column within tolerance of knot {k}")
         for i, pval in enumerate(cfg["curves"]):
-            rows.append((pval, float(k), float(np.polyval(CY["c"], vs[j, i]))))
+            rows.append((pval, float(k), float(blend_value(CY, vs[j, i], us[j]))))
             print(
                 f"   {cfg['param']}={pval:7.1f}  x={k:7.3f}  y={rows[-1][2]:8.4f} "
                 f"(column x={xvals[j]:.3f})"

@@ -82,6 +82,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from digitize_single_curve import (  # noqa: E402
     _apply,
     auto_frame_spec,
+    blend_value,
     calibrate_axis,
     corner,
     frame,
@@ -341,14 +342,14 @@ def main(argv=None) -> int:
     # column index <-> PCNGHL, through the calibrated axis rather than the raw frame
     cols = np.arange(int(lef) + 2, int(rig) - 1)
     uu, _ = _apply(H, cols.astype(float), np.full(cols.size, (top + bot) / 2.0))
-    xcal = np.polyval(CX["c"], uu)
+    xcal = blend_value(CX, uu, 0.5)
 
     def column_for(x):
         return int(cols[int(np.argmin(np.abs(xcal - x)))])
 
     def wfpac_of(col, row):
         u, v = _apply(H, [float(col)], [float(row)])
-        return float(np.polyval(CY["c"], v[0]))
+        return float(blend_value(CY, v[0], u[0]))
 
     seeds = {k: list(BUNDLE[k]) for k in T2_OF}
     for x, col_vals in FAN.items():
@@ -376,7 +377,8 @@ def main(argv=None) -> int:
             rs = clean_runs(c)
             if not rs:
                 continue
-            t = float(np.polyval(CX["c"], _apply(H, [float(c)], [0.0])[0][0])) - x0
+            uc, vc = _apply(H, [float(c)], [float(sum(rs[0]) / 2.0)])
+            t = float(blend_value(CX, uc[0], vc[0])) - x0
             t = 0.0 if x1 == x0 else t / (x1 - x0)
             want = v0 + max(0.0, min(1.0, t)) * (v1 - v0)
             cand = [((a + b) / 2.0, wfpac_of(c, (a + b) / 2.0)) for a, b in rs]
@@ -414,8 +416,8 @@ def main(argv=None) -> int:
                     f"({miss:.3f} away) with the next at {cands[1][1]:.3f} -- ambiguous. "
                     f"The seed is wrong or the figure has been re-rendered."
                 )
-            u, _vv = _apply(H, [float(c)], [centre])
-            pts.append((float(np.polyval(CX["c"], u[0])), got, float(c), centre))
+            u, vpt = _apply(H, [float(c)], [centre])
+            pts.append((float(blend_value(CX, u[0], vpt[0])), got, float(c), centre))
         pts = sorted(pts)
         # replace each interior vertex by the intersection of its two fitted segments
         sx = [q[0] for q in pts]
@@ -430,8 +432,8 @@ def main(argv=None) -> int:
             if not (pts[i][2] - 30.0 <= cx_i <= pts[i][2] + 30.0):
                 continue
             cy_i = f0[0] * cx_i + f0[1]
-            u, _ = _apply(H, [cx_i], [cy_i])
-            out[i] = (float(np.polyval(CX["c"], u[0])), wfpac_of(cx_i, cy_i), cx_i, cy_i)
+            u, vpt = _apply(H, [cx_i], [cy_i])
+            out[i] = (float(blend_value(CX, u[0], vpt[0])), wfpac_of(cx_i, cy_i), cx_i, cy_i)
         measured[k] = out
     print(
         f"measured {sum(len(v) for v in measured.values())} knots; "
