@@ -55,145 +55,27 @@ src/t700/.
 from __future__ import annotations
 
 import pickle
-import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
-from scipy.optimize import minimize
+
+from figure.axis import blend_value
+from figure.axis import calibrate as calibrate_axis
+from figure.frame import apply_h as _apply
+from figure.frame import as_lines, auto_frame_spec, blocked_mask, fit_edges, homography
+from figure.frame import corner_line as corner
+from figure.frame import dist as _dist
+from figure.glyph import fit_glyphs, glyph_only_windows, windows
+from figure.provenance import poly_str as _poly_str
+from figure.raster import native_bitmap
+from figure.ticks import major_step, major_values, majors_all_edges
+from figure.ticks import paired as _paired
 
 PDF = Path("docs/ballin-tm100991.pdf")
 OUT = Path("validation/out/digitize/a6810")
-
-# --------------------------------------------------------------------------- frame finding
-
-
-def _longest_run(mask, gap=8):
-    """Longest run of True in a 1-D boolean array, tolerating gaps of up to `gap`.
-
-    Gap tolerance is not a nicety. The frame lines on several of these pages are broken
-    by the scan: Figure A3's horizontal frames have a longest *strictly* contiguous run of
-    777 px against a 1666 px frame, so a zero-gap measure does not see them at all.
-    """
-    m = np.ascontiguousarray(mask).astype(np.int8)
-    if not m.any():
-        return 0
-    if gap > 0:
-        m = ndimage.binary_closing(m.astype(bool), structure=np.ones(2 * gap + 1, bool))
-        m = m.astype(np.int8)
-    d = np.diff(np.concatenate(([0], m, [0])))
-    return int((np.flatnonzero(d == -1) - np.flatnonzero(d == 1)).max())
-
-
-def _run_extent(mask, gap=8):
-    """(start, end, length) of the longest gap-tolerant True run in a 1-D array."""
-    m = np.ascontiguousarray(mask).astype(bool)
-    if not m.any():
-        return (0, 0, 0)
-    if gap > 0:
-        m = ndimage.binary_closing(m, structure=np.ones(2 * gap + 1, bool))
-        if not m.any():  # closing erodes a run that only touches the border
-            return (0, 0, 0)
-    d = np.diff(np.concatenate(([0], m.astype(np.int8), [0])))
-    a = np.flatnonzero(d == 1)
-    b = np.flatnonzero(d == -1)
-    k = int(np.argmax(b - a))
-    return int(a[k]), int(b[k]), int(b[k] - a[k])
-
-
-def _sheared_row_profile(sub, slope):
-    """Row-sum of `sub` after shearing each column to undo a line of the given slope."""
-    h, w = sub.shape
-    xc = w / 2.0
-    shift = np.rint(slope * (np.arange(w) - xc)).astype(int)
-    ys = np.arange(h)[:, None] + shift[None, :]
-    ok = (ys >= 0) & (ys < h)
-    return np.where(ok, sub[np.clip(ys, 0, h - 1), np.arange(w)[None, :]], False).sum(axis=1)
-
-
-def find_frame_box(ink, margin=150, sep_frac=0.25, slopes=None):
-    """Locate the printed plot box as (left, right, top, bottom) pixel centres.
-
-    The horizontal frames on these scans are **tilted and broken**, and that combination
-    defeats every row-wise measure. A11's bottom frame descends ten rows across the plot
-    -- 0.36 degrees -- so no single row holds more than about half of it, and simple row
-    sums pick the x-axis label band or a caption rule instead. That is how A11 acquired a
-    bottom frame 192 px too low, which put every digitized value 0.3 too high while the
-    tick lattice still appeared to close.
-
-    So the rows are summed **after shearing** the page by a trial slope, and the slope that
-    maximises the response is the one the line actually has. Verticals need no such
-    treatment: they are solid, and their own tilt is small over the page width.
-    """
-    if slopes is None:
-        slopes = np.arange(-14, 15) * 0.001
-    h, w = ink.shape
-
-    def two(profile, lo, hi, minsep):
-        prof = profile.astype(float).copy()
-        prof[:lo] = 0.0
-        prof[hi:] = 0.0
-        out = []
-        for _ in range(2):
-            i = int(np.argmax(prof))
-            if prof[i] <= 0:
-                raise AssertionError("no frame candidate -- check the margin")
-            out.append(i)
-            prof[max(0, i - minsep) : i + minsep] = 0.0
-        return sorted(out)
-
-    lef, rig = two(ink.sum(axis=0), margin, w - margin, int(sep_frac * w))
-    sub = ink[:, lef + 10 : rig - 10]
-
-    def outermost(prof, cover):
-        """Extreme rows that span the plot, not the strongest rows.
-
-        Two failures shaped this. Taking the two *strongest* rows picks Figure A6's flat
-        combustor-efficiency curve instead of its top frame, because that curve is solid
-        while the frame is broken. Taking the extreme rows above a fraction of the *max*
-        then drops A6's top frame entirely, for the same reason -- the solid data line
-        sets the max.
-
-        Thresholding on coverage of the plot WIDTH fixes both: a footer rule is too short
-        to qualify, a data line qualifies but lies inside, and a frame -- however broken --
-        still spans the plot once the shear has been undone.
-        """
-        q = prof.astype(float).copy()
-        q[:margin] = 0.0
-        q[h - margin :] = 0.0
-        idx = np.flatnonzero(q >= cover * sub.shape[1])
-        if idx.size == 0 or idx.max() - idx.min() < sep_frac * h:
-            return None
-        return int(idx.min()), int(idx.max())
-
-    best = None
-    for m in slopes:
-        prof = _sheared_row_profile(sub, float(m))
-        got = outermost(prof, 0.60)
-        if got is None:
-            continue
-        a, b = got
-        score = float(prof[a]) + float(prof[b])
-        if best is None or score > best[0]:
-            best = (score, a, b, float(m))
-    if best is None:
-        raise AssertionError("no horizontal frame candidates")
-    _, top, bot, _m = best
-    return float(lef), float(rig), float(top), float(bot)
-
-
-def auto_frame_spec(page, pad=45, inset=15):
-    """`frame_spec` for a page, derived from its own bitmap. See `find_frame_box`."""
-    lef, rig, top, bot = find_frame_box(native_bitmap(page))
-    return [
-        ("left", 0, int(lef - pad), int(lef + pad), int(top + inset), int(bot - inset)),
-        ("right", 0, int(rig - pad), int(rig + pad), int(top + inset), int(bot - inset)),
-        ("top", 1, int(top - pad + 10), int(top + pad - 10), int(lef + inset), int(rig - inset)),
-        ("bottom", 1, int(bot - pad + 10), int(bot + pad - 10), int(lef + inset), int(rig - inset)),
-    ]
-
 
 # --------------------------------------------------------------------------- figure table
 #
@@ -355,418 +237,7 @@ FIGS = {
 }
 
 
-# --------------------------------------------------------------------------- the raster
-
-
-def native_bitmap(page: int) -> np.ndarray:
-    """The page's own 300 dpi 1-bit image, as an ink mask.  No render, no resample."""
-    OUT.mkdir(parents=True, exist_ok=True)
-    stem = OUT / f"p{page}"
-    if not (OUT / f"p{page}-000.png").exists():
-        subprocess.run(
-            ["pdfimages", "-f", str(page), "-l", str(page), "-png", str(PDF), str(stem)],
-            check=True,
-        )
-    return ~np.array(Image.open(OUT / f"p{page}-000.png"))
-
-
-# --------------------------------------------------------------------------- frame lines
-
-
-def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
-    e = np.flatnonzero(np.diff(np.concatenate(([0], mask.view(np.int8), [0]))))
-    return list(zip(e[0::2], e[1::2], strict=True))
-
-
-def _trace(ink, along, lo, hi, tlo, thi, maxw=8):
-    """Centroid of the single narrow ink run in [lo,hi) at each position along the line."""
-    ts, vs = [], []
-    for t in range(tlo, thi):
-        seg = ink[t, lo:hi] if along == 0 else ink[lo:hi, t]
-        rr = [r for r in _runs(seg) if (r[1] - r[0]) <= maxw]
-        if len(rr) != 1:
-            continue
-        a, b = rr[0]
-        ts.append(float(t))
-        vs.append(lo + (a + b - 1) / 2.0)
-    return np.array(ts), np.array(vs)
-
-
-def _robust(t, v, tol=2.0, it=8):
-    keep = np.ones(t.shape, bool)
-    for _ in range(it):
-        s, i = np.polyfit(t[keep], v[keep], 1)
-        new = np.abs(v - (i + s * t)) < tol
-        if new.sum() < 20 or (new == keep).all():
-            break
-        keep = new
-    s, i = np.polyfit(t[keep], v[keep], 1)
-    return float(i), float(s), (v - (i + s * t))[keep], int(keep.sum())
-
-
-FRAME_DIAG: dict[str, tuple[float, float, float, int]] = {}
-
-
-def frame(ink, spec) -> dict[str, tuple[float, float]]:
-    """The four frame lines as (intercept, slope): verticals x(y), horizontals y(x)."""
-    out = {}
-    FRAME_DIAG.clear()
-    for nm, along, xlo, xhi, tlo, thi in spec:
-        a, b, r, n = _robust(*_trace(ink, along, xlo, xhi, tlo, thi))
-        out[nm] = (a, b)
-        FRAME_DIAG[nm] = (a, b, float(r.std()), n)
-        print(
-            f"  {nm:6s} {a:10.3f} + {b:+.6f}*t   n {n:5d}  rms {r.std():.3f} px  "
-            f"({np.degrees(np.arctan(b)):+.3f} deg)"
-        )
-    return out
-
-
-def corner(hor, ver):
-    a, b = hor
-    c, d = ver
-    x = (c + d * a) / (1.0 - d * b)
-    return x, a + b * x
-
-
-def homography(src, dst):
-    A, B = [], []
-    for (sx, sy), (dx, dy) in zip(src, dst, strict=True):
-        A.append([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy])
-        B.append(dx)
-        A.append([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy])
-        B.append(dy)
-    h = np.linalg.solve(np.asarray(A, float), np.asarray(B, float))
-    return np.append(h, 1.0).reshape(3, 3)
-
-
-def _apply(H, px, py):
-    px = np.atleast_1d(np.asarray(px, float))
-    py = np.atleast_1d(np.asarray(py, float))
-    d = H[2, 0] * px + H[2, 1] * py + H[2, 2]
-    return (
-        (H[0, 0] * px + H[0, 1] * py + H[0, 2]) / d,
-        (H[1, 0] * px + H[1, 1] * py + H[1, 2]) / d,
-    )
-
-
-# --------------------------------------------------------------------------- ticks
-
-EDGE = {  # name -> (along, inward sign)
-    "left": (0, +1),
-    "right": (0, -1),
-    "top": (1, +1),
-    "bottom": (1, -1),
-}
-
-
-def _protrusion(ink, edge, along, sign, lo, hi, maxlen=60):
-    """Contiguous ink growing inward from a frame edge, per position along it."""
-    a, b = edge
-    out = np.zeros(hi - lo, int)
-    for j, t in enumerate(range(lo, hi)):
-        base = a + b * t
-        k = 0
-        while k < maxlen:
-            q = int(round(base + sign * (3 + k)))
-            on = ink[t, q] if along == 0 else ink[q, t]
-            if not on:
-                break
-            k += 1
-        out[j] = k
-    return out
-
-
-def _groups(p, lo, thresh, gap=3):
-    """Tick candidates: ink-weighted centroid, peak protrusion, width."""
-    idx = np.flatnonzero(p >= thresh)
-    if idx.size == 0:
-        return []
-    out, cur = [], [int(idx[0])]
-    for v in idx[1:]:
-        if v - cur[-1] <= gap:
-            cur.append(int(v))
-        else:
-            out.append(cur)
-            cur = [int(v)]
-    out.append(cur)
-    res = []
-    for g in out:
-        g = np.asarray(g)
-        w = p[g].astype(float)
-        res.append((float(lo + (g * w).sum() / w.sum()), float(p[g].max()), len(g)))
-    return res
-
-
-def _pick_majors(cands, t0, t1, frac, name, max_missing=2):
-    """Match interior major ticks to their printed values by predicted lattice slot.
-
-    Thresholding on protrusion length does NOT work here.  A marker sitting on a frame
-    line out-protrudes a major tick (A6, A8, A10 all print one), A6's flat data line
-    protrudes the full scan length, and A10's lowest left-edge major protrudes only as far
-    as a minor.  What is reliable is the SLOT: there are exactly `n` interior majors,
-    evenly spaced between the two frame lines to within the scan's few-pixel bow.  So
-    predict each slot, keep candidates whose protrusion is in family with the majors, and
-    take the closest.  Returns one centre per entry of `frac`, in printing order, where
-    `frac` is each major's fractional position between the two frames -- not necessarily
-    evenly spaced, because Figure A4's majors are not.
-    """
-    n = len(frac)
-    slots = [t0 + (t1 - t0) * f for f in frac]
-    step = (t1 - t0) / (n + 1)
-    win = 0.25 * abs(step)
-    # protrusion length of a major: median of the nearest in-window candidate per slot,
-    # over candidates that are neither a minor tick (<5) nor a runaway (>25)
-    seed = []
-    for s in slots:
-        c = [g for g in cands if abs(g[0] - s) < win and 5 <= g[1] <= 25]
-        if c:
-            seed.append(min(c, key=lambda g: abs(g[0] - s))[1])
-    if not seed:
-        raise AssertionError(f"{name}: no major-tick candidates at all")
-    lmaj = float(np.median(seed))
-    # A marker printed ON a frame hides the tick underneath it -- A11's first marker sits
-    # at y = 4.00 on the left frame and A7 records the same thing. A hidden major is
-    # recorded as NaN and dropped from the fit rather than failing the extraction; the
-    # axis map is fitted on the majors that ARE visible, and the held-out frame test still
-    # judges it. Losing more than two of them is a real failure and still raises.
-    out, missing = [], 0
-    for s in slots:
-        c = [g for g in cands if abs(g[0] - s) < win and 0.55 * lmaj <= g[1] <= 1.7 * lmaj]
-        if not c:
-            out.append(float("nan"))
-            missing += 1
-            continue
-        out.append(min(c, key=lambda g: abs(g[0] - s))[0])
-    if missing > max_missing:
-        raise AssertionError(
-            f"{name}: {missing} of {n} majors not found (L~{lmaj:.1f}) -- frame wrong?"
-        )
-    seen = [v for v in out if not np.isnan(v)]
-    if len(set(seen)) != len(seen):
-        raise AssertionError(f"{name}: duplicate tick matched")
-    resid = np.array(seen) - np.array(
-        [s for s, v in zip(slots, out, strict=True) if not np.isnan(v)]
-    )
-    print(
-        f"    {name:6s} {n - missing}/{n} majors, L~{lmaj:.1f} px, "
-        f"slot residual {resid.std():.2f} px rms, max {np.abs(resid).max():.2f}"
-        + (f"  ({missing} hidden by a marker)" if missing else "")
-    )
-    return out, lmaj
-
-
-def major_step(ax):
-    """The axis's major-tick interval, whether given as `step` or implied by `majors`."""
-    if "step" in ax:
-        return float(ax["step"])
-    v = np.asarray(ax["majors"], float)
-    d = np.diff(v)
-    if d.size == 0:
-        raise AssertionError("an axis needs either `step` or two or more `majors`")
-    if np.ptp(d) > 1e-9 * abs(d[0]):
-        raise AssertionError(f"majors are not evenly spaced: {v}")
-    return float(d[0])
-
-
-def major_values(ax):
-    """Interior major-tick values of an axis.
-
-    Defaults to `lo + step*(k+1)`, which is right whenever the lattice is anchored on the
-    low frame. Figure A4 is not: its frame is at WA2c = 3.0 while its majors are printed
-    at 4, 6, 8, 10, so they are neither at `lo + k*step` nor evenly spaced between the
-    frames. Such an axis gives `majors` explicitly.
-    """
-    if "majors" in ax:
-        return np.asarray(ax["majors"], float)
-    return np.array([ax["lo"] + ax["step"] * (k + 1) for k in range(ax["n"])])
-
-
-def n_majors(ax):
-    """How many interior majors the axis has."""
-    return len(major_values(ax))
-
-
-def ticks(ink, fr, cfg):
-    """Every printed major tick on all four edges, plus every tick of any length (masks)."""
-    TL = corner(fr["top"], fr["left"])
-    TR = corner(fr["top"], fr["right"])
-    BL = corner(fr["bottom"], fr["left"])
-    BR = corner(fr["bottom"], fr["right"])
-    span = {
-        "left": (TL[1], BL[1]),
-        "right": (TR[1], BR[1]),
-        "top": (TL[0], TR[0]),
-        "bottom": (BL[0], BR[0]),
-    }
-    maj, allt = {}, {}
-    for nm in ("left", "right", "top", "bottom"):
-        along, sign = EDGE[nm]
-        a, b = span[nm]
-        lo, hi = int(min(a, b)) + 3, int(max(a, b)) - 2
-        pr = _protrusion(ink, fr[nm], along, sign, lo, hi)
-        cands = _groups(pr, lo, 3)
-        allt[nm] = cands
-        ax = cfg["y" if nm in ("left", "right") else "x"]
-        vals = major_values(ax)
-        if nm in ("left", "right"):
-            # Pixels run top to bottom, values high to low, so slot 0 is the HIGHEST
-            # major. Reverse the values, then measure down from the high frame.
-            frac = (ax["hi"] - vals[::-1]) / (ax["hi"] - ax["lo"])
-        else:
-            frac = (vals - ax["lo"]) / (ax["hi"] - ax["lo"])
-        maj[nm], _ = _pick_majors(cands, a, b, frac, nm, cfg.get("max_missing", 2))
-    return maj, allt, (TL, TR, BR, BL)
-
-
-# --------------------------------------------------------------------------- calibration
-
-
-def _polyfit_predict(t, val, order, at):
-    c = np.polyfit(t, val, order)
-    return np.polyval(c, at), c
-
-
-def calibrate_axis(t_lo_edge, t_hi_edge, spec, label):
-    """Pick the polynomial order by the held-out frame-edge test, then fit.
-
-    `t_lo_edge` / `t_hi_edge` are (coordinate, value) for the interior majors read off each
-    of the two edges that carry ticks for this axis.  Coordinate is u (x axis) or v (y
-    axis); 0 at the low-side frame, 1 at the high-side frame.  The printed frame values are
-    NOT in the fit used for the test -- that is the point.
-    """
-    tt = np.concatenate([t_lo_edge[0], t_hi_edge[0]])
-    vv = np.concatenate([t_lo_edge[1], t_hi_edge[1]])
-    printed = {"lo": spec["lo"], "hi": spec["hi"]}
-    at = {"lo": 0.0, "hi": 1.0}
-    rng = spec["hi"] - spec["lo"]
-    orders = (1, 2, 3, 4)
-    print(f"  {label} axis -- held-out frame test (fit = the {tt.size} interior majors only):")
-    errs, loos, pred = {}, {}, {}
-    for order in orders:
-        row, worst = [], 0.0
-        for side in spec["printed"]:
-            p, _ = _polyfit_predict(tt, vv, order, at[side])
-            e = float(p) - printed[side]
-            worst = max(worst, abs(e))
-            row.append(f"{side} frame printed {printed[side]:g} -> {float(p):.6g} ({e:+.3g})")
-        pred[order] = row
-        errs[order] = worst
-        e = np.array(
-            [
-                vv[k] - np.polyval(np.polyfit(np.delete(tt, k), np.delete(vv, k), order), tt[k])
-                for k in range(tt.size)
-            ]
-        )
-        loos[order] = float(e.std())
-        print(
-            f"    order {order}: " + " | ".join(row) + f"   [LOO {loos[order] / rng * 1000:.3f} "
-            f"per-mille of range]"
-        )
-    # Selection: the held-out frame value decides, but only among orders that also
-    # INTERPOLATE the ticks as well as the best one does -- otherwise a high order can win
-    # the extrapolation by accident while fitting noise in between (A10's x axis does
-    # exactly that).  Ties within 1.25x go to the lower order; nothing above quartic is
-    # considered, because the scan's distortion is a smooth page-scale bow and the frame
-    # test itself degrades beyond quartic on all six axes here.
-    lbest = min(loos.values())
-    ok = [o for o in orders if loos[o] <= 1.20 * lbest]
-    order = min(ok, key=lambda k: errs[k])
-    for o in sorted(ok):
-        if errs[o] <= 1.25 * errs[order]:
-            order = o
-            break
-    print(
-        f"    -> chosen order {order} ({['', 'linear', 'quadratic', 'cubic', 'quartic'][order]}); "
-        f"worst frame error {errs[order]:.3g} = {errs[order] / rng * 1000:.2f} per-mille of range"
-    )
-    # each edge on its own, as an independent check of the same prediction
-    for nm, d in (("low-side edge", t_lo_edge), ("high-side edge", t_hi_edge)):
-        row = []
-        for side in spec["printed"]:
-            p, _ = _polyfit_predict(d[0], d[1], order, at[side])
-            row.append(f"{side} -> {float(p):.6g} ({float(p) - printed[side]:+.3g})")
-        print(f"    {nm} alone, order {order}: " + " | ".join(row))
-
-    # final map: majors plus the printed frame values, one copy per ticked edge
-    # How many major steps does the frame span, measured by the ticks alone?  On the four
-    # axes here where BOTH frame values are printed it comes out within 0.01 of an integer
-    # every time, so on the two where one frame is unlabelled (A8 x, A10 y) the integer
-    # count fixes that frame's value and it is used as an anchor -- derived, not printed,
-    # and flagged as such.
-    c1 = np.polyfit(tt, vv, 1)
-    span = (np.polyval(c1, 1.0) - np.polyval(c1, 0.0)) / major_step(spec)
-    print(
-        f"    tick lattice: the frame spans {span:.4f} major steps "
-        f"(nearest integer {round(span)}, printed span "
-        f"{(spec['hi'] - spec['lo']) / major_step(spec):.0f})"
-    )
-    anchors = spec.get("anchor", spec["printed"])
-    if set(anchors) - set(spec["printed"]):
-        print(
-            f"    anchoring also at the DERIVED {sorted(set(anchors) - set(spec['printed']))} "
-            f"frame value(s), from that integer step count"
-        )
-
-    def anchor(t, v):
-        ta, va = list(t), list(v)
-        for side in anchors:
-            ta += [at[side]] * 2
-            va += [printed[side]] * 2
-        return np.array(ta), np.array(va)
-
-    ta, va = anchor(tt, vv)
-    allc = {o: np.polyfit(ta, va, o) for o in orders}
-    c = allc[order]
-    r = va - np.polyval(c, ta)
-    print(
-        f"    final fit over {len(ta)} points: resid rms {r.std():.4g}, max {np.abs(r).max():.4g}"
-        f"  ({r.std() / rng * 1000:.3f} per-mille of range)"
-    )
-    print(f"    low frame -> {np.polyval(c, 0.0):.6g}   high frame -> {np.polyval(c, 1.0):.6g}")
-    edgec = [np.polyfit(*anchor(*d), order) for d in (t_lo_edge, t_hi_edge)]
-    return dict(
-        c=c,
-        order=order,
-        allc=allc,
-        edgec=edgec,
-        resid=float(r.std()),
-        errs=errs,
-        loos=loos,
-        pred=pred,
-        tt=tt,
-        vv=vv,
-        n=int(tt.size),
-    )
-
-
-def blend_value(CA, t, across):
-    """The axis value at normalized coordinate `t`, blending the two ticked edges.
-
-    `across` runs 0 at the low-side edge to 1 at the high-side edge, so the map used at a
-    point is the one its own end of the plot measured. Fitting the two edges TOGETHER, as
-    this tool did until 2026-09-16, averages away a real difference: on A2 the top and
-    bottom x lattices disagree by 0.026 at the left frame, and `digitize_native.blend_axis`
-    -- which A2, A7 and A9 have always used -- exists for exactly that reason.
-
-    The pooled fit is the average everywhere, so the two agree mid-plot and diverge toward
-    the edges, by up to half the edge disagreement. That term stays in the uncertainty
-    budget: blending fixes the central value but says nothing about how the lattice varies
-    BETWEEN the edges, which linear interpolation only assumes.
-    """
-    lo = np.polyval(CA["edgec"][0], t)
-    hi = np.polyval(CA["edgec"][1], t)
-    return (1.0 - across) * lo + across * hi
-
-
 # --------------------------------------------------------------------------- marker seeds
-
-
-def _dist(edge, X, Y, vertical=True):
-    a, b = edge
-    return (
-        (X - (a + b * Y)) / np.hypot(1.0, b) if vertical else (Y - (a + b * X)) / np.hypot(1.0, b)
-    )
 
 
 def seeds(
@@ -846,179 +317,6 @@ def seeds(
     if len(merged) != nmark:
         raise AssertionError(f"seeded {len(merged)} markers, expected {nmark}")
     return np.array([[a, b] for a, b, _ in merged])
-
-
-# --------------------------------------------------------------------------- the glyphs
-
-SS = 5  # supersampling per axis, for a sub-pixel coverage model
-HALF = 45.0  # half-segment length drawn from a marker along the joining line
-
-
-def _blocked(X, Y, fr, allt, framew=3.6, tickpad=4.5, tickext=5.0):
-    """Frame lines and tick marks, masked SYMMETRICALLY about each frame line.
-
-    Symmetry matters: the ticks all protrude inward, so masking only the inward side would
-    remove ink from one half of a marker that sits on a frame line and bias its abscissa.
-    """
-    m = np.zeros(X.shape, bool)
-    for nm in ("left", "right", "top", "bottom"):
-        vert = nm in ("left", "right")
-        d = _dist(fr[nm], X, Y, vert)
-        t = Y if vert else X
-        m |= np.abs(d) < framew
-        for c, k, _ in allt[nm]:
-            if np.abs(t - c).min() > tickpad + 3:
-                continue
-            m |= (np.abs(t - c) < tickpad) & (np.abs(d) < k + tickext)
-    return m
-
-
-def windows(ink, fr, allt, C0, rad, **maskkw):
-    """One scoring window per marker: the used pixels flattened, with a 5x5 sub-grid each."""
-    W = []
-    off = (np.arange(SS) + 0.5) / SS - 0.5
-    ox, oy = np.meshgrid(off, off, indexing="ij")
-    ox, oy = ox.ravel(), oy.ravel()
-    half = int(rad) + 5
-    for x0, y0 in C0:
-        xs = np.arange(int(x0) - half, int(x0) + half + 1)
-        ys = np.arange(int(y0) - half, int(y0) + half + 1)
-        X, Y = np.meshgrid(xs, ys)
-        use = ((X - x0) ** 2 + (Y - y0) ** 2) < rad**2
-        use &= ~_blocked(X, Y, fr, allt, **maskkw)
-        data = ink[ys[0] : ys[-1] + 1, xs[0] : xs[-1] + 1].astype(float)
-        px, py = X[use].astype(float), Y[use].astype(float)
-        W.append(
-            dict(
-                X=X,
-                Y=Y,
-                use=use,
-                data=data,
-                px=px,
-                py=py,
-                d=data[use],
-                OX=px[:, None] + ox[None, :],
-                OY=py[:, None] + oy[None, :],
-                keep=np.ones(px.shape, bool),
-            )
-        )
-    return W
-
-
-def _bar(w, c, ang, half, wid, halfline=False):
-    u0, u1 = np.cos(ang), np.sin(ang)
-    dx = w["OX"] - c[0]
-    dy = w["OY"] - c[1]
-    t = dx * u0 + dy * u1
-    p = -dx * u1 + dy * u0
-    m = np.abs(p) <= wid / 2
-    m &= (t >= 0) & (t <= half) if halfline else (np.abs(t) <= half)
-    return m
-
-
-def _dirs(C, i):
-    """Unit vectors from marker i towards its neighbours -- the joining segments."""
-    out = []
-    for j in (i - 1, i + 1):
-        if 0 <= j < len(C):
-            d = C[j] - C[i]
-            out.append(d / np.hypot(*d))
-        else:
-            out.append(None)
-    return out
-
-
-def coverage(w, c, tpl, pin, pout, withline=True):
-    th1, l1, th2, l2, wg, wl = tpl
-    m = _bar(w, c, th1, l1, wg) | _bar(w, c, th2, l2, wg)
-    if withline:
-        for p in (pin, pout):
-            if p is not None:
-                m |= _bar(w, c, np.arctan2(p[1], p[0]), HALF, wl, True)
-    return m.mean(axis=1)
-
-
-def _cost_one(w, c, tpl, pin, pout, withline=True):
-    k = w["keep"]
-    cov = coverage(w, c, tpl, pin, pout, withline)
-    return float((((cov - w["d"]) ** 2) * k).sum())
-
-
-TPL0 = (np.radians(-44.05), 14.88, np.radians(46.09), 15.22, 3.46, 3.52)  # A7's, as the seed
-
-
-def fit_glyphs(W, C0, rounds=5, withline=True, verbose=True, tpl0=None, fit_template=True):
-    """Coordinate descent: each centre against its own window, then the shared template."""
-    C = C0.astype(float).copy()
-    tpl = np.array(TPL0 if tpl0 is None else tpl0, float)
-    cost = np.nan
-    for it in range(rounds):
-        for i in range(len(C)):
-            pin, pout = _dirs(C, i)
-            if not withline:
-                pin = pout = None
-            # Optimize the OFFSET from the current centre, with an explicit 2 px simplex.
-            # Nelder-Mead's default simplex is 5 % of each coordinate, which at x ~ 2269
-            # is 113 px -- far outside the scoring window, where the cost is flat, so the
-            # fit walks away and stays away.  (It did exactly that on A6's right marker.)
-            c0 = C[i].copy()
-            r = minimize(
-                lambda dc, i=i, pin=pin, pout=pout, c0=c0, tpl=tpl: _cost_one(
-                    W[i], c0 + dc, tpl, pin, pout, withline
-                ),
-                np.zeros(2),
-                method="Nelder-Mead",
-                options=dict(
-                    xatol=2e-3,
-                    fatol=1e-6,
-                    maxiter=400,
-                    initial_simplex=np.array([[0.0, 0.0], [2.0, 0.0], [0.0, 2.0]]),
-                ),
-            )
-            if np.hypot(*r.x) > 10.0:
-                raise AssertionError(f"marker {i} moved {np.hypot(*r.x):.1f} px -- bad seed?")
-            C[i] = c0 + r.x
-            cost = r.fun
-        if fit_template:
-            D = [_dirs(C, i) if withline else (None, None) for i in range(len(C))]
-
-            def tcost(p, D=D):
-                return sum(
-                    _cost_one(W[i], C[i], p, D[i][0], D[i][1], withline) for i in range(len(C))
-                )
-
-            r = minimize(
-                tcost, tpl, method="Powell", options=dict(xtol=1e-3, ftol=1e-5, maxfev=1200)
-            )
-            tpl, cost = r.x, r.fun
-        if verbose:
-            print(f"    round {it + 1}: cost {cost:.3f}")
-    if verbose:
-        print(
-            f"    template: {np.degrees(tpl[0]):+.2f} deg / {tpl[1]:.2f} px and "
-            f"{np.degrees(tpl[2]):+.2f} deg / {tpl[3]:.2f} px, "
-            f"glyph width {tpl[4]:.2f}, line width {tpl[5]:.2f}"
-        )
-    return C, tpl
-
-
-def glyph_only_windows(ink, fr, allt, C, tpl, rad, **maskkw):
-    """Same windows, but with the joining polyline's own pixels excluded from scoring."""
-    W = windows(ink, fr, allt, C, rad, **maskkw)
-    for i, w in enumerate(W):
-        pin, pout = _dirs(C, i)
-        drop = np.zeros(w["px"].shape, bool)
-        for p in (pin, pout):
-            if p is None:
-                continue
-            wl = tpl[5] + 3.0
-            dx = w["px"] - C[i][0]
-            dy = w["py"] - C[i][1]
-            t = dx * p[0] + dy * p[1]
-            q = -dx * p[1] + dy * p[0]
-            drop |= (np.abs(q) <= wl / 2) & (t >= 0)
-        w["keep"] = ~drop
-    return W
 
 
 # --------------------------------------------------------------------------- checks
@@ -1114,7 +412,8 @@ def run(key):
     ink = native_bitmap(cfg["page"])
     print("frame lines:")
     spec = cfg.get("frame_spec") or auto_frame_spec(cfg["page"])
-    fr = frame(ink, spec)
+    fc, frdiag = fit_edges(ink, spec, order=1)
+    fr = as_lines(fc)
     TL = corner(fr["top"], fr["left"])
     TR = corner(fr["top"], fr["right"])
     BL = corner(fr["bottom"], fr["left"])
@@ -1125,7 +424,7 @@ def run(key):
     )
     H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
     print("ticks:")
-    maj, allt, _ = ticks(ink, fr, cfg)
+    maj, allt, _ = majors_all_edges(ink, fc, cfg)
 
     # tick coordinates in the unit square
     def uv_of(nm, pos):
@@ -1140,25 +439,10 @@ def run(key):
     xv = major_values(xs)
     yv = major_values(ys)
 
-    def paired(name, vals, descending):
-        """Positions and values, dropping any major hidden by a marker.
-
-        `_pick_majors` returns slot order -- low edge to high edge -- so slot k carries
-        `vals[k]` on the x edges and `vals[-1-k]` on the y edges, where pixel order runs
-        opposite to value order. Pairing by INDEX rather than by sorting keeps a NaN
-        attached to the value it belongs to, so dropping it drops both.
-        """
-        pos = np.asarray(maj[name], float)
-        v = np.asarray(vals, float)[::-1] if descending else np.asarray(vals, float)
-        ok = ~np.isnan(pos)
-        pos, v = pos[ok], v[ok]
-        o = np.argsort(pos)
-        return pos[o], v[o]
-
-    pb, xb = paired("bottom", xv, False)
-    pt, xt = paired("top", xv, False)
-    pl, yl = paired("left", yv, True)
-    pr, yr = paired("right", yv, True)
+    pb, xb = _paired(maj, "bottom", xv, False)
+    pt, xt = _paired(maj, "top", xv, False)
+    pl, yl = _paired(maj, "left", yv, True)
+    pr, yr = _paired(maj, "right", yv, True)
     ub, _ = uv_of("bottom", list(pb))
     ut, _ = uv_of("top", list(pt))
     _, vl = uv_of("left", list(pl))
@@ -1180,16 +464,16 @@ def run(key):
         cfg.get("rail_min_size", 0),
         cfg.get("rail_zone", 12.0),
     )
-    W = windows(ink, fr, allt, C0, cfg["rad"])
+    W = windows(ink, C0, cfg["rad"], mask_fn=blocked_mask(fr, allt))
     C, tpl = fit_glyphs(W, C0, rounds=4)
     # re-centre the windows on the fitted centres and refit, so the disc is self-consistent
-    W = windows(ink, fr, allt, C, cfg["rad"])
+    W = windows(ink, C, cfg["rad"], mask_fn=blocked_mask(fr, allt))
     C, tpl = fit_glyphs(W, C, rounds=3, tpl0=tpl)
 
     print("checks:")
     extras, sag = segment_check(ink, fr, C)
     u, v = _apply(H, C[:, 0], C[:, 1])
-    Xd, Yd = blend_value(CX, u, v), blend_value(CY, v, u)
+    Xd, Yd = blend_value(CX["edgec"], u, v), blend_value(CY["edgec"], v, u)
 
     # ---- glyph-centre uncertainty: worst case over honest variations of the estimator
     print("  glyph-centre robustness (max |move| over variants, px):")
@@ -1202,13 +486,13 @@ def run(key):
         ("tickpad 3.0", dict(tickpad=3.0), cfg["rad"], True),
         ("tickpad 6.0", dict(tickpad=6.0), cfg["rad"], True),
     ):
-        Wv = windows(ink, fr, allt, C, rad, **kw)
+        Wv = windows(ink, C, rad, mask_fn=blocked_mask(fr, allt, **kw))
         Cv, _ = fit_glyphs(
             Wv, C, rounds=2, withline=wl, verbose=False, tpl0=tpl, fit_template=False
         )
         var[nm] = Cv - C
         print(f"    {nm:14s} {np.abs(Cv - C).max():.2f}")
-    Wg = glyph_only_windows(ink, fr, allt, C, tpl, cfg["rad"])
+    Wg = glyph_only_windows(ink, C, tpl, cfg["rad"], mask_fn=blocked_mask(fr, allt))
     Cg, _ = fit_glyphs(Wg, C, rounds=3, withline=False, verbose=False, tpl0=tpl, fit_template=False)
     var["line masked out"] = Cg - C
     print(f"    {'line masked out':14s} {np.abs(Cg - C).max():.2f}")
@@ -1218,7 +502,7 @@ def run(key):
     print("  uncertainty budget (1 sigma, data units):")
     sig = {}
     for ax, CA, t, poly, across in (("x", CX, u, cx, v), ("y", CY, v, cy, u)):
-        base = blend_value(CA, t, across)
+        base = blend_value(CA["edgec"], t, across)
         # a. residual of the anchored fit about the printed ticks
         a = np.full(t.shape, CA["resid"])
         # b. spread over calibration polynomial order 1..4
@@ -1272,7 +556,7 @@ def run(key):
         cfg=cfg,
         key=key,
         fr=fr,
-        frdiag=dict(FRAME_DIAG),
+        frdiag=frdiag,
         extras=extras,
         sag=sag,
         varmax={k2: float(np.abs(v2).max()) for k2, v2 in var.items()},
@@ -1605,16 +889,6 @@ PROSE = {
 }
 
 
-def _poly_str(c, var="t"):
-    n = len(c) - 1
-    out = []
-    for i, a in enumerate(c):
-        p = n - i
-        t = "" if p == 0 else f" {var}" if p == 1 else f" {var}^{p}"
-        out.append(f"{a:+.8g}{t}")
-    return " ".join(out)
-
-
 def _cal_block(CA, spec, axis):
     order = CA["order"]
     var = "u" if axis == "x" else "v"
@@ -1695,7 +969,8 @@ def write_csv(key, r):
     A("# GEOMETRY. The four frame lines are fitted sub-pixel by tracing the single ink run per")
     A("# row/column and least-squares fitting with outlier rejection:")
     for nm in ("left", "right", "top", "bottom"):
-        a, b, rms, n = r["frdiag"][nm]
+        (a, b), fd = r["fr"][nm], r["frdiag"][nm]
+        rms, n = fd["rms"], fd["n"]
         v = "x" if nm in ("left", "right") else "y"
         t = "y" if nm in ("left", "right") else "x"
         A(

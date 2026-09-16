@@ -7,7 +7,8 @@
 # sy: 1 sigma uncertainty on y, in T3/T2 (same units as y); see `uncertainty:` below
 # points: 20
 # digitized: 2026-09-11 by tools/digitize_a2.py (reruns and reproduces these rows)
-# supersedes: the 2026-09-10 extraction by tools/digitize.py on a perspective-rectified 300 dpi render
+# supersedes: the 2026-09-10 extraction by the `digitize.py` CLI (deleted 2026-09-16;
+#   see git history) on a perspective-rectified 300 dpi render
 # note: RE-DIGITIZED 2026-09-11. The 2026-09-10 values came from a per-axis LINEAR calibration on a
 #   pixel-rectified render. Both are wrong here. (a) The page bows: the y major-tick spacing runs
 #   124.6 -> 121.5 -> 124.5 px top to bottom, so a straight axis map is an arch, up to 2.5 px = 0.0025

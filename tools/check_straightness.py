@@ -67,13 +67,15 @@ from __future__ import annotations
 
 import csv
 import re
-import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
 from scipy import ndimage
+
+from figure.frame import make_sv
+from figure.provenance import header, parse_calibration
+from figure.raster import native_bitmap
 
 PDF = Path("docs/ballin-tm100991.pdf")
 ROOT = Path(__file__).resolve().parent.parent
@@ -113,123 +115,6 @@ def figures():
 def y_unit(path) -> str:
     m = re.search(r"^# y:[^,\n]*?,\s*([^\n]+)$", header(str(path)), re.M)
     return (m.group(1).strip()[:14]) if m else ""
-
-
-def header(path: str) -> str:
-    return "".join(line for line in open(path) if line.startswith("#"))
-
-
-def _poly(expr: str, var: str) -> np.ndarray:
-    """Parse a printed polynomial into numpy coefficients, highest power first.
-
-    Has to cope with both conventions the headers use: a frame line writes its constant
-    FIRST (`x = 589.107 +0.006047 y`) and an axis map writes it LAST
-    (`y = -0.0067 v^3 +0.0103 v^2 +0.1364 v -0.0200`). So terms are classified by whether
-    they carry the variable, never by position.
-    """
-    expr = expr.split("(")[0].strip()
-    c: dict[int, float] = {}
-    pattern = rf"([-+]?\s*[\d.]+(?:[eE][-+]?\d+)?)\s*(?:\*\s*)?({var}(?:\^(\d+))?)?"
-    for coef, hasvar, power in re.findall(pattern, expr):
-        coef = coef.replace(" ", "")
-        if coef in ("", "+", "-"):
-            continue
-        try:
-            value = float(coef)
-        except ValueError:
-            continue
-        if not hasvar:
-            k = 0
-        elif power:
-            k = int(power)
-        else:
-            k = 1
-        c[k] = c.get(k, 0.0) + value
-    if not c:
-        return np.array([0.0])
-    return np.array([c.get(k, 0.0) for k in range(max(c), -1, -1)])
-
-
-def parse(path: str):
-    """Frame model and axis maps, out of the CSV's own header. Nothing is re-derived."""
-    txt = header(path)
-    frame = {}
-    for name in ("left", "right", "top", "bottom"):
-        m = re.search(rf"^#\s+{name}\s+([xy]) = ([^\n(]+)", txt, re.M)
-        if not m:
-            return None
-        var = "y" if m.group(1) == "x" else "x"
-        frame[name] = _poly(m.group(2), var)
-    axes = {}
-    for axis, var in (("x", "u"), ("y", "v")):
-        # A per-edge AXIS map is written in the normalized coordinate (u, v or s); a FRAME
-        # line on the same edge is written in the other pixel coordinate. Classify on the
-        # expression with its parenthetical comment stripped -- the comments carry words
-        # like "samples" whose trailing s matched an earlier, sloppier test for the
-        # variable and made every frame line look like an axis map.
-        cand = []
-        for edge, expr in re.findall(
-            rf"^#\s+(left|right|top|bottom)\s+{axis} = ([^\n]+)", txt, re.M
-        ):
-            body = expr.split("(")[0]
-            for sym in (var, "s"):
-                if re.search(rf"(?<![A-Za-z]){sym}(?![A-Za-z])", body):
-                    cand.append((edge, body, sym))
-                    break
-        if len(cand) == 2:
-            axes[axis] = ("blend", [_poly(b, sym) for _, b, sym in cand])
-        else:
-            m = re.search(rf"^#\s+{axis} = ([^\n]+)", txt, re.M)
-            if not m:
-                return None
-            axes[axis] = ("pooled", [_poly(m.group(1), var)])
-    page = int(re.search(r"pdf p\.(\d+)", txt).group(1))
-    return frame, axes, page
-
-
-def raster(page: int) -> np.ndarray:
-    WORK.mkdir(parents=True, exist_ok=True)
-    stem = WORK / f"p{page}"
-    if not (stem.parent / f"p{page}-000.png").exists():
-        subprocess.run(
-            ["pdfimages", "-f", str(page), "-l", str(page), "-png", str(PDF), str(stem)],
-            check=True,
-            capture_output=True,
-        )
-    return ~np.array(Image.open(f"{stem}-000.png").convert("1"))
-
-
-def make_sv(frame):
-    """Curvilinear blend between the four fitted edges, exactly as digitize_native does.
-
-    With straight edges this reduces to the bilinear map; with curved ones it carries the
-    page bow too. Either way rotation and keystone come out, which is the whole point.
-    """
-
-    def to_sv(px, py):
-        px = np.asarray(px, float)
-        py = np.asarray(py, float)
-        xl = np.polyval(frame["left"], py)
-        xr = np.polyval(frame["right"], py)
-        yt = np.polyval(frame["top"], px)
-        yb = np.polyval(frame["bottom"], px)
-        return (px - xl) / (xr - xl), 1.0 - (py - yt) / (yb - yt)
-
-    def to_px(s, v, iters=10):
-        s = np.asarray(s, float)
-        v = np.asarray(v, float)
-        py = np.full(np.shape(s), 1500.0, float)
-        px = np.empty_like(py)
-        for _ in range(iters):
-            xl = np.polyval(frame["left"], py)
-            xr = np.polyval(frame["right"], py)
-            px = xl + s * (xr - xl)
-            yt = np.polyval(frame["top"], px)
-            yb = np.polyval(frame["bottom"], px)
-            py = yt + (1.0 - v) * (yb - yt)
-        return px, py
-
-    return to_sv, to_px
 
 
 def axis_value(spec, t, other):
@@ -286,12 +171,12 @@ def curve_mask(ink, frame, band=5.0, margin=25.0):
 
 
 def run_one(tag, path, yunit, clear=17.0):
-    parsed = parse(path)
+    parsed = parse_calibration(path)
     if parsed is None:
         print(f"{tag:>7}  header does not publish a full calibration -- skipped")
         return None
     frame, axes, page = parsed
-    ink = raster(page)
+    ink = native_bitmap(page)
     to_sv, to_px = make_sv(frame)
 
     rows = [r for r in csv.DictReader(ln for ln in open(path) if not ln.startswith("#"))]
@@ -314,7 +199,14 @@ def run_one(tag, path, yunit, clear=17.0):
     def v_of(y):
         return np.interp(y, gy, g) if gy[0] < gy[-1] else np.interp(y, gy[::-1], g[::-1])
 
-    PX = np.array([to_px(s_of(a), v_of(b)) for a, b in zip(X, Y, strict=True)], float)
+    # `to_px` returns arrays, so take the single element of each: PX is (n, 2).
+    PX = np.array(
+        [
+            [float(q[0]), float(r[0])]
+            for q, r in (to_px(s_of(a), v_of(b)) for a, b in zip(X, Y, strict=True))
+        ],
+        float,
+    )
 
     m = curve_mask(ink, frame)
     lab, _ = ndimage.label(m, structure=np.ones((3, 3)))

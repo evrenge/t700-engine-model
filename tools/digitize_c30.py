@@ -79,18 +79,14 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from digitize_single_curve import (  # noqa: E402
-    _apply,
-    auto_frame_spec,
-    blend_value,
-    calibrate_axis,
-    corner,
-    frame,
-    homography,
-    major_values,
-    native_bitmap,
-    ticks,
-)
+from figure.axis import blend_value
+from figure.axis import calibrate as calibrate_axis
+from figure.frame import apply_h as _apply
+from figure.frame import as_lines, auto_frame_spec, edge_uv, fit_edges, homography
+from figure.frame import corner_line as corner
+from figure.raster import native_bitmap
+from figure.ticks import major_values, majors_all_edges
+from figure.ticks import paired as _paired
 
 PAGE = 101
 OUT = Path("data/schedules/fhm7_accel_limit.csv")
@@ -293,35 +289,23 @@ def runs_in_column(work, col, top, bot):
 
 def main(argv=None) -> int:
     ink = native_bitmap(PAGE)
-    fr = frame(ink, auto_frame_spec(PAGE))
+    fc, _ = fit_edges(ink, auto_frame_spec(PAGE), order=1)
+    fr = as_lines(fc)
     print(f"\n================ {CFG['fig']} {CFG['func']} (pdf p.{PAGE})")
-    maj, _allt, _corners = ticks(ink, fr, CFG)
+    maj, _allt, _corners = majors_all_edges(ink, fc, CFG)
 
     TL = corner(fr["top"], fr["left"])
     TR = corner(fr["top"], fr["right"])
     BL = corner(fr["bottom"], fr["left"])
     BR = corner(fr["bottom"], fr["right"])
     H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
-
-    def uv_of(nm, pos):
-        a, b = fr[nm]
-        if nm in ("left", "right"):
-            return _apply(H, [a + b * q for q in pos], pos)
-        return _apply(H, pos, [a + b * q for q in pos])
-
-    def paired(nm, vals, descending):
-        pos = np.asarray(maj[nm], float)
-        vv = np.asarray(vals, float)[::-1] if descending else np.asarray(vals, float)
-        good = ~np.isnan(pos)
-        pos, vv = pos[good], vv[good]
-        o = np.argsort(pos)
-        return pos[o], vv[o]
+    uv_of = edge_uv(fr, H)
 
     xv, yv = major_values(CFG["x"]), major_values(CFG["y"])
-    pb, xb = paired("bottom", xv, False)
-    pt, xt = paired("top", xv, False)
-    pl, yl = paired("left", yv, True)
-    pr, yr = paired("right", yv, True)
+    pb, xb = _paired(maj, "bottom", xv, False)
+    pt, xt = _paired(maj, "top", xv, False)
+    pl, yl = _paired(maj, "left", yv, True)
+    pr, yr = _paired(maj, "right", yv, True)
     print("calibration:")
     CX = calibrate_axis(
         (uv_of("bottom", list(pb))[0], xb), (uv_of("top", list(pt))[0], xt), CFG["x"], "x"
@@ -349,16 +333,16 @@ def main(argv=None) -> int:
     # this tilted its guess is wrong by the full tilt at the right-hand end.
     cols = np.arange(int(lef) + 2, int(rig) - 1)
     _tgrid = np.linspace(0.0, 1.0, 2001)
-    _vgrid = np.asarray([blend_value(CY, t, 0.5) for t in _tgrid], float)
+    _vgrid = np.asarray([blend_value(CY["edgec"], t, 0.5) for t in _tgrid], float)
     _uu, _ = _apply(H, cols.astype(float), np.full(cols.size, (top + bot) / 2.0))
 
     def column_for(x, v):
         across = float(np.interp(v, _vgrid, _tgrid))
-        return int(cols[int(np.argmin(np.abs(blend_value(CX, _uu, across) - x)))])
+        return int(cols[int(np.argmin(np.abs(blend_value(CX["edgec"], _uu, across) - x)))])
 
     def wfpac_of(col, row):
         u, v = _apply(H, [float(col)], [float(row)])
-        return float(blend_value(CY, v[0], u[0]))
+        return float(blend_value(CY["edgec"], v[0], u[0]))
 
     seeds = {k: list(BUNDLE[k]) for k in T2_OF}
     for x, col_vals in FAN.items():
@@ -387,7 +371,7 @@ def main(argv=None) -> int:
             if not rs:
                 continue
             uc, vc = _apply(H, [float(c)], [float(sum(rs[0]) / 2.0)])
-            t = float(blend_value(CX, uc[0], vc[0])) - x0
+            t = float(blend_value(CX["edgec"], uc[0], vc[0])) - x0
             t = 0.0 if x1 == x0 else t / (x1 - x0)
             want = v0 + max(0.0, min(1.0, t)) * (v1 - v0)
             cand = [((a + b) / 2.0, wfpac_of(c, (a + b) / 2.0)) for a, b in rs]
@@ -426,7 +410,7 @@ def main(argv=None) -> int:
                     f"The seed is wrong or the figure has been re-rendered."
                 )
             u, vpt = _apply(H, [float(c)], [centre])
-            pts.append((float(blend_value(CX, u[0], vpt[0])), got, float(c), centre))
+            pts.append((float(blend_value(CX["edgec"], u[0], vpt[0])), got, float(c), centre))
         pts = sorted(pts)
         # replace each interior vertex by the intersection of its two fitted segments
         sx = [q[0] for q in pts]
@@ -442,7 +426,12 @@ def main(argv=None) -> int:
                 continue
             cy_i = f0[0] * cx_i + f0[1]
             u, vpt = _apply(H, [cx_i], [cy_i])
-            out[i] = (float(blend_value(CX, u[0], vpt[0])), wfpac_of(cx_i, cy_i), cx_i, cy_i)
+            out[i] = (
+                float(blend_value(CX["edgec"], u[0], vpt[0])),
+                wfpac_of(cx_i, cy_i),
+                cx_i,
+                cy_i,
+            )
         measured[k] = out
     print(
         f"measured {sum(len(v) for v in measured.values())} knots; "

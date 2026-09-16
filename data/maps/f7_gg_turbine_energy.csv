@@ -8,7 +8,7 @@
 # points: 6
 # digitized: 2026-09-11 by tools/digitize_a7.py (reruns and reproduces these rows)
 # supersedes: the 2026-09-11 first redo (quadratic y, homography, major ticks only) and the
-#   2026-09-10 extraction by tools/digitize.py before it
+#   2026-09-10 extraction by the `digitize.py` CLI (deleted 2026-09-16) before it
 #
 # WHAT CHANGED, AND WHY. The first redo chose the y axis order on ONE printed frame value
 # (52.5 at the top) and could not tell an even axis correction from an odd one; a quadratic

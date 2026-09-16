@@ -40,7 +40,8 @@ import numpy as np
 from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from digitize_native import native_bitmap  # noqa: E402
+from figure.frame import longest_run  # noqa: E402
+from figure.raster import native_bitmap  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig910")
 REF = Path("data/reference")
@@ -206,15 +207,6 @@ endpoint at no more than `TRACE_LINK_SLOPE_PX` per column plus a fixed
 not: it is 4-6 columns wide and sits tens of pixels off the curve, needing 8 px per column
 or more. The step riser needs no special case -- the levels either side of it are both
 backbone, so both are kept without ever having to link across it."""
-
-
-def longest_run(col: np.ndarray) -> int:
-    best = cur = 0
-    for v in col:
-        cur = cur + 1 if v else 0
-        if cur > best:
-            best = cur
-    return best
 
 
 FRAME_HALF_BAND_PX = 7
@@ -754,7 +746,7 @@ def main() -> int:
     REF.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
     for page, fig in ((45, 9), (46, 10)):
-        ink = native_bitmap(page, OUT / f"p{page}.pbm")
+        ink = native_bitmap(page)
         panels = find_panels(ink, PANEL_RANGES[fig])
         print(f"\nFigure {fig} (pdf p.{page})")
         for p in panels:

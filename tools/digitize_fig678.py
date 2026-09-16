@@ -34,7 +34,8 @@ import numpy as np
 from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from digitize_native import native_bitmap  # noqa: E402
+from figure.frame import longest_run  # noqa: E402
+from figure.raster import native_bitmap  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig678")
 REF = Path("data/reference")
@@ -98,15 +99,6 @@ SERIES = {
     "ge_unbalanced": "G.E. UNBALANCED TORQUE MODEL",
     "ge_status81": "G.E. STATUS-81 MODEL",
 }
-
-
-def longest_run(col: np.ndarray) -> int:
-    best = cur = 0
-    for v in col:
-        cur = cur + 1 if v else 0
-        if cur > best:
-            best = cur
-    return best
 
 
 FRAME_MIN_RUN_FRAC = 0.08
@@ -321,7 +313,6 @@ def frame_ticks(
     return np.array(out)
 
 
-
 # ---------------------------------------------------------------- the printed scale bows
 
 BOW_MAX_DEGREE = 2
@@ -381,6 +372,7 @@ def bow_choose(t: np.ndarray, resid: np.ndarray) -> tuple[np.ndarray | None, flo
     coef, loo, deg = best
     fitted = float(np.sqrt(np.mean(np.square(resid - bow_eval(coef, t)))))
     return coef, loo, fitted, deg
+
 
 def classify(ink: np.ndarray, frame: tuple[int, int, int, int], margin: int = 22):
     """Find every glyph inside the frame and sort it by shape.
@@ -494,7 +486,7 @@ def main() -> int:
     REF.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
     for f in FIGS:
-        ink = native_bitmap(f.page, OUT / f"p{f.page}.pbm")
+        ink = native_bitmap(f.page)
         fr = find_frame(ink)
         left, top, right, bottom = fr
         series, stats = classify(ink, fr)

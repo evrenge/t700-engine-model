@@ -7,7 +7,8 @@
 # sy: 1 sigma uncertainty on y, in LBM/SEC (same units as y); see `uncertainty:` below
 # points: 23
 # digitized: 2026-09-11 by tools/digitize_a9.py (reruns and reproduces these rows)
-# supersedes: the 2026-09-10 extraction by tools/digitize.py on a perspective-rectified 300 dpi render
+# supersedes: the 2026-09-10 extraction by the `digitize.py` CLI (deleted 2026-09-16;
+#   see git history) on a perspective-rectified 300 dpi render
 # note: RE-DIGITIZED 2026-09-11. The 2026-09-10 values came from a per-axis LINEAR calibration anchored
 #   on the two printed frame values, applied to a pixel-rectified render. Two defects. (a) The page
 #   bows: fitted on the interior ticks alone, a linear y map misses the printed frame values by

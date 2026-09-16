@@ -1,7 +1,7 @@
 """Digitize Figure A1 (pdf p.56) -- f1, compressor mass flow. The one 2-D map in the report.
 
-Figure A1 is the only figure in TM-100991 that `tools/digitize.py`'s CLI cannot do, so it
-gets its own script rather than a shell recipe. Four things make it different:
+Figure A1 is the only figure in TM-100991 the single-curve path cannot do, so it gets its
+own script. Four things make it different:
 
 1. **Eleven speed lines that cross and crowd.** A per-curve `--roi` band cannot separate
    curves 1-4 in the lower left. It turns out not to be needed: at 600 dpi each speed line
@@ -64,6 +64,14 @@ from scipy import ndimage
 from scipy.spatial import cKDTree
 
 import rectify_page
+from figure.axis import blend_value as blend
+from figure.axis import fit_soft_anchored as _anchored
+from figure.frame import apply_h as _apply
+from figure.frame import corner_line as corner
+from figure.frame import homography, robust_keep
+from figure.frame import trace as _trace
+from figure.raster import native_bitmap
+from figure.ticks import protrusion as _protrusion
 
 # This file is a script whose work happens at module level, so *importing* it used to run
 # the whole digitization and overwrite data/maps/f1_compressor_mass_flow.csv as a side
@@ -146,61 +154,12 @@ RFRAME = (910.0, 814.0, 4225.0, 5010.0)  # rectified frame: left, top, right, bo
 # ends go 4 px wrong in opposite directions, which is exactly the "0.37 % disagreement".
 
 
-def native_bitmap() -> np.ndarray:
-    """The page's own 300 dpi 1-bit image, as an ink mask.  No render, no resample."""
-    NAT.mkdir(parents=True, exist_ok=True)
-    if not (NAT / "native-000.png").exists():
-        subprocess.run(
-            [
-                "pdfimages",
-                "-f",
-                str(PAGE_NO),
-                "-l",
-                str(PAGE_NO),
-                "-png",
-                str(PDF),
-                str(NAT / "native"),
-            ],
-            check=True,
-        )
-    return ~np.array(Image.open(NAT / "native-000.png"))
-
-
-NINK = native_bitmap()
-
-
-def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
-    e = np.flatnonzero(np.diff(np.concatenate(([0], mask.view(np.int8), [0]))))
-    return list(zip(e[0::2], e[1::2], strict=True))
-
-
-def _trace(ink, along, lo, hi, tlo, thi, maxw=5):
-    """Centroid of the single narrow ink run in [lo,hi) at each position along the line.
-
-    `along=0` traces a vertical line (one run per row), `along=1` a horizontal one.  A bare
-    frame line gives exactly one narrow run; a tick merges with it and widens the run past
-    `maxw`, and data or text give several -- both are skipped rather than modelled.
-    """
-    ts, vs = [], []
-    for t in range(tlo, thi):
-        seg = ink[t, lo:hi] if along == 0 else ink[lo:hi, t]
-        rr = [r for r in _runs(seg) if (r[1] - r[0]) <= maxw]
-        if len(rr) != 1:
-            continue
-        a, b = rr[0]
-        ts.append(float(t))
-        vs.append(lo + (a + b - 1) / 2.0)
-    return np.array(ts), np.array(vs)
+NINK = native_bitmap(PAGE_NO)
 
 
 def _robust(t, v, tol=2.0, it=8):
-    keep = np.ones(t.shape, bool)
-    for _ in range(it):
-        s, i = np.polyfit(t[keep], v[keep], 1)
-        new = np.abs(v - (i + s * t)) < tol
-        if new.sum() < 20 or (new == keep).all():
-            break
-        keep = new
+    """Straight fit with outlier rejection, as (intercept, slope, kept residuals)."""
+    keep = robust_keep(t, v, tol, it)
     s, i = np.polyfit(t[keep], v[keep], 1)
     return float(i), float(s), (v - (i + s * t))[keep]
 
@@ -215,41 +174,13 @@ def nframe(ink) -> dict[str, tuple[float, float]]:
         ("top", 1, (388, 428, 480, 2090)),
         ("bottom", 1, (2484, 2528, 480, 2090)),
     ):
-        a, b, r = _robust(*_trace(ink, along, *args))
+        a, b, r = _robust(*_trace(ink, along, *args, maxw=5))
         out[nm] = (a, b)
         print(
             f"  {nm:6s} {a:10.3f} + {b:+.6f}*t   rms {r.std():.2f} px  "
             f"({np.degrees(np.arctan(b)):+.3f} deg)"
         )
     return out
-
-
-def corner(hor, ver):
-    a, b = hor
-    c, d = ver
-    x = (c + d * a) / (1.0 - d * b)
-    return x, a + b * x
-
-
-def homography(src, dst):
-    A, B = [], []
-    for (sx, sy), (dx, dy) in zip(src, dst, strict=True):
-        A.append([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy])
-        B.append(dx)
-        A.append([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy])
-        B.append(dy)
-    h = np.linalg.solve(np.asarray(A, float), np.asarray(B, float))
-    return np.append(h, 1.0).reshape(3, 3)
-
-
-def _apply(H, px, py):
-    px = np.atleast_1d(np.asarray(px, float))
-    py = np.atleast_1d(np.asarray(py, float))
-    d = H[2, 0] * px + H[2, 1] * py + H[2, 2]
-    return (
-        (H[0, 0] * px + H[0, 1] * py + H[0, 2]) / d,
-        (H[1, 0] * px + H[1, 1] * py + H[1, 2]) / d,
-    )
 
 
 FR = nframe(NINK)
@@ -273,23 +204,6 @@ def to_native(u, v):
     return _apply(HI, u, v)
 
 
-def _protrusion(ink, edge, along, sign, lo, hi, maxlen=40):
-    """Contiguous ink growing inward from a frame edge, per position along it."""
-    a, b = edge
-    out = np.zeros(hi - lo, int)
-    for j, t in enumerate(range(lo, hi)):
-        base = a + b * t
-        k = 0
-        while k < maxlen:
-            q = int(round(base + sign * (3 + k)))
-            on = ink[t, q] if along == 0 else ink[q, t]
-            if not on:
-                break
-            k += 1
-        out[j] = k
-    return out
-
-
 def _groups(p, lo, thresh=2, gap=3, maxlen=20):
     """Tick centres: ink-weighted centroid of each run of positions that protrude."""
     idx = np.flatnonzero(p >= thresh)
@@ -311,16 +225,6 @@ def _groups(p, lo, thresh=2, gap=3, maxlen=20):
     return res
 
 
-def _anchored(u, y, deg, e0, e1):
-    """Fit on the interior ticks WITH the two printed frame-edge values as end anchors.
-
-    The anchors are added only after the held-out test below has chosen `deg`; the choice
-    itself is made by a fit that has never seen them."""
-    uu = np.concatenate([u, [0.0, 0.0, 1.0, 1.0]])
-    yy = np.concatenate([y, [e0, e0, e1, e1]])
-    return np.polyfit(uu, yy, deg)
-
-
 def calibrate(ink, fr):
     """Every printed tick on all four edges, and the held-out frame-edge model test.
 
@@ -330,7 +234,10 @@ def calibrate(ink, fr):
     was never given.  That is the whole model-selection argument, and it is free."""
 
     def T(nm, along, sign, lo, hi):
-        return np.array(_groups(_protrusion(ink, fr[nm], along, sign, lo, hi), lo))
+        # maxlen 40, not the shared default 60: A1's ticks are short and its flat
+        # speed-line extensions are long, so a deeper probe starts finding data.
+        pr = _protrusion(ink, fr[nm], along, sign, lo, hi, maxlen=40)
+        return np.array(_groups(pr, lo))
 
     bot = T("bottom", 1, -1, 462, 2110)
     top = T("top", 1, +1, 462, 2110)
@@ -390,7 +297,7 @@ def calibrate(ink, fr):
     # ... and the same cubic fitted to each ticked edge ALONE, so the map used at a point
     # is the one that point's own end of the plot measured. Pooling the two, which this
     # file did until 2026-09-16, averages away a real difference -- it is the same defect
-    # `digitize_native.blend_axis` exists to avoid on A2, A7 and A9, and the one
+    # `figure.axis.blend_axis` exists to avoid on A2, A7 and A9, and the one
     # `digitize_single_curve` was corrected for the same day.
     cx_edges = (_anchored(ub, XV, 3, 0.0, 20.0), _anchored(ut, XV, 3, 0.0, 20.0))
     cy_edges = (_anchored(vl, YV, 3, 2.0, 12.0), _anchored(vr, YV, 3, 2.0, 12.0))
@@ -423,13 +330,6 @@ def calibrate(ink, fr):
 
 
 CX, CY, CALT, CXE, CYE = calibrate(NINK, FR)
-
-
-def blend(edges, t, across):
-    """The axis value at `t`, blending the two ticked edges by position across the plot."""
-    lo = np.polyval(edges[0], t)
-    hi = np.polyval(edges[1], t)
-    return (1.0 - across) * lo + across * hi
 
 
 def to_data(px, py):

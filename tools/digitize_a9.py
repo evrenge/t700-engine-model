@@ -6,7 +6,7 @@ a 0.2 % calibration error is worth 1.5 % of shaft power.  The 2026-09-10 extract
 per-axis *linear* map on a perspective-rectified render, and A7 later showed that a linear
 axis map cannot fit these scans.
 
-Method, following `tools/digitize_a7.py`; see `tools/digitize_native.py` for the machinery.
+Method, following `tools/digitize_a7.py`; see `tools/figure/` for the machinery.
 What is specific to this page:
 
 *   `x` prints a value only at the RIGHT frame (0.85).  The left frame is unlabelled, so
@@ -33,25 +33,12 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-from digitize import check_against_csv
-from digitize_native import (
-    axis_values,
-    blend_axis,
-    corner,
-    curve_component,
-    fit_glyphs,
-    frame_curves,
-    held_out,
-    label_by_map,
-    label_ticks,
-    make_sv,
-    make_window,
-    native_bitmap,
-    poly_se,
-    segment_lines,
-    tail_cv,
-    ticks,
-)
+from figure.axis import axis_values, blend_axis, held_out, poly_se, tail_cv_report
+from figure.frame import corner_arc, curve_component, edge_at, fit_edges, make_sv, segment_lines
+from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
+from figure.provenance import check_against_csv
+from figure.raster import native_bitmap
+from figure.ticks import find_ticks, label_by_map, label_ticks
 
 OUT = Path("validation/out/digitize/a9redo")
 CSV = Path("data/maps/f9_pt_mass_flow.csv")
@@ -59,10 +46,10 @@ PAGE = 64
 N = 23
 
 SPEC = [
-    ("left", 0, (435, 505, 340, 2630)),
-    ("right", 0, (2095, 2165, 340, 2630)),
-    ("top", 1, (285, 350, 500, 2100)),
-    ("bottom", 1, (2620, 2690, 500, 2100)),
+    ("left", 0, 435, 505, 340, 2630),
+    ("right", 0, 2095, 2165, 340, 2630),
+    ("top", 1, 285, 350, 500, 2100),
+    ("bottom", 1, 2620, 2690, 500, 2100),
 ]
 
 X0, X1, Y0, Y1 = 0.30, 0.85, 0.25, 0.39
@@ -84,11 +71,12 @@ EDGES = {
 
 def tickset(fc, to_sv, verbose=False, fine=None):
     ink = tickset.ink
+    at = edge_at(fc, to_sv)
     fine = FINE if fine is None else fine
-    TL = corner(fc, "top", "left", (469, 311))
-    TR = corner(fc, "top", "right", (2130, 321))
-    BL = corner(fc, "bottom", "left", (468, 2645))
-    BR = corner(fc, "bottom", "right", (2125, 2662))
+    TL = corner_arc(fc, "top", "left", (469, 311))
+    TR = corner_arc(fc, "top", "right", (2130, 321))
+    BL = corner_arc(fc, "bottom", "left", (468, 2645))
+    BR = corner_arc(fc, "bottom", "right", (2125, 2662))
     ends = {
         "left": (BL[1], TL[1], Y0, Y1),
         "right": (BR[1], TR[1], Y0, Y1),
@@ -96,21 +84,15 @@ def tickset(fc, to_sv, verbose=False, fine=None):
         "top": (TL[0], TR[0], X0, X1),
     }
 
-    def at(nm, cs):
-        cs = np.asarray(cs, float)
-        if nm in ("left", "right"):
-            return to_sv(np.polyval(fc[nm], cs), cs)[1]
-        return to_sv(cs, np.polyval(fc[nm], cs))[0]
-
     P = {"_xedges": (X0, X1), "_yedges": (Y0, Y1)}
     for nm, (along, sign, lo, hi, th_long, th_all, step_c, step_f) in EDGES.items():
         w0, w1, v0, v1 = ends[nm]
-        coarse = ticks(ink, fc[nm], along, sign, lo, hi, th_long)
+        coarse = find_ticks(ink, fc[nm], along, sign, lo, hi, th_long)
         wc, vc, keep_c = label_ticks(coarse, w0, w1, v0, v1, step_c, tol=0.15)
         tc = at(nm, wc)
         pc = np.polyfit(tc, vc, 3)
         if fine:
-            allt = ticks(ink, fc[nm], along, sign, lo, hi, th_all)
+            allt = find_ticks(ink, fc[nm], along, sign, lo, hi, th_all)
             wf, vf, keep_f = label_by_map(at(nm, allt), pc, step_f)
             t, val = wf, vf
             n_raw, n_kept = allt.size, int(keep_f.sum())
@@ -142,7 +124,7 @@ def report_models(P):
             )
             held_out(t, val, lo, hi, unit=1e-5, uname="e-5")
             print("   tail CV (fit the middle 64 % of the lattice, predict the two ends):")
-            tail_cv(t, val, unit=1e-5, uname="e-5")
+            tail_cv_report(t, val, unit=1e-5, uname="e-5")
 
 
 def seeds_from_lattice(ink, to_sv, cur):
@@ -169,31 +151,31 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
 
     W = []
     for i in range(N):
-        mf = left_mask if i == 0 else (right_mask if i == N - 1 else None)
-        W.append(
-            make_window(
-                ink,
-                seeds[i, 0],
-                seeds[i, 1],
-                rad=20.0,
-                half=24,
-                mask_fn=mf,
-                seg_in=(None if (mask_line or i == 0) else lines[i - 1, 2:4]),
-                seg_out=(None if (mask_line or i == N - 1) else lines[i, 2:4]),
-            )
+        # The masks mark what to KEEP; `windows` takes what to EXCLUDE.
+        keep = left_mask if i == 0 else (right_mask if i == N - 1 else None)
+        mf = (lambda X, Y, k=keep: ~k(X, Y)) if keep is not None else None
+        w = windows(ink, seeds[i : i + 1], 20.0, mask_fn=mf)[0]
+        # The half-segment towards the PREVIOUS marker runs backwards along segment i-1.
+        w["seg"] = (
+            None if (mask_line or i == 0) else -lines[i - 1, 2:4],
+            None if (mask_line or i == N - 1) else lines[i, 2:4],
         )
+        W.append(w)
     if mask_line:
-        for i, w in enumerate(W):
-            for j, sign in ((i - 1, -1.0), (i, +1.0)):
-                if 0 <= j < N - 1:
-                    d = lines[j, 2:4] * sign
-                    dx = w["X"] - seeds[i, 0]
-                    dy = w["Y"] - seeds[i, 1]
-                    t = dx * d[0] + dy * d[1]
-                    p = -dx * d[1] + dy * d[0]
-                    w["use"] &= ~((t > 6) & (np.abs(p) < 6))
+        hide_segments(W, seeds, lines)
     return fit_glyphs(
-        W, seeds, [np.radians(-45.0), 15.0, np.radians(45.0), 15.0, 3.6, 2.4], seglen=32.0
+        W,
+        seeds,
+        [np.radians(-45.0), 15.0, np.radians(45.0), 15.0, 3.6, 2.4],
+        rounds=6,
+        seglen=32.0,
+        # UNGUARDED, and deliberately so until the guard is measured -- trap 8. `f9` is the
+        # highest-leverage map in the engine, so this is the one to measure first. See
+        # tools/figure/glyph.py and open question #74.
+        simplex=None,
+        max_move=None,
+        centre=CENTRE_NATIVE,
+        template=TEMPLATE_NATIVE,
     )
 
 
@@ -223,10 +205,10 @@ def overlay(ink, to_px, C, px, py):
 
 
 def main() -> int:
-    ink = native_bitmap(PAGE, OUT)
+    ink = native_bitmap(PAGE)
     tickset.ink = ink
     print("frame arcs (printed straight; the sagitta is the page's bow):")
-    fc, _ = frame_curves(ink, SPEC, order=FRAME_ORDER)
+    fc, _ = fit_edges(ink, SPEC, order=FRAME_ORDER)
     to_sv, to_px = make_sv(fc)
 
     print("\ncalibration ticks:")
