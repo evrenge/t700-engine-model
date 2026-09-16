@@ -150,11 +150,16 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
         [np.radians(-45.0), 15.0, np.radians(45.0), 15.0, 3.3, 3.3],
         rounds=6,
         seglen=42.0,
-        # UNGUARDED, and deliberately so until the guard is measured: this figure has
-        # always been fitted with SciPy's default simplex on the absolute coordinate,
-        # which is trap 8. See tools/figure/glyph.py and open question #74.
-        simplex=None,
-        max_move=None,
+        # Trap 8's guard, adopted 2026-09-16 after measuring it: an explicit 2 px simplex
+        # on the OFFSET, and a refusal of any centre more than 10 px from its seed. A2's
+        # own free check -- its markers sit at integer PS3/P2 and the tool is never told
+        # so -- cannot separate the two fits: worst residual 0.0224 -> 0.0218 at order 1
+        # and 0.0155 -> 0.0151 at the chosen order 3, sd 0.0060 -> 0.0062. A wash, which
+        # is the honest verdict. The reason to adopt it anyway is that the unguarded fit
+        # depends on SciPy's default simplex not walking off the page, and on this figure
+        # the markers run out to column 2256, where that first step is 113 px.
+        simplex=2.0,
+        max_move=10.0,
         centre=CENTRE_NATIVE,
         template=TEMPLATE_NATIVE,
     )

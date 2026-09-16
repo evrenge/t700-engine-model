@@ -169,11 +169,13 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
         [np.radians(-45.0), 15.0, np.radians(45.0), 15.0, 3.6, 2.4],
         rounds=6,
         seglen=32.0,
-        # UNGUARDED, and deliberately so until the guard is measured -- trap 8. `f9` is the
-        # highest-leverage map in the engine, so this is the one to measure first. See
-        # tools/figure/glyph.py and open question #74.
-        simplex=None,
-        max_move=None,
+        # Trap 8's guard, adopted 2026-09-16 after measuring it. A9's own free check --
+        # its abscissae fall on a 0.025 lattice the tool is never told about -- comes out
+        # consistently better guarded, on the worst point at every order: 2.18 -> 2.10 px,
+        # 1.99 -> 1.91, 1.51 -> 1.44 at the chosen order 3, with sd unchanged. Small, and
+        # in the right direction on the map SCOPE.md puts at +7.46 % SHP per +1 %.
+        simplex=2.0,
+        max_move=10.0,
         centre=CENTRE_NATIVE,
         template=TEMPLATE_NATIVE,
     )
