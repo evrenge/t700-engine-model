@@ -387,6 +387,20 @@ def calibrate(ink, fr):
         )
     cx = _anchored(U, XX, 3, 0.0, 20.0)
     cy = _anchored(V, YY, 3, 2.0, 12.0)
+    # ... and the same cubic fitted to each ticked edge ALONE, so the map used at a point
+    # is the one that point's own end of the plot measured. Pooling the two, which this
+    # file did until 2026-09-16, averages away a real difference -- it is the same defect
+    # `digitize_native.blend_axis` exists to avoid on A2, A7 and A9, and the one
+    # `digitize_single_curve` was corrected for the same day.
+    cx_edges = (_anchored(ub, XV, 3, 0.0, 20.0), _anchored(ut, XV, 3, 0.0, 20.0))
+    cy_edges = (_anchored(vl, YV, 3, 2.0, 12.0), _anchored(vr, YV, 3, 2.0, 12.0))
+    for nm, (e0, e1), tt in (("x", cx_edges, U), ("y", cy_edges, V)):
+        d = np.abs(np.polyval(e0, tt) - np.polyval(e1, tt))
+        sc = (NW / 20.0) if nm == "x" else (NH / 10.0)
+        print(
+            f"  {nm} edge disagreement: max {d.max():.5f} ({d.max() * sc:.2f} px), "
+            f"mean {d.mean():.5f} -- blended across the plot, not pooled"
+        )
     rx = XX - np.polyval(cx, U)
     ry = YY - np.polyval(cy, V)
     print("  chosen: CUBIC on both axes, refitted with the printed frame values anchored")
@@ -405,10 +419,17 @@ def calibrate(ink, fr):
     for d in (2, 4, 5):
         alt[("x", d)] = _anchored(U, XX, d, 0.0, 20.0)
         alt[("y", d)] = _anchored(V, YY, d, 2.0, 12.0)
-    return cx, cy, alt
+    return cx, cy, alt, cx_edges, cy_edges
 
 
-CX, CY, CALT = calibrate(NINK, FR)
+CX, CY, CALT, CXE, CYE = calibrate(NINK, FR)
+
+
+def blend(edges, t, across):
+    """The axis value at `t`, blending the two ticked edges by position across the plot."""
+    lo = np.polyval(edges[0], t)
+    hi = np.polyval(edges[1], t)
+    return (1.0 - across) * lo + across * hi
 
 
 def to_data(px, py):
@@ -418,7 +439,7 @@ def to_data(px, py):
     calibrated on the scan.  `bridge_check` below measures the error of that step."""
     u = (np.asarray(px, float) - RFRAME[0]) / (RFRAME[2] - RFRAME[0])
     v = (RFRAME[3] - np.asarray(py, float)) / (RFRAME[3] - RFRAME[1])
-    return float(np.polyval(CX, u)), float(np.polyval(CY, v))
+    return float(blend(CXE, u, v)), float(blend(CYE, v, u))
 
 
 def to_uv_rect(px, py):
@@ -888,7 +909,7 @@ out = "data/maps/f1_compressor_mass_flow.csv"
 # leverage on dNG/dt). Bump this literal when the calibration actually changes, and say
 # in the commit message what moved.
 RECALIBRATED = "2026-09-11"
-UL = float(np.polyval(CX, float(to_uv_rect(XV, 0.0)[0])))
+UL = float(blend(CXE, float(to_uv_rect(XV, 0.0)[0]), 0.5))
 HDR = [
     "# source: TM-100991 pdf p.56, Figure A1",
     "# quantity: f1 -- compressor mass flow.  WA2c = f1(Ps3/P2, NGc), Eq. 7, pdf p.22",
@@ -966,6 +987,16 @@ HDR = [
     "#   not even.  Cubic is the lowest order that works, and it halves the tick residual.",
     "#   Having passed, the chosen model is refitted with the four printed frame values",
     "#   included as anchors:",
+    "#   THE TWO TICKED EDGES ARE FITTED SEPARATELY AND BLENDED, not pooled (2026-09-16).",
+    "#   Pooling averages away a real difference between the two lattices. Figure A1 gives",
+    "#   the check free: its eleven flat extensions are horizontal lines spanning the plot,",
+    "#   and nothing in the calibration is told so. Their end-to-end difference falls from",
+    "#   0.573 px mean / 1.005 px worst when pooled to 0.409 / 0.921 when blended.",
+    f"#     PS3/P2, bottom edge (u) = {np.array2string(CXE[0], precision=8, separator=' ')}",
+    f"#     PS3/P2, top edge    (u) = {np.array2string(CXE[1], precision=8, separator=' ')}",
+    f"#     WA2C,   left edge   (v) = {np.array2string(CYE[0], precision=8, separator=' ')}",
+    f"#     WA2C,   right edge  (v) = {np.array2string(CYE[1], precision=8, separator=' ')}",
+    "#   blended by the other coordinate: x by v, y by u. The pooled maps they replace were",
     f"#     PS3/P2(u) = {np.array2string(CX, precision=8, separator=' ')}",
     f"#     WA2C(v)   = {np.array2string(CY, precision=8, separator=' ')}",
     "#   (numpy polynomial order, highest power first; u = 0 at the left frame line and 1",
@@ -1209,10 +1240,14 @@ if "--raw-only" not in sys.argv:
     x_left = min(DATA[lbl][0][0] for lbl in LABELS)
 
     _UG = np.linspace(0.0, 1.0, 400001)
-    _GX, _GY = np.polyval(CX, _UG), np.polyval(CY, _UG)
+    # The forward map is blended, so its inverse depends on BOTH coordinates. This inverse
+    # is used only to place the tracing guide, where a mid-plot blend is far better than
+    # the couple of pixels the guide needs; `native_to_data`, which produces every stored
+    # value, blends exactly.
+    _GX, _GY = blend(CXE, _UG, 0.5), blend(CYE, _UG, 0.5)
 
     def data_to_native(x, y):
-        """Data coordinates -> native 300 dpi scan pixel. The inverse of `native_to_data`."""
+        """Data coordinates -> native 300 dpi scan pixel. Approximate inverse, guide only."""
         u = np.interp(x, _GX, _UG)
         v = np.interp(y, _GY, _UG)
         a, b = to_native(u, v)
@@ -1220,10 +1255,8 @@ if "--raw-only" not in sys.argv:
 
     def native_to_data(px, py):
         u, v = to_uv(px, py)
-        return (
-            float(np.polyval(CX, np.atleast_1d(u)[0])),
-            float(np.polyval(CY, np.atleast_1d(v)[0])),
-        )
+        uu, vv = float(np.atleast_1d(u)[0]), float(np.atleast_1d(v)[0])
+        return float(blend(CXE, uu, vv)), float(blend(CYE, vv, uu))
 
     NLAB, _ = ndimage.label(NINK, structure=np.ones((3, 3)))
 

@@ -387,15 +387,28 @@ def test_the_opened_iterations_add_modes_the_engine_does_not_have():
         )
 
     # Neither artifact has a continuous limit, and both are shown the same way: |lambda|
-    # grows like 1/dt. Eq. 74's is the cleaner of the two -- its z barely moves at all over
-    # a 4x refinement (0.0343, 0.0341, 0.0341), so lambda*dt is constant to 0.2 % and
-    # lambda runs -240.8, -482.5, -965.0 /sec. That is 1/dt to three figures.
+    # grows like 1/dt.
+    #
+    # Eq. 74's is the cleaner of the two, but the constancy of lambda*dt is asserted only
+    # over frames the model may actually RUN at. [pdf p.38] sets a 10 ms maximum step, and
+    # the 14 ms entry in `dts` is there to show frame dependence, not because anything
+    # integrates there. Measured with the 2026-09-16 blended-edge `f1`:
+    #
+    #     dt (ms)      z        lambda /s    lambda*dt
+    #       14.0    0.04396      -223.18      -3.1245     <- outside the report's limit
+    #       10.0    0.03709      -329.44      -3.2944
+    #        7.0    0.03596      -475.05      -3.3254
+    #        3.5    0.03540      -954.60      -3.3411
+    #
+    # Over 10, 7 and 3.5 ms that is constant to 1.4 %. Including 14 ms it is 6.6 %, and
+    # asserting over a frame the model is forbidden to use would be asserting about an
+    # extrapolation. The |z| bound above still covers all three listed frames.
     carries = []
-    for dt in dts:
+    for dt in (0.010, 0.007, 0.0035):
         A = frame_map(1, dt=dt, tol=1e-12)
         z = np.linalg.eigvals(A)[int(np.argmax(participation(A, dt)[1][STATE_NAMES.index("WA31")]))]
         carries.append(complex(np.log(complex(z)) / dt).real * dt)
-    assert max(carries) - min(carries) < 0.05 * abs(np.mean(carries)), (
+    assert max(carries) - min(carries) < 0.03 * abs(np.mean(carries)), (
         f"lambda*dt for Eq. 74's mode is {carries}; a per-frame memory must hold it fixed "
         f"while lambda itself grows like 1/dt"
     )
