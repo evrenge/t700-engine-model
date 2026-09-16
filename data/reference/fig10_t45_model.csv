@@ -4,7 +4,7 @@
 # t_s: time, seconds (0 to 5.0). The vertical frames are fitted over THIS panel's rows: left column 483.91 (slope -9.41 m px/row), right 2135.34 (slope -10.60), width 1651.44 px against the page-wide 1669. The page is skewed; see `Panel.left_slope`.
 # value: T45, axis range 1000.0 to 2000.0, no unit printed on the figure
 # points: 614
-# x tick check: worst interior major tick off by 0.0036 s
+# x tick check: worst interior major tick off by 0.0035 s
 # frame tilt corrected: top +12.97 px, bottom +13.15 px across the panel (+3.95 % of panel height). The page is skewed; see `frame_tilt`.
 # NOT transcribed. Values carry read error.
 t_s,value

@@ -26,11 +26,11 @@ applied at all, because the set looks uniform.
 | 3 | 22 | drawing | no | n/a | n/a | turboshaft component schematic |
 | 4 | 30 | plot | **no** | n/a | n/a | Gen Hel UH-60A vs linear models. Needs the rotor simulation the report consumes and does not contain -- out of scope by the report's own boundary |
 | 5 | 34 | plot | **no** | n/a | n/a | 6-DOF vs 5-DOF linear models, same reason |
-| **6** | 40 | plot | **yes** | n/a | n/a | NG vs fuel flow. `digitize_fig678`. Comparison data, not a function table: there is no interpolation between markers, so A does not apply. Its axis map is LINEAR anchored on the printed frame values, with the interior ticks held out as the check -- no axis polynomial exists to blend, so B does not apply. Tilt and shear ARE corrected: all four frames fitted, `x_of`/`y_of` blend each opposite pair |
-| **7** | 41 | plot | **yes** | n/a | n/a | shaft horsepower vs fuel flow, as Figure 6 |
-| **8** | 42 | plot | **yes** | n/a | n/a | Ps3 vs NG, as Figure 6 |
-| **9** | 45 | plot | **yes** | n/a | n/a | fuel step 400->775, six stacked panels. `digitize_fig910`. Per-panel frames, both fitted with slopes, so tilt is corrected; linear axis maps anchored on frames. Held-out tick check: worst interior major 0.0154 s on a 0-5 s axis |
-| **10** | 46 | plot | **yes** | n/a | n/a | fuel step 400->125, as Figure 9. Held-out tick check 0.0013 s |
+| **6** | 40 | plot | **yes** | n/a | **yes** | NG vs fuel flow. `digitize_fig678`. Comparison data, not a function table: no interpolation happens between markers, so A does not apply. Tilt was always corrected -- all four frames fitted. The axis maps were **linear** until 2026-09-16, when the audit tested the held-out ticks for shape rather than size and found the ordinates bow; they are now anchored polynomials, per edge, blended across |
+| **7** | 41 | plot | **yes** | n/a | **yes** | shaft horsepower vs fuel flow. `digitize_fig678`. Comparison data, not a function table: no interpolation happens between markers, so A does not apply. Tilt was always corrected -- all four frames fitted. The axis maps were **linear** until 2026-09-16, when the audit tested the held-out ticks for shape rather than size and found the ordinates bow; they are now anchored polynomials, per edge, blended across |
+| **8** | 42 | plot | **yes** | n/a | **yes** | Ps3 vs NG. `digitize_fig678`. Comparison data, not a function table: no interpolation happens between markers, so A does not apply. Tilt was always corrected -- all four frames fitted. The axis maps were **linear** until 2026-09-16, when the audit tested the held-out ticks for shape rather than size and found the ordinates bow; they are now anchored polynomials, per edge, blended across |
+| **9** | 45 | plot | **yes** | n/a | **no** | fuel step 400->775, six stacked panels. `digitize_fig910`. Per-panel frames, both fitted with slopes, so tilt is corrected. Tested for a bow the same way and does **not** have one -- the residuals are largest at t=1 and t=4 and smallest mid-panel, which is the opposite of a bow, so the linear map stands. The tick detector was fixed here instead |
+| **10** | 46 | plot | **yes** | n/a | **no** | fuel step 400->125, six stacked panels. `digitize_fig910`. Per-panel frames, both fitted with slopes, so tilt is corrected. Tested for a bow the same way and does **not** have one -- the residuals are largest at t=1 and t=4 and smallest mid-panel, which is the opposite of a bow, so the linear map stands. The tick detector was fixed here instead |
 | 11 | 48 | plot | **no** | n/a | n/a | closed-loop collective at high forward speed. Gen Hel rotor input |
 | 12 | 49 | plot | **no** | n/a | n/a | closed-loop lateral cyclic. Gen Hel rotor input |
 | 13 | 51 | plot | **no** | n/a | n/a | closed-loop collective at hover. Gen Hel rotor input |
@@ -81,44 +81,87 @@ Every one is a plot and every one is used: these are the engine's function table
 
 ## Summary
 
-* **19 digitized figures.** B now reaches all 19 -- 13 on 2026-09-16 (`8048c60`), C23 and
-  C30 the same day (`67ed8fa`), f1 the same day (`c448f51`), and f2, f7, f9 always had it.
+* **19 digitized figures.** B now reaches all 19 -- 13 on 2026-09-16, C23 and C30 the same
+  day, f1 the same day, and f2, f7, f9 always had it.
 * **A covers 14 of them.** The five it does not are not oversights: f1's beta map is
   derived rather than traced, f2 and f9 do not publish their arc coefficients in the
   header, and C23 and C30 are not marker-to-marker tables. Each carries a stronger check
   of its own, named above.
-* **Figures 6-10 of the main body are comparison data, not function tables.** Neither
-  correction applies to them in the form applied to the maps, and both their tools already
-  fit both frames of each pair, so tilt and shear are corrected. What they do NOT have is a
-  polynomial axis map: they are linear between printed frame values, with the interior
-  ticks held out as the check. Figure 9's own check reports a worst interior major tick
-  0.0154 s off a 0-5 s axis -- 0.31 %, the same order as the bow the Appendix A figures
-  needed a cubic to remove. **That is the one place in this table where a correction is
-  arguably owed and has not been made**, and it matters because these five figures are the
-  validation targets.
+* **Figures 6-10 are comparison data, not function tables**, so A does not apply to them in
+  the form it takes on the maps. Both tools always fitted every frame, so tilt and shear
+  were never the problem. What they did have was a **linear** axis map, and the audit is
+  what caught it.
 
 ## What the audit itself turned up
 
-Writing the table was not bookkeeping; grepping every producer for a blend call found two
-places where the correction had been applied to the values and not to the coordinate that
-selects them:
+Writing the table was not bookkeeping. Four things came out of it.
 
-* `digitize_c30.py` built its column lookup once down the middle of the plot
-  (`blend_value(CX, uu, 0.5)`). Every reported coordinate was already recomputed honestly
-  from the chosen column, so no stored number was wrong -- but the *choice* of column was
-  off by up to 4.96 columns for a knot near either edge. Fixing it needed the blend weight
-  without a row, since finding the row is what the lookup is for; inverting the y
-  calibration gives it directly, because the homography has already normalized the
-  vertical coordinate. Segment-on-ink 0.9879 -> 0.9881, worst seed miss unchanged at 0.066.
-  An intermediate attempt that estimated the row with the tool's straight pixel map made
-  things worse (0.9848, seed miss 0.106): that map ignores the column, so on a frame this
-  tilted it is wrong by the full tilt at the right-hand end.
-* `digitize_a1.py` reported the printed construction line as a single number. It is a
-  vertical line under a blended x map, so it is a band: 0.9913 at the bottom scale, 0.9895
-  at the top. The header now prints both. The spread is 0.0018, which is the useful part --
-  it says the 0.9904-against-0.974 comparison does not rest on which edge you read.
+**1. C30 selected its columns with an unblended coordinate.** `digitize_c30` built its
+column lookup once down the middle of the plot (`blend_value(CX, uu, 0.5)`). Every reported
+coordinate was already recomputed honestly from the chosen column, so no stored number was
+wrong -- but the *choice* of column was off by up to 4.96 columns for a knot near either
+edge. The blend weight has to arrive without a row, since finding the row is what the
+lookup is for; inverting the y calibration gives it directly, because the homography has
+already normalized the vertical coordinate. Segment-on-ink 0.9879 -> 0.9881. An
+intermediate attempt that estimated the row from the tool's straight pixel map made things
+worse (0.9848, seed miss 0.066 -> 0.106): that map ignores the column, so on a frame this
+tilted it is wrong by the full tilt at the right-hand end.
 
-Two other fixed weights survive and are correct: `_vgrid` in `digitize_c30` inverts the y
+**2. A1 reported a band as a number.** The printed construction line is vertical under a
+blended x map, so it reads 0.9913 at the bottom scale and 0.9895 at the top. The header now
+prints both. The spread, 0.0018, is the useful part: it says the 0.9904-against-0.974
+comparison does not depend on which edge you read.
+
+**3. Figure 9 and 10's tick check was looking in the wrong place.** Its band ran rows 4 to
+16 above the frame. Counting inked columns row by row on the p.45 PCNG panel: the frame's
+own antialiased shoulder puts 124-344 of 1672 columns in rows 2-5, the ticks put 35-45 in
+rows 6-11, and rows 12 and up hold only the trace. The band swallowed the shoulder at one
+end and the trace at the other, so it found 62 groups across the twelve panels of which
+only 14 were near an interior major, and reported a contaminated 0.1079 s. Rows 6-11 find
+35 of 48, worst 0.0154 s. **No digitized value changed** -- the tick check only ever fed
+the header -- but the number in that header is now real.
+
+**4. Figures 6, 7 and 8 were read off a straight axis that is not straight.** This is the
+one that moved data. The old check asked only how *big* the held-out tick residuals were;
+asking what *shape* they had settles it in one number. A printed scale that genuinely bows
+gives residuals pinned near zero at both frames and one-signed in between -- correlated
+with t(1-t). Figure 8's ordinate correlates -0.82 (left frame) and -0.79 (right), 21 of 22
+residuals share a sign, peaking at 0.36 % of span mid-axis and tapering to 0.06 % at both
+frames. That is the same 0.2-0.4 % of span that made every Appendix A axis a cubic.
+
+The fix keeps the frames pinning the map and lets the ticks say only how it bends between
+them: `value = linear(t) + t(1-t)P(t)`, where the `t(1-t)` factor vanishes at both frames,
+so the printed frame values stay exact by construction. The degree of `P` is chosen by
+leave-one-out -- refit without each tick, predict it -- which buys back the check that
+fitting the ticks would otherwise spend. Held-out rms, the honest number:
+
+| edge | straight | after the bow | |
+|---|---|---|---|
+| Fig 6 left / right (%NG) | 0.0453 / 0.0547 | 0.0247 / 0.0238 | -45 % / -56 % |
+| Fig 7 left / right (SHP) | 1.951 / 3.447 | 1.178 / 1.377 | -40 % / -60 % |
+| Fig 8 left / right (psia) | 0.441 / 0.471 | 0.106 / 0.145 | -76 % / -69 % |
+
+The abscissae bow far less (strongest -0.35 against the ordinates' -0.82) and leave-one-out
+still prefers a small bend on each; that is the right outcome to accept rather than
+overrule, since the test is whether a bend predicts ticks it was not shown.
+
+Against the model, Figure 8 is the vindication: rms 0.45509 -> 0.26557 (-42 %) and its
+**bias all but vanishes**, -0.34615 -> +0.05793. The model had been reading systematically
+low against Figure 8 and it was the figure that was misread. Figure 6 is unchanged in rms
+(0.23163 -> 0.23125) with its bias likewise collapsing to zero.
+
+**Figure 7's percentage rms gets worse, 0.59357 -> 0.67353, and that is worth stating
+plainly rather than burying.** Scored in horsepower instead, the same points are
+essentially unchanged: rms 1.881 -> 1.931 hp over a 147-1789 hp range. What actually
+happened is that a -0.94 hp mean bias became +0.96 hp, and Figure 7's deviation is measured
+*relative to SHP*, which the figure carries down to 147 hp -- so a one-horsepower shift is
+1.0 % there and 0.02 % at the top. The per-point change is monotone in exactly that way:
++1.030 at the lowest fuel flow, +0.018 at the highest. And the bias of either sign is
+smaller than the figure resolves: Figure 7's own held-out read error is 1.38 hp. The CSV
+headers now publish that number, so a deviation can be judged against what the figure can
+actually say.
+
+Two fixed blend weights survive and are correct: `_vgrid` in `digitize_c30` inverts the y
 map to produce a blend weight, so its own weight is second-order, and `_GX`/`_GY` in
-`digitize_a1` place the tracing guide, which is documented at the site as approximate and
-never produces a stored value.
+`digitize_a1` place the tracing guide, documented at the site as approximate and never
+producing a stored value.

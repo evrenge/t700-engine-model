@@ -5,19 +5,20 @@
 # shp: SHAFT HORSEPOWER (no unit printed), axis -200.0 to 2000.0
 # points: 14
 # shear corrected: left frame leans +19.93 px across the plot height, right +20.48 px; top frame -0.37 px across the width, bottom +2.65 px. The page is sheared; see `fit_frames`.
+# read error: after calibration the axis maps predict a tick they were not shown to rms 0.3898 in wf_pph and 1.377 in shp, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 wf_pph,shp
-201.4621,107.6232
-233.2078,183.4872
-285.7368,358.8795
-315.5524,462.4014
-412.1400,742.7861
-444.7087,837.6755
-481.5002,941.8844
-523.0336,1056.1813
-567.3746,1185.0421
-622.3489,1339.3149
-683.5481,1503.8133
-780.1276,1718.6456
-806.2932,1766.4797
-832.2213,1812.1293
+201.3511,106.3544
+233.0769,181.8091
+285.5780,356.4549
+315.3859,459.6928
+412.0140,739.9498
+444.6125,835.0072
+481.4466,939.4899
+523.0365,1054.1603
+567.4413,1183.4991
+622.4951,1338.3208
+683.7675,1503.2810
+780.3774,1718.3863
+806.5219,1766.2346
+832.4125,1811.8961

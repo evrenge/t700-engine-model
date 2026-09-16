@@ -2,36 +2,36 @@
  "steady": {
   "figure_6": {
    "n": 29,
-   "mean": 0.009469196789049075,
-   "rms": 0.23163482402593677,
-   "worst": -0.9948093108956897,
+   "mean": -0.0005403194613070786,
+   "rms": 0.23125498204866093,
+   "worst": -1.0127144435533069,
    "unit": "%NG",
    "against": "Ballin real-time",
    "printed_points": 29,
    "dropped_unreachable": 0,
-   "worst_at": 249.1806
+   "worst_at": 248.6098
   },
   "figure_7": {
    "n": 14,
-   "mean": -0.11982456055967258,
-   "rms": 0.5935686514745211,
-   "worst": -1.6537809449044278,
+   "mean": 0.20558844517685101,
+   "rms": 0.6735321488933531,
+   "worst": 2.077172609221044,
    "unit": "%",
    "against": "Ballin real-time",
    "printed_points": 15,
    "dropped_unreachable": 1,
-   "worst_at": 249.6642
+   "worst_at": 217.9763
   },
   "figure_8": {
    "n": 26,
-   "mean": -0.3461486209540864,
-   "rms": 0.45509207184157396,
-   "worst": -0.9776178712177123,
+   "mean": 0.057932468676760315,
+   "rms": 0.26557477998728,
+   "worst": 0.6504945798415807,
    "unit": "%",
    "against": "Ballin real-time",
    "printed_points": 27,
    "dropped_unreachable": 1,
-   "worst_at": 89.9795
+   "worst_at": 70.9984
   }
  },
  "transient": {
@@ -419,70 +419,70 @@
     "quantity": "NG",
     "wf_pph": 476.3,
     "table_b1": 93.14988814317674,
-    "figure": 93.10677377614957,
+    "figure": 93.14753676824908,
     "unit": "%NG",
-    "theirs_pct": 0.04311436702717231,
+    "theirs_pct": 0.0023513749276560247,
     "ours_pct": -0.0012931041957121021,
-    "nearest_marker_pph": 4.399300000000039
+    "nearest_marker_pph": 5.024000000000001
    },
    {
     "trim": "hover",
     "quantity": "SHP",
     "wf_pph": 476.3,
     "table_b1": 911.1,
-    "figure": 913.7345170178243,
+    "figure": 911.411412079581,
     "unit": "%",
-    "theirs_pct": -0.28915783314940585,
+    "theirs_pct": -0.03417979141488665,
     "ours_pct": -0.036872613090440494,
-    "nearest_marker_pph": 4.934400000000039
+    "nearest_marker_pph": 4.997000000000014
    },
    {
     "trim": "level 80 kt",
     "quantity": "NG",
     "wf_pph": 349.3,
     "table_b1": 88.96644295302013,
-    "figure": 88.9428894355003,
+    "figure": 88.97757883717406,
     "unit": "%NG",
-    "theirs_pct": 0.02355351751982937,
+    "theirs_pct": -0.011135884153929965,
     "ours_pct": 0.121027507320781,
-    "nearest_marker_pph": 0.26539999999999964
+    "nearest_marker_pph": 0.46230000000002747
    },
    {
     "trim": "level 80 kt",
     "quantity": "SHP",
     "wf_pph": 349.3,
     "table_b1": 552.6,
-    "figure": 554.2952262339419,
+    "figure": 551.8675602228523,
     "unit": "%",
-    "theirs_pct": -0.3067727531563276,
+    "theirs_pct": 0.13254429553886365,
     "ours_pct": -0.0554337563990951,
-    "nearest_marker_pph": 0.43250000000000455
+    "nearest_marker_pph": 0.5921000000000163
    },
    {
     "trim": "descent 80 kt",
     "quantity": "NG",
     "wf_pph": 267.7,
     "table_b1": 85.17225950782998,
-    "figure": 85.13918645759644,
+    "figure": 85.1523982763679,
     "unit": "%NG",
-    "theirs_pct": 0.0330730502335399,
+    "theirs_pct": 0.019861231462073192,
     "ours_pct": -0.04617818673295198,
-    "nearest_marker_pph": 2.738299999999981
+    "nearest_marker_pph": 3.335899999999981
    },
    {
     "trim": "descent 80 kt",
     "quantity": "SHP",
     "wf_pph": 267.7,
     "table_b1": 302.6,
-    "figure": 300.3774358217244,
+    "figure": 298.647365036979,
     "unit": "%",
-    "theirs_pct": 0.7344891534288183,
+    "theirs_pct": 1.306224376411438,
     "ours_pct": -0.7972114048291585,
-    "nearest_marker_pph": 2.6055999999999813
+    "nearest_marker_pph": 2.75630000000001
    }
   ],
   "n": 6,
-  "widest_theirs_pct": 0.7344891534288183,
+  "widest_theirs_pct": 1.306224376411438,
   "ours_inside_their_spread": 3,
   "figure_6": "pdf p.40",
   "figure_7": "pdf p.41",

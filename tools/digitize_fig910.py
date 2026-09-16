@@ -677,11 +677,21 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
         return p.v_hi + f * (p.v_lo - p.v_hi)
 
     # The tick band follows the lower frame too, for the same reason the trace window does.
+    #
+    # It is rows 6 to 11 above the frame, and that is measured, not assumed. Counting
+    # inked columns row by row on the pdf p.45 PCNG panel: the frame's own antialiased
+    # shoulder puts 124 to 344 of 1672 columns in rows 2 to 5, the ticks put 35 to 45 in
+    # rows 6 to 11, and rows 12 and above hold only the trace, 7 to 15. Nothing is below
+    # the frame at all past row 3, so the ticks point inward. The band used to run rows 4
+    # to 16, which swallowed the shoulder at one end and the trace at the other: it found
+    # 62 groups across the twelve panels of which only 14 were within 0.3 s of an interior
+    # major, and it reported a contaminated worst miss of 0.1079 s. Rows 6 to 11 find 35 of
+    # the 48, worst 0.0154 s.
     counts = np.zeros(p.right - p.left + 1, dtype=int)
     for i, x in enumerate(range(p.left, p.right + 1)):
-        yb = p.bot_at(x)
-        counts[i] = int(ink[int(round(yb)) - 16 : int(round(yb)) - 4, x].sum())
-    hits = np.flatnonzero(counts >= 8)
+        yb = int(round(p.bot_at(x)))
+        counts[i] = int(ink[yb - 12 : yb - 6, x].sum())
+    hits = np.flatnonzero(counts >= 5)
     ticks_px = []
     if hits.size:
         for g in np.split(hits, np.flatnonzero(np.diff(hits) > 3) + 1):
