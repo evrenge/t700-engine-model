@@ -165,3 +165,120 @@ Two fixed blend weights survive and are correct: `_vgrid` in `digitize_c30` inve
 map to produce a blend weight, so its own weight is second-order, and `_GX`/`_GY` in
 `digitize_a1` place the tracing guide, documented at the site as approximate and never
 producing a stored value.
+
+## Branch against main, as it stands
+
+143 of the 214 numbers in `site/assets/report.json` differ. Main's `report.json` and its
+`data/` were committed together in `ab96c34`, so the comparison is like for like. The
+branch carries both the digitizing work in this file and the solver work that preceded it
+(the degenerate trim root), and the table separates them where it can.
+
+| Measure | main | branch | |
+|---|---|---|---|
+| **Table B.1 trims** rms | 0.24389 | **0.21927** | -10.1 % |
+| Table B.1 worst | -0.90042 | **-0.79721** | -11.5 % |
+| **Table 1 eigenvalues** rms | 5.49377 | **5.37007** | -2.3 % |
+| **Figure 6** rms | 0.23369 | **0.23125** | -1.0 % |
+| Figure 6 mean bias | 0.00030 | **-0.00054** | to zero |
+| **Figure 7** rms | 0.60617 | 0.67353 | +11.1 %, see below |
+| **Figure 8** rms | 0.42468 | **0.26557** | **-37.5 %** |
+| Figure 8 mean bias | -0.31676 | **0.05793** | -82 % |
+| **Closed loop** rms | 0.09813 | **0.09423** | -4.0 % |
+| **Phase plane** fig 9 rms | 0.78108 | **0.67873** | -13.1 % |
+| Phase plane fig 10 rms | 1.24526 | 1.25046 | +0.4 % |
+| **Whole curve** fig 9 (5 channels) | 1.47388 / 0.76013 / 0.70575 / 0.83566 / 0.67254 | **1.41089 / 0.71655 / 0.66291 / 0.82549** / 0.69556 | 4 better, torq45 +3.4 % |
+| Whole curve fig 10 (5 channels) | 1.44656 / 1.69841 / 3.81958 / 2.93741 / 2.42067 | **all five lower** | -0.2 to -1.9 % |
+| **Appendix B** *A* rms | 7.76001 | 7.82576 | +0.9 % |
+| Appendix B *b* rms | 5.22201 | 5.37290 | +2.9 % |
+| 2-DOF *A* / *b* rms | 4.92973 / 2.32987 | **4.88433 / 2.24455** | -0.9 % / -3.7 % |
+| 3-DOF *A* / *b* rms | 6.03312 / 6.27824 | 7.48801 / 6.81401 | +24.1 % / +8.5 %, open question #73 |
+| 5-DOF *A* / *b* rms | 6.90878 / 0.08863 | **6.46452 / 0.07516** | -6.4 % / -15.2 % |
+| 6-DOF *A* / *b* rms | 8.96979 / 7.10823 | 9.02510 / 7.13810 | +0.6 % / +0.4 % |
+| **Steady sweep** points solved | 159 | **170** | +6.9 % |
+
+### The three that moved the wrong way, and what each is
+
+**Figure 7, +11.1 %.** Two separate things are folded into that number and neither is a
+model regression.
+
+*One:* main scored 15 points and the branch scores 14. The point main dropped is at 806.5
+lb/hr, and main **trimmed it successfully** -- off the top of the compressor map. The
+branch refuses it, which is the degenerate-root fix doing exactly what it was written for.
+Main's 0.60617 includes a solve that should never have converged.
+
+*Two:* on the 14 points both versions score, the bow correction moved rms 0.59357 ->
+0.67353. In horsepower those same points are unchanged: 1.881 -> 1.931 hp over a 147-1789
+hp range. A -0.94 hp bias became +0.96 hp, and Figure 7 scores *relative* to an SHP the
+figure carries down to 147, so one horsepower is 1.0 % at the bottom and 0.02 % at the top.
+Both biases are below the figure's own held-out read error of 1.38 hp.
+
+**3-DOF blocks, +24.1 % on *A*.** This is open question #73, already known and already
+carrying a deliberately red test. Not introduced here.
+
+**Appendix B overall, +0.9 % and +2.9 %.** Driven by the 3-DOF block above; 2-DOF and
+5-DOF both improve, 6-DOF is flat to within half a percent.
+
+### The independent check nobody tuned
+
+`internal_spread` measures **the report against itself**: Table B.1 prints numbers for the
+three trims, Figures 6 and 7 plot the same three points, and they disagree. The Table B.1
+side is transcribed and carries no digitizing error of ours at all, so moving the figure
+closer to it is evidence the figure is being read better -- and this number was never a
+target.
+
+| trim, quantity | main | branch |
+|---|---|---|
+| hover NG | 0.0431 | **0.0024** |
+| hover SHP | -0.2892 | **-0.0342** |
+| level 80 kt NG | 0.0236 | **-0.0111** |
+| level 80 kt SHP | -0.3068 | **0.1325** |
+| descent 80 kt NG | 0.0331 | **0.0199** |
+| descent 80 kt SHP | 0.7345 | 1.3062 |
+
+Five of six shrink; excluding the descent SHP row the mean falls 0.139 -> 0.040, **-71 %**.
+The one that grows is the descent trim's shaft power -- the lowest-power point on the
+figure, which is both where the relative metric is worst conditioned and the subject of
+#73.
+
+## Was each correction implementable, and what did it give
+
+Every plot the replication reads. **A** is data-space straightness, **B** the per-edge
+blend. "n/a" is a reasoned no, not an omission; the reason is in the row.
+
+| Plot | A possible | A result | B possible | B result (half the two edges' disagreement, x / y) |
+|---|---|---|---|---|
+| **A1** f1 | **no** -- beta map is derived, not traced | tool reports its own per-speed-line fit, 0.23-0.68 px | yes | applied. Free check: 11 flat extensions, end-to-end 0.573 -> **0.409** px mean, 1.005 -> 0.921 worst |
+| **A2** f2 | **no** -- header omits the frame arcs | free check: 20 abscissae on the integer lattice, 0.0155 max | already | blended since written |
+| **A3** f3 | yes | bow **0.79 sigma** | yes | 0.0117 / 4.18e-05 |
+| **A4** f4 | yes | bow **0.91 sigma** | yes | 0.0045 / 4.16e-07 |
+| **A5** f5 | yes | bow **0.61 sigma** | yes | 0.00475 / 1.98e-06 |
+| **A6** f6 | yes | bow **0.02 sigma** | yes | 5.4e-06 / 3.91e-05. Endpoint difference 0.18 -> **0.01 sigma** |
+| **A7** f7 | yes | bow **1.04 sigma** -- above its read error | already | blended since written |
+| **A8** f8 | yes | bow **0.16 sigma** | yes | 0.000126 / 0.00914 |
+| **A9** f9 | **no** -- header omits the frame arcs | tool's own verification overlay | already | blended since written |
+| **A10** f10 | yes | bow **0.24 sigma** | yes | 0.0166 / 2.15e-05 |
+| **A11** f_hs | yes | bow **0.03 sigma** | yes | 0.0206 / 0.00478 |
+| **C23** F_EC1 | **no** -- traced multi-curve, not marker-to-marker | gap-threshold sweep, <=0.05 in y | yes | applied 2026-09-16 |
+| **C24** F_HM1 | yes | bow **0.34 sigma** | yes | 0.0966 / 0.00171 |
+| **C25** F_HM2 | yes | bow **0.12 sigma** | yes | 0.0534 / 0.00419 |
+| **C26** F_HM3 | yes | bow **0.06 sigma** | yes | 0.0672 / 0.0142 |
+| **C27** F_HM4 | yes | bow **0.22 sigma** | yes | 0.0505 / 0.000482 |
+| **C28** F_HM5 | yes | bow **0.18 sigma** | yes | 0.0817 / 0.000127 |
+| **C29** F_HM6 | yes | bow **4.18 sigma** -- see below | yes | 0.0162 / 0.00103 |
+| **C30** F_HM7 | **no** -- vertices, not a trace | segment ink coverage **0.9881** | yes | applied; coverage 0.9850 -> 0.9879 -> **0.9881** |
+| **Fig 6** | **n/a** -- comparison data, nothing interpolates between markers | -- | **yes, and it was owed** | held-out tick rms 0.0453/0.0547 -> **0.0247/0.0238** (-45 %/-56 %) |
+| **Fig 7** | n/a, same | -- | **yes, and it was owed** | 1.951/3.447 -> **1.178/1.377** (-40 %/-60 %) |
+| **Fig 8** | n/a, same | -- | **yes, and it was owed** | 0.441/0.471 -> **0.106/0.145** (**-76 %/-69 %**) |
+| **Fig 9** | n/a, same | -- | **no, and tested** | residuals largest at t=1 and t=4, smallest mid-panel: the opposite of a bow. Linear map stands; tick detector fixed instead, 14 -> 35 of 48 ticks found |
+| **Fig 10** | n/a, same | -- | **no, and tested** | as Figure 9 |
+
+**Two figures sit above their own read error and neither is fixable from the report.**
+C29 (F_HM6) at 4.18 sigma prints exactly two markers, so Ballin's table *is* two points and
+the bow between them is the draughtsman's pen -- there is nothing in the report to
+represent it with. A7 (f7) at 1.04 sigma is a genuine printed curvature between sparse
+markers; representing it would mean inventing intermediate points the report does not give.
+Both are recorded rather than smoothed, which is what the replication rule requires.
+
+**Coverage, finally:** A reaches 14 of the 19 digitized figures and is reasoned-out on the
+other 5. B reaches **all 19**, plus Figures 6-8 of the main body, and is reasoned-out on
+Figures 9-10 by the same test that justified it elsewhere.
