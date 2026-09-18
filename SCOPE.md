@@ -107,16 +107,25 @@ digitized figures every other comparison uses:
 
 | trim | Wf, lbm/hr | Table B.1 vs the figure | our deviation from Table B.1 | nearest printed marker |
 |---|---|---|---|---|
-| hover | 476.3 | −0.289 % shp, +0.043 %NG | −0.042 % shp, −0.001 %NG | 4.9 lbm/hr |
-| level 80 kt | 349.3 | −0.307 % shp, +0.024 %NG | −0.052 % shp, +0.121 %NG | 0.4 lbm/hr |
-| descent 80 kt | 267.7 | **+0.734 %** shp, +0.033 %NG | **−0.806 %** shp, −0.046 %NG | 2.6 lbm/hr |
+| hover | 476.3 | −0.034 % shp, +0.002 %NG | −0.058 % shp, +0.001 %NG | 5.0 lbm/hr |
+| level 80 kt | 349.3 | +0.133 % shp, −0.011 %NG | −0.077 % shp, +0.120 %NG | 0.6 lbm/hr |
+| descent 80 kt | 267.7 | **+1.306 %** shp, +0.020 %NG | **−0.806 %** shp, −0.048 %NG | 2.8 lbm/hr |
 
-**The consequence changes with them.** The report's widest self-disagreement is now 0.734 %,
-not 5.5 %, and at descent our shaft power sits **outside** it — 0.806 % from Table B.1 against
-the report's own 0.734 %. It was 0.900 % until the 2026-09-15 `f1` retrace, so the gap has
-narrowed but has not closed. The old shelter for that residual is gone: it is a real
-discrepancy of ours and belongs in the ledger, not behind a rule. The rule itself still holds where it
-applies — do not tune below the source's own spread — it just no longer covers this point.
+**The consequence changes with them, and it has now changed twice.** The report's widest
+self-disagreement is 1.306 % on shaft power at descent, not 5.5 % and not the 0.734 % this
+table carried between 2026-09-14 and 2026-09-18. Our own 0.806 % at that trim has not moved
+at all across any of it — so the same number was outside the report's spread under the old
+reading and is **inside** it under the current one, without anything about our model
+changing. Three of the six comparisons sit inside; descent shaft power is one of them.
+
+Take the lesson rather than the number. This row has now been wrong in two opposite
+directions, both times because the figures it rests on were re-digitized underneath it —
+2026-09-14's corrections, then the 2026-09-16/18 recalibrations. `internal_spread` computes
+it into `report.json` so the *value* cannot go stale, but the paragraph around it is still
+prose, and prose is what went stale both times. The rule it exists to state is unaffected
+and still holds: do not tune below the source's own spread. Whether this particular residual
+shelters under that rule is a fact about the digitization, not about the model, and it will
+move again.
 
 Read the last column before quoting a row. Figure 7 prints 15 markers over its whole range
 and the value at a trim is interpolated between them; on its steep low-power end the curve

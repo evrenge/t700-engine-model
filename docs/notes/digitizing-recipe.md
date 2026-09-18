@@ -1,131 +1,187 @@
 # Digitizing recipe
 
-`tools/digitize.py` turns the report's printed plots into CSV. Nineteen figures in the
-appendices carry model data (11 engine functions, 8 control schedules) and five more in
-the body carry validation references. None of them exists as numbers anywhere.
+Nineteen figures in the appendices carry model data — 11 engine functions, 8 control
+schedules — and five more in the body carry validation references. **None of them exists as
+numbers anywhere.** This file is what has been learned turning them into CSV: how the
+pipeline works, what it refuses to do, and the traps that each cost a wrong file that
+looked right.
 
-Worked example, Figure A2 (`f2`, compressor temperature), which is the simplest case and
-the one to copy.
+Rewritten 2026-09-18. The version before it opened with a worked example built on
+`tools/digitize.py`, a CLI that was deleted that week, and taught a two-point linear axis
+calibration that traps 5, 6 and 7 further down the same page had already demolished. If
+you are looking for it, it is in `git log -p docs/notes/digitizing-recipe.md`.
 
-## Four steps
+## The shape of the thing
 
-```bash
-# 0. render the page (300 dpi is enough; go to 600 where markers crowd)
-pdftoppm -f 57 -l 57 -r 300 -png docs/ballin-tm100991.pdf validation/out/digitize/a2
+One library, `tools/figure/`, and a script per figure that supplies the figure's own facts
+and nothing else:
 
-# 1. detect the plot frame and get a ready-made calibration
-#    the four values are what the printed axis labels say at each frame edge
-python3 tools/digitize.py axes --page validation/out/digitize/a2-057.png \
-    --x0 0 --x1 20 --y0 1.1 --y1 3.0
-#    -> --calib "591:0.0,2255:20.0,2636:1.1,293:3.0"
-#    -> --roi 603,305,2243,2624
+    raster.py       the page bitmap: the scan's own 300 dpi 1-bit image, never resampled
+    frame.py        the four printed frame edges, and the pixel -> plot-coordinate map
+    ticks.py        the printed tick lattice, and each tick's printed value
+    axis.py         the axis map: order chosen by held-out test, anchored, blended
+    glyph.py        the marker: a generative model of the local ink, fitted
+    provenance.py   the CSV and its header -- one writer, and the parser that reads it back
 
-# 2. sweep the threshold until the count is stable, and check it against the
-#    independent visual count in inventory-appendix-a.md
-python3 tools/digitize.py marks --page ... --roi ... --min-fill 0.40
+Until 2026-09-16 that machinery existed five times over, and the cost was not the
+duplication. It was that an improvement made for one figure did not reach the others and
+nothing said so — the frame model, the Nelder-Mead guards and the anchoring rule were each
+fixed in one copy and not the rest, and it took reading two files side by side to see it.
+`tests/test_tool_duplication.py` now fails if the same function body appears in two files
+under `tools/`.
 
-# 3. extract
-python3 tools/digitize.py extract --page ... --roi ... --min-fill 0.40 --calib ... \
-    --figure A2 --pdf-page 57 --quantity "f2 -- compressor temperature" \
-    --x-label "..." --y-label "..." --out data/maps/f2_compressor_temperature.csv
+## What the tool decides, and what you decide
 
-# 4. VERIFY, and look at the image
-python3 tools/digitize.py verify --page ... --csv ... --calib ... --roi ... \
-    --out validation/out/digitize/a2_verify.png
-```
+You supply, per figure: the page, the printed value at each frame edge, which of those are
+actually printed, the major-tick step, how many markers to expect, and the marker radius.
+Everything below that is measured or chosen by a test:
 
-Step 4 is not optional. Every trap below was invisible in the CSV and obvious in the overlay.
+| question | how it is answered |
+|---|---|
+| where the plot frame is | `find_frame_box`, by shearing the page and taking the extreme rows that span it |
+| straight edges or arcs | both fitted, both calibrated; keep whichever predicts the printed frame values better |
+| how many minors per major | major spacing ÷ median tick gap, which must come out an integer |
+| majors alone or the full lattice | whichever predicts the printed frame values better, per axis |
+| polynomial order of the axis map | lowest held-out frame error among orders whose leave-one-tick-out error is within 1.2× of best |
+| where each marker is | a generative model of two strokes plus the joining half-segments, fitted sub-pixel |
 
-## Nine traps, all of them hit at least once
+**The recurring shape: the figure prints a number, you fit without it, you predict it.**
+That is the only test available that is not a fit statistic, and every model choice here is
+made on it.
 
-They are numbered as they were found, not by severity. Each cost a wrong CSV that looked
-right. The numbering is not the report's and means nothing outside this file.
+## The traps
+
+Numbered as they were found, not by severity. Each cost a wrong CSV that looked right.
 
 **1. Markers sit ON the joining line, so blob detection is useless.** The curve and its
-crosses form one connected component and `find_marks` returns a single meaningless centroid.
-Use `--mode density` (the default): a marker is locally *denser* than the line through it,
-so box-filtering the ink mask and taking local maxima finds them.
+markers are one connected component. Model the marker instead: two strokes plus the two
+joining half-segments, all radiating from one point, scored against ink **and background**
+over an unmasked disc. Scoring the background is what stops a near-parallel pair of lines
+from outscoring a four-armed glyph.
 
 **2. Calibrating by eye off a grid overlay puts every point out.** Reading tick coordinates
-from a downscaled image cost ~25 px, which on Figure A2 is 0.3 in PS3/P2 — enough to move
-every value, small enough to look plausible in the CSV. **Always calibrate with `axes`.**
+off a downscaled image cost ~25 px, which on Figure A2 is 0.3 in PS3/P2 — enough to move
+every value, small enough to look plausible in the CSV.
 
-**3. A marker on the frame gets clipped** by the `axes` default 12 px inset. Figure A2's
-last point, at PS3/P2 = 20, needed the ROI extended past the right frame. If the count comes
-up one short, look at the corners first.
-
-**4. `axes` mis-locates the frame when the page carries a long flat data line.**
-`find_frame` averages every strong row in each half; on Figure A3 the flat 0.11 and 0.00 runs
-are strong rows and the skew-diluted bottom frame is not, so it returned top/bottom
-362/2826 against a measured 313/2672 — 0.009 in B1, five times the cost of trap 2. Five of
-the eleven maps go flat somewhere. **Check the frame `axes` reports against the printed
-ticks before using it.**
+**3. A marker on a frame gets clipped** by an inset, and **4. the frame finder is fooled by
+a long flat data line** — `find_frame` averaged every strong row, and a flat run of data is
+a strong row. On Figure A3 it returned top=362 against a measured 313. Both are why
+`find_frame_box` thresholds on coverage of the plot *width* after shearing, rather than on
+row strength: a footer rule is too short to qualify, a data line qualifies but lies inside,
+and a frame — however broken — still spans the plot once the shear is undone.
 
 **5. A linear axis map cannot fit these scans, and the tick lattice says so.** The page bows
 along the scan direction: A7's y major spacing runs 181 → 177 → 180.5 px top to bottom, a
-smooth 2 % swing worth ±4 px against a straight line. It is a fittable, checkable quadratic
-— linear over A7's 24 printed y majors predicts the top frame at 52.5624 against a printed
-52.5; quadratic, never told the answer, gives 52.4947.
+smooth 2 % swing worth ±4 px against a straight line. It is a fittable, checkable
+polynomial.
 
 **6. The held-out frame test alone over-fits; leave-one-out is the guard.** On A10's x the
-quartic wins the frame test (1.11 per-mille against linear's 1.94) while its
-leave-one-tick-out error is 40 % worse. **Choose the order minimising held-out frame error,
-but only among orders whose leave-one-tick-out error is within 1.2x of the best; ties within
-1.25x go to the lower order.**
+quartic won the frame test while its leave-one-tick-out error was 40 % worse. Choose the
+order minimising held-out frame error, but only among orders whose LOO error is within 1.2×
+of the best; ties within 1.25× go to the lower order. **And that guard goes inert on a fine
+lattice** — with 200 ticks the LOO error is set by individual tick scatter and barely moves
+with order, so every order clears it. What protects you then is that the frame test is held
+out: an order that bought the interior with noise predicts the frame worse and loses.
 
-**7. The frame edges are arcs, so a homography is wrong too** — it assumes four straight
-edges. Fit each printed edge as a quadratic along its own coordinate and read the sagitta.
-Related: **do not resample the page.** Warping pixels needs interpolation; fit the
-distortion into the axis map instead. If you already warped, measure what it cost rather
-than redoing the work.
+**7. The frame edges image as arcs — but fitting them as arcs is usually WORSE.** This trap
+used to read "the frame edges are arcs, so a homography is wrong too", inferred from the
+measured sagittae, which run 0.3 to 3.5 px on a printed straight line. Measured on 2026-09-18
+across all thirteen single-curve figures, that does not generalise: **ten of them predict
+their own printed frame values better under the straight model.** Three do better with arcs
+— A10 by 11×, A11 by 4.3×, C26 by 2.1× — and the tool now fits both and lets each figure
+choose, with arcs required to win by 10 % because straight is the incumbent.
+
+Two lessons, and the second is the larger one. A measured physical effect is not by itself
+a reason to model it: the sagitta is real on every page and modelling it helps on three.
+And **this question could not be answered on the coarse lattice.** On the majors alone A8
+preferred arcs by 17.7×; with ten times the ticks it prefers straight by 7.9×. The tick
+lattice had to be fixed first or the answer would have been confidently backwards.
+
+Related, and unchanged: **do not resample the page.** Warping pixels needs interpolation,
+and interpolation invents ink. Fit the distortion into the map instead.
 
 **8. `Nelder-Mead` builds its initial simplex by perturbing each coordinate by 5 % of its
-own value.** At an image column of x ~ 2269 that is a 113 px step, outside any sane scoring
+own value.** At an image column of ~2269 that is a 113 px first step, outside any scoring
 window, where the cost is flat because no model ink reaches it. On A6's right-hand marker
-the fit took that step and never came back: the centre was 125 px off the data line and
-every printed diagnostic looked converged. **Never hand Nelder-Mead an absolute pixel
-coordinate** — optimise the offset from the current centre with an explicit 2 px simplex,
-and assert no marker moves more than 10 px from its seed.
+the fit took that step and never came back: 125 px off the data line, every printed
+diagnostic converged-looking. **Never hand Nelder-Mead an absolute pixel coordinate** —
+optimise the offset from the current centre with an explicit 2 px simplex.
 
-**9. Mask the frame symmetrically or the abscissa is biased.** Ticks protrude inward only,
+**9. Assert that no marker runs away from its seed.** Trap 8's cure is not complete without
+it: 10 px is the bound in use, and A7 asserts 4.
+
+**10. Mask the frame symmetrically or the abscissa is biased.** Ticks protrude inward only,
 so a marker on a frame line has the inward half of its disc stripped and the outward half
-left, pulling the fitted centre outward. Mask |d| < k+5 on *both* sides of each frame line.
+left, pulling the fitted centre outward. Mask |d| < k+5 on *both* sides.
+
+**11. The page prints five to twenty-five times more ticks than the majors, and they are
+free.** Every one of these figures prints a minor lattice; until 2026-09-16 the tools
+detected it, used it to build their masks and threw it away before calibrating. Using it
+took the summed held-out frame error over 26 axes from 36.99 to 22.82 per-mille. Two things
+make it work, and it fails without either: **measure the minor step** from the ticks
+themselves rather than reading it off the page — major spacing ÷ median gap, which must come
+out an integer, and does to within 1.7 % on all 52 edges — and **label the fine ticks
+through a fit made on the majors alone**, never through the straight line between the frame
+corners, which is several pixels out in mid-page and discards a contiguous block of good
+ticks. A9 lost 29 of its 141 that way.
+
+A11 is the cautionary one for reading a lattice by eye: it prints **three** tick lengths —
+a minor, a longer one every ten minors at the half-major, and the major — so counted by eye
+its half-major ticks pass for majors and give 10 where the answer is 20.
+
+**12. A shared function with two plausible input conventions is a trap.** `protrusion` takes
+a polynomial, highest power first; A1 holds its edges as `(intercept, slope)`. Passing the
+pair unreversed probes a line with its slope and intercept exchanged, and it walked the
+probe a million rows off the page. Loud, immediately — but the next one might not be.
 
 ## Checks the figure gives you for free
 
 The tool is never told to expect any of these, which is what makes them checks.
 
-- **Regular structure.** Figure A2's markers sit at each integer of PS3/P2; the extraction
-  recovers 1.02, 2.03, 3.00 ... 19.99 — integers to within 0.04.
-- **A printed frame value held out of the fit.** Fit the ticks without it and predict it.
-  On A9's x only the cubic lands on the printed 0.85 to better than 2e-4, and it hands back
-  a measurement of the *unprinted* left frame, 0.3008, confirming a 0.30 that had been
-  inferred from a tick count.
-- **A local two-tick interpolation.** Interpolate between the two majors bracketing the
+- **Regular structure.** A2's markers sit at each integer of PS3/P2 and the extraction
+  recovers them to within 0.016; A9's abscissae fall on a 0.025 lattice and land within
+  0.00048.
+- **A printed frame value held out of the fit.** The backbone of every model choice above.
+  On A9's x it also handed back a measurement of the *unprinted* left frame, 0.3008,
+  confirming a 0.30 that had been inferred from a tick count.
+- **A local two-tick interpolation.** Interpolate between the two ticks bracketing each
   point on each ticked edge and average. It cannot see a global bow because it never fits
-  one; where it agrees with the chosen polynomial, that polynomial is not wandering between
-  ticks. Worst disagreement: A6 5.9e-6, A8 0.0225 BTU/LBM, A10 8.7e-5.
+  one, so where it agrees with the chosen polynomial, that polynomial is not wandering
+  between ticks. On a fine lattice the brackets are 5–25× tighter, which makes this much
+  sharper than it was.
+- **Two markers that should be one number.** A6 prints a horizontal line and two markers;
+  they agree to 0.016 σ, which is the figure's own statement that `f6` is a constant.
 
 **Two rules that outrank any of them: assert on structure, not on count — and a count that
 matches is not a check.** The A2 y detector once returned exactly 189 minor ticks, the
 exactly correct number, while holding one spurious tick and missing one real one; the
 off-by-one labelling moved the axis by 0.03 in T3/T2 and every count-based check passed.
 
-## Read error carried by the maps
+## Read error
 
-What the digitization contributes to a trim, measured by pushing +/-1 sigma of each map's
-fitted axis uncertainty through the model:
+Each CSV carries a per-point 1 σ in its own units, built by quadrature from the tick-fit
+residual, the spread over defensible polynomial orders, the disagreement between the two
+ticked edges, and the glyph-centre robustness. Worst point per map, as a fraction of that
+map's y range:
 
-| map | hover | level | descent |
-|---|---|---|---|
-| `f9` +1 sigma in y | +0.069 % | +0.020 % | +0.023 % |
-| `f9` +1 sigma in x | +0.033 % | +0.024 % | +0.040 % |
-| `f2` +1 sigma in y | -0.072 % | -0.103 % | -0.277 % |
-| `f2` +1 sigma in x | +0.067 % | +0.105 % | +0.334 % |
+| | worst 1 σ in y | of range |
+|---|---|---|
+| `f2` | 5.9e-4 | 0.04 % |
+| `f9` | 3.3e-5 | 0.03 % |
+| `f7` | 0.0166 | 0.07 % |
+| `f10` | 1.41e-4 | 0.14 % |
+| `f8` | 0.0522 | 0.15 % |
+| `f_hs` | 5.91e-3 | 0.17 % |
+| `f3` | 2.29e-4 | 0.21 % |
+| the seven `F_HM` schedules | — | 0.12–0.28 % |
 
-Per-map axis uncertainty, worst over the three trims: `f6` +/-0.125 %, `f8` +/-0.278 %,
-`f10` +/-0.078 %. `f6` is one number, 0.98500 +/- 0.00041, and its two markers agree with
-each other to 7.1e-5 — which is the figure's own statement that it is a constant.
+`f6` is not in the table because it is one number, 0.984965 ± 4.3e-4, with no range to be a
+fraction of.
+
+**What that read error costs the model has not been re-measured since the 2026-09-16/18
+recalibrations**, and the figures that used to be quoted here were measured on 2026-09-11
+against maps that have since moved. Redoing that sweep is open work; do not quote the old
+numbers.
 
 SCOPE.md carries the *figures'* read error separately, measured a different way: Figures 9
 and 10 each print one panel whose true value is stated, so digitizing it measures that
@@ -147,15 +203,18 @@ against each tool's own output paths rather than from memory.
 | `digitize_c30.py` | C30 (p.101) | `F_HM7`, the acceleration fuel limit — the one figure needing per-curve tracking |
 | `digitize_fig678.py` | 6, 7, 8 | `data/reference/fig06–08_*.csv`, three series each |
 | `digitize_fig910.py` | 9, 10 | `data/reference/fig09–10_*.csv`, six panels each |
-| `digitize.py`, `digitize_native.py`, `rectify_page.py` | — | shared libraries; they write nothing |
+| `tools/figure/` | — | the shared library; writes nothing |
+| `rectify_page.py` | — | squares up a page for A1's component labelling. **Resamples**, which nothing else does |
+| `check_straightness.py` | — | audit: is each printed curve straight between its markers, measured in data space |
+| `compare_models.py` | — | audit: what the frame model and the anchoring rule cost, figure by figure |
+| `minor_lattice.py` | — | audit: what minor lattice each edge resolves, and how cleanly |
 
 `f2`, `f7` and `f9` are the three whose CSVs are hand-maintained rather than generated —
 their headers carry provenance no generator writes — so those tools *check* their file
-instead of rewriting it. CLAUDE.md records why that distinction matters.
+instead of rewriting it, and return non-zero on any difference. CLAUDE.md records why that
+distinction matters.
 
----
-
-The per-figure working notes that used to follow — nine dated "Update: A7 recalibrated"
-sections, 1,350 lines of them — were cut on 2026-09-14 once every map reproduced byte for
-byte under `tools/reproduce_all.sh`. They are in git history:
-`git log -p docs/notes/digitizing-recipe.md`.
+`digitize_fig678.py` and `digitize_fig910.py` still carry their own frame and axis code:
+the body figures are stacked panels with tilted frames rather than single framed plots, and
+they were not converted when the appendix tools were. They share the raster and the run
+helpers and nothing else. That is the largest piece of duplication left.

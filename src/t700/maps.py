@@ -1,9 +1,10 @@
 """Function tables: loading the digitized figures and evaluating them.
 
 Every functional relationship in Ballin's engine exists only as a printed plot -- there
-are no numeric tables in the report for `f1`..`f10` or `f_hs`. `tools/digitize.py`
-turned those plots into the CSVs under `data/maps/`; this module is what the model uses
-to read them.
+are no numeric tables in the report for `f1`..`f10` or `f_hs`. The digitizers under
+`tools/` turned those plots into the CSVs in `data/maps/`, one script per figure over a
+shared library in `tools/figure/`; this module is what the model uses to read them, and
+`docs/notes/digitizing-recipe.md` is how they were read.
 
 ## Interpolation is a decision, not a transcription
 

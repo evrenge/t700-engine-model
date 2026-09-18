@@ -58,6 +58,8 @@ data/schedules/  all 8 of Appendix C's scheduling functions
 data/linear/     the 297 printed Appendix B matrix elements
 data/reference/  transient and sweep traces to validate against
 tools/           the digitizers; each reproduces its CSV byte for byte
+tools/figure/    the one library they share: raster, frame, ticks, axis, glyph,
+                 provenance -- each stage of reading a printed figure, once
 tests/           fast unit tests, and the architecture rules as executable checks
 validation/      comparisons against the report, and the figure set
 docs/notes/      5,800 lines: the report transcribed -- equations, symbols, appendix

@@ -13,7 +13,7 @@ Written 2026-09-16, after two corrections that had been applied unevenly:
   Figure A8) and the axis maps are polynomials (0.20-0.25 % of span). Pushing the traced
   centreline through the figure's own calibration first removes both.
 * **B — the two ticked edges blended, not pooled.** Each axis has two edges carrying
-  ticks. Fitting them together averages away a real difference; `digitize_native.blend_axis`
+  ticks. Fitting them together averages away a real difference; `blend_axis`
   has always fitted each alone and blended across the plot, and now everything does.
 
 The table records, for every figure the report prints: is it a plot, do we use it, did A
@@ -50,7 +50,7 @@ Every one is a plot and every one is used: these are the engine's function table
 |---|---|---|---|---|
 | Table A.1 | 55 | n/a | n/a | 33 scalar constants, transcribed |
 | **A1** `f1` | 56 | **no** | **yes** | The beta map is derived from the raw table, not traced from ink, so `check_straightness` has nothing to trace; `digitize_a1` reports its own per-speed-line fit residual instead (0.23-0.68 px). B applied 2026-09-16 -- and A1 settles pooled-vs-blended by itself: its eleven flat extensions are horizontal lines spanning the plot, and their end-to-end difference falls from 0.573 px mean to 0.409 px |
-| **A2** `f2` | 57 | **no** | **already** | Header does not publish the frame arcs, so the check cannot rebuild the map. Validated instead by a stronger free check: the 20 abscissae land on the integer lattice to 0.0155 max, and the fit was never told to expect integers. Blended since it was written -- `digitize_native` |
+| **A2** `f2` | 57 | **no** | **already** | Header does not publish the frame arcs, so the check cannot rebuild the map. Validated instead by a stronger free check: the 20 abscissae land on the integer lattice to 0.0155 max, and the fit was never told to expect integers. Blended since it was written |
 | **A3** `f3` | 58 | yes | yes | worst bow 0.79 sigma |
 | **A4** `f4` | 59 | yes | yes | worst bow 0.91 sigma |
 | **A5** `f5` | 60 | yes | yes | worst bow 0.61 sigma |
