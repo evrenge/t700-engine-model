@@ -81,7 +81,7 @@ Every one is a plot and every one is used: these are the engine's function table
 | **C27** `F_HM4` | 98 | plot | yes | yes | yes | worst bow 0.22 sigma |
 | **C28** `F_HM5` | 99 | plot | yes | yes | yes | worst bow 0.18 sigma |
 | **C29** `F_HM6` | 100 | plot | yes | yes | yes | worst bow 4.18 sigma -- **drafting, not a data defect.** The whole figure is two symbols and the line joining them, so the chord is the data by definition. Our two-point table is correct and needs no change |
-| **C30** `F_HM7` | 101 | plot | **yes** | **no** | yes | Seven curves, 192 vertices, extracted as vertices rather than traced, so there is no centreline to test. Validated by requiring every segment between consecutive knots to lie on ink. B applied 2026-09-16; coverage 0.9850 -> 0.9879. The audit then found the column selector still weighting the blend at a fixed mid-plot 0.5, worth up to 4.96 columns, and fixed it -> 0.9881 |
+| **C30** `F_HM7` | 101 | plot | **yes** | **no** | yes | Seven curves, 192 vertices, extracted as vertices rather than traced, so there is no centreline to test. Validated by requiring every segment between consecutive knots to lie on ink. B applied 2026-09-16; coverage 0.9850 -> 0.9879. The audit then found the column selector still weighting the blend at a fixed mid-plot 0.5, worth up to 4.96 columns, and fixed it -> 0.9881. **2026-09-18: 0.9800**, after this figure joined the printed minor lattice -- which improved its y axis map's held-out frame error 3.127 -> 0.690 per-mille and moved this check the other way, onto exactly its 0.98 floor. Both readings are recorded at `digitize_c30.COVERAGE_FLOOR` |
 
 ## Summary
 

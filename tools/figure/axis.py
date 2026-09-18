@@ -353,3 +353,58 @@ def fit_soft_anchored(t, val, order, lo, hi):
         np.concatenate([val, [lo, lo, hi, hi]]),
         order,
     )
+
+
+def pick_lattice(lo_maj, hi_maj, lo_fine, hi_fine, spec, label, verbose=True):
+    """Majors alone or the full minor lattice? Let the figure's own held-out test say.
+
+    The fine lattice is five to twenty-five times the data, and on twenty of the twenty-six
+    axes here it predicts the printed frame value better -- A6's x by a factor of 44, C28's
+    y by 9.4, C24's x by 7.8. On six it predicts it WORSE, C27's y by a factor of five,
+    because more ticks also means more chances to mislabel one and those edges are the
+    dirtiest on the page.
+
+    So the choice is not made once for all thirteen figures, and it is not made by hand
+    either. It is made by the same held-out frame test this project already uses to choose
+    the polynomial order (trap 6): fit without the printed frame value, predict it, keep
+    whichever model predicts it better. Ties go to the fine lattice, because more data is
+    the better default when nothing distinguishes them.
+
+    The weakness, stated: that test rests on one or two held-out numbers per axis. It is the
+    strongest thing the page offers and it is not strong. What makes it bearable is that it
+    is the SAME rule everywhere, applied by the tool rather than chosen per figure by
+    whoever is reading the output.
+
+    **A second weakness, which this choice is also the answer to.** Trap 6's guard on the
+    polynomial order -- admit only orders whose leave-one-tick-out error is within 1.2x of
+    the best -- goes inert on a fine lattice. With two hundred ticks the LOO error is set by
+    the scatter of individual ticks and barely moves with order: on A6's x axis it runs
+    0.899, 0.910, 0.906, 0.925 per-mille for orders 1 to 4, so every order clears the guard
+    and the frame test alone decides. That would be a real hole if the frame test were a fit
+    statistic, but it is held out, so an order that bought the interior with noise predicts
+    the frame worse and loses. The six axes where the fine lattice does predict the frame
+    worse -- C24 y, C26 y, C27 y, A10 y, C29 y, A11 x -- are exactly the ones this function
+    then sends back to their majors.
+    """
+    maj = calibrate(lo_maj, hi_maj, spec, label, verbose=False)
+    fine = calibrate(lo_fine, hi_fine, spec, label, verbose=False)
+    e_maj = maj["errs"][maj["order"]]
+    e_fine = fine["errs"][fine["order"]]
+    rng = spec["hi"] - spec["lo"]
+    use_fine = e_fine <= e_maj
+    if verbose:
+        print(
+            f"  {label} axis -- majors alone ({maj['n']} ticks, order {maj['order']}) predict "
+            f"the printed frame to {e_maj / rng * 1000:.3f} per-mille;"
+        )
+        print(
+            f"    the fine lattice ({fine['n']} ticks, order {fine['order']}) to "
+            f"{e_fine / rng * 1000:.3f} per-mille  ->  "
+            f"{'FINE LATTICE' if use_fine else 'MAJORS'}"
+        )
+    chosen = (lo_fine, hi_fine) if use_fine else (lo_maj, hi_maj)
+    out = calibrate(chosen[0], chosen[1], spec, label, verbose=verbose)
+    out["lattice"] = "fine" if use_fine else "majors"
+    out["alt_err"] = float(e_maj if use_fine else e_fine)
+    out["edges"] = chosen  # the two (coordinate, value) pairs the final fit actually used
+    return out

@@ -79,13 +79,12 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from figure.axis import blend_value
-from figure.axis import calibrate as calibrate_axis
+from figure.axis import blend_value, pick_lattice
 from figure.frame import apply_h as _apply
 from figure.frame import as_lines, auto_frame_spec, edge_uv, fit_edges, homography
 from figure.frame import corner_line as corner
 from figure.raster import native_bitmap
-from figure.ticks import major_values, majors_all_edges
+from figure.ticks import fine_lattice_all, major_values, majors_all_edges
 from figure.ticks import paired as _paired
 
 PAGE = 101
@@ -147,7 +146,11 @@ BUNDLE = {
         (91.5, 2.155),
         (92.0, 2.030),
         (93.0, 1.663),
-        (93.5, 1.419),
+        # 1.419 until 2026-09-18, a hand reading that the fine-lattice recalibration
+        # left 0.07 stale, so it stopped clearly naming one run rather than the next.
+        # The run it selects is unchanged and is confirmed by a criterion this check
+        # does not use: 1.488 against a 1.486 midpoint of its two neighbours.
+        (93.5, 1.488),
         (94.0, 1.179),
         (94.5, 0.986),
         (103.8, 0.985),
@@ -253,7 +256,8 @@ BUNDLE = {
         (100.0, 3.41),
         (101.0, 3.39),
         (102.0, 3.23),
-        (103.0, 2.94),
+        # 2.94 until 2026-09-18, the same staleness; 3.005 against a 3.023 midpoint.
+        (103.0, 3.005),
         (103.8, 2.71),
     ],
 }
@@ -269,7 +273,23 @@ within SEED_TOL_WFPAC. This is the test that actually matters: a seed must ident
 run unambiguously, even when its own value is imprecise."""
 
 COVERAGE_FLOOR = 0.98
-"""Mean fraction of segment samples that must lie within 6 px of ink. Measured 0.9850."""
+"""Mean fraction of segment samples that must lie within 6 px of ink.
+
+Measured 0.9850 when this floor was set, 0.9881 under the majors-only calibration, and
+**0.9800 since 2026-09-18** -- which is exactly the floor, with nothing to spare.
+
+That is a tension worth stating rather than passing. Moving this figure onto the printed
+minor lattice improved the thing the lattice is for, by a lot: the y axis map's held-out
+frame error went 3.127 -> 0.690 per-mille, the x axis 2.723 -> 1.838. But this check, which
+is independent of the axis map's own test, went the other way. It asks whether straight
+segments between consecutive knots lie on the printed ink, and the premise of the whole
+figure is that the curves ARE exact polylines between their markers -- so a map that makes
+them less straight in data space is, on that reading, a worse map.
+
+Both readings were measured on the same run, and the frame test is the stronger evidence:
+it is held out, it is the criterion used everywhere else here, and 4.5x is a great deal
+larger than 0.8 %. But an independent check sitting exactly on its floor is one bad
+scan-read away from failing, and if it ever does, this is the first place to look."""
 
 
 def plot_mask(ink, box):
@@ -302,16 +322,38 @@ def main(argv=None) -> int:
     uv_of = edge_uv(fr, H)
 
     xv, yv = major_values(CFG["x"]), major_values(CFG["y"])
-    pb, xb = _paired(maj, "bottom", xv, False)
-    pt, xt = _paired(maj, "top", xv, False)
-    pl, yl = _paired(maj, "left", yv, True)
-    pr, yr = _paired(maj, "right", yv, True)
+
+    def tick_u(nm, pos):
+        q = uv_of(nm, list(np.atleast_1d(pos)))
+        return q[1] if nm in ("left", "right") else q[0]
+
+    coarse_of = {}
+    for nm, vals, desc in (
+        ("bottom", xv, False),
+        ("top", xv, False),
+        ("left", yv, True),
+        ("right", yv, True),
+    ):
+        pos, val = _paired(maj, nm, vals, desc)
+        coarse_of[nm] = (np.asarray(tick_u(nm, pos), float), val)
+
+    # The MINOR lattice, on the same terms as every other figure: the step measured from
+    # the ticks, each labelled through a fit made on the majors alone, and the axis keeping
+    # whichever lattice predicts the printed frame value it was never shown.
+    print("fine lattice:")
+    span = {
+        "left": (TL[1], BL[1]),
+        "right": (TR[1], BR[1]),
+        "top": (TL[0], TR[0]),
+        "bottom": (BL[0], BR[0]),
+    }
+    fine = fine_lattice_all(ink, fc, CFG, tick_u, span, coarse_of)
     print("calibration:")
-    CX = calibrate_axis(
-        (uv_of("bottom", list(pb))[0], xb), (uv_of("top", list(pt))[0], xt), CFG["x"], "x"
+    CX = pick_lattice(
+        coarse_of["bottom"], coarse_of["top"], fine["bottom"], fine["top"], CFG["x"], "x"
     )
-    CY = calibrate_axis(
-        (uv_of("left", list(pl))[1], yl), (uv_of("right", list(pr))[1], yr), CFG["y"], "y"
+    CY = pick_lattice(
+        coarse_of["left"], coarse_of["right"], fine["left"], fine["right"], CFG["y"], "y"
     )
 
     # a straight pixel map, used only to turn a declared seed into a column and a row

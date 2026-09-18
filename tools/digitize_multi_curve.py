@@ -41,14 +41,13 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from figure.axis import blend_value
-from figure.axis import calibrate as calibrate_axis
+from figure.axis import blend_value, pick_lattice
 from figure.frame import apply_h as _apply
 from figure.frame import as_lines, auto_frame_spec, edge_uv, fit_edges, homography
 from figure.frame import corner_line as corner
 from figure.frame import dist as _dist
 from figure.raster import native_bitmap
-from figure.ticks import major_values, majors_all_edges
+from figure.ticks import fine_lattice_all, major_values, majors_all_edges
 from figure.ticks import paired as _paired
 
 FIGS = {
@@ -279,16 +278,40 @@ def main(argv=None):
     uv_of = edge_uv(fr, H)
 
     xv, yv = major_values(cfg["x"]), major_values(cfg["y"])
-    pb, xb = _paired(maj, "bottom", xv, False)
-    pt, xt = _paired(maj, "top", xv, False)
-    pl, yl = _paired(maj, "left", yv, True)
-    pr, yr = _paired(maj, "right", yv, True)
+
+    def tick_u(nm, pos):
+        q = uv_of(nm, list(np.atleast_1d(pos)))
+        return q[1] if nm in ("left", "right") else q[0]
+
+    coarse_of = {}
+    for nm, vals, desc in (
+        ("bottom", xv, False),
+        ("top", xv, False),
+        ("left", yv, True),
+        ("right", yv, True),
+    ):
+        pos, val = _paired(maj, nm, vals, desc)
+        coarse_of[nm] = (np.asarray(tick_u(nm, pos), float), val)
+
+    # The MINOR lattice, on the same terms as the thirteen single-curve figures: the step
+    # measured from the ticks, each tick labelled through a fit made on the majors alone,
+    # and the axis keeping whichever lattice predicts the printed frame value it was never
+    # shown. This figure shares its calibration with `digitize_single_curve` and had been
+    # left behind on the majors when that path moved.
+    print("fine lattice:")
+    span = {
+        "left": (TL[1], BL[1]),
+        "right": (TR[1], BR[1]),
+        "top": (TL[0], TR[0]),
+        "bottom": (BL[0], BR[0]),
+    }
+    fine = fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of)
     print("calibration:")
-    CX = calibrate_axis(
-        (uv_of("bottom", list(pb))[0], xb), (uv_of("top", list(pt))[0], xt), cfg["x"], "x"
+    CX = pick_lattice(
+        coarse_of["bottom"], coarse_of["top"], fine["bottom"], fine["top"], cfg["x"], "x"
     )
-    CY = calibrate_axis(
-        (uv_of("left", list(pl))[1], yl), (uv_of("right", list(pr))[1], yr), cfg["y"], "y"
+    CY = pick_lattice(
+        coarse_of["left"], coarse_of["right"], fine["left"], fine["right"], cfg["y"], "y"
     )
 
     # ---- trace, then sample at the knot abscissae ---------------------------------

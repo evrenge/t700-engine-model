@@ -388,3 +388,50 @@ def fine_lattice(ink, edge_poly, along, sign, lo, hi, to_u, coarse, major_px, st
     u = np.asarray(to_u(raw), float)
     uk, vk, _keep = label_by_map(u, coarse, step / n)
     return uk, vk, n, int(raw.size)
+
+
+def fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of, verbose=True):
+    """The minor lattice on all four edges, falling back to the majors where none resolves.
+
+    `coarse_of[name]` is the `(coordinate, value)` pair from the interior majors, which is
+    both the fallback and the fit the fine ticks are labelled through. `tick_u(name, pos)`
+    maps positions along an edge to the normalized plot coordinate under whichever frame
+    model the caller chose.
+    """
+    out = {}
+    for nm in ("bottom", "top", "left", "right"):
+        ax = cfg["y" if nm in ("left", "right") else "x"]
+        cu, cv = coarse_of[nm]
+        along, sign = EDGE[nm]
+        a, b = span[nm]
+        lo, hi = int(min(a, b)) + 3, int(max(a, b)) - 2
+        major_px = abs(b - a) / ((ax["hi"] - ax["lo"]) / major_step(ax))
+        coarse = np.polyfit(cu, cv, max(1, min(3, cu.size - 2)))
+        got = fine_lattice(
+            ink,
+            fc[nm],
+            along,
+            sign,
+            lo,
+            hi,
+            lambda raw, nm=nm: np.asarray(tick_u(nm, raw), float),
+            coarse,
+            major_px,
+            major_step(ax),
+        )
+        if got is None:
+            if verbose:
+                print(f"  {nm:6s} no lattice resolves; this edge keeps its majors")
+            out[nm] = (cu, cv)
+            continue
+        fu, fv, npm, ndet = got
+        if verbose:
+            resid = fv - np.polyval(coarse, fu)
+            print(
+                f"  {nm:6s} {npm:2d} minors per major, {ndet:4d} ticks detected, "
+                f"{fu.size:4d} labelled ({fu.size / max(cu.size, 1):.1f}x the majors), "
+                f"scatter about the coarse map {resid.std() / (major_step(ax) / npm):.3f} "
+                f"of one minor interval"
+            )
+        out[nm] = (fu, fv)
+    return out
