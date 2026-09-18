@@ -163,9 +163,19 @@ def test_more_fuel_buys_more_speed_and_power():
 
 
 EIGENVALUE_TOL_PCT = 30.0
-"""Ours, declared in `SCOPE.md`. Loose because the NG mode carries the #31/#43
-interpolation residual, worst -22.6 % at descent; see `docs/notes/derivative-ambiguity.md`.
-It was an inline `30.0` under a docstring claiming a 4 % standard until 2026-09-13."""
+"""Ours. **A characterization, not an accuracy claim** -- a regression detector set well
+above the measurement, which is currently 14.87 % worst on the NG mode. Loose because that
+mode carries the #31/#43 interpolation residual; see `docs/notes/derivative-ambiguity.md`.
+
+Ballin calls a 4 % eigenvalue mismatch "good agreement" for his own comparison [pdf p.29].
+Ours is not that, and quoting this bound as though it were an accuracy standard would be
+the error `SCOPE.md` warns about where it defines the characterization category.
+
+This docstring said "declared in `SCOPE.md`" until 2026-09-19 and `SCOPE.md` had never
+mentioned it -- the loosest bound in the project, self-certifying, on the one validation
+surface that is a restatement of another. It has a row there now, so
+`tests/test_scope_tolerances.py` holds the two in step. It was an inline `30.0` under a
+docstring claiming a 4 % standard until 2026-09-13."""
 
 
 def test_jacobian_eigenvalues_against_table_1():
