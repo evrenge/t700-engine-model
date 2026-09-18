@@ -19,16 +19,21 @@
 # not a warp applied to the pixels, so no interpolation ever touches the data.
 #
 # GEOMETRY. The four frame lines are fitted sub-pixel by tracing the single ink run per
-# row/column and least-squares fitting with outlier rejection:
-#   left   x = 450.009 +0.000851 y   (+0.049 deg, 1914 samples, rms 0.97 px)
-#   right  x = 2112.710 -0.000815 y   (-0.047 deg, 1948 samples, rms 1.06 px)
-#   top    y = 299.370 +0.004528 x   (+0.259 deg, 1586 samples, rms 0.40 px)
-#   bottom y = 2638.582 +0.007489 x   (+0.429 deg, 1357 samples, rms 0.45 px)
+# row/column and least-squares fitting with outlier rejection. A printed straight edge
+# does not image straight here, so BOTH models are fitted and the figure chooses: fit
+# each edge as a line, or as an arc, and keep whichever predicts the printed frame
+# values it was never shown. Summed held-out error over both axes, per-mille of range:
+#   straight 1.107   arcs 1.250   ->  STRAIGHT (arcs must win by 10 %; straight is the incumbent)
+#   left   x = 450.009 +0.000851369189 y   (+0.049 deg, 1914 samples, rms 0.97 px)
+#   right  x = 2112.710 -0.00081526103 y   (-0.047 deg, 1948 samples, rms 1.06 px)
+#   top    y = 299.370 +0.0045275944 x   (+0.259 deg, 1586 samples, rms 0.40 px)
+#   bottom y = 2638.582 +0.00748887877 x   (+0.429 deg, 1357 samples, rms 0.45 px)
 # The four edge slopes are not a common rotation, so the frame is a genuine
 # quadrilateral; corners TL(450.266,301.408) TR(2112.458,308.934)
-# BR(2110.546,2654.388) BL(452.259,2641.969) are mapped onto the unit
-# square (u right, v up) by a homography, and every measured point is carried through
-# it. NOT `digitize.py axes`, and NOT a pixel warp -- nothing is resampled.
+# BR(2110.546,2654.388) BL(452.259,2641.969). They are mapped onto the
+# unit square (u right, v up) by a homography, and every measured point is carried
+# through it.
+# NOT a pixel warp -- nothing is resampled at any point.
 #
 # CALIBRATION. Every printed MAJOR tick on all four edges, located by the ink-weighted
 # centroid of its inward protrusion, and matched to its printed value by predicted
@@ -101,7 +106,7 @@
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   Independent bow-free cross-check: linear interpolation between the two majors that
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
-#   model to 0.0713 in x and 9.47 in y, worst point.
+#   model to 0.0107 in x and 0.00985 in y, worst point.
 #
 # MARKERS. 2 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does

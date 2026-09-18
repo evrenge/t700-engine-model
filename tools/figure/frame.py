@@ -121,9 +121,29 @@ def fit_edges(ink, spec, order=1, verbose=True):
     return out, diag
 
 
-def as_lines(fc):
-    """Order-1 coefficients as the `(intercept, slope)` pairs the homography path uses."""
-    return {nm: (float(c[1]), float(c[0])) for nm, c in fc.items()}
+def as_lines(fc, span=None):
+    """Each edge as an `(intercept, slope)` pair -- what the masks and the seed search want.
+
+    Those consumers do not care about a 2 px bow; they need a line lying along the ink. For
+    an order-1 fit the pair is exact. For a higher order it must be the best straight line
+    **over the edge's own span**, which is what `span` supplies as `(t0, t1)` per edge.
+
+    Without the span the only available answer is the polynomial's tangent at t = 0, and on
+    these pages t is a pixel row running to 2600, so that tangent leaves the ink entirely.
+    It put A10's frame far enough out that the marker search found no ink at all and raised
+    "opening found nothing". Pass the span unless you know the fit is order 1.
+    """
+    out = {}
+    for nm, c in fc.items():
+        c = np.atleast_1d(np.asarray(c, float))
+        if c.size <= 2 or span is None:
+            out[nm] = (float(c[-1]), float(c[-2]))
+            continue
+        t0, t1 = sorted(span[nm])
+        t = np.linspace(t0, t1, 200)
+        b, a = np.polyfit(t, np.polyval(c, t), 1)
+        out[nm] = (float(a), float(b))
+    return out
 
 
 # --------------------------------------------------------------------------- corners

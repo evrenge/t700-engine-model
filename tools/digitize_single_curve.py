@@ -64,15 +64,29 @@ from scipy import ndimage
 
 from figure.axis import blend_value
 from figure.axis import calibrate as calibrate_axis
-from figure.frame import EDGE, as_lines, auto_frame_spec, blocked_mask, fit_edges, homography
+from figure.frame import (
+    EDGE,
+    as_lines,
+    auto_frame_spec,
+    blocked_mask,
+    edge_at,
+    edge_uv,
+    fit_edges,
+    homography,
+    make_sv,
+)
 from figure.frame import apply_h as _apply
-from figure.frame import corner_line as corner
+from figure.frame import corners as frame_corners
 from figure.frame import dist as _dist
 from figure.glyph import fit_glyphs, glyph_only_windows, windows
+from figure.provenance import edge_str
 from figure.provenance import poly_str as _poly_str
 from figure.raster import native_bitmap
 from figure.ticks import fine_lattice, major_step, major_values, majors_all_edges
 from figure.ticks import paired as _paired
+
+FRAME_MARGIN = 0.90
+"""Arcs replace straight edges only if they predict the printed frames 10 % better."""
 
 PDF = Path("docs/ballin-tm100991.pdf")
 OUT = Path("validation/out/digitize/a6810")
@@ -369,14 +383,11 @@ def segment_check(ink, fr, C):
 # --------------------------------------------------------------------------- overlay
 
 
-def overlay(ink, fr, C, cx, cy, cfg, tag):
+def overlay(ink, to_px, corners4, C, cx, cy, cfg, tag):
+    """The gridlines drawn back onto the scan, through whichever map the figure chose."""
     im = Image.fromarray((~ink * 255).astype(np.uint8)).convert("RGB")
     d = ImageDraw.Draw(im)
-    TL = corner(fr["top"], fr["left"])
-    TR = corner(fr["top"], fr["right"])
-    BL = corner(fr["bottom"], fr["left"])
-    BR = corner(fr["bottom"], fr["right"])
-    Hi = homography([(0, 1), (1, 1), (1, 0), (0, 0)], [TL, TR, BR, BL])
+    TL, TR, BR, BL = corners4
     tt = np.linspace(0.0, 1.0, 20001)
     for spec, poly, horiz in ((cfg["x"], cx, False), (cfg["y"], cy, True)):
         n = int(round((spec["hi"] - spec["lo"]) / major_step(spec)))
@@ -384,7 +395,7 @@ def overlay(ink, fr, C, cx, cy, cfg, tag):
             val = spec["lo"] + major_step(spec) * k
             s = float(tt[np.argmin(np.abs(np.polyval(poly, tt) - val))])
             p0, p1 = ((0.0, s), (1.0, s)) if horiz else ((s, 0.0), (s, 1.0))
-            q0, q1 = _apply(Hi, *p0), _apply(Hi, *p1)
+            q0, q1 = to_px(*p0), to_px(*p1)
             d.line(
                 [(q0[0].item(), q0[1].item()), (q1[0].item(), q1[1].item())],
                 fill=(210, 230, 255),
@@ -406,7 +417,7 @@ def overlay(ink, fr, C, cx, cy, cfg, tag):
 # --------------------------------------------------------------------------- driver
 
 
-def pick_lattice(lo_maj, hi_maj, lo_fine, hi_fine, spec, label):
+def pick_lattice(lo_maj, hi_maj, lo_fine, hi_fine, spec, label, verbose=True):
     """Majors alone or the full minor lattice? Let the figure's own held-out test say.
 
     The fine lattice is five to twenty-five times the data, and on twenty of the twenty-six
@@ -443,68 +454,78 @@ def pick_lattice(lo_maj, hi_maj, lo_fine, hi_fine, spec, label):
     e_fine = fine["errs"][fine["order"]]
     rng = spec["hi"] - spec["lo"]
     use_fine = e_fine <= e_maj
-    print(
-        f"  {label} axis -- majors alone ({maj['n']} ticks, order {maj['order']}) predict the "
-        f"printed frame to {e_maj / rng * 1000:.3f} per-mille;"
-    )
-    print(
-        f"    the fine lattice ({fine['n']} ticks, order {fine['order']}) to "
-        f"{e_fine / rng * 1000:.3f} per-mille  ->  {'FINE LATTICE' if use_fine else 'MAJORS'}"
-    )
+    if verbose:
+        print(
+            f"  {label} axis -- majors alone ({maj['n']} ticks, order {maj['order']}) predict "
+            f"the printed frame to {e_maj / rng * 1000:.3f} per-mille;"
+        )
+        print(
+            f"    the fine lattice ({fine['n']} ticks, order {fine['order']}) to "
+            f"{e_fine / rng * 1000:.3f} per-mille  ->  "
+            f"{'FINE LATTICE' if use_fine else 'MAJORS'}"
+        )
     chosen = (lo_fine, hi_fine) if use_fine else (lo_maj, hi_maj)
-    out = calibrate_axis(chosen[0], chosen[1], spec, label)
+    out = calibrate_axis(chosen[0], chosen[1], spec, label, verbose=verbose)
     out["lattice"] = "fine" if use_fine else "majors"
     out["alt_err"] = float(e_maj if use_fine else e_fine)
+    out["edges"] = chosen  # the two (coordinate, value) pairs the final fit actually used
     return out
 
 
-def run(key):
-    cfg = FIGS[key]
-    print(f"\n================ {cfg['fig']}  (pdf p.{cfg['page']})")
-    ink = native_bitmap(cfg["page"])
-    print("frame lines:")
-    fspec = cfg.get("frame_spec") or auto_frame_spec(cfg["page"])
-    fc, frdiag = fit_edges(ink, fspec, order=1)
-    fr = as_lines(fc)
-    TL = corner(fr["top"], fr["left"])
-    TR = corner(fr["top"], fr["right"])
-    BL = corner(fr["bottom"], fr["left"])
-    BR = corner(fr["bottom"], fr["right"])
-    print(
-        f"  corners TL({TL[0]:.3f},{TL[1]:.3f}) TR({TR[0]:.3f},{TR[1]:.3f}) "
-        f"BR({BR[0]:.3f},{BR[1]:.3f}) BL({BL[0]:.3f},{BL[1]:.3f})"
-    )
-    H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
-    print("ticks:")
-    maj, allt, _ = majors_all_edges(ink, fc, cfg)
+def _calibrate_under(ink, fspec, cfg, forder, verbose=True):
+    """Everything from the frame lines to the two axis maps, under one frame model.
+
+    `forder` 1 is four straight edges mapped by a homography; 2 is four fitted arcs and the
+    curvilinear blend between them. `run` calls this twice and keeps the model the figure's
+    own held-out frame test prefers, so the returned `score` -- the summed held-out frame
+    error of both axes, in per-mille of their ranges -- is what that choice is made on.
+    """
+    if verbose:
+        print("frame lines:")
+    fc, frdiag = fit_edges(ink, fspec, order=forder, verbose=verbose)
+    TL, TR, BR, BL = frame_corners(fc, order=forder)
     span = {
         "left": (TL[1], BL[1]),
         "right": (TR[1], BR[1]),
         "top": (TL[0], TR[0]),
         "bottom": (BL[0], BR[0]),
     }
+    fr = as_lines(fc, span)
+    if verbose:
+        print(
+            f"  corners TL({TL[0]:.3f},{TL[1]:.3f}) TR({TR[0]:.3f},{TR[1]:.3f}) "
+            f"BR({BR[0]:.3f},{BR[1]:.3f}) BL({BL[0]:.3f},{BL[1]:.3f})"
+        )
+    H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
+    if forder == 1:
+        to_uv = lambda px, py: _apply(H, px, py)  # noqa: E731
+        to_px = lambda u, v: _apply(  # noqa: E731
+            homography([(0, 1), (1, 1), (1, 0), (0, 0)], [TL, TR, BR, BL]), u, v
+        )
+        edge_coord = edge_uv(fr, H)
 
-    # tick coordinates in the unit square
-    def uv_of(nm, pos):
-        if nm in ("left", "right"):
-            a, b = fr[nm]
-            return _apply(H, [a + b * p for p in pos], pos)
-        a, b = fr[nm]
-        return _apply(H, pos, [a + b * p for p in pos])
+        def tick_u(nm, pos):
+            q = edge_coord(nm, list(np.atleast_1d(pos)))
+            return q[1] if nm in ("left", "right") else q[0]
+    else:
+        sv, px_of = make_sv(fc)
+        to_uv, to_px = sv, px_of
+        tick_u = edge_at(fc, sv)
 
-    xs = cfg["x"]
-    ys = cfg["y"]
-    xv = major_values(xs)
-    yv = major_values(ys)
-
-    pb, xb = _paired(maj, "bottom", xv, False)
-    pt, xt = _paired(maj, "top", xv, False)
-    pl, yl = _paired(maj, "left", yv, True)
-    pr, yr = _paired(maj, "right", yv, True)
-    ub, _ = uv_of("bottom", list(pb))
-    ut, _ = uv_of("top", list(pt))
-    _, vl = uv_of("left", list(pl))
-    _, vr = uv_of("right", list(pr))
+    if verbose:
+        print("ticks:")
+    maj, allt, _ = majors_all_edges(ink, fc, cfg, verbose=verbose, order=forder)
+    xs, ys = cfg["x"], cfg["y"]
+    xv, yv = major_values(xs), major_values(ys)
+    coarse_of = {}
+    for nm, vals, desc in (
+        ("bottom", xv, False),
+        ("top", xv, False),
+        ("left", yv, True),
+        ("right", yv, True),
+    ):
+        pos, val = _paired(maj, nm, vals, desc)
+        coarse_of[nm] = (np.asarray(tick_u(nm, pos), float), val)
 
     # ---- the MINOR lattice, which until 2026-09-16 this path printed and ignored.
     # The axis map was fitted on the interior majors alone, four to thirty-four per axis,
@@ -512,47 +533,111 @@ def run(key):
     # fine lattice and says what it buys: enough data "to fit and *test* an order-5 axis
     # map instead of guessing between order 2 and order 4 on twelve ticks". Nothing about
     # these thirteen pages made them different; the machinery simply never reached them.
-    print("fine lattice:")
+    if verbose:
+        print("fine lattice:")
     fine = {}
-    for nm, (coarse_u, coarse_v, ax) in (
-        ("bottom", (ub, xb, xs)),
-        ("top", (ut, xt, xs)),
-        ("left", (vl, yl, ys)),
-        ("right", (vr, yr, ys)),
-    ):
+    for nm, ax in (("bottom", xs), ("top", xs), ("left", ys), ("right", ys)):
+        cu, cv = coarse_of[nm]
         along, sign = EDGE[nm]
         a, b = span[nm]
         elo, ehi = int(min(a, b)) + 3, int(max(a, b)) - 2
-        vert = nm in ("left", "right")
         major_px = abs(b - a) / ((ax["hi"] - ax["lo"]) / major_step(ax))
-        # a map from the MAJORS alone, to label the fine ticks through
-        order = max(1, min(3, coarse_u.size - 2))
-        coarse = np.polyfit(coarse_u, coarse_v, order)
-
-        def to_u(raw, nm=nm, vert=vert):
-            q = uv_of(nm, list(np.atleast_1d(raw)))
-            return q[1] if vert else q[0]
-
+        coarse = np.polyfit(cu, cv, max(1, min(3, cu.size - 2)))
         got = fine_lattice(
-            ink, fc[nm], along, sign, elo, ehi, to_u, coarse, major_px, major_step(ax)
+            ink,
+            fc[nm],
+            along,
+            sign,
+            elo,
+            ehi,
+            lambda raw, nm=nm: np.asarray(tick_u(nm, raw), float),
+            coarse,
+            major_px,
+            major_step(ax),
         )
         if got is None:
-            print(f"  {nm:6s} no lattice resolves; this edge keeps its majors")
-            fine[nm] = (coarse_u, coarse_v)
+            if verbose:
+                print(f"  {nm:6s} no lattice resolves; this edge keeps its majors")
+            fine[nm] = (cu, cv)
             continue
         fu, fv, npm, ndet = got
-        resid = fv - np.polyval(coarse, fu)
-        print(
-            f"  {nm:6s} {npm:2d} minors per major, {ndet:4d} ticks detected, "
-            f"{fu.size:4d} labelled ({fu.size / max(coarse_u.size, 1):.1f}x the majors), "
-            f"scatter about the coarse map {resid.std() / (major_step(ax) / npm):.3f} "
-            f"of one minor interval"
-        )
+        if verbose:
+            resid = fv - np.polyval(coarse, fu)
+            print(
+                f"  {nm:6s} {npm:2d} minors per major, {ndet:4d} ticks detected, "
+                f"{fu.size:4d} labelled ({fu.size / max(cu.size, 1):.1f}x the majors), "
+                f"scatter about the coarse map {resid.std() / (major_step(ax) / npm):.3f} "
+                f"of one minor interval"
+            )
         fine[nm] = (fu, fv)
 
-    print("calibration:")
-    CX = pick_lattice((ub, xb), (ut, xt), fine["bottom"], fine["top"], xs, "x")
-    CY = pick_lattice((vl, yl), (vr, yr), fine["left"], fine["right"], ys, "y")
+    if verbose:
+        print("calibration:")
+    CX = pick_lattice(
+        coarse_of["bottom"], coarse_of["top"], fine["bottom"], fine["top"], xs, "x", verbose
+    )
+    CY = pick_lattice(
+        coarse_of["left"], coarse_of["right"], fine["left"], fine["right"], ys, "y", verbose
+    )
+    score = sum(
+        CA["errs"][CA["order"]] / (ax["hi"] - ax["lo"]) * 1000 for CA, ax in ((CX, xs), (CY, ys))
+    )
+    return dict(
+        fc=fc,
+        frdiag=frdiag,
+        fr=fr,
+        corners=(TL, TR, BR, BL),
+        H=H,
+        to_uv=to_uv,
+        to_px=to_px,
+        maj=maj,
+        allt=allt,
+        CX=CX,
+        CY=CY,
+        forder=forder,
+        score=float(score),
+    )
+
+
+def run(key):
+    cfg = FIGS[key]
+    print(f"\n================ {cfg['fig']}  (pdf p.{cfg['page']})")
+    ink = native_bitmap(cfg["page"])
+    fspec = cfg.get("frame_spec") or auto_frame_spec(cfg["page"])
+
+    # ---- straight edges or arcs? The figure decides, by the same held-out frame test.
+    #
+    # A printed straight edge does not image straight here: fitted as a quadratic these
+    # frame edges carry sagittae of 0.3 to 3.5 px, and `docs/notes/digitizing-recipe.md`
+    # trap 7 concluded from that "the frame edges are arcs, so a homography is wrong too".
+    # Measured across all thirteen figures, that does not generalise -- most of them
+    # predict their own printed frame value BETTER under the straight model. So the rule
+    # is the one used everywhere else here: run both, keep whichever predicts the number
+    # it was never shown, summed over the figure's two axes.
+    #
+    # It has to be asked on the FINE lattice to get the right answer. On the majors alone
+    # A8 preferred arcs by 17.7x; with ten times the ticks it prefers straight by 7.9x.
+    trials = {fo: _calibrate_under(ink, fspec, cfg, fo, verbose=False) for fo in (1, 2)}
+    # Straight is the incumbent, so arcs have to win by a MARGIN, not a hair. Without one,
+    # C27 switches on 1.537 against 1.525 per-mille -- eight parts in a thousand, which is
+    # a coin flip, and a coin flip should not move a published number. The four figures
+    # that clear 10 % clear it by 2.1x, 4.3x and 11x; nothing sits near the threshold.
+    forder = 2 if trials[2]["score"] < FRAME_MARGIN * trials[1]["score"] else 1
+    print(
+        f"frame model: straight {trials[1]['score']:.3f} per-mille vs arcs "
+        f"{trials[2]['score']:.3f}  ->  {'ARCS' if forder == 2 else 'STRAIGHT'} "
+        f"(summed held-out frame error over both axes; arcs must win by "
+        f"{(1 - FRAME_MARGIN) * 100:.0f} %)"
+    )
+    cal = _calibrate_under(ink, fspec, cfg, forder, verbose=True)
+    fc, frdiag, fr = cal["fc"], cal["frdiag"], cal["fr"]
+    TL, TR, BR, BL = cal["corners"]
+    H, to_uv, to_px = cal["H"], cal["to_uv"], cal["to_px"]
+    maj, allt = cal["maj"], cal["allt"]
+    CX, CY = cal["CX"], cal["CY"]
+    xs, ys = cfg["x"], cfg["y"]
+    (ub, xb), (ut, xt) = CX["edges"]
+    (vl, yl), (vr, yr) = CY["edges"]
     cx, cy = CX["c"], CY["c"]
 
     print("markers:")
@@ -575,7 +660,7 @@ def run(key):
 
     print("checks:")
     extras, sag = segment_check(ink, fr, C)
-    u, v = _apply(H, C[:, 0], C[:, 1])
+    u, v = to_uv(C[:, 0], C[:, 1])
     Xd, Yd = blend_value(CX["edgec"], u, v), blend_value(CY["edgec"], v, u)
 
     # ---- glyph-centre uncertainty: worst case over honest variations of the estimator
@@ -616,7 +701,7 @@ def run(key):
         # c. the two ticked edges calibrated separately, half their disagreement
         c = 0.5 * np.abs(np.polyval(CA["edgec"][0], t) - np.polyval(CA["edgec"][1], t))
         # d. glyph centre, converted from px through the local scale of this axis
-        du = _pixel_to_unit(H, C, 0 if ax == "x" else 1)
+        du = _pixel_to_unit(to_uv, C, 0 if ax == "x" else 1)
         d = np.abs(np.polyval(np.polyder(poly), t)) * du * dpx[:, 0 if ax == "x" else 1]
         s = np.sqrt(a**2 + b**2 + c**2 + d**2)
         sig[ax] = s
@@ -626,22 +711,26 @@ def run(key):
             f"(max {s.max():.4g})"
         )
 
-    # ---- independent bow-free check: local linear interpolation between the two majors
-    #      that bracket each point, done on each ticked edge and averaged
+    # ---- independent bow-free check: local linear interpolation between the two ticks
+    #      that bracket each point, done on each ticked edge and averaged.
+    #
+    # It cannot see a global bow because it never fits one, so where it agrees with the
+    # chosen polynomial, that polynomial is not wandering between ticks. The nodes are
+    # whichever lattice the axis chose -- on a fine lattice the brackets are five to
+    # twenty-five times tighter, which makes this a much sharper check than it was.
     print("  local two-tick check (bow-free), chosen-model minus local:")
     twotick = {}
     for ax, t, aspec, poly, edges in (
-        ("x", u, xs, cx, (ub, ut)),
-        ("y", v, ys, cy, (vl, vr)),
+        ("x", u, xs, cx, CX["edges"]),
+        ("y", v, ys, cy, CY["edges"]),
     ):
-        vals = xv if ax == "x" else yv
         per = []
-        for e in edges:
-            nodes_t = np.concatenate([[0.0], e, [1.0]])
+        for et, ev in edges:
+            nodes_t = np.concatenate([[0.0], et, [1.0]])
             nodes_v = np.concatenate(
                 [
                     [aspec["lo"] if "lo" in aspec["printed"] else np.polyval(poly, 0.0)],
-                    vals,
+                    ev,
                     [aspec["hi"] if "hi" in aspec["printed"] else np.polyval(poly, 1.0)],
                 ]
             )
@@ -654,7 +743,7 @@ def run(key):
             f"(edge-to-edge spread {np.abs(per[0] - per[1]).max():.4g})"
         )
 
-    overlay(ink, fr, C, cx, cy, cfg, key)
+    overlay(ink, to_px, (TL, TR, BR, BL), C, cx, cy, cfg, key)
     return dict(
         cfg=cfg,
         key=key,
@@ -685,6 +774,11 @@ def run(key):
         sig=sig,
         loc=twotick,
         H=H,
+        # the local map scale per marker, evaluated here because the map itself is a
+        # closure over the chosen frame model and this dict gets pickled
+        dudp={"x": _pixel_to_unit(to_uv, C, 0), "y": _pixel_to_unit(to_uv, C, 1)},
+        forder=cal["forder"],
+        frame_scores={fo: t["score"] for fo, t in trials.items()},
     )
 
 
@@ -1074,23 +1168,38 @@ def write_csv(key, r):
     A("# scan's rotation and keystone are a coordinate transform applied to the measured points,")
     A("# not a warp applied to the pixels, so no interpolation ever touches the data.")
     A("#")
+    arcs = r["forder"] > 1
     A("# GEOMETRY. The four frame lines are fitted sub-pixel by tracing the single ink run per")
-    A("# row/column and least-squares fitting with outlier rejection:")
+    A("# row/column and least-squares fitting with outlier rejection. A printed straight edge")
+    A("# does not image straight here, so BOTH models are fitted and the figure chooses: fit")
+    A("# each edge as a line, or as an arc, and keep whichever predicts the printed frame")
+    A("# values it was never shown. Summed held-out error over both axes, per-mille of range:")
+    A(
+        f"#   straight {r['frame_scores'][1]:.3f}   arcs {r['frame_scores'][2]:.3f}"
+        f"   ->  {'ARCS' if arcs else 'STRAIGHT'}"
+        f" (arcs must win by {(1 - FRAME_MARGIN) * 100:.0f} %; straight is the incumbent)"
+    )
     for nm in ("left", "right", "top", "bottom"):
-        (a, b), fd = r["fr"][nm], r["frdiag"][nm]
-        rms, n = fd["rms"], fd["n"]
+        fd = r["frdiag"][nm]
         v = "x" if nm in ("left", "right") else "y"
         t = "y" if nm in ("left", "right") else "x"
+        extra = f", sagitta {fd['sagitta']:+.2f} px" if arcs else ""
         A(
-            f"#   {nm:6s} {v} = {a:.3f} {b:+.6f} {t}   ({np.degrees(np.arctan(b)):+.3f} deg, "
-            f"{n} samples, rms {rms:.2f} px)"
+            f"#   {edge_str(nm, r['fc'][nm], v, t)}   ({fd['slope_deg']:+.3f} deg, "
+            f"{fd['n']} samples, rms {fd['rms']:.2f} px{extra})"
         )
     TL, TR, BR, BL = r["corners"]
     A("# The four edge slopes are not a common rotation, so the frame is a genuine")
     A(f"# quadrilateral; corners TL({TL[0]:.3f},{TL[1]:.3f}) TR({TR[0]:.3f},{TR[1]:.3f})")
-    A(f"# BR({BR[0]:.3f},{BR[1]:.3f}) BL({BL[0]:.3f},{BL[1]:.3f}) are mapped onto the unit")
-    A("# square (u right, v up) by a homography, and every measured point is carried through")
-    A("# it. NOT `digitize.py axes`, and NOT a pixel warp -- nothing is resampled.")
+    A(f"# BR({BR[0]:.3f},{BR[1]:.3f}) BL({BL[0]:.3f},{BL[1]:.3f}). They are mapped onto the")
+    if arcs:
+        A("# unit square (u right, v up) by the curvilinear blend between the four fitted arcs,")
+        A("# which is exact on each edge by construction, and every measured point is carried")
+        A("# through it.")
+    else:
+        A("# unit square (u right, v up) by a homography, and every measured point is carried")
+        A("# through it.")
+    A("# NOT a pixel warp -- nothing is resampled at any point.")
     A("#")
     A("# CALIBRATION. Every printed MAJOR tick on all four edges, located by the ink-weighted")
     A("# centroid of its inward protrusion, and matched to its printed value by predicted")
@@ -1166,7 +1275,7 @@ def write_csv(key, r):
         c = 0.5 * np.abs(np.polyval(CA["edgec"][0], t) - np.polyval(CA["edgec"][1], t))
         d = (
             np.abs(np.polyval(np.polyder(CA["c"]), t))
-            * _pixel_to_unit(r["H"], r["C"], 0 if ax == "x" else 1)
+            * r["dudp"][ax]
             * r["dpx"][:, 0 if ax == "x" else 1]
         )
         A(
@@ -1247,13 +1356,17 @@ def write_csv(key, r):
     print(f"  wrote {cfg['csv']}  ({len(L)} lines)")
 
 
-def _pixel_to_unit(H, C, axis):
-    """d(u or v) / d(pixel) at each marker, along that axis -- the local map scale."""
-    u0, v0 = _apply(H, C[:, 0], C[:, 1])
+def _pixel_to_unit(to_uv, C, axis):
+    """d(u or v) / d(pixel) at each marker, along that axis -- the local map scale.
+
+    Takes the map as a callable so it works for either frame model: the homography, or the
+    curvilinear blend between four fitted arcs.
+    """
+    u0, v0 = to_uv(C[:, 0], C[:, 1])
     if axis == 0:
-        u1, _ = _apply(H, C[:, 0] + 1.0, C[:, 1])
+        u1, _ = to_uv(C[:, 0] + 1.0, C[:, 1])
         return np.abs(u1 - u0)
-    _, v1 = _apply(H, C[:, 0], C[:, 1] + 1.0)
+    _, v1 = to_uv(C[:, 0], C[:, 1] + 1.0)
     return np.abs(v1 - v0)
 
 

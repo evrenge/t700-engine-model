@@ -42,17 +42,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from digitize_single_curve import FIGS, run  # noqa: E402
 from figure.axis import blend_value, choose, fit_anchored, loo, soft_anchor  # noqa: E402
-from figure.frame import (  # noqa: E402  # noqa: E402
+from figure.frame import (  # noqa: E402  # noqa: E402  # noqa: E402
+    EDGE,
     apply_h,
+    as_lines,
     auto_frame_spec,
     corners,
     edge_at,
+    edge_uv,
     fit_edges,
     homography,
     make_sv,
 )
 from figure.raster import native_bitmap  # noqa: E402
-from figure.ticks import major_values, majors_all_edges, paired  # noqa: E402
+from figure.ticks import (  # noqa: E402  # noqa: E402
+    fine_lattice,
+    major_step,
+    major_values,
+    majors_all_edges,
+    paired,
+)
 
 UNIT = (0, 1), (1, 1), (1, 0), (0, 0)
 
@@ -69,21 +78,31 @@ def plot_coords(ink, spec, C, order):
     return fc, s, v
 
 
-def edge_positions(ink, fc, cfg, order):
-    """Where each printed major sits along its edge, in the unit square."""
-    maj, _allt, _cor = majors_all_edges(ink, fc, cfg, verbose=False)
-    if order == 1:
-        from figure.frame import as_lines, edge_uv
+def edge_positions(ink, fc, cfg, order, fine=True):
+    """Where each printed tick sits along its edge, in the unit square.
 
+    `fine=True` uses the minor lattice where the axis's own held-out test prefers it, which
+    is what the tool now ships -- so the frame-model question is asked on the calibration
+    that is actually in use, not on the majors-only one it replaced.
+    """
+    maj, _allt, _cor = majors_all_edges(ink, fc, cfg, verbose=False, order=order)
+    if order == 1:
         uv_of = edge_uv(as_lines(fc), homography(corners(fc, order=1), UNIT))
 
         def at(nm, pos):
-            q = uv_of(nm, list(pos))
+            q = uv_of(nm, list(np.atleast_1d(pos)))
             return q[1] if nm in ("left", "right") else q[0]
     else:
         to_sv, _ = make_sv(fc)
         at = edge_at(fc, to_sv)
 
+    TL, TR, BR, BL = corners(fc, order=order)
+    span = {
+        "left": (TL[1], BL[1]),
+        "right": (TR[1], BR[1]),
+        "top": (TL[0], TR[0]),
+        "bottom": (BL[0], BR[0]),
+    }
     out = {}
     for nm, ax, desc in (
         ("bottom", "x", False),
@@ -91,8 +110,32 @@ def edge_positions(ink, fc, cfg, order):
         ("left", "y", True),
         ("right", "y", True),
     ):
-        pos, val = paired(maj, nm, major_values(cfg[ax]), desc)
-        out[nm] = (at(nm, pos), val)
+        vals = major_values(cfg[ax])
+        pos, val = paired(maj, nm, vals, desc)
+        u = np.asarray(at(nm, pos), float)
+        out[nm] = (u, val)
+        if not fine:
+            continue
+        along, sign = EDGE[nm]
+        a, b = span[nm]
+        lo, hi = int(min(a, b)) + 3, int(max(a, b)) - 2
+        major_px = abs(b - a) / ((cfg[ax]["hi"] - cfg[ax]["lo"]) / major_step(cfg[ax]))
+        coarse = np.polyfit(u, val, max(1, min(3, u.size - 2)))
+        got = fine_lattice(
+            ink,
+            fc[nm],
+            along,
+            sign,
+            lo,
+            hi,
+            lambda raw, nm=nm: np.asarray(at(nm, raw), float),
+            coarse,
+            major_px,
+            major_step(cfg[ax]),
+        )
+        if got is not None:
+            fu, fv, _n, _d = got
+            out[nm] = (fu, fv)
     return out
 
 

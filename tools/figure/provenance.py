@@ -61,16 +61,21 @@ def edge_str(name, coeffs, var, along):
     """One frame edge as printed text: constant first, then the terms in `along`.
 
     `coeffs` is highest-power-first, as `np.polyfit` returns. Order 1 prints
-    `x = 589.107 +0.006047 y`; order 2 adds `+1.2e-07 y^2`, which is how the arc model
-    publishes itself -- and publishing it is what lets `check_straightness` audit the
+    `x = 589.107 +0.006047 y`; order 2 adds `-1.23456789e-06 y^2`, which is how the arc
+    model publishes itself -- and publishing it is what lets `check_straightness` audit the
     figure at all.
+
+    **Nine significant figures on the non-constant terms, not six decimal places.** A
+    quadratic coefficient here is of order 1e-6 and multiplies a pixel coordinate squared,
+    so `%.6f` rounds it to one digit and reconstructs the edge two pixels out -- which is
+    larger than the bow the term exists to describe.
     """
     c = np.atleast_1d(np.asarray(coeffs, float))
     terms = [f"{c[-1]:.3f}"]
     for p in range(1, len(c)):
         a = c[len(c) - 1 - p]
         t = f" {along}" if p == 1 else f" {along}^{p}"
-        terms.append(f"{a:+.6f}{t}")
+        terms.append(f"{a:+.9g}{t}")
     return f"{name:6s} {var} = " + " ".join(terms)
 
 
