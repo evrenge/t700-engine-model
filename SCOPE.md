@@ -77,9 +77,9 @@ below rather than what it was hoped to.
 | 0 — Ingest the report | We know precisely what data the report gives and what it withholds | Per-page text, a verified 106-entry symbol table, and a figure-by-figure inventory of all three appendices |
 | 1 — Capture the data | Every function the model needs exists as data, or is logged as unavailable | All **11 engine maps** and all **8 control schedules** digitized, plus five result figures as ~8,100 reference points |
 | 2 — Units and thermodynamics | Property values reproduce a worked example in the report | `t700.units`, and `t700.thermo` behind one interface |
-| 3 — Steady-state engine | Gas path matches the report's trim conditions | Table B.1's full printed state, **rms 0.24 %** over 21 numbers |
-| 4 — Dynamics | Open-loop response has the report's shape and time constants | Both heat-sink configurations Ballin published, as a switch; whole-curve rms **0.67–3.82 %** of panel excursion |
-| 5 — Control system | Closed-loop transients match the report's figures | **Not achievable, and known before the phase started** — Figures 11–15 all need Gen Hel. The gate actually met is the one available: the loop settles on Table B.1's printed trims **with fuel flow as an output**, worst **0.34 %** |
+| 3 — Steady-state engine | Gas path matches the report's trim conditions | Table B.1's full printed state, **rms 0.22 %** over 21 numbers |
+| 4 — Dynamics | Open-loop response has the report's shape and time constants | Both heat-sink configurations Ballin published, as a switch; whole-curve rms **0.61–3.79 %** of panel excursion |
+| 5 — Control system | Closed-loop transients match the report's figures | **Not achievable, and known before the phase started** — Figures 11–15 all need Gen Hel. The gate actually met is the one available: the loop settles on Table B.1's printed trims **with fuel flow as an output**, worst **0.27 %** |
 | 6 — Validation | Deviations quantified against the report | All four printed surfaces compared; **all 206 non-zero Appendix B elements** carry a numeric per-element comparison, and all **27** printed eigenvalues |
 
 The published report at `site/index.html` sets out what each of those means.
@@ -215,9 +215,9 @@ not.
 
 | Comparison | Tolerance | Basis |
 |---|---|---|
-| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | `test_figure_consistency.PHASE_PLANE_TOL_PCT`. Measured **1.03 %** worst on Fig. 9 and **1.76 %** on Fig. 10, rms 0.77 and 1.24, over the grids the test asserts. These have moved four times: the … |
+| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | `test_figure_consistency.PHASE_PLANE_TOL_PCT`. Measured **0.81 %** worst on Fig. 9 and **1.78 %** on Fig. 10, rms 0.67 and 1.20, over the grids the test asserts. These have moved four times: the … |
 | Settled state vs the Fig. 6-8 sweep | +/-0.5 % | `test_figure_consistency.BOTH_SIDES_TOL_PCT`. **Tightened 3 -> 0.5 on 2026-09-14**, never widened: the two digitizer corrections of that day (#63, #64) took the worst of the six comparisons from 1.92 … |
-| Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | `test_figure_consistency.SHARED_TRIM_TOL_PCT`. All six panels agree since the 2026-09-14 deskew (#63): worst **0.93 %** on torq45, 0.25 % on the other five. It was five of six, with torq45 … |
+| Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | `test_figure_consistency.SHARED_TRIM_TOL_PCT`. All six panels agree since the 2026-09-14 deskew (#63): worst **0.92 %** on torq45, 0.24 % on the other five. It was five of six, with torq45 … |
 | Fig. 9/10 initial trim vs the figure | +/-1.5 % | `test_fuel_step.INITIAL_TOL_PCT`; this is the same physics the steady tests already check |
 | Steady sweep vs Figure 6's real-time series | rms 0.35 %NG, worst 1.25 %NG | `test_steady_sweeps.FIG6_RMS_PCT_NG` and `test_steady_sweeps.FIG6_WORST_PCT_NG`. **New 2026-09-14.** Figure 6 was the one sweep the model did not track, at a whole-curve -2.0 to -0.4 %NG. That was the digitizer reading … |
 | Fig. 9/10 settled state vs the figure | +/-1 %, both figures | `test_fuel_step.FINAL_TOL_PCT`. Tightened 20 -> 5/8 when the printed convergence criterion replaced an invented tolerance, and **5/8 -> 1 on 2026-09-14**, never widened. The 8 was covering a … |
@@ -226,9 +226,9 @@ not.
 | Table B.1's printed station state | +/-0.5 % | `test_trim_points.STATE_TOL_PCT`. Much tighter than the +/-3 % gas-path row because these are printed *numbers*, with no read error of ours in them at all |
 | Figures 9/10 read error | +/-0.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS` -- see the section above, and note the currency. **Tightened 1.6 -> 0.6 on 2026-09-14**, never widened: 1.6 was covering an uncorrected page skew … |
 | HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. What it tests is that Appendix C and Table B.1 -- digitized … |
-| **Closed loop vs Table B.1** | **+/-0.5 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst **0.337 %**, descent fuel flow, as a **mean over the limit cycle** -- the loop settles to a cycle, not a point (#61), and the terminal sample … |
+| **Closed loop vs Table B.1** | **+/-0.5 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst **0.266 %**, descent fuel flow, as a **mean over the limit cycle** -- the loop settles to a cycle, not a point (#61), and the terminal sample … |
 | **Table 1 eigenvalues** | **+/-30 %** | `test_trim_points.EIGENVALUE_TOL_PCT`. **A characterization, not an accuracy claim** — a regression detector set well above the measurement, currently **14.87 %** worst on the NG mode. It is loose because that mode carries the #31/#43 interpolation residual. Ballin calls a 4 % mismatch "good agreement" for his own comparison [pdf p.29]; ours is not that, and this row exists so the difference is visible rather than implied. **Undocumented until 2026-09-19**, while its own docstring claimed SCOPE.md declared it — the loosest bound in the project, on the one surface that is a restatement of another |
-| Fuel overestimate, 81-86 %NG, vs the report's own claim | +/-8 % | `test_ge_reference.FUEL_OVERESTIMATE_CEILING_PCT`. The report's sharpest printed steady-state claim about itself — "overestimate fuel consumption by as much as five percent" [pdf p.39] — and nothing checked it until 2026-09-14. A ceiling above a measured 6.17 %, against Ballin's own 5.82 %; ours exceeds his claim, which is the finding. Documented here 2026-09-19 |
+| Fuel overestimate, 81-86 %NG, vs the report's own claim | +/-8 % | `test_ge_reference.FUEL_OVERESTIMATE_CEILING_PCT`. The report's sharpest printed steady-state claim about itself — "overestimate fuel consumption by as much as five percent" [pdf p.39] — and nothing checked it until 2026-09-14. A ceiling above a measured 6.31 %, against Ballin's own 5.99 %; ours exceeds his claim, which is the finding. Documented here 2026-09-19 |
 | Discrete real-time map vs Table 1 col. 4 | +/-8 % (hover), +/-15 % (level), +/-7 % (descent) | `test_discrete_map.DISCRETE_TOL_PCT`. The loose one carries the #31/#43 interpolation residual, which the continuous model has too and which this comparison is not measuring. **It was descent and is … |
 
 

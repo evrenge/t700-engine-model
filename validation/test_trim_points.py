@@ -442,10 +442,11 @@ STATE_B1 = {
 STATE_TOL_PCT = 0.5
 """Tolerance on the printed station pressures and temperatures.
 
-Measured worst deviations are Ps3 **0.366 %**, P41 0.358, P45 0.283, T45 0.188 and T41
-0.099, all at descent, so 0.5 % is a ratchet a little above the worst rather than a target.
-(This line read 0.31 / 0.30 / 0.25 / 0.16 / 0.08 until 2026-09-14 -- all five understated,
-measured before the `f1` beta grid landed.) Note the
+Measured worst deviations are Ps3 **0.338 %**, P41 0.331, P45 0.265, T45 0.172 and T41
+0.087, all at descent, so 0.5 % is a ratchet a little above the worst rather than a target.
+(This line read 0.31 / 0.30 / 0.25 / 0.16 / 0.08 until 2026-09-14 and 0.366 / 0.358 / 0.283 /
+0.188 / 0.099 until 2026-09-19 -- understated the first time, overstated the second, and both
+times because the maps moved underneath a number nothing recomputes.) Note the
 printed T41 and T45 carry only four significant figures with a trailing decimal point --
 "2292." -- so a quarter of a degree is the printing resolution at T41 and the agreement
 there is at that limit."""

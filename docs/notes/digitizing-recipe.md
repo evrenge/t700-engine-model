@@ -157,31 +157,57 @@ matches is not a check.** The A2 y detector once returned exactly 189 minor tick
 exactly correct number, while holding one spurious tick and missing one real one; the
 off-by-one labelling moved the axis by 0.03 in T3/T2 and every count-based check passed.
 
-## Read error
+## Read error, and what it is worth
 
-Each CSV carries a per-point 1 σ in its own units, built by quadrature from the tick-fit
+Each CSV carries a per-point 1 sigma in its own units, built by quadrature from the tick-fit
 residual, the spread over defensible polynomial orders, the disagreement between the two
-ticked edges, and the glyph-centre robustness. Worst point per map, as a fraction of that
-map's y range:
+ticked edges, and the glyph-centre robustness.
 
-| | worst 1 σ in y | of range |
+**What that uncertainty costs the model, remeasured 2026-09-19.** Each map is shifted by
+exactly +1 sigma of its own per-point error, on one axis at a time, and all three trims plus
+both open-loop transients are resolved. Steady column is the worst shaft-power change over
+the three trims; transient is the largest change in any whole-curve panel rms, in percentage
+points of that panel's excursion:
+
+| map, +1 sigma | SHP, worst of 3 trims | worst transient panel |
 |---|---|---|
-| `f2` | 5.9e-4 | 0.04 % |
-| `f9` | 3.3e-5 | 0.03 % |
-| `f7` | 0.0166 | 0.07 % |
-| `f10` | 1.41e-4 | 0.14 % |
-| `f8` | 0.0522 | 0.15 % |
-| `f_hs` | 5.91e-3 | 0.17 % |
-| `f3` | 2.29e-4 | 0.21 % |
-| the seven `F_HM` schedules | — | 0.12–0.28 % |
+| `f2` x | **0.256 %** | fig10 %NG **-0.227** |
+| `f8` y | **0.222 %** | fig9 torq45 +0.095 |
+| `f2` y | 0.177 % | fig10 %NG +0.129 |
+| `f8` x | 0.132 % | fig9 torq45 +0.095 |
+| `f3` x | 0.129 % | fig10 torq45 +0.038 |
+| `f6` y | 0.113 % | fig9 torq45 +0.053 |
+| `f10` x | 0.064 % | fig10 torq45 +0.019 |
+| `f9` y | 0.057 % | fig9 %NG -0.091 |
+| `f10` y, `f3` y | <= 0.03 % | <= 0.014 |
+| `f9` x, `f5` x/y | <= 0.014 % | <= 0.028 |
+| `f_hs` x/y | **0.000 %** | fig10 %NG +0.023 / -0.019 |
+| `f4` x/y, `f6` x | 0.000 % | <= 0.001 |
 
-`f6` is not in the table because it is one number, 0.984965 ± 4.3e-4, with no range to be a
-fraction of.
+Three things in that table are worth more than the numbers.
 
-**What that read error costs the model has not been re-measured since the 2026-09-16/18
-recalibrations**, and the figures that used to be quoted here were measured on 2026-09-11
-against maps that have since moved. Redoing that sweep is open work; do not quote the old
-numbers.
+**The ranking has changed, and the old table had the leader wrong.** It reported `f9` as the
+most expensive map, at +0.069 % on hover shaft power. `f9` is now eighth at 0.057 %, and
+`f2` leads at 0.256 %. That is not a regression: `f9` was re-digitized and its read error
+fell. The old numbers were measured on 2026-09-11 against maps that have since moved, and
+they sat in this file being quoted for eight days after they stopped being true.
+
+**`f_hs` costs exactly nothing at trim and is only visible in a transient.** It sets the
+station-4.1 heat-sink time constant [Eq. 52-53], which does no work at equilibrium, so a
+trim-only sensitivity table reports zero for it however wrong it is. It appears at 0.023
+points of a Figure 10 panel. Any table like this one that stops at the trims will
+systematically understate every dynamic-only quantity -- which is why the transient column
+is here.
+
+**A perturbation that improves the report comparison is not a licence to apply it.** Shifting
+`f2` by +1 sigma in x moves Table B.1's rms by -0.067, i.e. better. That is a measurement of
+how close the calibration sits to the target, not an instruction: tuning a digitized map
+toward a printed table is the move CLAUDE.md forbids, and the sigma it would be tuned within
+is the reason the comparison has any headroom at all.
+
+Reproduce with `tools/sensitivity_sweep.py`, which perturbs a throwaway git worktree so the
+real tree is never touched and runs one subprocess per case, because the loaded `Curve`
+objects are cached and their arrays are frozen.
 
 SCOPE.md carries the *figures'* read error separately, measured a different way: Figures 9
 and 10 each print one panel whose true value is stated, so digitizing it measures that
@@ -208,6 +234,7 @@ against each tool's own output paths rather than from memory.
 | `check_straightness.py` | — | audit: is each printed curve straight between its markers, measured in data space |
 | `compare_models.py` | — | audit: what the frame model and the anchoring rule cost, figure by figure |
 | `minor_lattice.py` | — | audit: what minor lattice each edge resolves, and how cleanly |
+| `sensitivity_sweep.py` | — | audit: what each map's read error is worth, pushed through the model |
 
 `f2`, `f7` and `f9` are the three whose CSVs are hand-maintained rather than generated —
 their headers carry provenance no generator writes — so those tools *check* their file
