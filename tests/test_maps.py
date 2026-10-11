@@ -7,6 +7,9 @@ which is the only place they can be checked.
 
 from __future__ import annotations
 
+import csv
+import re
+
 import numpy as np
 import pytest
 
@@ -87,13 +90,23 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
     """Open question #62's departure, pinned so it cannot be undone without a test failing.
 
     Nothing detected it before 2026-09-14. `test_combustor_efficiency_is_near_unity` above
-    passes on the digitized slope too -- the two printed endpoints are 0.985038 and
-    0.984965, which differ by **7.3e-5**, so every range check in this file is blind to
-    whether `f6` is a constant or a line. That is the same hole
+    passes on the digitized slope too -- the two printed endpoints differ by less than a
+    tenth of their own read error -- so every range check in this file is blind to whether
+    `f6` is a constant or a line. That is the same hole
     `test_f1_is_on_a_beta_grid_not_the_printed_table` exists to close for #60, found the
     same way: revert the departure and watch the suite stay green.
 
-    Three things are asserted, and the third is what keeps the provenance honest.
+    Four things are asserted, and the last two are what keep the provenance honest.
+
+    **The expected value is computed from the CSV, not frozen into this file.** It used to
+    be `0.5 * (0.985038 + 0.984965)`, a pair of numbers from an extraction two revisions
+    old: the 2026-09-16 blend of the two ticked edges redistributed those endpoints while
+    leaving their mean untouched, so the assertion went on passing against numbers the file
+    no longer held, and only the fine-lattice recalibration made it fail. A frozen number
+    that survives the data changing underneath it is not pinning anything. What is actually
+    being asserted -- that the loader takes the MEAN of the two measured endpoints, and
+    that those endpoints are the same number to within the page's own read error -- is
+    asserted directly instead.
     """
     c = maps.f6()
     assert c.y.size >= 2
@@ -102,9 +115,7 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
         f"the page is the page (open question #62). If this is deliberate, move #62 to "
         f"closed and say why here."
     )
-    # the value is the mean of the two printed endpoints, not either one of them
-    assert c.y[0] == pytest.approx(0.5 * (0.985038 + 0.984965), abs=1e-9), c.y[0]
-    # and the CSV still carries the ink as measured: the conditioning is what makes it
+    # the CSV still carries the ink as measured: the conditioning is what makes it
     # constant, so the chain back to the page is unbroken and the reproducibility gate
     # still has something to reproduce.
     raw = [
@@ -113,7 +124,17 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
         if ln and not ln.startswith("#") and not ln.startswith("x,")
     ]
     ys = [float(r[1]) for r in raw]
+    sy = [float(r[3]) for r in raw]
     assert len(set(ys)) == 2, f"the f6 CSV should still hold the two measured points: {ys}"
+    # the value is the mean of the two measured endpoints, not either one of them
+    assert c.y[0] == pytest.approx(0.5 * (ys[0] + ys[1]), abs=1e-12), c.y[0]
+    # and #62's premise: those two endpoints ARE one number, as far as the page can say
+    gap = abs(ys[0] - ys[1]) / min(sy)
+    assert gap < 0.5, (
+        f"f6's two printed endpoints now differ by {gap:.2f} of their own 1 sigma read "
+        f"error. Open question #62 rests on them being the same number; if the page really "
+        f"does draw a slope, #62 is answered and this departure has to go."
+    )
     assert maps.CONDITIONING["f6"] == pytest.approx(abs(ys[0] - c.y[0]), rel=1e-6)
 
 
@@ -237,17 +258,67 @@ def test_f1_parameter_clamping_is_counted():
 # --------------------------------------------------------------------------- physics
 
 
+CONDITIONING_TOL_SIGMA = 3.0
+"""How far physical conditioning may move a value, in that map's OWN read error.
+
+Was an absolute 1e-3 for every map until 2026-09-16, which is not what the docstring below
+says and not what it measured. These maps carry y in units that differ by four orders of
+magnitude, so one absolute number means wildly different things:
+
+    f9   1e-3 = 35.49 sigma_y     f3   1e-3 =  5.92 sigma_y
+    f6   1e-3 =  2.46 sigma_y     f1   1e-3 =  0.09 sigma_y
+
+It was caught by f1. Blending `f1`'s two ticked edges instead of pooling them -- which
+makes its eleven physically-flat extensions flatter, 0.573 px mean end-to-end difference
+against 0.409 px, a free check the calibration is never told about -- left the flat pair of
+one speed line 2.3e-03 apart, so the monotone step moves each end by 1.15e-03. Against the
+absolute bound that FAILED. Against f1's own read error it is **0.098 sigma**, a tenth of
+the noise the value is known to. The bound was wrong, not the data.
+
+Three sigma is stricter than the old bound for three of the four maps that condition
+anything, and the honest reading of "read-error scale" for the fourth."""
+
+
+def _read_error(name: str) -> float | None:
+    """That map's mean quoted 1 sigma on y, from its own CSV. Found, not listed."""
+    # `f_hs` is stored as `fhs_heat_sink_constant.csv`, so try the name with and without
+    # its underscore rather than keeping a name-to-file table that can go stale.
+    stems = {name, name.replace("_", "")}
+    for sub in ("maps", "schedules"):
+        for stem in stems:
+            for path in (DATA_ROOT / sub).glob(f"{stem}_*.csv"):
+                rows = [
+                    r for r in csv.DictReader(ln for ln in open(path) if not ln.startswith("#"))
+                ]
+                col = [c for c in rows[0] if c in ("sigma_y", "sy")]
+                if col:
+                    return float(np.mean([float(r[col[0]]) for r in rows]))
+                # `f1` quotes its read error as a table in the header rather than as
+                # columns, because it varies by marker index and speed line rather than by
+                # point. Take the largest, which is the class the conditioning acts on.
+                head = "".join(ln for ln in open(path) if ln.startswith("#"))
+                quoted = re.findall(r"^#\s+k=\S[^\n]*?(\d+\.\d+)\s*$", head, re.M)
+                if quoted:
+                    return max(float(q) for q in quoted)
+    return None
+
+
 def test_conditioning_changes_are_tiny_everywhere():
     """Physical conditioning must be a correction, never a rewrite.
 
     If any of these grows past read-error scale, the digitization is wrong and the fix
-    belongs at the figure, not here.
+    belongs at the figure, not here. "Read-error scale" means that map's own quoted
+    sigma -- see `CONDITIONING_TOL_SIGMA` for why it cannot be one absolute number.
     """
     for name in ALL_CURVES + ("f10",):
         getattr(maps, name)()
+    maps.f1_as_printed()
     for name, moved in maps.CONDITIONING.items():
-        assert moved < 1e-3, (
-            f"{name}: physical conditioning moved a value by {moved:.2e}. That is too "
+        sigma = _read_error(name)
+        assert sigma, f"{name}: no quoted read error to judge its conditioning against"
+        assert moved < CONDITIONING_TOL_SIGMA * sigma, (
+            f"{name}: physical conditioning moved a value by {moved:.2e}, which is "
+            f"{moved / sigma:.2f} of its own 1 sigma read error ({sigma:.2e}). That is too "
             f"large to be read noise -- re-digitize the figure instead."
         )
 

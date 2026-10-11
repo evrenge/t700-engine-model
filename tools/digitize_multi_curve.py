@@ -41,18 +41,14 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from digitize_single_curve import (  # noqa: E402
-    _apply,
-    _dist,
-    auto_frame_spec,
-    calibrate_axis,
-    corner,
-    frame,
-    homography,
-    major_values,
-    native_bitmap,
-    ticks,
-)
+from figure.axis import blend_value, pick_lattice
+from figure.frame import apply_h as _apply
+from figure.frame import as_lines, auto_frame_spec, edge_uv, fit_edges, homography
+from figure.frame import corner_line as corner
+from figure.frame import dist as _dist
+from figure.raster import native_bitmap
+from figure.ticks import fine_lattice_all, major_values, majors_all_edges
+from figure.ticks import paired as _paired
 
 FIGS = {
     "c23": dict(
@@ -251,9 +247,10 @@ def main(argv=None):
         )
 
     ink = native_bitmap(cfg["page"])
-    fr = frame(ink, auto_frame_spec(cfg["page"]))
+    fc, _ = fit_edges(ink, auto_frame_spec(cfg["page"]), order=1)
+    fr = as_lines(fc)
     print(f"\n================ {cfg['fig']} {cfg['func']} (pdf p.{cfg['page']})")
-    maj, allt, corners = ticks(ink, fr, cfg)
+    maj, allt, corners = majors_all_edges(ink, fc, cfg)
 
     cx, cy, sz, u, v = blobs(ink, fr, cfg)
     order = np.argsort(cx)
@@ -278,32 +275,43 @@ def main(argv=None):
     BL = corner(fr["bottom"], fr["left"])
     BR = corner(fr["bottom"], fr["right"])
     H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
-
-    def uv_of(nm, pos):
-        a, b = fr[nm]
-        if nm in ("left", "right"):
-            return _apply(H, [a + b * q for q in pos], pos)
-        return _apply(H, pos, [a + b * q for q in pos])
-
-    def paired(nm, vals, descending):
-        pos = np.asarray(maj[nm], float)
-        vv = np.asarray(vals, float)[::-1] if descending else np.asarray(vals, float)
-        good = ~np.isnan(pos)
-        pos, vv = pos[good], vv[good]
-        o = np.argsort(pos)
-        return pos[o], vv[o]
+    uv_of = edge_uv(fr, H)
 
     xv, yv = major_values(cfg["x"]), major_values(cfg["y"])
-    pb, xb = paired("bottom", xv, False)
-    pt, xt = paired("top", xv, False)
-    pl, yl = paired("left", yv, True)
-    pr, yr = paired("right", yv, True)
+
+    def tick_u(nm, pos):
+        q = uv_of(nm, list(np.atleast_1d(pos)))
+        return q[1] if nm in ("left", "right") else q[0]
+
+    coarse_of = {}
+    for nm, vals, desc in (
+        ("bottom", xv, False),
+        ("top", xv, False),
+        ("left", yv, True),
+        ("right", yv, True),
+    ):
+        pos, val = _paired(maj, nm, vals, desc)
+        coarse_of[nm] = (np.asarray(tick_u(nm, pos), float), val)
+
+    # The MINOR lattice, on the same terms as the thirteen single-curve figures: the step
+    # measured from the ticks, each tick labelled through a fit made on the majors alone,
+    # and the axis keeping whichever lattice predicts the printed frame value it was never
+    # shown. This figure shares its calibration with `digitize_single_curve` and had been
+    # left behind on the majors when that path moved.
+    print("fine lattice:")
+    span = {
+        "left": (TL[1], BL[1]),
+        "right": (TR[1], BR[1]),
+        "top": (TL[0], TR[0]),
+        "bottom": (BL[0], BR[0]),
+    }
+    fine = fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of)
     print("calibration:")
-    CX = calibrate_axis(
-        (uv_of("bottom", list(pb))[0], xb), (uv_of("top", list(pt))[0], xt), cfg["x"], "x"
+    CX = pick_lattice(
+        coarse_of["bottom"], coarse_of["top"], fine["bottom"], fine["top"], cfg["x"], "x"
     )
-    CY = calibrate_axis(
-        (uv_of("left", list(pl))[1], yl), (uv_of("right", list(pr))[1], yr), cfg["y"], "y"
+    CY = pick_lattice(
+        coarse_of["left"], coarse_of["right"], fine["left"], fine["right"], cfg["y"], "y"
     )
 
     # ---- trace, then sample at the knot abscissae ---------------------------------
@@ -321,7 +329,10 @@ def main(argv=None):
         vs.append([float(q[0]) for q in vv])
     us = np.array(us)
     vs = np.array(vs)
-    xvals = np.polyval(CX["c"], us)
+    # Blended across the plot, as digitize_single_curve now does. The x map's blend
+    # coordinate is v, which differs per curve at a given column, so the column's mean v
+    # locates the knot; the y map's blend coordinate is that column's own u.
+    xvals = blend_value(CX["edgec"], us, vs.mean(axis=1))
 
     knots = np.asarray(cfg["knots"], float)
     print(f"sampling at the {knots.size} printed knots: {knots}")
@@ -331,7 +342,7 @@ def main(argv=None):
         if abs(xvals[j] - k) > cfg.get("knot_tol", 0.25):
             raise AssertionError(f"no resolved column within tolerance of knot {k}")
         for i, pval in enumerate(cfg["curves"]):
-            rows.append((pval, float(k), float(np.polyval(CY["c"], vs[j, i]))))
+            rows.append((pval, float(k), float(blend_value(CY["edgec"], vs[j, i], us[j]))))
             print(
                 f"   {cfg['param']}={pval:7.1f}  x={k:7.3f}  y={rows[-1][2]:8.4f} "
                 f"(column x={xvals[j]:.3f})"

@@ -36,15 +36,15 @@ def data_tools() -> set[str]:
 
     A hardcoded list is what let `digitize_multi_curve` sit outside the gate: it writes the
     seven Appendix C schedules and nobody noticed it was unlisted. `digitize.py` and
-    `digitize_native.py` are shared libraries -- they name no output path, so they are
-    excluded automatically rather than by exception.
+    The shared library now lives in `tools/figure/`, which this glob does not reach at all
+    -- `rectify_page` is the one module left directly under `tools/` that writes nothing.
 
     "Owns" rather than "writes", because three of them do not write. See
     `test_every_data_tool_either_writes_its_file_or_checks_it`.
     """
     out = set()
     for path in TOOLS.glob("*.py"):
-        if path.stem in ("digitize", "digitize_native", "rectify_page"):
+        if path.stem == "rectify_page":
             continue
         if re.search(r'Path\("data/|"data/\w+/', path.read_text()):
             out.add(path.stem)
@@ -154,14 +154,21 @@ def test_no_gate_tool_reads_a_gitignored_input_it_does_not_produce():
         reads = set(re.findall(r'"(validation/out/[\w./-]*)"', text))
         if not reads:
             continue
-        # A tool may raster the page itself or delegate to a sibling that does --
-        # `digitize_native.native_bitmap` is shared by five of them -- so follow one hop
-        # of tools-local imports before deciding it cannot produce its own inputs.
+        # A tool may raster the page itself or delegate to something that does --
+        # `figure.raster.native_bitmap` is shared by all of them -- so follow one hop of
+        # tools-local imports before deciding it cannot produce its own inputs. Both
+        # spellings have to resolve: a sibling module under tools/, and a module of the
+        # `figure` package. Until 2026-09-16 only the first did, and moving the raster
+        # into the package would have made every digitizer look incapable of rastering.
         reachable = text
-        for sibling in re.findall(r"(?:^|\n)(?:from|import) (\w+)", text):
-            candidate = TOOLS / f"{sibling}.py"
-            if candidate.exists():
-                reachable += candidate.read_text()
+        for mod in re.findall(r"(?:^|\n)(?:from|import) ([\w.]+)", text):
+            for candidate in (
+                TOOLS / f"{mod.replace('.', '/')}.py",
+                TOOLS / f"{mod}.py",
+            ):
+                if candidate.exists():
+                    reachable += candidate.read_text()
+                    break
         assert "pdftoppm" in reachable or "pdfimages" in reachable, (
             f"{path.name} reads {sorted(reads)} under the gitignored validation/out/ and "
             f"neither it nor anything it imports rasters a page, so it cannot run from a "
@@ -225,7 +232,8 @@ def test_the_gate_reaches_every_committed_data_file(source: str):
     and left the other ten reading the old name after a full gate run.
     """
     src = (TOOLS / "digitize_single_curve.py").read_text()
-    figs = src[src.index("FIGS = {") : src.index("EDGE = {")]
+    start = src.index("FIGS = {")
+    figs = src[start : src.index("\n}\n", start)]
     owned = set(re.findall(r'^    "([a-z0-9]+)":', figs, re.M))
     assert len(owned) >= 13, f"FIGS parse looks wrong, found {sorted(owned)}"
 

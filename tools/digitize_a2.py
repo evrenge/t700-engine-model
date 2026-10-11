@@ -33,24 +33,12 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-from digitize import check_against_csv
-from digitize_native import (
-    axis_values,
-    blend_axis,
-    corner,
-    curve_component,
-    fit_glyphs,
-    frame_curves,
-    held_out,
-    label_ticks,
-    make_sv,
-    make_window,
-    native_bitmap,
-    poly_se,
-    segment_lines,
-    tail_cv,
-    ticks,
-)
+from figure.axis import axis_values, blend_axis, held_out, poly_se, tail_cv_report
+from figure.frame import corner_arc, curve_component, edge_at, fit_edges, make_sv, segment_lines
+from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
+from figure.provenance import check_against_csv
+from figure.raster import native_bitmap
+from figure.ticks import find_ticks, label_ticks
 
 OUT = Path("validation/out/digitize/a2redo")
 CSV = Path("data/maps/f2_compressor_temperature.csv")
@@ -58,10 +46,10 @@ PAGE = 57
 N = 20
 
 SPEC = [
-    ("left", 0, (560, 625, 320, 2610)),
-    ("right", 0, (2225, 2290, 320, 2610)),
-    ("top", 1, (265, 325, 620, 2230)),
-    ("bottom", 1, (2605, 2670, 620, 2230)),
+    ("left", 0, 560, 625, 320, 2610),
+    ("right", 0, 2225, 2290, 320, 2610),
+    ("top", 1, 265, 325, 620, 2230),
+    ("bottom", 1, 2605, 2670, 620, 2230),
 ]
 
 FRAME_ORDER, X_ORDER, Y_ORDER = 2, 3, 3  # chosen by the tests main() prints
@@ -74,22 +62,17 @@ VARIANTS = [
 def tickset(fc, to_sv, verbose=False):
     """Every printed tick on the four edges, labelled, frame-edge ticks removed."""
     ink = tickset.ink
-    TL = corner(fc, "top", "left", (589, 291))
-    TR = corner(fc, "top", "right", (2255, 296))
-    BL = corner(fc, "bottom", "left", (593, 2631))
-    BR = corner(fc, "bottom", "right", (2257, 2641))
-
-    def at(nm, cs):
-        cs = np.asarray(cs, float)
-        if nm in ("left", "right"):
-            return to_sv(np.polyval(fc[nm], cs), cs)[1]
-        return to_sv(cs, np.polyval(fc[nm], cs))[0]
+    at = edge_at(fc, to_sv)
+    TL = corner_arc(fc, "top", "left", (589, 291))
+    TR = corner_arc(fc, "top", "right", (2255, 296))
+    BL = corner_arc(fc, "bottom", "left", (593, 2631))
+    BR = corner_arc(fc, "bottom", "right", (2257, 2641))
 
     raw = {
-        "left": ticks(ink, fc["left"], 0, +1, 300, 2635, 7),
-        "right": ticks(ink, fc["right"], 0, -1, 300, 2645, 7),
-        "bottom": ticks(ink, fc["bottom"], 1, -1, 590, 2260, 3),
-        "top": ticks(ink, fc["top"], 1, +1, 590, 2260, 3),
+        "left": find_ticks(ink, fc["left"], 0, +1, 300, 2635, 7),
+        "right": find_ticks(ink, fc["right"], 0, -1, 300, 2645, 7),
+        "bottom": find_ticks(ink, fc["bottom"], 1, -1, 590, 2260, 3),
+        "top": find_ticks(ink, fc["top"], 1, +1, 590, 2260, 3),
     }
     ends = {
         "left": (BL[1], TL[1], 1.1, 3.0, 0.1),
@@ -122,7 +105,7 @@ def report_models(P):
             print(f"   frame-edge held out (printed {lo} at 0 and {hi} at 1, neither in the fit):")
             held_out(t, val, lo, hi, unit=unit, uname=uname)
             print("   tail CV (fit the middle 64 % of the lattice, predict the two ends):")
-            tail_cv(t, val, unit=unit, uname=uname)
+            tail_cv_report(t, val, unit=unit, uname=uname)
 
 
 def seeds_from_lattice(ink, to_sv, cur):
@@ -150,29 +133,36 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
 
     W = []
     for i in range(N):
-        W.append(
-            make_window(
-                ink,
-                seeds[i, 0],
-                seeds[i, 1],
-                rad=20.0,
-                half=24,
-                mask_fn=frame_mask if i == N - 1 else None,
-                seg_in=(None if (mask_line or i == 0) else lines[i - 1, 2:4]),
-                seg_out=(None if (mask_line or i == N - 1) else lines[i, 2:4]),
-            )
+        # `frame_mask` marks what to KEEP; `windows` takes what to EXCLUDE.
+        mf = (lambda X, Y: ~frame_mask(X, Y)) if i == N - 1 else None
+        w = windows(ink, seeds[i : i + 1], 20.0, mask_fn=mf)[0]
+        # The half-segment towards the PREVIOUS marker runs backwards along segment i-1.
+        w["seg"] = (
+            None if (mask_line or i == 0) else -lines[i - 1, 2:4],
+            None if (mask_line or i == N - 1) else lines[i, 2:4],
         )
+        W.append(w)
     if mask_line:
-        for i, w in enumerate(W):
-            for j, sign in ((i - 1, -1.0), (i, +1.0)):
-                if 0 <= j < N - 1:
-                    d = lines[j, 2:4] * sign
-                    dx = w["X"] - seeds[i, 0]
-                    dy = w["Y"] - seeds[i, 1]
-                    t = dx * d[0] + dy * d[1]
-                    p = -dx * d[1] + dy * d[0]
-                    w["use"] &= ~((t > 6) & (np.abs(p) < 6))
-    return fit_glyphs(W, seeds, [np.radians(-45.0), 15.0, np.radians(45.0), 15.0, 3.3, 3.3])
+        hide_segments(W, seeds, lines)
+    return fit_glyphs(
+        W,
+        seeds,
+        [np.radians(-45.0), 15.0, np.radians(45.0), 15.0, 3.3, 3.3],
+        rounds=6,
+        seglen=42.0,
+        # Trap 8's guard, adopted 2026-09-16 after measuring it: an explicit 2 px simplex
+        # on the OFFSET, and a refusal of any centre more than 10 px from its seed. A2's
+        # own free check -- its markers sit at integer PS3/P2 and the tool is never told
+        # so -- cannot separate the two fits: worst residual 0.0224 -> 0.0218 at order 1
+        # and 0.0155 -> 0.0151 at the chosen order 3, sd 0.0060 -> 0.0062. A wash, which
+        # is the honest verdict. The reason to adopt it anyway is that the unguarded fit
+        # depends on SciPy's default simplex not walking off the page, and on this figure
+        # the markers run out to column 2256, where that first step is 113 px.
+        simplex=2.0,
+        max_move=10.0,
+        centre=CENTRE_NATIVE,
+        template=TEMPLATE_NATIVE,
+    )
 
 
 def overlay(ink, to_px, C, px, py):
@@ -201,10 +191,10 @@ def overlay(ink, to_px, C, px, py):
 
 
 def main() -> int:
-    ink = native_bitmap(PAGE, OUT)
+    ink = native_bitmap(PAGE)
     tickset.ink = ink
     print("frame arcs (printed straight; the sagitta is the page's bow):")
-    fc, _ = frame_curves(ink, SPEC, order=FRAME_ORDER)
+    fc, _ = fit_edges(ink, SPEC, order=FRAME_ORDER)
     to_sv, to_px = make_sv(fc)
 
     print("\ncalibration ticks:")

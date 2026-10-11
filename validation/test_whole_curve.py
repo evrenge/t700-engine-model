@@ -528,8 +528,32 @@ def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
     r0 = trim.solve(WF0, c.NP_DES, AMB)
     f0 = frame(r0.state, WF0, AMB)
 
-    for pph in (175.0, 160.0, 150.0, 140.0, 130.0, 125.0):
-        sub = trim.solve(wf_pps_from_pph(pph), c.NP_DES, AMB)
+    # The differential trims come by CONTINUATION, and that is not a convenience.
+    # `TrimResult` documents `trustworthy` as the thing a caller must check, and
+    # `test_trim_points.py::test_a_converged_trim_off_the_map_is_reported_as_such` asserts
+    # that a cold `solve` really can converge -- honestly, to a real root of the clamped
+    # system -- somewhere the model means nothing: once the state leaves the maps every
+    # lookup returns a constant, both torques fall as 1/N because torque is power over
+    # speed, and the NG residual goes to zero as NG goes to infinity.
+    #
+    # This ladder solved each point cold and compared whatever came back, unchecked. It got
+    # away with it until the 2026-09-15 `f1` retrace moved the map by 1.76 px rms and the
+    # 160 lbm/hr point fell into that basin: NGc 4.2e9, residual 9.0e-9, `residual_converged`
+    # True, `trustworthy` False. The comparison then read -100 %.
+    #
+    # `solve` was fixed the same day -- it now confines the search to `f1`'s speed range
+    # widened by a tenth, and the degenerate root is unreachable, so a cold 160 lbm/hr
+    # trims at NGc 75.5013 on its own. The continuation and the `trustworthy` check stay
+    # anyway: the contract says callers check it, and a ladder that only works because the
+    # solver happens to be well behaved is the thing that failed here. Open question #71.
+    ladder = (175.0, 160.0, 150.0, 140.0, 130.0, 125.0)
+    subs = trim.sweep(ladder, c.NP_DES, AMB)
+    for pph, sub in zip(ladder, subs, strict=True):
+        assert sub.trustworthy, (
+            f"{pph:.0f} lbm/hr did not trim on the map: converged="
+            f"{sub.residual_converged}, on_data={sub.on_data}, "
+            f"NGc={sub.frame.ngc_pct:.4g} %. Continuation is supposed to prevent this."
+        )
         differential = 100.0 * sub.state.ng_rpm / c.NG_DES
         st = realtime.from_trim(r0, f0.wa31_pps, f0)
         tr = realtime.run(

@@ -7,7 +7,8 @@
 # sy: 1 sigma uncertainty on y, in T3/T2 (same units as y); see `uncertainty:` below
 # points: 20
 # digitized: 2026-09-11 by tools/digitize_a2.py (reruns and reproduces these rows)
-# supersedes: the 2026-09-10 extraction by tools/digitize.py on a perspective-rectified 300 dpi render
+# supersedes: the 2026-09-10 extraction by the `digitize.py` CLI (deleted 2026-09-16;
+#   see git history) on a perspective-rectified 300 dpi render
 # note: RE-DIGITIZED 2026-09-11. The 2026-09-10 values came from a per-axis LINEAR calibration on a
 #   pixel-rectified render. Both are wrong here. (a) The page bows: the y major-tick spacing runs
 #   124.6 -> 121.5 -> 124.5 px top to bottom, so a straight axis map is an arch, up to 2.5 px = 0.0025
@@ -59,25 +60,35 @@
 #       y order 3 or 4, edges blended or pooled): x 0.0031-0.0094, y 0.00024-0.00046.
 #   Totals: 1 sigma x 0.0066-0.0107 in PS3/P2, 1 sigma y 0.00044-0.00063 in T3/T2 (0.019-0.042 % of
 #   the value). Columns sx and sy carry them per point.
+# MOVED 2026-09-16, by turning on the glyph fit's Nelder-Mead guard (trap 8): the centre is
+#   optimised as an OFFSET from its seed with an explicit 2 px initial simplex, instead of on
+#   the absolute pixel coordinate with SciPy's default simplex of 5 % per coordinate -- which
+#   at this figure's right-hand markers, near column 2256, is a first trial step of 113 px,
+#   outside the scoring window, where the cost is flat and a converged-looking wrong answer is
+#   available. 43 values moved, worst 0.17 sigma in x and 0.29 sigma in y; the sx and sy
+#   columns did not change at all. This figure's own free check -- its 20 markers sit at
+#   integer PS3/P2 and the tool is never told so -- cannot separate the two fits (worst
+#   residual 0.0155 -> 0.0151 at the chosen order, sd 0.0060 -> 0.0062), so this is adopted
+#   for removing a dependence on a known failure mode at no measurable cost, not for accuracy.
 # NOT transcribed. Values carry read error; see validation/out/digitize/a2redo/a2_verify.png.
 x,y,sx,sy
-1.01084,1.30487,0.00679,0.00055
-2.01420,1.44541,0.00714,0.00059
-3.00633,1.57034,0.00779,0.00054
-4.01022,1.68308,0.00834,0.00048
-5.01012,1.78253,0.00868,0.00045
-6.00835,1.87282,0.00888,0.00044
-6.99897,1.95236,0.00900,0.00044
-8.00468,2.02434,0.00912,0.00045
-8.99690,2.08981,0.00948,0.00047
-9.99768,2.15043,0.00952,0.00045
-10.99752,2.20798,0.00975,0.00044
-11.99504,2.26315,0.00993,0.00044
-13.00055,2.31786,0.00995,0.00044
-14.00065,2.37446,0.00973,0.00045
-15.00970,2.43259,0.00918,0.00047
-16.00840,2.49436,0.00831,0.00050
-17.01036,2.56201,0.00725,0.00053
-18.01548,2.63616,0.00658,0.00056
-19.00769,2.71820,0.00854,0.00063
-20.00348,2.80868,0.01073,0.00055
+1.00998,1.30482,0.00679,0.00055
+2.01335,1.44538,0.00714,0.00059
+3.00663,1.57036,0.00779,0.00054
+4.01162,1.68318,0.00834,0.00048
+5.00901,1.78253,0.00868,0.00045
+6.00756,1.87277,0.00888,0.00044
+6.99895,1.95235,0.00900,0.00044
+8.00556,2.02443,0.00912,0.00045
+8.99659,2.08983,0.00929,0.00045
+9.99653,2.15038,0.00959,0.00045
+10.99650,2.20802,0.00975,0.00044
+11.99543,2.26314,0.00993,0.00044
+13.00038,2.31787,0.00995,0.00044
+13.99945,2.37443,0.00973,0.00045
+15.01032,2.43259,0.00918,0.00047
+16.00895,2.49443,0.00831,0.00050
+17.01082,2.56202,0.00725,0.00053
+18.01512,2.63613,0.00658,0.00056
+19.00895,2.71829,0.00753,0.00056
+20.00285,2.80884,0.01073,0.00055

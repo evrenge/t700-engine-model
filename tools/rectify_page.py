@@ -1,24 +1,20 @@
-"""Square up a scanned figure page, and measure its printed axis ticks.
+"""Square up a scanned figure page, so a family of curves can be separated on it.
 
-Two things `digitize.py` assumes but this 1988 scan does not provide.
+**This resamples the page, which everything else in `tools/figure/` refuses to do.** It
+survives for one caller and one reason: `digitize_a1.py` needs a 600 dpi raster on which
+Figure A1's eleven crossing speed lines are each a single 8-connected ink component, and
+connected-component labelling needs the frame square. A1's *axes* are calibrated on the
+native scan like every other figure's, so nothing resampled here reaches a published
+number through the calibration -- see `digitize_a1.py`, which says where the boundary is.
 
-1. **The plot frame is not axis-parallel.** Pages 58-61 and 66 are keystoned: the bottom
-   frame line drops 10-16 px across the plot width while the top drops a different amount.
-   No single row/column pair describes the frame, so any two-point calibration is wrong
-   somewhere on the page. `rectify` fits the four frame lines, intersects them for the
-   four corners, and maps that quadrilateral onto its enclosing rectangle. Residual drift
-   afterwards is under 1 px.
+The plot frame is not axis-parallel: pages 58-61 and 66 are keystoned, the bottom frame
+line dropping 10-16 px across the plot width while the top drops a different amount. So
+`rectify` fits the four frame lines, intersects them for the four corners, and maps that
+quadrilateral onto its enclosing rectangle. Residual drift afterwards is under 1 px.
 
-2. **`digitize.py axes` mis-locates the frame when the figure has a long flat data line.**
-   `find_frame` averages every strong row in each half of the page, and a flat run of data
-   is a strong row. On Figure A3 it returned top=362 against a measured 313 -- 0.009 in
-   B1. `ticks` measures the printed major ticks instead, which gives a many-point
-   least-squares calibration and a check on whatever `axes` reports.
-
-Neither step invents a number: both are pixel measurements of printed ink.
-
-    python3 tools/rectify_page.py rectify --page a3-058.png --out a3r-058.png
-    python3 tools/rectify_page.py ticks --page a3r-058.png --frame 468,313,2133,2672
+The tick-measuring half of this module was deleted on 2026-09-16: it served the
+`digitize.py` CLI, which no longer exists, and `tools/figure/ticks.py` does the same job
+without warping anything.
 
 This module lives in tools/ and may use SciPy, Matplotlib and PIL. Nothing here is
 imported by src/t700/.
@@ -26,13 +22,12 @@ imported by src/t700/.
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
-from digitize import load_gray
+from figure.raster import load_gray
 
 # --------------------------------------------------------------------------- line finding
 
@@ -157,107 +152,4 @@ def rectify(page: Path, out: Path) -> tuple[int, int, int, int]:
 # --------------------------------------------------------------------------- ticks
 
 
-def protrusion(
-    ink: np.ndarray, edge: str, pos: int, lo: int, hi: int, maxlen: int = 70
-) -> np.ndarray:
-    """Contiguous ink length growing inward from a frame edge, per pixel along that edge.
-
-    A major tick reaches further in than a minor one, which is how the two are told apart
-    without knowing either length in advance.
-    """
-    n = ink.shape[0] if edge in ("left", "right") else ink.shape[1]
-    out = np.zeros(n, int)
-    for t in range(lo, hi):
-        k = 0
-        while k < maxlen:
-            if edge == "left":
-                on = ink[t, pos + 4 + k]
-            elif edge == "right":
-                on = ink[t, pos - 4 - k]
-            elif edge == "bottom":
-                on = ink[pos - 4 - k, t]
-            else:
-                on = ink[pos + 4 + k, t]
-            if not on:
-                break
-            k += 1
-        out[t] = k
-    return out
-
-
-def ticks(page: Path, frame: tuple[int, int, int, int], minlen: int = 6) -> dict[str, list]:
-    """Tick centres just inside each frame edge, as (centre_px, protrusion_px).
-
-    A centre whose protrusion is the full `maxlen` is a data line crossing the frame, not
-    a tick -- those are reported too, so the caller can see and discard them.
-    """
-    ink = load_gray(page) < 0.55
-    left, top, right, bottom = frame
-    res = {}
-    for edge, pos, lo, hi in (
-        ("left", left, top + 3, bottom - 2),
-        ("right", right, top + 3, bottom - 2),
-        ("bottom", bottom, left + 3, right - 2),
-        ("top", top, left + 3, right - 2),
-    ):
-        p = protrusion(ink, edge, pos, lo, hi)
-        idx = np.flatnonzero(p >= minlen)
-        res[edge] = (
-            [(float(np.mean(g)), int(p[np.asarray(g)].max())) for g in _group(idx, 3)]
-            if idx.size
-            else []
-        )
-    return res
-
-
-def calib_fit(px, values) -> tuple[float, float, np.ndarray]:
-    """Least-squares value(px). Returns (intercept, slope, residuals in pixels).
-
-    Feed it every printed major tick on the axis, with the frame lines included as the
-    extreme ticks. Two points is what `--calib` takes, but two points is not what you
-    should measure -- the residuals here are what tell you the map is trustworthy.
-    """
-    px, values = np.asarray(px, float), np.asarray(values, float)
-    slope, intercept = np.polyfit(px, values, 1)
-    return intercept, slope, (values - (intercept + slope * px)) / slope
-
-
 # --------------------------------------------------------------------------- cli
-
-
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    sub = ap.add_subparsers(dest="cmd", required=True)
-
-    r = sub.add_parser("rectify", help="warp the page so the plot frame is a true rectangle")
-    r.add_argument("--page", type=Path, required=True)
-    r.add_argument("--out", type=Path, required=True)
-
-    t = sub.add_parser("ticks", help="measure printed tick positions on a rectified page")
-    t.add_argument("--page", type=Path, required=True)
-    t.add_argument("--frame", required=True, help="left,top,right,bottom from `rectify`")
-    t.add_argument("--minlen", type=int, default=6, help="shortest protrusion counted as a tick")
-
-    a = ap.parse_args(argv)
-
-    if a.cmd == "rectify":
-        left, top, right, bottom = rectify(a.page, a.out)
-        print(f"wrote {a.out}")
-        print(f"--frame {left},{top},{right},{bottom}")
-        print("# check with `digitize.py axes`; where they disagree, the ticks decide")
-        return 0
-
-    if a.cmd == "ticks":
-        frame = tuple(int(v) for v in a.frame.split(","))
-        for edge, found in ticks(a.page, frame, a.minlen).items():
-            print(f"{edge}: {len(found)} groups (centre, protrusion)")
-            print("   ", [(round(c, 1), m) for c, m in found])
-        return 0
-
-    return 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

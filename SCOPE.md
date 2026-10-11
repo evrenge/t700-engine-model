@@ -77,9 +77,9 @@ below rather than what it was hoped to.
 | 0 — Ingest the report | We know precisely what data the report gives and what it withholds | Per-page text, a verified 106-entry symbol table, and a figure-by-figure inventory of all three appendices |
 | 1 — Capture the data | Every function the model needs exists as data, or is logged as unavailable | All **11 engine maps** and all **8 control schedules** digitized, plus five result figures as ~8,100 reference points |
 | 2 — Units and thermodynamics | Property values reproduce a worked example in the report | `t700.units`, and `t700.thermo` behind one interface |
-| 3 — Steady-state engine | Gas path matches the report's trim conditions | Table B.1's full printed state, **rms 0.24 %** over 21 numbers |
-| 4 — Dynamics | Open-loop response has the report's shape and time constants | Both heat-sink configurations Ballin published, as a switch; whole-curve rms **0.67–3.82 %** of panel excursion |
-| 5 — Control system | Closed-loop transients match the report's figures | **Not achievable, and known before the phase started** — Figures 11–15 all need Gen Hel. The gate actually met is the one available: the loop settles on Table B.1's printed trims **with fuel flow as an output**, worst **0.34 %** |
+| 3 — Steady-state engine | Gas path matches the report's trim conditions | Table B.1's full printed state, **rms 0.22 %** over 21 numbers |
+| 4 — Dynamics | Open-loop response has the report's shape and time constants | Both heat-sink configurations Ballin published, as a switch; whole-curve rms **0.61–3.79 %** of panel excursion |
+| 5 — Control system | Closed-loop transients match the report's figures | **Not achievable, and known before the phase started** — Figures 11–15 all need Gen Hel. The gate actually met is the one available: the loop settles on Table B.1's printed trims **with fuel flow as an output**, worst **0.27 %** |
 | 6 — Validation | Deviations quantified against the report | All four printed surfaces compared; **all 206 non-zero Appendix B elements** carry a numeric per-element comparison, and all **27** printed eigenvalues |
 
 The published report at `site/index.html` sets out what each of those means.
@@ -107,15 +107,25 @@ digitized figures every other comparison uses:
 
 | trim | Wf, lbm/hr | Table B.1 vs the figure | our deviation from Table B.1 | nearest printed marker |
 |---|---|---|---|---|
-| hover | 476.3 | −0.289 % shp, +0.043 %NG | −0.040 % shp, −0.007 %NG | 4.9 lbm/hr |
-| level 80 kt | 349.3 | −0.307 % shp, +0.024 %NG | −0.056 % shp, +0.105 %NG | 0.4 lbm/hr |
-| descent 80 kt | 267.7 | **+0.734 %** shp, +0.033 %NG | **−0.900 %** shp, −0.070 %NG | 2.6 lbm/hr |
+| hover | 476.3 | −0.034 % shp, +0.002 %NG | −0.058 % shp, +0.001 %NG | 5.0 lbm/hr |
+| level 80 kt | 349.3 | +0.133 % shp, −0.011 %NG | −0.077 % shp, +0.120 %NG | 0.6 lbm/hr |
+| descent 80 kt | 267.7 | **+1.306 %** shp, +0.020 %NG | **−0.806 %** shp, −0.048 %NG | 2.8 lbm/hr |
 
-**The consequence changes with them.** The report's widest self-disagreement is now 0.734 %,
-not 5.5 %, and at descent our shaft power sits **outside** it — 0.900 % from Table B.1 against
-the report's own 0.734 %. The old shelter for that residual is gone: it is a real discrepancy
-of ours and belongs in the ledger, not behind a rule. The rule itself still holds where it
-applies — do not tune below the source's own spread — it just no longer covers this point.
+**The consequence changes with them, and it has now changed twice.** The report's widest
+self-disagreement is 1.306 % on shaft power at descent, not 5.5 % and not the 0.734 % this
+table carried between 2026-09-14 and 2026-09-18. Our own 0.806 % at that trim has not moved
+at all across any of it — so the same number was outside the report's spread under the old
+reading and is **inside** it under the current one, without anything about our model
+changing. Three of the six comparisons sit inside; descent shaft power is one of them.
+
+Take the lesson rather than the number. This row has now been wrong in two opposite
+directions, both times because the figures it rests on were re-digitized underneath it —
+2026-09-14's corrections, then the 2026-09-16/18 recalibrations. `internal_spread` computes
+it into `report.json` so the *value* cannot go stale, but the paragraph around it is still
+prose, and prose is what went stale both times. The rule it exists to state is unaffected
+and still holds: do not tune below the source's own spread. Whether this particular residual
+shelters under that rule is a fact about the digitization, not about the model, and it will
+move again.
 
 Read the last column before quoting a row. Figure 7 prints 15 markers over its whole range
 and the value at a trim is interpolated between them; on its steep low-power end the curve
@@ -183,12 +193,18 @@ deviations Ballin *accepted* rather than accuracy he *met*:
 Everything else he says is qualitative. So our tolerances are **declared by us and labelled
 as ours**. Provisionally, for quantities the report shows in a reproducible figure:
 
+**Every number in this table is now one the suite asserts, and names the symbol that holds
+it.** Until 2026-09-19 it named none, so the four bounds a reader is most likely to take as
+our declared accuracy were enforced by nothing — and two of them were not the operative
+number at all: the gas path is held an order tighter than the ±3 % printed here, and the
+±5 % on fuel flow was asserted nowhere.
+
 | Quantity | Steady state | Transient | Basis |
 |---|---|---|---|
-| NG | ±2 % | ±2 % | Ballin's own accepted 1–4 % overestimates |
-| Gas path P, T | ±3 % | ±3 % | ours, undeclared by the report |
-| Fuel flow | ±5 % | ±5 % | his 5 % band, widened to all NG |
-| Torque / SHP | ±3 % | ±3 % | ours, undeclared by the report |
+| NG | ±2 % | ±2 % | `test_trim_points.NG_TOL_PCT`, asserted at all three trims. Ballin's own accepted 1–4 % overestimates |
+| Torque / SHP | ±3 % | ±3 % | `test_trim_points.SHP_TOL_PCT` and `test_trim_points.TORQUE_TOL_PCT`. Ours, undeclared by the report |
+| Gas path P, T | ±0.5 % | ±1 % | `test_trim_points.STATE_TOL_PCT` and `test_fuel_step.FINAL_TOL_PCT`. This row asked for ±3 % until 2026-09-19 and nothing asserted it; the printed stations are held to 0.5 % and the settled transient to 1 %, both far tighter, so the looser band was never the operative number |
+| Fuel flow | see the 81–86 %NG row below | — | The ±5 % this row printed until 2026-09-19 was asserted nowhere. What *is* asserted is the report's own printed claim about itself, in the per-comparison table |
 | Appendix B elements | see the per-block bounds below, **not** a single number | — | his own 4 % "good agreement" |
 
 ### Per-comparison bounds
@@ -199,18 +215,20 @@ not.
 
 | Comparison | Tolerance | Basis |
 |---|---|---|
-| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | `test_figure_consistency.PHASE_PLANE_TOL_PCT`. Measured **1.03 %** worst on Fig. 9 and **1.76 %** on Fig. 10, rms 0.77 and 1.24, over the grids the test asserts. These have moved four times: the … |
+| Phase-plane state trajectory, Ps3 vs NG | +/-2.5 % | `test_figure_consistency.PHASE_PLANE_TOL_PCT`. Measured **0.81 %** worst on Fig. 9 and **1.78 %** on Fig. 10, rms 0.67 and 1.20, over the grids the test asserts. These have moved four times: the … |
 | Settled state vs the Fig. 6-8 sweep | +/-0.5 % | `test_figure_consistency.BOTH_SIDES_TOL_PCT`. **Tightened 3 -> 0.5 on 2026-09-14**, never widened: the two digitizer corrections of that day (#63, #64) took the worst of the six comparisons from 1.92 … |
-| Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | `test_figure_consistency.SHARED_TRIM_TOL_PCT`. All six panels agree since the 2026-09-14 deskew (#63): worst **0.93 %** on torq45, 0.25 % on the other five. It was five of six, with torq45 … |
+| Figures 9 and 10 at their shared 400 lbm/hr trim | +/-1.5 % | `test_figure_consistency.SHARED_TRIM_TOL_PCT`. All six panels agree since the 2026-09-14 deskew (#63): worst **0.92 %** on torq45, 0.24 % on the other five. It was five of six, with torq45 … |
 | Fig. 9/10 initial trim vs the figure | +/-1.5 % | `test_fuel_step.INITIAL_TOL_PCT`; this is the same physics the steady tests already check |
-| Steady sweep vs Figure 6's real-time series | rms 0.35 %NG, worst 1.25 %NG | `test_steady_sweeps.FIG6_RMS_PCT_NG` and `FIG6_WORST_PCT_NG`. **New 2026-09-14.** Figure 6 was the one sweep the model did not track, at a whole-curve -2.0 to -0.4 %NG. That was the digitizer reading … |
+| Steady sweep vs Figure 6's real-time series | rms 0.35 %NG, worst 1.25 %NG | `test_steady_sweeps.FIG6_RMS_PCT_NG` and `test_steady_sweeps.FIG6_WORST_PCT_NG`. **New 2026-09-14.** Figure 6 was the one sweep the model did not track, at a whole-curve -2.0 to -0.4 %NG. That was the digitizer reading … |
 | Fig. 9/10 settled state vs the figure | +/-1 %, both figures | `test_fuel_step.FINAL_TOL_PCT`. Tightened 20 -> 5/8 when the printed convergence criterion replaced an invented tolerance, and **5/8 -> 1 on 2026-09-14**, never widened. The 8 was covering a … |
 | Whole-curve RMS, normalised by each panel's excursion | **4 % ratchet** | `test_whole_curve.WHOLE_CURVE_RMS_CEILING_PCT`. Not a tolerance -- set just above the worst measured panel so a regression fails and an improvement is free. Current over ten panels, **riser … |
 | Step-edge jump across the riser hole | +/-12 % of panel excursion | `test_whole_curve.STEP_JUMP_TOL_PCT`. **New 2026-09-14.** The reference traces have a 64-165 ms sampling hole at the fuel step -- a line tracer cannot follow a vertical edge -- and `np.interp` drew a … |
 | Table B.1's printed station state | +/-0.5 % | `test_trim_points.STATE_TOL_PCT`. Much tighter than the +/-3 % gas-path row because these are printed *numbers*, with no read error of ours in them at all |
 | Figures 9/10 read error | +/-0.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS` -- see the section above, and note the currency. **Tightened 1.6 -> 0.6 on 2026-09-14**, never widened: 1.6 was covering an uncorrected page skew … |
 | HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. What it tests is that Appendix C and Table B.1 -- digitized … |
-| **Closed loop vs Table B.1** | **+/-0.5 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst **0.337 %**, descent fuel flow, as a **mean over the limit cycle** -- the loop settles to a cycle, not a point (#61), and the terminal sample … |
+| **Closed loop vs Table B.1** | **+/-0.5 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst **0.266 %**, descent fuel flow, as a **mean over the limit cycle** -- the loop settles to a cycle, not a point (#61), and the terminal sample … |
+| **Table 1 eigenvalues** | **+/-30 %** | `test_trim_points.EIGENVALUE_TOL_PCT`. **A characterization, not an accuracy claim** — a regression detector set well above the measurement, currently **14.87 %** worst on the NG mode. It is loose because that mode carries the #31/#43 interpolation residual. Ballin calls a 4 % mismatch "good agreement" for his own comparison [pdf p.29]; ours is not that, and this row exists so the difference is visible rather than implied. **Undocumented until 2026-09-19**, while its own docstring claimed SCOPE.md declared it — the loosest bound in the project, on the one surface that is a restatement of another |
+| Fuel overestimate, 81-86 %NG, vs the report's own claim | +/-8 % | `test_ge_reference.FUEL_OVERESTIMATE_CEILING_PCT`. The report's sharpest printed steady-state claim about itself — "overestimate fuel consumption by as much as five percent" [pdf p.39] — and nothing checked it until 2026-09-14. A ceiling above a measured 6.31 %, against Ballin's own 5.99 %; ours exceeds his claim, which is the finding. Documented here 2026-09-19 |
 | Discrete real-time map vs Table 1 col. 4 | +/-8 % (hover), +/-15 % (level), +/-7 % (descent) | `test_discrete_map.DISCRETE_TOL_PCT`. The loose one carries the #31/#43 interpolation residual, which the continuous model has too and which this comparison is not measuring. **It was descent and is … |
 
 
@@ -234,7 +252,8 @@ magnitude because the printed elements do:
 | P3 column outside that block, 5-DOF | +/-3.0 % | `test_appendix_b_elements.P3_COLUMN_TOL_PCT` |
 | T41 row | ratio 0.90-0.96 | `test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio` |
 | 3-DOF T41 column, NP row | +/-12 % | `test_three_dof_elements_against_b7_b9_b11` |
-| 3-DOF NG column | ratio 0.80-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
+| 3-DOF NG column, less descent `A(T41,NG)` | ratio 0.80-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
+| descent `A(T41,NG)`, 3-DOF | ratio 0.6-1.0 | `test_all_dof_models.DESCENT_T41_NG` |
 | 3-DOF `b` | ratio 0.86-1.02 | `test_appendix_b_elements.THREE_DOF_B` |
 | 6-DOF `b`, gas path | ratio 0.93-0.96 | `test_appendix_b_elements.SIX_DOF_B_GAS` |
 | 6-DOF `b`, T41 | ratio 0.87-0.9 | `test_appendix_b_elements.SIX_DOF_B_T41` |
@@ -285,16 +304,33 @@ The valid comparisons are trace against trace, settled state against the sweep, 
 **phase plane** — Ps3 against NG, which discards the time axis and with it the unprinted step
 time.
 
-## Validation surfaces available
+## Validation surfaces available, in order of what they are worth
 
-| Surface | pdf p. | What | Scale |
-|---|---|---|---|
-| Table B.1 | 67 | engine state at three trims | 21 numbers |
-| Table 1 | 31 | eigenvalues, three model variants | 27 numbers |
-| Appendix B | 68–76 | linear model matrices | 297 elements |
-| Figures 6–8 | 40–42 | steady sweeps, three series each | ~70 markers |
-| Figures 9–10 | 45–46 | fuel step and chop, **6** panels each | ~8,000 traced points |
-| Figures 11–15 | 48–53 | closed-loop UH-60A vs flight test | **not reproducible** |
+The ordering is **evidence that is printed as numbers and localizes a disagreement outranks
+evidence that is digitized or aggregated.** Two consequences do the work: a printed number
+carries none of our own read error, and an element-wise comparison says *which* partial
+derivative moved where a mode only says that something did.
+
+| | Surface | pdf p. | Scale | our read error | what only this surface constrains |
+|---|---|---|---|---|---|
+| 1 | **Table B.1** | 67 | 21 numbers | none | the equilibrium every other comparison is taken about. If this is wrong, every derivative below is evaluated at the wrong point |
+| 2 | **Appendix B** | 68–76 | 297 elements, 206 non-zero | none | every partial derivative, **localizably**. The three error families in `test_appendix_b_elements.py` — the missing load inertia, the NP diagonal residual, the `f7` group — were each found here and none could have been found from a mode |
+| 3 | **Figures 9–10** | 45–46 | ~8,000 points, 6 panels each | ±0.6 % of full scale | the integrated time response: volume dynamics and heat-sink lags over a whole trajectory, which no printed table touches |
+| 4 | **Closed loop vs Table B.1** | — | 3 trims | none | the fuel control. No printed surface covers it; this is internal consistency, not agreement with the report |
+| 5 | **Figures 6–8** | 40–42 | ~70 markers | ours | steady behaviour across the **whole operating range** rather than three points, so a map error shows as a trend in a region instead of one unattributable number |
+| 6 | **Table 1 eigenvalues** | 31 | 12 comparable of 27 | none | *nothing the rows above do not already carry.* The modes are an aggregation of Appendix B's matrices at Table B.1's trims, and they cover only the 2-DOF, 5-DOF and reduced-5 models — the 3-DOF and 6-DOF print no eigenvalues at all |
+| — | Figures 11–15 | 48–53 | — | — | **not reproducible**: they need Gen Hel |
+| — | Table 3 | 44 | 6 cases | — | **not a target**; see below |
+
+Two things this ordering is not. It is **not** a ranking of how hard each comparison is to
+pass — the loosest bound in the project sits on row 6 and one of the tightest on row 1. And
+it is **not** an instruction to stop running the lower rows: row 6 is cheap, and a mode that
+moves when no element did would be a finding about our own linearization.
+
+Where it bites is when two rows disagree, which has happened twice on the digitisation
+branch: a calibration that improved rows 1, 3 and 4 while degrading row 2 was taken, and the
+per-figure frame-model choice that improved row 1 while costing one element of row 2 was also
+taken, with the cost recorded in open question #73 rather than tuned away.
 
 ### Two things not to do
 

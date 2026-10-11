@@ -26,11 +26,11 @@ TRIMS = {
 }
 
 
-def _model(name: str, dof: DOF = DOF.FIVE):
+def _model(name: str, dof: DOF = DOF.FIVE, rel_step: float = 1e-5):
     wf = wf_pps_from_pph(TRIMS[name][0])
     r = trim.solve(wf, NP_RPM, AMB)
     assert r.trustworthy
-    return extract(r, wf, dof, AMB)
+    return extract(r, wf, dof, AMB, rel_step=rel_step)
 
 
 @pytest.mark.parametrize("name", TRIMS)
@@ -93,26 +93,34 @@ def test_eigenvalues_are_step_independent(name: str):
     wf = wf_pps_from_pph(TRIMS[name][0])
     r = trim.solve(wf, NP_RPM, AMB)
     ref = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=1e-5).A).real)
-    # 1e-4 dropped on 2026-09-14: the beta-gridded f1 has 56 knots per speed line instead
-    # of 7, so a 1e-4 relative step no longer averages cleanly over the corners and descent
-    # reads 1.1e-3 against this 1e-3 bound. The plateau is still three decades wide, it just
-    # starts a decade lower. More knots, finer structure to resolve.
-    for rel in (1e-6, 1e-7, 1e-8):
+    # 1e-4 was dropped on 2026-09-14 and is back on 2026-09-15. It was dropped because the
+    # beta-gridded `f1` carried 56 knots per speed line instead of 7, so a 1e-4 step no
+    # longer averaged cleanly over the corners between them and descent read 1.1e-3 against
+    # this 1e-3 bound. Tracing the printed line removed the corners rather than the knots:
+    # the knots now sample a curve that is monotone and concave by construction, and the
+    # worst of the three trims reads 1.0e-6. The plateau is four decades wide again.
+    for rel in (1e-4, 1e-6, 1e-7, 1e-8):
         ev = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=rel).A).real)
         assert np.allclose(ev, ref, rtol=1e-3), f"rel={rel:g} moved the spectrum: {ev}"
 
     report = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=0.02).A).real)
     shifts = [100.0 * (b / a - 1.0) for a, b in zip(ref, report, strict=True)]
     worst = max(shifts, key=abs)
-    # Moved by the f1 interpolation change of 2026-09-13, and the shape of the move is the
-    # point: descent collapsed from +22.7 % to +2.0 %, which is what you expect if the
-    # sensitivity to the extraction step was the speed-line knot discontinuity. Hover, which
-    # sits mid-segment and was never knot-dominated, is unmoved at +21.6 %.
-    # Moved again with the beta-gridded f1 of 2026-09-14. Descent has now collapsed to
-    # -2.5 %, from -22.7 % under constant-abscissa interpolation: the sensitivity to the
-    # extraction step really was the speed-line knot discontinuity, and 56 beta values
-    # instead of 7 largely removes it. Hover, which sits mid-segment, is unmoved at +21.6 %.
-    expected = {"hover": 21.6, "level": -7.1, "descent": -2.5}[name]
+    # These have moved with every `f1` revision, and WHICH trim moves is the check that the
+    # cause is understood. The gap measured here is a second-derivative effect -- a +/-2 %
+    # secant against a 1e-5 derivative -- so only a trim whose perturbation lands on the
+    # part of `f1` that changed can move at all.
+    #
+    #   descent  +22.7 % -> +2.0 %  2026-09-13, constant-k along the construction lines
+    #                    -> -2.5 %  2026-09-14, the beta grid
+    #                    -> -1.5 %  2026-09-15, traced from the printed line
+    #   level     -7.1 % -> -7.4 %        hover  +21.6 % throughout
+    #
+    # Hover has read +21.6 % through all four, because it sits mid-segment: in beta it is at
+    # 0.847 against its own knee at 0.862 -- on the flat choked run, short of the corner,
+    # where every revision of `f1` draws the same straight line. Descent, at beta 0.866
+    # against a knee at 0.831, sits past its knee on the part that keeps being redrawn.
+    expected = {"hover": 21.6, "level": -7.4, "descent": -1.5}[name]
     assert abs(worst - expected) < 1.0, (
         f"{name}: the report's +/-2 % perturbation [pdf p.28] moves the 5-DOF spectrum by "
         f"{worst:+.1f} % against rel=1e-5, where {expected:+.1f} % is on record. If this "
@@ -129,11 +137,43 @@ def test_two_dof_equals_reduced_five_identically(name: str):
     vs -2.81 at hover) because his reduced-order model is a separate program with the
     opened Eq. 74 iteration and finite loop counts; ours is a Newton solve to 1e-10, so
     it lands exactly on the Schur complement. See open question #49.
+
+    The identity is exact; the two sides are finite differences, and they agree only where
+    BOTH differences are converged. At the shipped `rel_step=1e-5` they do at hover
+    (1.3e-8) and level (3.7e-9) and do NOT at descent, where `A[1,0]` disagrees by 9.6e-4.
+    That is truncation, not noise, and it is one-sided: `REDUCED_FIVE` sits on 3.5895615
+    from rel 1e-5 all the way to 1e-8, while `TWO` walks 3.5895615 -> 3.5930076 ->
+    3.5990306 -> 3.6038432 as the step grows from 1e-6 to 1e-3. The quasi-steady `g(s)`
+    slaves the pressures, so it composes the map nonlinearities and curves harder in NG
+    than the 5-DOF `f(x)` does; at descent a 1e-5 step (0.38 rpm) is already in that
+    curvature.
+
+    So the identity is checked where the numerics can carry it, at 1e-6, and the truncation
+    at the shipped step is measured here rather than left to be rediscovered. It was
+    rediscovered once: the 2026-09-16 fine-lattice recalibration moved the descent trim
+    just far enough for the 9.6e-4 to appear, and this test failed with no indication that
+    the cause was a step size rather than the data.
+
+    **What it does not touch.** `A[0,1]` is exactly zero at all three trims -- NP drives
+    nothing -- so the 2-DOF eigenvalues are `A[0,0]` and `A[1,1]`, and this element is not
+    in them. The truncation reaches the NG->NP coupling and nothing that is compared to a
+    printed eigenvalue.
     """
-    a = _model(name, DOF.TWO)
-    b = _model(name, DOF.REDUCED_FIVE)
+    a = _model(name, DOF.TWO, rel_step=1e-6)
+    b = _model(name, DOF.REDUCED_FIVE, rel_step=1e-6)
     assert np.allclose(a.A, b.A, rtol=1e-6, atol=1e-9), f"\n{a.A}\n{b.A}"
     assert np.allclose(a.b, b.b, rtol=1e-6, atol=1e-9)
+
+    # and the shipped step, measured rather than asserted away: a growth alarm, not a bound
+    # chosen to pass. Measured 2026-09-16: hover 1.3e-8, level 3.7e-9, descent 9.6e-4.
+    a5 = _model(name, DOF.TWO)
+    b5 = _model(name, DOF.REDUCED_FIVE)
+    gap = float(np.max(np.abs(a5.A - b5.A) / np.maximum(np.abs(a5.A), 1e-30)))
+    assert gap < 2e-3, (
+        f"{name}: at the shipped rel_step=1e-5 the two routes to the 2-DOF A now differ by "
+        f"{gap:.2e}, against 9.6e-4 at descent and under 1.4e-8 elsewhere when this was "
+        f"measured. The step has stopped being adequate for the quasi-steady Jacobian."
+    )
 
 
 @pytest.mark.parametrize("name", TRIMS)

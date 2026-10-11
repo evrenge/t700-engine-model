@@ -20,8 +20,8 @@
 # CALIBRATION. Frame, tick lattice and axis polynomials come from
 #   tools/digitize_single_curve.py unchanged, so this figure is calibrated exactly as the
 #   thirteen single-curve figures are.
-#   x: order 1, interior-tick residual 0.01905 over 14 ticks
-#   y: order 2, interior-tick residual 0.003656 over 8 ticks
+#   x: order 1, interior-tick residual 0.0207 over 159 ticks
+#   y: order 2, interior-tick residual 0.004497 over 95 ticks
 # UNCERTAINTY is not reported per point: a traced run centre is a weaker estimator
 #   than the generative glyph fit the single-curve figures use, and no honest
 #   per-point sigma was derived for it. What WAS measured is the sensitivity to the
@@ -33,23 +33,23 @@
 #   least legible.
 # NOT transcribed. Values carry read error.
 t45l,w45r,tau45_s
-1260,1.0000,5.00707
-1660,1.0000,4.20214
-2060,1.0000,3.65853
-2460,1.0000,3.41299
-1260,2.5000,3.96240
-1660,2.5000,3.25462
-2060,2.5000,2.97036
-2460,2.5000,2.78222
-1260,6.5000,2.53944
-1660,6.5000,2.35712
-2060,6.5000,2.17953
-2460,6.5000,2.09301
-1260,10.0000,2.21074
-1660,10.0000,2.00408
-2060,10.0000,1.94773
-2460,10.0000,1.88666
-1260,15.0000,1.99744
-1660,15.0000,1.81638
-2060,15.0000,1.76049
-2460,15.0000,1.72759
+1260,1.0000,5.00471
+1660,1.0000,4.20037
+2060,1.0000,3.65711
+2460,1.0000,3.41174
+1260,2.5000,3.96098
+1660,2.5000,3.25375
+2060,2.5000,2.96966
+2460,2.5000,2.78163
+1260,6.5000,2.53962
+1660,6.5000,2.35731
+2060,6.5000,2.17968
+2460,6.5000,2.09314
+1260,10.0000,2.21135
+1660,10.0000,2.00452
+2060,10.0000,1.94810
+2460,10.0000,1.88696
+1260,15.0000,1.99843
+1660,15.0000,1.83940
+2060,15.0000,1.80643
+2460,15.0000,1.73480

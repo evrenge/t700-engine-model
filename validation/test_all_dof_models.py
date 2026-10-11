@@ -200,6 +200,16 @@ def test_three_dof_elements_against_b7_b9_b11(trim_no: int):
     assert abs(m.d[t41] / ref.d[t41] - 1.0) < 0.03, "feedthrough should agree to 3 %"
 
 
+DESCENT_T41_NG = (0.6, 1.0)
+"""`A(T41,NG)` at the descent trim, 3-DOF, as a ratio to B11's printed value.
+
+A band of its own because this one element has moved with every `f1` revision and no other
+element behaves like it: 0.006 under constant-abscissa interpolation, 0.791 along Figure
+A1's construction lines, 0.8816 on the beta grid, 0.7639 since the 2026-09-15 traced-line
+digitisation. `test_appendix_b_elements.THREE_DOF_NG_COLUMN` deliberately skips it rather
+than assert it a second time against an aggregate band that disagrees. Open question #73."""
+
+
 def test_the_descent_t41_ng_element_is_recorded_not_forgotten():
     """B11's `A(T41,NG)` was the single worst element in the whole comparison, and it came
     right.
@@ -224,8 +234,13 @@ def test_the_descent_t41_ng_element_is_recorded_not_forgotten():
     ref = ab.load(11)
     t41, ng = ref.states.index("T41"), ref.states.index("NG")
     r = m.A[t41, ng] / ref.A[t41, ng]
-    assert 0.6 < r < 1.0, (
-        f"A(T41,NG) at descent is {r:.3f} of Ballin's, 0.791 on record. It was 0.006 under "
+    # 0.006 under constant-abscissa f1, 0.791 along the construction lines, 0.8816 on the
+    # beta grid, 0.7639 since the 2026-09-15 traced-line digitisation. Every f1 revision has
+    # moved it and none has improved it -- open question #73 -- while the trim state under
+    # it barely moves at all: NGc 85.1129 -> 85.0776 across the last one. It is a pure
+    # derivative effect and this is the band that governs the element.
+    assert DESCENT_T41_NG[0] < r < DESCENT_T41_NG[1], (
+        f"A(T41,NG) at descent is {r:.3f} of Ballin's, 0.7639 on record. It was 0.006 under "
         f"constant-x f1; if it has collapsed again, the interpolation is the place to look."
     )
     others = [

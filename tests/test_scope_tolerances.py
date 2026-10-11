@@ -16,6 +16,23 @@ deliberately and recorded why -- but it can no longer happen in only one of the 
 
 It deliberately does **not** try to check the prose ("measured 0.62 % worst"), which goes
 stale constantly and cannot be parsed reliably. Only the Tolerance column is enforced.
+
+## Three holes closed on 2026-09-19
+
+The first version resolved `_REF.search(basis)` -- the FIRST symbol a row names -- and
+checked only that every value the symbol holds is printed in the document. That left three
+ways for a bound to escape:
+
+* **A row naming two symbols only had one checked.** Figure 6's row names both an rms and a
+  worst bound, and `FIG6_WORST_PCT_NG` was never resolved. It was also written without its
+  module prefix, so it could not have matched anyway. Every fully-qualified reference in a
+  row is resolved now, and the document spells both out.
+* **A number printed in the document that no symbol holds was invisible.** Widening the code
+  was caught; inventing a tighter number in the document was not. Both directions are
+  checked now, which is what makes the row a statement about the code rather than beside it.
+* **The headline tolerance table named no symbols at all**, so the four bounds a reader most
+  likely takes as "our declared accuracy" -- NG, gas path, fuel flow, torque -- were
+  enforced by nothing. They carry references now and are checked like the rest.
 """
 
 from __future__ import annotations
@@ -48,10 +65,13 @@ def _table_rows() -> list[tuple[str, str, str]]:
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) != 3 or cells[0].startswith("---"):
+        if len(cells) not in (3, 4) or cells[0].startswith("---"):
             continue
         if _REF.search(cells[2]):
             out.append((cells[0], cells[1], cells[2]))
+        elif len(cells) == 4 and _REF.search(cells[3]):
+            # the headline table is | quantity | steady | transient | basis |
+            out.append((cells[0], " ".join(cells[1:3]), cells[3]))
     return out
 
 
@@ -88,17 +108,28 @@ def test_the_tolerance_table_was_found():
 @pytest.mark.parametrize("row", ROWS, ids=[r[0][:40] for r in ROWS])
 def test_every_named_tolerance_matches_the_code(row: tuple[str, str, str]):
     comparison, tolerance, basis = row
-    module, symbol = _REF.search(basis).groups()
-    mod = _load(module)
-    assert hasattr(mod, symbol), (
-        f"SCOPE.md row {comparison!r} names `{module}.{symbol}` and it does not exist"
-    )
-    have = _numbers(getattr(mod, symbol))
+    have: set[float] = set()
+    named: list[str] = []
+    for module, symbol in _REF.findall(basis):
+        mod = _load(module)
+        assert hasattr(mod, symbol), (
+            f"SCOPE.md row {comparison!r} names `{module}.{symbol}` and it does not exist"
+        )
+        have |= _numbers(getattr(mod, symbol))
+        named.append(f"{module}.{symbol}")
     printed = {float(n) for n in _NUM.findall(tolerance)}
+
     missing = have - printed
     assert not missing, (
-        f"{comparison}: {module}.{symbol} holds {sorted(have)} and SCOPE.md's Tolerance "
+        f"{comparison}: {', '.join(named)} holds {sorted(have)} and SCOPE.md's Tolerance "
         f"column prints {sorted(printed)}. The values {sorted(missing)} appear in the code "
         f"and not in the document. Update SCOPE.md in the same commit -- a tolerance that "
         f"moves in one place only is exactly what this test exists to stop."
+    )
+    unbacked = printed - have
+    assert not unbacked, (
+        f"{comparison}: SCOPE.md's Tolerance column prints {sorted(unbacked)}, which none "
+        f"of {', '.join(named)} holds. A number in the document that no code asserts is a "
+        f"tolerance the reader will believe and the suite will not enforce. Either name the "
+        f"symbol that holds it or take the number out of the column."
     )

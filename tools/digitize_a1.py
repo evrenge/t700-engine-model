@@ -1,7 +1,7 @@
 """Digitize Figure A1 (pdf p.56) -- f1, compressor mass flow. The one 2-D map in the report.
 
-Figure A1 is the only figure in TM-100991 that `tools/digitize.py`'s CLI cannot do, so it
-gets its own script rather than a shell recipe. Four things make it different:
+Figure A1 is the only figure in TM-100991 the single-curve path cannot do, so it gets its
+own script. Four things make it different:
 
 1. **Eleven speed lines that cross and crowd.** A per-curve `--roi` band cannot separate
    curves 1-4 in the lower left. It turns out not to be needed: at 600 dpi each speed line
@@ -64,6 +64,14 @@ from scipy import ndimage
 from scipy.spatial import cKDTree
 
 import rectify_page
+from figure.axis import blend_value as blend
+from figure.axis import fit_soft_anchored as _anchored
+from figure.frame import apply_h as _apply
+from figure.frame import corner_line as corner
+from figure.frame import homography, robust_keep
+from figure.frame import trace as _trace
+from figure.raster import native_bitmap
+from figure.ticks import protrusion as _protrusion
 
 # This file is a script whose work happens at module level, so *importing* it used to run
 # the whole digitization and overwrite data/maps/f1_compressor_mass_flow.csv as a side
@@ -146,61 +154,12 @@ RFRAME = (910.0, 814.0, 4225.0, 5010.0)  # rectified frame: left, top, right, bo
 # ends go 4 px wrong in opposite directions, which is exactly the "0.37 % disagreement".
 
 
-def native_bitmap() -> np.ndarray:
-    """The page's own 300 dpi 1-bit image, as an ink mask.  No render, no resample."""
-    NAT.mkdir(parents=True, exist_ok=True)
-    if not (NAT / "native-000.png").exists():
-        subprocess.run(
-            [
-                "pdfimages",
-                "-f",
-                str(PAGE_NO),
-                "-l",
-                str(PAGE_NO),
-                "-png",
-                str(PDF),
-                str(NAT / "native"),
-            ],
-            check=True,
-        )
-    return ~np.array(Image.open(NAT / "native-000.png"))
-
-
-NINK = native_bitmap()
-
-
-def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
-    e = np.flatnonzero(np.diff(np.concatenate(([0], mask.view(np.int8), [0]))))
-    return list(zip(e[0::2], e[1::2], strict=True))
-
-
-def _trace(ink, along, lo, hi, tlo, thi, maxw=5):
-    """Centroid of the single narrow ink run in [lo,hi) at each position along the line.
-
-    `along=0` traces a vertical line (one run per row), `along=1` a horizontal one.  A bare
-    frame line gives exactly one narrow run; a tick merges with it and widens the run past
-    `maxw`, and data or text give several -- both are skipped rather than modelled.
-    """
-    ts, vs = [], []
-    for t in range(tlo, thi):
-        seg = ink[t, lo:hi] if along == 0 else ink[lo:hi, t]
-        rr = [r for r in _runs(seg) if (r[1] - r[0]) <= maxw]
-        if len(rr) != 1:
-            continue
-        a, b = rr[0]
-        ts.append(float(t))
-        vs.append(lo + (a + b - 1) / 2.0)
-    return np.array(ts), np.array(vs)
+NINK = native_bitmap(PAGE_NO)
 
 
 def _robust(t, v, tol=2.0, it=8):
-    keep = np.ones(t.shape, bool)
-    for _ in range(it):
-        s, i = np.polyfit(t[keep], v[keep], 1)
-        new = np.abs(v - (i + s * t)) < tol
-        if new.sum() < 20 or (new == keep).all():
-            break
-        keep = new
+    """Straight fit with outlier rejection, as (intercept, slope, kept residuals)."""
+    keep = robust_keep(t, v, tol, it)
     s, i = np.polyfit(t[keep], v[keep], 1)
     return float(i), float(s), (v - (i + s * t))[keep]
 
@@ -215,41 +174,13 @@ def nframe(ink) -> dict[str, tuple[float, float]]:
         ("top", 1, (388, 428, 480, 2090)),
         ("bottom", 1, (2484, 2528, 480, 2090)),
     ):
-        a, b, r = _robust(*_trace(ink, along, *args))
+        a, b, r = _robust(*_trace(ink, along, *args, maxw=5))
         out[nm] = (a, b)
         print(
             f"  {nm:6s} {a:10.3f} + {b:+.6f}*t   rms {r.std():.2f} px  "
             f"({np.degrees(np.arctan(b)):+.3f} deg)"
         )
     return out
-
-
-def corner(hor, ver):
-    a, b = hor
-    c, d = ver
-    x = (c + d * a) / (1.0 - d * b)
-    return x, a + b * x
-
-
-def homography(src, dst):
-    A, B = [], []
-    for (sx, sy), (dx, dy) in zip(src, dst, strict=True):
-        A.append([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy])
-        B.append(dx)
-        A.append([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy])
-        B.append(dy)
-    h = np.linalg.solve(np.asarray(A, float), np.asarray(B, float))
-    return np.append(h, 1.0).reshape(3, 3)
-
-
-def _apply(H, px, py):
-    px = np.atleast_1d(np.asarray(px, float))
-    py = np.atleast_1d(np.asarray(py, float))
-    d = H[2, 0] * px + H[2, 1] * py + H[2, 2]
-    return (
-        (H[0, 0] * px + H[0, 1] * py + H[0, 2]) / d,
-        (H[1, 0] * px + H[1, 1] * py + H[1, 2]) / d,
-    )
 
 
 FR = nframe(NINK)
@@ -273,23 +204,6 @@ def to_native(u, v):
     return _apply(HI, u, v)
 
 
-def _protrusion(ink, edge, along, sign, lo, hi, maxlen=40):
-    """Contiguous ink growing inward from a frame edge, per position along it."""
-    a, b = edge
-    out = np.zeros(hi - lo, int)
-    for j, t in enumerate(range(lo, hi)):
-        base = a + b * t
-        k = 0
-        while k < maxlen:
-            q = int(round(base + sign * (3 + k)))
-            on = ink[t, q] if along == 0 else ink[q, t]
-            if not on:
-                break
-            k += 1
-        out[j] = k
-    return out
-
-
 def _groups(p, lo, thresh=2, gap=3, maxlen=20):
     """Tick centres: ink-weighted centroid of each run of positions that protrude."""
     idx = np.flatnonzero(p >= thresh)
@@ -311,16 +225,6 @@ def _groups(p, lo, thresh=2, gap=3, maxlen=20):
     return res
 
 
-def _anchored(u, y, deg, e0, e1):
-    """Fit on the interior ticks WITH the two printed frame-edge values as end anchors.
-
-    The anchors are added only after the held-out test below has chosen `deg`; the choice
-    itself is made by a fit that has never seen them."""
-    uu = np.concatenate([u, [0.0, 0.0, 1.0, 1.0]])
-    yy = np.concatenate([y, [e0, e0, e1, e1]])
-    return np.polyfit(uu, yy, deg)
-
-
 def calibrate(ink, fr):
     """Every printed tick on all four edges, and the held-out frame-edge model test.
 
@@ -330,7 +234,13 @@ def calibrate(ink, fr):
     was never given.  That is the whole model-selection argument, and it is free."""
 
     def T(nm, along, sign, lo, hi):
-        return np.array(_groups(_protrusion(ink, fr[nm], along, sign, lo, hi), lo))
+        # maxlen 40, not the shared default 60: A1's ticks are short and its flat
+        # speed-line extensions are long, so a deeper probe starts finding data.
+        # `fr` holds (intercept, slope); the shared probe follows a POLYNOMIAL, highest
+        # power first, so the pair is reversed here rather than guessed at inside it.
+        a, b = fr[nm]
+        pr = _protrusion(ink, (b, a), along, sign, lo, hi, maxlen=40)
+        return np.array(_groups(pr, lo))
 
     bot = T("bottom", 1, -1, 462, 2110)
     top = T("top", 1, +1, 462, 2110)
@@ -387,6 +297,20 @@ def calibrate(ink, fr):
         )
     cx = _anchored(U, XX, 3, 0.0, 20.0)
     cy = _anchored(V, YY, 3, 2.0, 12.0)
+    # ... and the same cubic fitted to each ticked edge ALONE, so the map used at a point
+    # is the one that point's own end of the plot measured. Pooling the two, which this
+    # file did until 2026-09-16, averages away a real difference -- it is the same defect
+    # `figure.axis.blend_axis` exists to avoid on A2, A7 and A9, and the one
+    # `digitize_single_curve` was corrected for the same day.
+    cx_edges = (_anchored(ub, XV, 3, 0.0, 20.0), _anchored(ut, XV, 3, 0.0, 20.0))
+    cy_edges = (_anchored(vl, YV, 3, 2.0, 12.0), _anchored(vr, YV, 3, 2.0, 12.0))
+    for nm, (e0, e1), tt in (("x", cx_edges, U), ("y", cy_edges, V)):
+        d = np.abs(np.polyval(e0, tt) - np.polyval(e1, tt))
+        sc = (NW / 20.0) if nm == "x" else (NH / 10.0)
+        print(
+            f"  {nm} edge disagreement: max {d.max():.5f} ({d.max() * sc:.2f} px), "
+            f"mean {d.mean():.5f} -- blended across the plot, not pooled"
+        )
     rx = XX - np.polyval(cx, U)
     ry = YY - np.polyval(cy, V)
     print("  chosen: CUBIC on both axes, refitted with the printed frame values anchored")
@@ -405,10 +329,10 @@ def calibrate(ink, fr):
     for d in (2, 4, 5):
         alt[("x", d)] = _anchored(U, XX, d, 0.0, 20.0)
         alt[("y", d)] = _anchored(V, YY, d, 2.0, 12.0)
-    return cx, cy, alt
+    return cx, cy, alt, cx_edges, cy_edges
 
 
-CX, CY, CALT = calibrate(NINK, FR)
+CX, CY, CALT, CXE, CYE = calibrate(NINK, FR)
 
 
 def to_data(px, py):
@@ -418,7 +342,7 @@ def to_data(px, py):
     calibrated on the scan.  `bridge_check` below measures the error of that step."""
     u = (np.asarray(px, float) - RFRAME[0]) / (RFRAME[2] - RFRAME[0])
     v = (RFRAME[3] - np.asarray(py, float)) / (RFRAME[3] - RFRAME[1])
-    return float(np.polyval(CX, u)), float(np.polyval(CY, v))
+    return float(blend(CXE, u, v)), float(blend(CYE, v, u))
 
 
 def to_uv_rect(px, py):
@@ -888,7 +812,13 @@ out = "data/maps/f1_compressor_mass_flow.csv"
 # leverage on dNG/dt). Bump this literal when the calibration actually changes, and say
 # in the commit message what moved.
 RECALIBRATED = "2026-09-11"
-UL = float(np.polyval(CX, float(to_uv_rect(XV, 0.0)[0])))
+# The construction line is vertical, and the x map is blended across the plot, so it does
+# not read as one number: it reads as a band. Quoting only the mid-plot value would hide
+# exactly the spread this calibration exists to measure, so both ends are reported.
+_ULU = float(to_uv_rect(XV, 0.0)[0])
+UL_LO = float(blend(CXE, _ULU, 0.0))
+UL_HI = float(blend(CXE, _ULU, 1.0))
+UL = 0.5 * (UL_LO + UL_HI)
 HDR = [
     "# source: TM-100991 pdf p.56, Figure A1",
     "# quantity: f1 -- compressor mass flow.  WA2c = f1(Ps3/P2, NGc), Eq. 7, pdf p.22",
@@ -966,6 +896,16 @@ HDR = [
     "#   not even.  Cubic is the lowest order that works, and it halves the tick residual.",
     "#   Having passed, the chosen model is refitted with the four printed frame values",
     "#   included as anchors:",
+    "#   THE TWO TICKED EDGES ARE FITTED SEPARATELY AND BLENDED, not pooled (2026-09-16).",
+    "#   Pooling averages away a real difference between the two lattices. Figure A1 gives",
+    "#   the check free: its eleven flat extensions are horizontal lines spanning the plot,",
+    "#   and nothing in the calibration is told so. Their end-to-end difference falls from",
+    "#   0.573 px mean / 1.005 px worst when pooled to 0.409 / 0.921 when blended.",
+    f"#     PS3/P2, bottom edge (u) = {np.array2string(CXE[0], precision=8, separator=' ')}",
+    f"#     PS3/P2, top edge    (u) = {np.array2string(CXE[1], precision=8, separator=' ')}",
+    f"#     WA2C,   left edge   (v) = {np.array2string(CYE[0], precision=8, separator=' ')}",
+    f"#     WA2C,   right edge  (v) = {np.array2string(CYE[1], precision=8, separator=' ')}",
+    "#   blended by the other coordinate: x by v, y by u. The pooled maps they replace were",
     f"#     PS3/P2(u) = {np.array2string(CX, precision=8, separator=' ')}",
     f"#     WA2C(v)   = {np.array2string(CY, precision=8, separator=' ')}",
     "#   (numpy polynomial order, highest power first; u = 0 at the left frame line and 1",
@@ -983,7 +923,8 @@ HDR = [
     "#   right: the frame lines were right, and the all-ticks fit was right about the data",
     "#   and wrong about the model.  The x = 10 major tick really does sit 1.9 px right of",
     "#   the frame midpoint (that part was a correct measurement, not a warp artefact).",
-    f"#   The printed vertical construction line now reads PS3/P2 = {UL:.4f}, against 0.974",
+    f"#   The printed vertical construction line now reads PS3/P2 = {UL:.4f} "
+    f"({UL_LO:.4f} at the bottom scale, {UL_HI:.4f} at the top), against 0.974",
     "#   under the old linear fit and 0.998 under a frame-lines-only calibration.  It is",
     "#   still not asserted to be exactly 1.0 -- the report does not print that -- but the",
     "#   cubic moves it most of the way there without ever being told to.",
@@ -1114,7 +1055,7 @@ with open(out, "w", newline="") as fh:
 print("wrote", out)
 
 # ======================================================================================
-# THE BETA-GRIDDED MAP -- a standard extension of this figure, written alongside the raw one
+# THE BETA-GRIDDED MAP -- traced from the printed line, not interpolated between markers
 # ======================================================================================
 # Beta is the standard compressor-map coordinate: 0 at the choked end of a speed line, 1 at
 # surge, so that one beta names corresponding points on lines whose pressure-ratio ranges
@@ -1130,95 +1071,269 @@ print("wrote", out)
 #     0.7846 0.8174 0.8306 0.8318 0.8135 0.8113 0.8549 0.8681 0.8818 0.8914 0.8973
 #
 # -- up, up, up, DOWN, DOWN, up -- which is jitter, not physics (rms second difference
-# 0.0216). The span they are fractions of is smooth (2.76 ... 17.52, rms 2nd diff 0.79 on a
-# quantity spanning 15). So beta here is defined analytically, as the fraction of the line's
-# own pressure-ratio span:
+# 0.0216). The span they are fractions of is smooth. So beta here is defined analytically:
 #
-#     beta = (Ps3/P2 - X0) / (Ps3/P2 at surge - X0),   X0 = 0.991, the plot's left frame
+#     beta = (Ps3/P2 - X0) / (Ps3/P2 at surge - X0),   X0 = 0.9907, the plot's left frame
 #
-# Measured against the printed-marker correspondence: Table B.1's rms 0.2471 -> 0.2439 %,
-# the worst Table 1 NG mode 8.18 -> 7.56 %, transients and the zero-extrapolation property
-# unchanged, at 56 stored points instead of 97. It is also far less sensitive to the grid --
-# 0.2438-0.2439 % across every grid from 32 to 96 points, where the printed-marker version
-# moved over 0.2471-0.2488 -- which is what a well-posed parameterisation looks like.
+# WHAT THE CURVE COMES FROM, AND WHY IT CHANGED ON 2026-09-15. Until this revision y came
+# from `scipy.interpolate.PchipInterpolator` through the seven printed markers -- an
+# INTERPOLANT, whose residual at every marker is zero by construction. Six noisy points per
+# line is very little to build a map from, and an exact interpolant through them turns the
+# glyph-centroid read error straight into curvature: five of the eleven lines came out with
+# a non-monotone secant sequence (94 %: -0.015 -0.170 -0.117 -0.396 -0.398), and
+# Fritsch-Carlson then amplified it, because it sets each node's derivative to a weighted
+# harmonic mean of the adjacent secants and so pins a secant that is flat within noise to a
+# dead-flat shelf followed by a cliff. Local dWA2c/d(Ps3/P2) differed from any smooth fit by
+# 14-135 % on ten of the eleven lines.
 #
-# USING THIS FILE IS A DEPARTURE FROM REPLICATION and is recorded as one, open question #60.
-# Figure A1's speed lines are DRAWN as polylines, so the raw seven-point file is Ballin's
-# table and linear interpolation between those points is his model. The characteristic they
-# sample is smooth; the corners are an artifact of plotting a coarse table.
+# The markers were never the best measurement on this page. The printed LINE is: it is
+# continuous ink, and it is drawn as straight segments between Ballin's own table points, so
+# it carries far more samples of the same function. This section traces it.
+#
+#   1. TRACE. Cut perpendicular to a guide curve, take the ink run nearest the guide, keep
+#      it when the run is thin enough to be line rather than glyph. The first guide is the
+#      seven-point extraction above -- good to a couple of pixels, far better than needed to
+#      aim a cross-section -- and each fit becomes the next guide. Three passes.
+#
+#      A sequential walker was tried first and abandoned: it has to coast blind through
+#      every glyph, and tuning the coast to rescue SYMBOL 2 broke SYMBOL 9, retightening it
+#      broke SYMBOL 5 and 6. Guide sampling carries no state along the curve, so it cannot
+#      drift; the guide supplies the direction everywhere and the perpendicular is always
+#      right. All eleven lines converge, 1104-1343 samples each.
+#
+#   2. FIT. Values at 26 knots, linear between, with the shape the physics gives free
+#      imposed as hard constraints -- first differences <= 0 (a compressor passes less
+#      corrected flow against a higher pressure ratio) and second differences <= 0 (flat at
+#      choke, steepening into surge) -- plus a second-difference roughness penalty. Smooth
+#      and monotone by construction, so no abrupt change can be invented. The knee is found,
+#      not assumed: it is where the fitted curve leaves the flat level.
+#
+#   3. BOTH MEASUREMENTS, EACH AT ITS OWN VARIANCE. The traced samples (sigma 0.45 px, the
+#      residual a well-traced line reaches) and the seven printed markers (sigma 2.35 px,
+#      the estimator figure from ACCURACY check 2 above) are fitted together, weighted by
+#      1/sigma^2. Where the trace is rich the markers are swamped and change nothing. Where
+#      the glyphs overprint into one ink mass they are the only measurement left: SYMBOL 1's
+#      six '1' glyphs leave FOUR OF ITS FIVE SEGMENTS with no traced sample at all, and
+#      without the markers the fit there is a smoothness prior filling a vacuum -- it put
+#      surge 21 px high and drew a corner. This is one rule for all eleven lines, not a
+#      special case for SYMBOL 1.
+#
+# MEASURED. Fit residual 0.23-0.60 px rms per line. Surge endpoints land within -7.2..+8.6 px
+# of the seven-point extraction, SYMBOL 1 at 0.00. The stored map moves from the PCHIP
+# version by 1.76 px rms, 8.58 px worst. Against the report: Table B.1 rms 0.2439 -> 0.2211 %,
+# worst -0.900 -> -0.806 %, Table 1 eigenvalue rms 5.494 -> 5.379, whole-curve Figure 9 %NG
+# 1.474 -> 1.400 and Ps3 0.760 -> 0.717, closed loop 0.0981 -> 0.0945; against Figure 8 rms
+# 0.4247 -> 0.4564 and Appendix B b rms 5.222 -> 5.348. See open questions #60 and #69.
+#
+# STILL A DEPARTURE FROM REPLICATION -- open question #60. Figure A1's speed lines are DRAWN
+# as polylines, so the seven-point file is Ballin's table and linear interpolation between
+# those points is his model; `maps.f1_as_printed()` still provides it.
 #
 # GRID. 8 values in the choked part and 48 in the unchoked, split at beta = 0.70. The knee
-# sits at beta 0.785 to 0.897 on the eleven lines, so the split is below every one of them
-# and the whole unchoked run gets the fine spacing. The choked run is flat to 0.15 % and
-# needs nothing.
-#
-# SHAPE PRESERVATION. y is taken from a Fritsch-Carlson fit through the seven printed
-# markers (scipy PchipInterpolator, in Ps3/P2). It cannot overshoot: the flat choked run
-# stays flat, the falling unchoked run stays monotone, no hump is invented at the knee. A
-# natural cubic spline would ring there.
+# sits below beta 0.90 on every line, so the split is below every one of them and the whole
+# unchoked run gets the fine spacing. The choked run is flat and needs nothing.
 #
 # `--raw-only` skips this file.
 BETA_CHOKED = 8
 BETA_UNCHOKED = 48
 BETA_SPLIT = 0.70
+TRACE_KNOTS = 26
+TRACE_PASSES = 3
+SIG_TRACE_PX = 0.45
+SIG_MARKER_PX = 2.35
+CROSS_OFFSETS = np.arange(-9.0, 9.0001, 0.25)
 
 if "--raw-only" not in sys.argv:
-    from scipy.interpolate import PchipInterpolator
+    from scipy.optimize import minimize
 
     dense_out = "data/maps/f1_compressor_mass_flow_beta.csv"
     x_left = min(DATA[lbl][0][0] for lbl in LABELS)
+
+    _UG = np.linspace(0.0, 1.0, 400001)
+    # The forward map is blended, so its inverse depends on BOTH coordinates. This inverse
+    # is used only to place the tracing guide, where a mid-plot blend is far better than
+    # the couple of pixels the guide needs; `native_to_data`, which produces every stored
+    # value, blends exactly.
+    _GX, _GY = blend(CXE, _UG, 0.5), blend(CYE, _UG, 0.5)
+
+    def data_to_native(x, y):
+        """Data coordinates -> native 300 dpi scan pixel. Approximate inverse, guide only."""
+        u = np.interp(x, _GX, _UG)
+        v = np.interp(y, _GY, _UG)
+        a, b = to_native(u, v)
+        return float(np.atleast_1d(a)[0]), float(np.atleast_1d(b)[0])
+
+    def native_to_data(px, py):
+        u, v = to_uv(px, py)
+        uu, vv = float(np.atleast_1d(u)[0]), float(np.atleast_1d(v)[0])
+        return float(blend(CXE, uu, vv)), float(blend(CYE, vv, uu))
+
+    NLAB, _ = ndimage.label(NINK, structure=np.ones((3, 3)))
+
+    def speed_line_mask(lbl):
+        """The 8-connected component carrying one speed line: its flat extension, its
+        joining polyline and all seven digit markers are one piece of ink, and the eleven
+        components are disjoint. Seeded at the knee, whose position is already known."""
+        px, py = data_to_native(*DATA[lbl][1])
+        win = NLAB[int(py) - 10 : int(py) + 11, int(px) - 10 : int(px) + 11]
+        ids, counts = np.unique(win[win > 0], return_counts=True)
+        return NLAB == ids[int(np.argmax(counts))]
+
+    def line_width(mask, lbl):
+        """Perpendicular ink thickness, measured on the flat extension where the slope is
+        zero and nothing else is printed."""
+        x0 = int(data_to_native(*DATA[lbl][0])[0]) + 45
+        x1 = int(data_to_native(*DATA[lbl][1])[0]) - 25
+        seen = []
+        for x in range(x0, max(x1, x0 + 1)):
+            idx = np.nonzero(mask[:, x])[0]
+            if idx.size and idx.max() - idx.min() + 1 <= 6:
+                seen.append(idx.max() - idx.min() + 1)
+        return float(np.median(seen)) if seen else 3.0
+
+    def _ink_at(mask, xs, ys):
+        xi = np.clip(np.round(xs).astype(int), 0, mask.shape[1] - 1)
+        yi = np.clip(np.round(ys).astype(int), 0, mask.shape[0] - 1)
+        return mask[yi, xi]
+
+    def sample_along(mask, gx, gy, width):
+        """One cross-section per guide point. Returns the accepted (x, y) native pixels."""
+        out = []
+        zero = int(np.argmin(np.abs(CROSS_OFFSETS)))
+        for i in range(1, len(gx) - 1):
+            dx, dy = gx[i + 1] - gx[i - 1], gy[i + 1] - gy[i - 1]
+            norm = float(np.hypot(dx, dy))
+            if norm < 1e-9:
+                continue
+            dx, dy = dx / norm, dy / norm
+            nx, ny = -dy, dx
+            prof = _ink_at(mask, gx[i] + CROSS_OFFSETS * nx, gy[i] + CROSS_OFFSETS * ny)
+            if not prof.any():
+                continue
+            idx = np.nonzero(prof)[0]
+            groups = np.split(idx, np.nonzero(np.diff(idx) != 1)[0] + 1)
+
+            def gap(g):
+                return 0 if g[0] <= zero <= g[-1] else min(abs(g[0] - zero), abs(g[-1] - zero))
+
+            g = min(groups, key=gap)
+            if gap(g) * 0.25 > 5.0:
+                continue
+            lo = CROSS_OFFSETS[g[0]] - 0.125
+            hi = CROSS_OFFSETS[g[-1]] + 0.125
+            if hi - lo > width + 1.6:  # a glyph is sitting on the line here
+                continue
+            c = 0.5 * (lo + hi)
+            out.append((gx[i] + c * nx, gy[i] + c * ny))
+        return out
+
+    def shape_fit(knots, X, Y, W, lam):
+        """Least squares at the knots under first- and second-difference sign constraints."""
+        m = knots.size
+        A = np.zeros((X.size, m))
+        idx = np.clip(np.searchsorted(knots, X) - 1, 0, m - 2)
+        frac = (X - knots[idx]) / (knots[idx + 1] - knots[idx])
+        A[np.arange(X.size), idx] = 1.0 - frac
+        A[np.arange(X.size), idx + 1] = frac
+        d1 = np.zeros((m - 1, m))
+        d2 = np.zeros((m - 2, m))
+        for i in range(m - 1):
+            d1[i, i], d1[i, i + 1] = -1.0, 1.0
+        for i in range(m - 2):
+            d2[i, i], d2[i, i + 1], d2[i, i + 2] = 1.0, -2.0, 1.0
+        sw = np.sqrt(W)
+        Aw, Yw = A * sw[:, None], Y * sw
+        res = minimize(
+            lambda v: float(((Aw @ v - Yw) ** 2).sum() + lam * ((d2 @ v) ** 2).sum()),
+            np.interp(knots, X, Y),
+            jac=lambda v: 2.0 * (Aw.T @ (Aw @ v - Yw)) + 2.0 * lam * (d2.T @ (d2 @ v)),
+            constraints=[
+                {"type": "ineq", "fun": lambda v: -(d1 @ v), "jac": lambda v: -d1},
+                {"type": "ineq", "fun": lambda v: -(d2 @ v), "jac": lambda v: -d2},
+            ],
+            method="SLSQP",
+            options={"ftol": 1e-16, "maxiter": 900},
+        )
+        resid = (A @ res.x - Y) * SPY
+        return res.x, float(np.sqrt((resid**2).mean())), float(np.abs(resid).max())
+
+    def traced_curve(lbl):
+        """Trace one speed line and fit it. Returns (knots, values, rms px, max px, n)."""
+        mask = speed_line_mask(lbl)
+        width = line_width(mask, lbl)
+        xs_end = DATA[lbl][6][0]
+        knots = np.linspace(x_left, xs_end, TRACE_KNOTS)
+        mx = np.array([q[0] for q in DATA[lbl]], float)
+        my = np.array([q[1] for q in DATA[lbl]], float)
+        values = np.interp(knots, mx, my)
+        rms = mx_px = float("nan")
+        n_used = 0
+        for _ in range(TRACE_PASSES):
+            q = np.linspace(knots[0], knots[-1], 1400)
+            gy = np.interp(q, knots, values)
+            guide = np.array([data_to_native(a, b) for a, b in zip(q, gy, strict=True)])
+            pts = sample_along(mask, guide[:, 0], guide[:, 1], width)
+            if len(pts) < 12:
+                break
+            D = np.array([native_to_data(a, b) for a, b in pts])
+            keep = (D[:, 0] >= x_left) & (D[:, 0] <= xs_end)
+            X, Y = D[keep, 0], D[keep, 1]
+            W = np.full(X.size, 1.0 / SIG_TRACE_PX**2)
+            X = np.concatenate([X, mx[1:]])
+            Y = np.concatenate([Y, my[1:]])
+            W = np.concatenate([W, np.full(mx.size - 1, 1.0 / SIG_MARKER_PX**2)])
+            order = np.argsort(X, kind="stable")
+            X, Y, W = X[order], Y[order], W[order]
+            n_used = int(X.size)
+            best = None
+            for lam in (3e-5, 1e-4, 3e-4):
+                v, r, m_ = shape_fit(knots, X, Y, W, lam)
+                if best is None or r < best[1] * 0.98:
+                    best = (v, r, m_)
+            values, rms, mx_px = best
+        return knots, np.asarray(values, float), rms, mx_px, n_used
+
     beta = np.concatenate(
         [
             np.linspace(0.0, BETA_SPLIT, BETA_CHOKED, endpoint=False),
             np.linspace(BETA_SPLIT, 1.0, BETA_UNCHOKED),
         ]
     )
-
-    def anchors(lbl):
-        """The seven printed markers, with the physics `t700.maps` applies at load applied
-        FIRST, so the fit is through data that already satisfies it.
-
-        Along one speed line a compressor passes less corrected flow against a higher
-        pressure ratio. Two of the 66 digitized segments rise instead, by 4e-4 and 1.7e-3
-        lbm/sec, which is pen width -- `maps.Physics(monotone="dec")` flattens them at load.
-        Fitting a shape-preserving cubic through the unflattened points and conditioning
-        afterwards is the wrong order: the fit faithfully preserves the rise, spreads it
-        over 56 points, and the load-time isotonic step then has to move 1.6e-3 instead of
-        the 8.5e-4 it moves on the raw file. Conditioning first leaves it nothing to do.
-        """
-        xs = np.array([q[0] for q in DATA[lbl]])
-        ys = np.array([q[1] for q in DATA[lbl]], dtype=float)
-        # pool-adjacent-violators for a non-increasing fit, the same rule maps.py uses
-        v = -ys.copy()
-        n = v.size
-        vals, wts, idx = np.zeros(n), np.zeros(n), 0
-        for i in range(n):
-            vals[idx], wts[idx], idx = v[i], 1.0, idx + 1
-            while idx > 1 and vals[idx - 1] < vals[idx - 2]:
-                vals[idx - 2] = (wts[idx - 2] * vals[idx - 2] + wts[idx - 1] * vals[idx - 1]) / (
-                    wts[idx - 2] + wts[idx - 1]
-                )
-                wts[idx - 2] += wts[idx - 1]
-                idx -= 1
-        out, j = np.zeros(n), 0
-        for i in range(idx):
-            out[j : j + int(wts[i])] = vals[i]
-            j += int(wts[i])
-        return xs, -out
-
-    chord = 0.0
+    print("\ntracing the printed joining line of each speed line:")
+    CURVES, chord, fit_rms, fit_max = {}, 0.0, [], []
     for lbl in LABELS:
-        xs, ys = anchors(lbl)
-        f = PchipInterpolator(xs, ys)
-        xg = x_left + beta * (xs[-1] - x_left)
+        knots, values, rms, mx_px, n_used = traced_curve(lbl)
+        CURVES[lbl] = (knots, values)
+        fit_rms.append(rms)
+        fit_max.append(mx_px)
+        xs_end = DATA[lbl][6][0]
+        xg = x_left + beta * (xs_end - x_left)
         fine = np.linspace(xg[0], xg[-1], 4000)
-        chord = max(chord, float(np.abs(np.interp(fine, xg, f(xg)) - f(fine)).max()))
+        chord = max(
+            chord,
+            float(
+                np.abs(
+                    np.interp(fine, xg, np.interp(xg, knots, values))
+                    - np.interp(fine, knots, values)
+                ).max()
+            ),
+        )
+        knee_idx = np.nonzero((values[0] - values) * SPY > 1.0)[0]
+        knee = float(knots[knee_idx[0]]) if knee_idx.size else float("nan")
+        print(
+            f"  SYMBOL {lbl:2d} ({NGC[lbl]:3d}%): {n_used:5d} samples, fit rms {rms:4.2f} px, "
+            f"max {mx_px:5.2f} px, knee Ps3/P2 {knee:6.3f}"
+        )
+    POOLED_RMS = float(np.sqrt(np.mean(np.square(fit_rms))))
+    WORST_FIT = float(max(fit_max))
+
     DHDR = [
-        "# source: TM-100991 pdf p.56, Figure A1 -- DERIVED from the raw extraction",
+        "# source: TM-100991 pdf p.56, Figure A1 -- DERIVED from the printed line",
         "# quantity: f1 -- compressor corrected mass flow, WA2c = f1(Ps3/P2, NGc), Eq. 7",
-        "# method: derived -- the 7 printed markers of each speed line, re-expressed on a",
-        "#         common beta grid. NO PIXEL IS RE-READ: this is a pure function of",
-        "#         f1_compressor_mass_flow.csv and nothing else.",
+        "# method: digitized -- the printed joining LINE of each speed line, traced by",
+        "#         perpendicular cross-section against an iterated guide, then fitted with a",
+        "#         monotone, concave smoothing curve and resampled onto a common beta grid.",
+        "#         The seven printed markers enter the same fit at their own variance.",
         "#",
         "# BETA is the fraction of a speed line's own pressure-ratio span:",
         f"#     beta = (Ps3/P2 - {x_left:.4f}) / (Ps3/P2 at surge - {x_left:.4f})",
@@ -1229,14 +1344,11 @@ if "--raw-only" not in sys.argv:
         "# lines and are Ballin's own. Their marker positions carry digitizing noise: as a",
         "# fraction of each line's span the k=1 markers run 0.785 0.817 0.831 0.832 0.814",
         "# 0.811 0.855 0.868 0.882 0.891 0.897 -- non-monotone, rms 2nd difference 0.0216 --",
-        "# while the spans themselves are smooth. Using the markers as the correspondence",
-        "# propagates that jitter into every interpolated value. Measured against them:",
-        "# Table B.1 rms 0.2471 -> 0.2439 %, worst Table 1 NG mode 8.18 -> 7.56 %.",
+        "# while the spans themselves are smooth.",
         "#",
         f"# GRID: {BETA_CHOKED} values below beta = {BETA_SPLIT} and {BETA_UNCHOKED} above,",
-        f"# {len(beta)} per line. The knee sits at beta 0.785-0.897 on the eleven lines, so",
-        "# the split is below every one and the whole unchoked run gets the fine spacing; the",
-        "# choked run is flat to 0.15 % and needs nothing.",
+        f"# {len(beta)} per line. The knee sits below beta 0.90 on every line, so the split is",
+        "# below every one of them and the whole unchoked run gets the fine spacing.",
         "#",
         "# COLUMNS:",
         "#   ngc_pct         corrected gas generator speed NGc of the speed line, percent",
@@ -1246,19 +1358,38 @@ if "--raw-only" not in sys.argv:
         "#   wa2c_lbm_per_s  station 2 corrected mass flow WA2c, lbm/sec -- the value of f1",
         "#   symbol          the plot symbol of that speed line in Figure A1, 1..11",
         "#",
-        "# Monotonicity is applied to the seven markers BEFORE the fit, not after: two of the",
-        "# 66 digitized segments rise by 4e-4 and 1.7e-3 lbm/sec (pen width), and a",
-        "# shape-preserving fit through them would faithfully preserve the rise.",
+        "# THE CURVE IS TRACED FROM INK, NOT INTERPOLATED BETWEEN MARKERS. Until 2026-09-15",
+        "# y came from a Fritsch-Carlson interpolant through the seven printed markers, whose",
+        "# residual at every marker is zero by construction; six noisy points per line is very",
+        "# little to build a map from, and an exact interpolant turns the glyph read error",
+        "# straight into curvature. Five of eleven lines carried a non-monotone secant",
+        "# sequence and local dWA2c/d(Ps3/P2) was off by 14-135 %. The printed LINE is the",
+        "# better measurement -- continuous ink, ~1200 samples per line instead of six points.",
         "#",
-        "# y comes from a shape-preserving Fritsch-Carlson fit through the seven printed",
-        "# markers (scipy PchipInterpolator, in Ps3/P2), so the curve passes through every",
-        "# measured point exactly and cannot overshoot at the knee. The stored polyline",
-        f"# approximates that curve to {chord:.2e} lbm/sec.",
+        "# TRACE: cut perpendicular to a guide curve, take the ink run nearest the guide, keep",
+        f"# it when thinner than the local line width + 1.6 px. {TRACE_PASSES} passes, each fit",
+        "# becoming the next guide, so nothing is carried along the curve and nothing drifts.",
+        f"# FIT: values at {TRACE_KNOTS} knots, first differences <= 0 and second differences",
+        "# <= 0 imposed as hard constraints, plus a second-difference roughness penalty. The",
+        "# knee is found, not assumed. BOTH measurements are used, each weighted by its own",
+        f"# variance: traced samples at {SIG_TRACE_PX} px and the printed markers at",
+        f"# {SIG_MARKER_PX} px. Where the trace is rich the markers are swamped; where the",
+        "# glyphs overprint into one mass they are all that is left. SYMBOL 1 has NO traced",
+        "# sample in four of its five segments, and without the markers its fit put surge",
+        "# 21 px high and drew a corner.",
+        "#",
+        "#   NOT transcribed. Values carry read error: the traced centreline, the axis",
+        "#   calibration it is carried through, and the printed markers that share the fit",
+        "#   all contribute. See the raw seven-point CSV's UNCERTAINTY block for the",
+        "#   marker term and validation/out/digitize/a1_zoom_c*.png for the ink.",
+        "#",
+        f"# Fit residual, per line: {POOLED_RMS:.2f} px pooled rms, {WORST_FIT:.2f} px worst.",
+        f"# The stored polyline approximates the fitted curve to {chord:.2e} lbm/sec.",
         "#",
         "# USING THIS FILE IS A DEPARTURE FROM REPLICATION -- open question #60. The raw",
         "# seven-point CSV is Ballin's table, and `maps.f1_as_printed()` loads it.",
         f"# points: {11 * len(beta)} ({len(beta)} per line x 11 speed lines)",
-        "# derived: by tools/digitize_a1.py from the raw CSV; rerunnable, deterministic",
+        "# derived: by tools/digitize_a1.py from the page raster; rerunnable, deterministic",
     ]
     with open(dense_out, "w", newline="") as fh:
         for line in DHDR:
@@ -1266,12 +1397,13 @@ if "--raw-only" not in sys.argv:
         w = csv.writer(fh)
         w.writerow(["ngc_pct", "beta", "ps3_p2", "wa2c_lbm_per_s", "symbol"])
         for lbl in LABELS:
-            xs, ys = anchors(lbl)
-            f = PchipInterpolator(xs, ys)
+            knots, values = CURVES[lbl]
+            xs_end = DATA[lbl][6][0]
             for b in beta:
-                x = x_left + b * (xs[-1] - x_left)
-                w.writerow([NGC[lbl], f"{b:.6f}", f"{x:.4f}", f"{float(f(x)):.5f}", lbl])
-    print(f"wrote {dense_out}  (polyline approximates the fit to {chord:.2e} lbm/sec)")
+                x = x_left + b * (xs_end - x_left)
+                y = float(np.interp(x, knots, values))
+                w.writerow([NGC[lbl], f"{b:.6f}", f"{x:.4f}", f"{y:.5f}", lbl])
+    print(f"wrote {dense_out}  (fit rms {POOLED_RMS:.2f} px, polyline chord {chord:.2e} lbm/sec)")
 
 
 # per-curve two-column CSVs so `digitize.py verify` can be run on each speed line

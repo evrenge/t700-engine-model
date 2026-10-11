@@ -156,6 +156,14 @@ Two typesetting traps the OCR layer cannot show, both load-bearing:
 - `/validate` — runs the model against digitized reference data and prints a deviation
   table plus overlay plots.
 - Tests: `pytest`. Fast unit tests in `tests/`; report-comparison tests in `validation/`.
+- **Digitizing anything: `tools/figure/` is the library, one script per figure above it.**
+  Read `docs/notes/digitizing-recipe.md` first — twelve traps, each of which cost a wrong
+  CSV that looked right. Never add a second copy of something already in there; a test
+  fails if you do.
+- Three audit tools that write nothing and are worth running before believing a map:
+  `check_straightness.py` (is the printed curve straight between its markers, measured in
+  data space), `compare_models.py` (what the frame model and the anchoring rule cost, per
+  figure), `minor_lattice.py` (what tick lattice each edge resolves, and how cleanly).
 
 ## Non-negotiables, and what actually enforces them
 
@@ -174,6 +182,7 @@ in a long session, so mechanize any that proves to matter.
 | No global mutable state in the core | `advisory`, with three named exceptions — the thermo backend, `maps._clamps`, and the write-once `maps.CONDITIONING` | the clamp counter is bounded behaviourally instead: no model output can depend on it, over a trim (`test_maps.py`) and over a whole transient (`test_determinism.py`) |
 | No force-push | `permissions.ask` | plain `git push` is authorized; force-push still prompts |
 | Never hand-edit a generated data file | `bash tools/reproduce_all.sh` — reruns every digitizer and diffs | **three of the eleven engine maps are not generated**: `f2`, `f7` and `f9` are hand-maintained CSVs whose headers carry provenance no generator writes, so their tools *check* rather than write. **Run it inside the container, and read its verdict rather than its exit code.** A hand-added annotation is wiped by the next rerun — put it in the tool |
+| One implementation per concept under `tools/` | `tests/test_tool_duplication.py` — AST fingerprint of every function body, local names normalised, two decoys | **the copy that has already been edited.** It catches a copy before it diverges, which is the only moment that is cheap; after that it takes a reader |
 | Python stays formatted and linted | PostToolUse hook: `ruff check --fix` then `ruff format` | |
 
 The two that remain `advisory` are the two that matter most, and they are the two that

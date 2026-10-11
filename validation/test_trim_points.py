@@ -163,9 +163,19 @@ def test_more_fuel_buys_more_speed_and_power():
 
 
 EIGENVALUE_TOL_PCT = 30.0
-"""Ours, declared in `SCOPE.md`. Loose because the NG mode carries the #31/#43
-interpolation residual, worst -22.6 % at descent; see `docs/notes/derivative-ambiguity.md`.
-It was an inline `30.0` under a docstring claiming a 4 % standard until 2026-09-13."""
+"""Ours. **A characterization, not an accuracy claim** -- a regression detector set well
+above the measurement, which is currently 14.87 % worst on the NG mode. Loose because that
+mode carries the #31/#43 interpolation residual; see `docs/notes/derivative-ambiguity.md`.
+
+Ballin calls a 4 % eigenvalue mismatch "good agreement" for his own comparison [pdf p.29].
+Ours is not that, and quoting this bound as though it were an accuracy standard would be
+the error `SCOPE.md` warns about where it defines the characterization category.
+
+This docstring said "declared in `SCOPE.md`" until 2026-09-19 and `SCOPE.md` had never
+mentioned it -- the loosest bound in the project, self-certifying, on the one validation
+surface that is a restatement of another. It has a row there now, so
+`tests/test_scope_tolerances.py` holds the two in step. It was an inline `30.0` under a
+docstring claiming a 4 % standard until 2026-09-13."""
 
 
 def test_jacobian_eigenvalues_against_table_1():
@@ -200,14 +210,17 @@ def test_jacobian_eigenvalues_against_table_1():
 
     Paired by physics, at the hover trim, against Table 1's printed NG / P3 / P45 / P41:
 
-        NG    -2.375 vs -2.66     -10.7 %
-        P3   -52.364 vs -51.6      +1.5 %
+        NG    -2.381 vs -2.66     -10.5 %
+        P3   -53.158 vs -51.6      +3.0 %
         P45 -2603.8  vs -3060.0   -14.9 %
-        P41 -4870.3  vs -4900.0    -0.6 %
+        P41 -4870.4  vs -4900.0    -0.6 %
 
-    NG and P3 improved from -14.0 % and +7.4 % on 2026-09-13, when `f1` moved to constant-k
-    interpolation along Figure A1's construction lines. P45 and P41 do not go through `f1`
-    and did not move.
+    Only NG and P3 go through `f1`, and only they have ever moved: P45 and P41 have read
+    -14.9 % and -0.6 % through every revision of it. NG and P3 were -14.0 % and +7.4 %
+    before 2026-09-13, -10.7 % and +1.5 % after that day's constant-k interpolation along
+    Figure A1's construction lines, and -10.5 % and +3.0 % since the 2026-09-15 traced-line
+    digitisation. NG has improved at every step; P3 went the other way this time, and it
+    is much the smaller of the two residuals.
 
     The NG residual is the one `test_all_dof_models` reports as -9.1 / -0.3 / -22.6 %
     across the three trims, and `docs/notes/derivative-ambiguity.md` attributes it to
@@ -225,7 +238,7 @@ def test_jacobian_eigenvalues_against_table_1():
     # quantity we do not have, and is the same row Appendix B flags as not independently
     # reproducible.
     printed = [-2.66, -51.6, -3060.0, -4900.0]
-    on_record = [-10.7, 1.5, -14.9, -0.6]  # NG and P3 moved with the f1 interpolation
+    on_record = [-10.5, 3.0, -14.9, -0.6]  # only NG and P3 go through f1; only they move
 
     assert ours.size == len(printed), f"expected 4 comparable modes, got {ours}"
     for got, want, expected in zip(ours, printed, on_record, strict=True):
@@ -283,26 +296,77 @@ def test_the_model_is_too_stiff_for_explicit_integration_at_the_report_frame_tim
 
 
 def test_a_solution_off_the_compressor_map_is_not_reported_as_good():
-    """Clamping protects against extrapolation but manufactures spurious equilibria.
+    """The degenerate root of the clamped system, and why a cold solve cannot reach it now.
 
-    Once the state leaves the maps every lookup returns a constant, so the residual stops
-    depending on the state and Newton drives it to zero in a region where the model means
-    nothing. At 750 lbm/hr from a design-point guess this converged to a residual of
-    6.6e-9 with NG = 2.16e11 rpm and called itself converged.
+    ## The mechanism, which has not changed
 
-    `trustworthy` is what callers must check: converged AND on the map.
+    Once the state leaves the function tables every lookup returns a constant, so both
+    powers go flat in NG while both torques fall as 1/NG -- torque is power over speed.
+    `dNG/dt` is proportional to a torque imbalance, so it tends to zero as NG tends to
+    infinity **whatever the powers are doing**, and that is a root of the residual which is
+    not an equilibrium of the engine. Newton used to walk to it: 750 lbm/hr reached
+    NG = 2.16e11 rpm with a residual of 6.6e-9 and called itself converged, and after the
+    2026-09-15 `f1` retrace a cold 160 lbm/hr reached NGc 4.19e9.
+
+    This test pins the mechanism directly, because it is the durable part.
+
+    ## What changed on 2026-09-15
+
+    `solve`'s line search now refuses a trial step that leaves `f1`'s speed range widened
+    by a tenth of itself. That is enough: measured across both residual forms and three
+    bound widths, **no configuration carrying a bound produces a degenerate root at all**.
+    Writing the NG residual as a power balance removes the root analytically too, and was
+    rejected -- it under-weights the NG equation at low speed and a cold 125 lbm/hr then
+    wanders to NGc 24.8, so it fixes the top of the range by breaking the bottom.
+
+    A cold 800 lbm/hr now stops at the bound and reports `residual_converged` False, which
+    is an honest failure rather than a confident wrong answer. `test_continuation_reaches_
+    the_top_of_the_map` is how 800 is actually reached. Open question #71.
     """
-    from t700 import trim as _trim
+    import numpy as np
 
-    # 750 lbm/hr until 2026-09-13, when interpolating f1 along Figure A1's own construction
-    # lines widened the solver's good basin: a cold 750 now converges to a legitimate
-    # NG = 44220 rpm at NGc 98.9 % instead of the degenerate root. 800 still degenerates, to
-    # NGc = 8.1e7 %, so the mechanism is unchanged and only the threshold moved.
-    bad = _trim.solve(wf_pps_from_pph(800.0), 20900.0, Ambient(14.696, 518.67))
-    assert bad.residual_converged, "the degenerate root is a real root of the clamped system"
-    assert not bad.on_data, "but it sits off the compressor map and must say so"
-    assert not bad.trustworthy
-    assert "OFF THE MAP" in bad.report()
+    from t700 import trim as _trim
+    from t700.engine import State, frame
+
+    amb = Ambient(14.696, 518.67)
+    wf = wf_pps_from_pph(160.0)
+
+    # 1. The mechanism. Hold the pressures, sweep NG far past the map, and watch the two
+    #    forms of the same imbalance diverge in behaviour.
+    base = _trim.solve(wf, 20900.0, amb)
+    st = base.state
+    powers, torques = [], []
+    for ng in (1.0e5, 1.0e7, 1.0e9):
+        f = frame(State(ng, st.np_rpm, st.p3_psia, st.p41_psia, st.p45_psia), wf, amb)
+        dq = f.q_gt_ftlbf - f.q_c_ftlbf
+        torques.append(abs(dq))
+        powers.append(abs(dq * ng * 2.0 * np.pi / 60.0 / 550.0))
+    assert max(powers) - min(powers) < 1e-6 * max(powers), (
+        f"the power imbalance should not depend on NG once the tables clamp: {powers}"
+    )
+    assert torques[-1] < 1e-3 * torques[0], (
+        f"the torque imbalance must vanish as 1/NG -- that is the spurious root: {torques}"
+    )
+    assert max(powers) > 100.0, (
+        f"and the engine is nowhere near equilibrium there: {max(powers):.1f} hp out"
+    )
+
+    # 2. And the search can no longer get there. Every cold solve across the range either
+    #    trims on the map or refuses; none converges off it.
+    for pph in (110.0, 115.0, 125.0, 160.0, 400.0, 750.0, 800.0, 850.0):
+        r = _trim.solve(wf_pps_from_pph(pph), 20900.0, amb)
+        assert r.trustworthy or not r.residual_converged, (
+            f"{pph:.0f} lbm/hr converged off the map at NGc {r.frame.ngc_pct:.4g} -- the "
+            f"degenerate root is back"
+        )
+
+    # 3. The report path still exists for a caller that hands in a guess already off the
+    #    map, which is the one way to get there and is the escape hatch the bound leaves.
+    far = State(4.0e6, 20900.0, st.p3_psia, st.p41_psia, st.p45_psia)
+    off = _trim.solve(wf, 20900.0, amb, guess=far)
+    assert not off.on_data, "a guess started off the map should stay off it"
+    assert not off.trustworthy
+    assert "OFF THE MAP" in off.report()
 
 
 def test_continuation_reaches_the_top_of_the_map():
@@ -321,30 +385,46 @@ def test_continuation_reaches_the_top_of_the_map():
 
 
 def test_the_sweep_refuses_past_the_maps_top_speed_line():
-    """And a sweep must START inside the data -- continuation cannot rescue a cold start.
+    """850 lbm/hr is past `f1`'s 100 % speed line and no amount of continuation reaches it.
 
-    Beginning at 800 lbm/hr from the design-point guess lands off the map immediately, so
-    there is no good solution to continue from and every later point fails too. Begin low,
-    walk up.
+    **The ladder's spacing used to matter near the top, and does not any more.** This test
+    used [400, 600, 800, 850] until 2026-09-13 and the 600 -> 800 jump stopped working when
+    `f6` became the constant Figure A6 draws: the 0.0037 % more combustor efficiency that
+    gave at FAR 0.024 moved the 800 lbm/hr solution from NGc 99.872 to exactly 100.000,
+    `f1`'s top speed line, where `np.clip` pins the parameter, the residual stops depending
+    on NG and the forward-difference Jacobian reads a zero column. `solve` now differences
+    INWARD at that bound and projects trial steps onto it, so the boundary is no longer a
+    trap: a COLD 800 lbm/hr trims at NGc 99.8904 with no continuation at all, where before
+    2026-09-15 it returned a degenerate NGc 3.9e7 with `residual_converged` True.
 
-    **The ladder's spacing matters near the top, and that is not a detail.** This test used
-    [400, 600, 800, 850] until 2026-09-13 and the 600 -> 800 jump stopped working when `f6`
-    became the constant Figure A6 draws: the 0.0037 % more combustor efficiency that gave
-    at FAR 0.024 moved the 800 lbm/hr solution from NGc 99.872 to exactly 100.000, `f1`'s
-    top speed line, where `np.clip` pins the parameter and the residual stops depending on
-    NG. On a finer ladder 800 trims cleanly at **NGc 99.8725**. So the model did not get
-    worse; a 200 lbm/hr continuation step at the very top of the map did.
+    What is left is the genuine limit. 850 lbm/hr asks for more airflow than the 100 %
+    speed line carries, so there is no equilibrium on the map to find, and the solve says
+    so by pinning at NGc 100.0000 and reporting `residual_converged` False -- an honest
+    failure rather than a confident wrong answer. That is the assertion worth keeping.
     """
     from t700 import trim as _trim
 
     results = _trim.sweep([400.0, 600.0, 700.0, 800.0, 850.0])
     assert all(r.trustworthy for r in results[:4])
     assert not results[-1].trustworthy, "850 lbm/hr is past the map's 100 % speed line"
-
-    cold = _trim.sweep([800.0])
-    assert not cold[0].trustworthy, (
-        "a sweep starting above ~700 lbm/hr has no valid point to continue from"
+    assert not results[-1].residual_converged, (
+        "850 must fail honestly, not converge somewhere meaningless"
     )
+
+    # the top of the map no longer needs continuation to reach
+    cold = _trim.solve(wf_pps_from_pph(800.0), 20900.0, Ambient(14.696, 518.67))
+    assert cold.trustworthy, (
+        f"a cold 800 lbm/hr should now trim on the map, got NGc {cold.frame.ngc_pct:.4g}"
+    )
+    assert abs(cold.frame.ngc_pct - 99.8904) < 0.01, cold.frame.ngc_pct
+
+    # and past the map a cold start fails the same way a continued one does
+    for pph in (850.0, 900.0):
+        far = _trim.solve(wf_pps_from_pph(pph), 20900.0, Ambient(14.696, 518.67))
+        assert not far.trustworthy and not far.residual_converged, (
+            f"{pph:.0f} lbm/hr is past the map and must refuse, got "
+            f"NGc {far.frame.ngc_pct:.4g}, converged={far.residual_converged}"
+        )
 
 
 # ------------------------------------------------- the rest of Table B.1, long unused
@@ -362,10 +442,11 @@ STATE_B1 = {
 STATE_TOL_PCT = 0.5
 """Tolerance on the printed station pressures and temperatures.
 
-Measured worst deviations are Ps3 **0.366 %**, P41 0.358, P45 0.283, T45 0.188 and T41
-0.099, all at descent, so 0.5 % is a ratchet a little above the worst rather than a target.
-(This line read 0.31 / 0.30 / 0.25 / 0.16 / 0.08 until 2026-09-14 -- all five understated,
-measured before the `f1` beta grid landed.) Note the
+Measured worst deviations are Ps3 **0.338 %**, P41 0.331, P45 0.265, T45 0.172 and T41
+0.087, all at descent, so 0.5 % is a ratchet a little above the worst rather than a target.
+(This line read 0.31 / 0.30 / 0.25 / 0.16 / 0.08 until 2026-09-14 and 0.366 / 0.358 / 0.283 /
+0.188 / 0.099 until 2026-09-19 -- understated the first time, overstated the second, and both
+times because the maps moved underneath a number nothing recomputes.) Note the
 printed T41 and T45 carry only four significant figures with a trailing decimal point --
 "2292." -- so a quarter of a degree is the printing resolution at T41 and the agreement
 there is at that limit."""

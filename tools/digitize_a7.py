@@ -19,7 +19,7 @@ This is the 2026-09-11 *recalibration*, replacing the same day's first redo.  Wh
     filled exactly once) and 0.002 in x (76).  Ten times the data the long ticks give, and
     enough to fit and *test* an order-5 axis map instead of guessing between order 2 and
     order 4 on twelve ticks.
-3.  **The frame edges are fitted as arcs** (`digitize_native.make_sv`), not as a
+3.  **The frame edges are fitted as arcs** (`figure.frame.make_sv`), not as a
     homography between four corners.  p.62's sagittae are -0.44 / -0.75 / -0.38 / -0.14 px.
 4.  **The frame values are anchored exactly**, not carried as two extra data points among
     76 ticks (`fit_anchored`).  With the soft anchor the order-3 x map misses the left
@@ -59,22 +59,13 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
-from digitize import check_against_csv
-from digitize_native import (
-    blend_axis,
-    corner,
-    curve_component,
-    fit_glyphs,
-    frame_curves,
-    label_by_map,
-    label_ticks,
-    make_sv,
-    make_window,
-    native_bitmap,
-    poly_se,
-    segment_lines,
-    ticks,
-)
+from figure.axis import blend_axis, choose, fit_anchored, parity, poly_se, tail_cv
+from figure.axis import loo as _loo
+from figure.frame import corner_arc, curve_component, edge_at, fit_edges, make_sv, segment_lines
+from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
+from figure.provenance import check_against_csv
+from figure.raster import native_bitmap
+from figure.ticks import find_ticks, label_by_map, label_ticks
 
 OUT = Path("validation/out/digitize/a7redo")
 CSV = Path("data/maps/f7_gg_turbine_energy.csv")
@@ -87,10 +78,10 @@ FRAME_ORDER, X_ORDER, Y_ORDER = 2, 3, 5  # chosen by the tests main() prints
 FINE = True  # calibrate on every tick (0.002 in x, 0.25 in y), not the long ticks alone
 
 SPEC = [
-    ("left", 0, (440, 500, 340, 2600)),
-    ("right", 0, (2095, 2160, 340, 2600)),
-    ("top", 1, (280, 345, 500, 2100)),
-    ("bottom", 1, (2600, 2700, 500, 2100)),
+    ("left", 0, 440, 500, 340, 2600),
+    ("right", 0, 2095, 2160, 340, 2600),
+    ("top", 1, 280, 345, 500, 2100),
+    ("bottom", 1, 2600, 2700, 500, 2100),
 ]
 
 # (along, sign, lo, hi, long-tick threshold, all-tick threshold, coarse step, fine step)
@@ -128,11 +119,12 @@ def tickset(fc, to_sv, verbose=False, fine=None):
     mid-page and would silently discard a block of good minor ticks.
     """
     ink = tickset.ink
+    at = edge_at(fc, to_sv)
     fine = FINE if fine is None else fine
-    TL = corner(fc, "top", "left", (480, 303))
-    TR = corner(fc, "top", "right", (2140, 325))
-    BL = corner(fc, "bottom", "left", (458, 2639))
-    BR = corner(fc, "bottom", "right", (2114, 2669))
+    TL = corner_arc(fc, "top", "left", (480, 303))
+    TR = corner_arc(fc, "top", "right", (2140, 325))
+    BL = corner_arc(fc, "bottom", "left", (458, 2639))
+    BR = corner_arc(fc, "bottom", "right", (2114, 2669))
     ends = {
         "left": (BL[1], TL[1], Y0, Y1),
         "right": (BR[1], TR[1], Y0, Y1),
@@ -140,21 +132,15 @@ def tickset(fc, to_sv, verbose=False, fine=None):
         "top": (TL[0], TR[0], X0, X1),
     }
 
-    def at(nm, cs):
-        cs = np.asarray(cs, float)
-        if nm in ("left", "right"):
-            return to_sv(np.polyval(fc[nm], cs), cs)[1]
-        return to_sv(cs, np.polyval(fc[nm], cs))[0]
-
     P = {"_xedges": (X0, X1), "_yedges": (Y0, Y1), "_span": {}}
     for nm, (along, sign, lo, hi, th_long, th_all, step_c, step_f) in EDGES.items():
         w0, w1, v0, v1 = ends[nm]
-        coarse = ticks(ink, fc[nm], along, sign, lo, hi, th_long)
+        coarse = find_ticks(ink, fc[nm], along, sign, lo, hi, th_long)
         wc, vc, keep_c = label_ticks(coarse, w0, w1, v0, v1, step_c, tol=0.15)
         tc = at(nm, wc)
         pc = np.polyfit(tc, vc, 3)
         if fine:
-            allt = ticks(ink, fc[nm], along, sign, lo, hi, th_all)
+            allt = find_ticks(ink, fc[nm], along, sign, lo, hi, th_all)
             t, val, keep_f = label_by_map(at(nm, allt), pc, step_f)
             n_raw, n_kept = allt.size, int(keep_f.sum())
         else:
@@ -187,15 +173,6 @@ def tickset(fc, to_sv, verbose=False, fine=None):
 # --------------------------------------------------------------------------- axis model
 
 
-def _loo(t, val, order):
-    """Leave-one-tick-out error: the guard against an order that buys the frame with noise."""
-    e = [
-        val[k] - np.polyval(np.polyfit(np.delete(t, k), np.delete(val, k), order), t[k])
-        for k in range(t.size)
-    ]
-    return float(np.std(e))
-
-
 def held_out_table(t, val, lo, hi, unit=1.0, uname="", orders=(1, 2, 3, 4, 5, 6), label=""):
     """Fit interior ticks alone; predict BOTH printed frame values; report LOO and tail CV."""
     print(f"   {label}({t.size} interior ticks)")
@@ -209,7 +186,7 @@ def held_out_table(t, val, lo, hi, unit=1.0, uname="", orders=(1, 2, 3, 4, 5, 6)
         r = val - np.polyval(c, t)
         a, b = float(np.polyval(c, 0.0)), float(np.polyval(c, 1.0))
         loo = _loo(t, val, o)
-        tc, tm = _tail(t, val, o)
+        tc, tm = tail_cv(t, val, o)
         rows[o] = (float(r.std()), loo, a, b)
         print(
             f"     {o}  {r.std() / unit:10.4f}{uname} {loo / unit:9.4f}{uname}  "
@@ -220,15 +197,6 @@ def held_out_table(t, val, lo, hi, unit=1.0, uname="", orders=(1, 2, 3, 4, 5, 6)
     return rows
 
 
-def _tail(t, val, order, frac=0.18):
-    lo, hi = t.min(), t.max()
-    span = hi - lo
-    inner = (t > lo + frac * span) & (t < hi - frac * span)
-    c = np.polyfit(t[inner], val[inner], order)
-    r = val[~inner] - np.polyval(c, t[~inner])
-    return float(np.sqrt((r**2).mean())), float(np.abs(r).max())
-
-
 def choose_order(rows, lo, hi, unit=1.0, uname=""):
     """A6/A8/A10's rule: minimise the held-out frame error, but only among orders whose
     leave-one-tick-out error is within 1.2x of the best -- otherwise a high order can win
@@ -236,38 +204,13 @@ def choose_order(rows, lo, hi, unit=1.0, uname=""):
     order.  Both criteria are held out; neither is a fit statistic on the fitted data."""
     errs = {o: max(abs(a - lo), abs(b - hi)) for o, (_, _, a, b) in rows.items()}
     loos = {o: v[1] for o, v in rows.items()}
-    lbest = min(loos.values())
-    ok = [o for o in rows if loos[o] <= 1.20 * lbest]
-    order = min(ok, key=lambda k: errs[k])
-    for o in sorted(ok):
-        if errs[o] <= 1.25 * errs[order]:
-            order = o
-            break
+    order, ok = choose(errs, loos)
     print(
         f"     LOO within 1.2x of best: orders {ok};  worst-frame errors "
         + ", ".join(f"{o}:{errs[o] / unit:.4f}{uname}" for o in ok)
         + f"  ->  ORDER {order}"
     )
     return order
-
-
-def parity(t, val, scale, deg=6):
-    """Legendre coefficients of the value function, with standard errors, in page pixels.
-
-    Even degrees are an even distortion about mid-axis, odd degrees an odd one.  This is
-    the test the A7 redo could not run: one printed frame value cannot separate them, a
-    lattice of 129 minor ticks can.
-    """
-    u = 2 * t - 1
-    A = np.polynomial.legendre.legvander(u, deg)
-    coef, *_ = np.linalg.lstsq(A, val, rcond=None)
-    r = val - A @ coef
-    s2 = (r**2).sum() / max(t.size - deg - 1, 1)
-    se = np.sqrt(np.diag(np.linalg.inv(A.T @ A) * s2))
-    out = []
-    for k in range(2, deg + 1):
-        out.append((k, coef[k] * scale, se[k] * scale, abs(coef[k] / se[k])))
-    return out
 
 
 # --------------------------------------------------------------------------- markers
@@ -372,31 +315,31 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False, rad=20.0, framew=None, tm
         mf = None
         if i in MASK:
             nm, w = MASK[i]
-            mf = mask_for(nm, w if framew is None else framew)
-        W.append(
-            make_window(
-                ink,
-                seeds[i, 0],
-                seeds[i, 1],
-                rad=rad,
-                half=24,
-                mask_fn=mf,
-                seg_in=(None if (mask_line or i == 0) else lines[i - 1, 2:4]),
-                seg_out=(None if (mask_line or i == N - 1) else lines[i, 2:4]),
-            )
+            keep = mask_for(nm, w if framew is None else framew)
+            # `mask_for` marks what to KEEP; `windows` takes what to EXCLUDE.
+            mf = lambda X, Y, k=keep: ~k(X, Y)  # noqa: E731
+        wd = windows(ink, seeds[i : i + 1], rad, mask_fn=mf)[0]
+        # The half-segment towards the PREVIOUS marker runs backwards along segment i-1.
+        wd["seg"] = (
+            None if (mask_line or i == 0) else -lines[i - 1, 2:4],
+            None if (mask_line or i == N - 1) else lines[i, 2:4],
         )
+        W.append(wd)
     if mask_line:  # the independent check: hide the polyline instead of modelling it
-        for i, w in enumerate(W):
-            for j, sign in ((i - 1, -1.0), (i, +1.0)):
-                if 0 <= j < N - 1:
-                    d = lines[j, 2:4] * sign
-                    dx = w["X"] - seeds[i, 0]
-                    dy = w["Y"] - seeds[i, 1]
-                    t = dx * d[0] + dy * d[1]
-                    p = -dx * d[1] + dy * d[0]
-                    w["use"] &= ~((t > 6) & (np.abs(p) < 6))
+        hide_segments(W, seeds, lines)
     t0 = tmpl0 or TMPL0
-    C, T = fit_glyphs(W, seeds, t0, seglen=42.0, simplex=2.0, verbose=False)
+    C, T = fit_glyphs(
+        W,
+        seeds,
+        t0,
+        rounds=6,
+        seglen=42.0,
+        simplex=2.0,
+        max_move=None,  # this figure asserts a tighter 4 px bound of its own, just below
+        centre=CENTRE_NATIVE,
+        template=TEMPLATE_NATIVE,
+        verbose=False,
+    )
     moved = np.hypot(*(C - seeds).T)
     assert moved.max() < 4.0, f"a glyph ran away from its seed: {np.round(moved, 2)}"
     return C, T, moved
@@ -457,28 +400,6 @@ def overlay(ink, to_px, C, px, py):
     )
 
 
-def fit_anchored(t, val, order, lo, hi):
-    """Least squares through the ticks that passes EXACTLY through both frame values.
-
-    Why not `blend_axis`'s two extra data points: the frame value is *known* (printed, or
-    fixed by the integer lattice span) and its pixel position comes from a ~1900-row fit
-    of the frame line, so it is the best-determined datum on the axis -- while two copies
-    among 76 ticks give it 2.6 % of the weight.  With the soft anchor the order-3 x map
-    misses the left frame by 2.0 px, and marker 1 *sits on that frame*, so the miss lands
-    straight in the CSV.  Fitted as `lo + (hi-lo)t + t(1-t)q(t)`, which is exact at both
-    ends by construction and leaves order-1 free parameters for the bow.
-    """
-    base = lo + (hi - lo) * t
-    if order < 2:
-        return np.array([hi - lo, lo])
-    A = np.stack([t * (1 - t) * t**j for j in range(order - 1)], 1)
-    q, *_ = np.linalg.lstsq(A, val - base, rcond=None)
-    asc = np.polynomial.polynomial.polyadd(
-        [lo, hi - lo], np.polynomial.polynomial.polymul([0.0, 1.0, -1.0], q)
-    )
-    return asc[::-1]
-
-
 def values(P, C, to_sv, xo=None, yo=None, blend=True, hard=True):
     xo = X_ORDER if xo is None else xo
     yo = Y_ORDER if yo is None else yo
@@ -510,10 +431,10 @@ def values(P, C, to_sv, xo=None, yo=None, blend=True, hard=True):
 
 
 def main() -> int:
-    ink = native_bitmap(PAGE, OUT)
+    ink = native_bitmap(PAGE)
     tickset.ink = ink
     print("frame arcs (printed straight; the sagitta is the page's bow):")
-    fc, _ = frame_curves(ink, SPEC, order=FRAME_ORDER)
+    fc, _ = fit_edges(ink, SPEC, order=FRAME_ORDER)
     to_sv, to_px = make_sv(fc)
 
     print("\ncalibration ticks:")
@@ -640,7 +561,7 @@ def main() -> int:
     print("\nFREE STRUCTURAL CHECK -- the abscissae against the 0.005 lattice (never told):")
     lat = np.array([0.200, 0.215, 0.220, 0.225, 0.230, 0.350])
     for fo in (1, 2):
-        fcv, _ = frame_curves(ink, SPEC, order=fo, verbose=False)
+        fcv, _ = fit_edges(ink, SPEC, order=fo, verbose=False)
         sv, _ = make_sv(fcv)
         Pv = tickset(fcv, sv)
         for xo in (1, 3, 5):
@@ -666,7 +587,7 @@ def main() -> int:
     VX, VY = [], []
     for fo, xo, yo, bl, hd in VARIANTS:
         if fo not in cache:
-            fcv, _ = frame_curves(ink, SPEC, order=fo, verbose=False)
+            fcv, _ = fit_edges(ink, SPEC, order=fo, verbose=False)
             sv, _ = make_sv(fcv)
             cache[fo] = (tickset(fcv, sv), sv)
         Pv, sv = cache[fo]
