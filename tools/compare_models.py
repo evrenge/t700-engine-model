@@ -1,31 +1,16 @@
-"""What does the calibration model choice cost, figure by figure?
+"""What does the calibration model choice cost, figure by figure? Writes nothing.
 
-Three decisions were made differently in different corners of this repository, each for a
-reason its own author wrote down, and none of them ever reached the other corner. This
-tool answers all three the only way they can honestly be answered: run both, hold
-everything else fixed, and print the difference in the figure's own units and in multiples
-of the read error that figure already publishes.
+Each single-curve figure is recalibrated under each variant, everything else held fixed, and
+the difference printed in the figure's own units and in multiples of its published read error.
+The baseline is order 1 with the soft anchor; the variants (see `figure.axis`):
 
-    FRAME     order 1, four straight edges mapped by a homography  -- what the thirteen
-              single-curve figures and A1 use
-              order 2, four fitted arcs with a curvilinear blend   -- what A2, A7 and A9
-              use. Recipe trap 7 used to call it right; measured, eleven of the
-              thirteen single-curve figures prefer straight
+    frame     order 2: four fitted arcs and the curvilinear blend
+    anchor    once (`blend_axis`), or hard, exact at both frames (`fit_anchored`)
+    both      order 2 with the hard anchor
 
-    ANCHOR    soft, the printed frame value entered twice among the ticks -- the
-              single-curve path
-              once, `blend_axis` -- the native path
-              hard, `fit_anchored`, exact at both frames by construction -- A7, and
-              `digitize_fig678` independently: "the t(1-t) factor is the whole point,
-              it vanishes at both frames"
-
-**The glyph centres are held fixed** at the values the committed extraction found, so what
-is measured here is the calibration alone. That is deliberate: the frame model also moves
-the marker windows slightly, and mixing the two effects would make neither attributable.
-The glyph question -- trap 8's simplex -- is measured separately, by flipping the guard on
-in the tool and rerunning it.
-
-Writes nothing. Run it, read the table, then decide per figure.
+The glyph centres are held at the values the extraction finds, so only the calibration is
+measured: the frame model also moves the marker windows, and mixing the two effects would make
+neither attributable.
 
     python3 tools/compare_models.py            # every single-curve figure
     python3 tools/compare_models.py a6 a8      # just these
@@ -57,10 +42,8 @@ def plot_coords(ink, spec, C, order):
 def edge_positions(ink, fc, cfg, order):
     """Where each printed tick sits along its edge, in the unit square.
 
-    Uses the minor lattice on every edge where one resolves. That is not quite what
-    ships: `digitize_single_curve` sends five axes back to their majors (`pick_lattice`),
-    so these numbers describe a slightly different calibration. On 2026-09-19 it changed no
-    frame-model choice.
+    Uses the minor lattice wherever one resolves, whereas `pick_lattice` sends some axes back
+    to their majors, so this is a slightly different calibration from the one that ships.
     """
     maj, _allt, cor = majors_all_edges(ink, fc, cfg, verbose=False, order=order)
     _, _, at = unit_square(fc, order)

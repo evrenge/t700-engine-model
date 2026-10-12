@@ -1,23 +1,14 @@
 """Square up a scanned figure page, so a family of curves can be separated on it.
 
-**This resamples the page, which everything else in `tools/figure/` refuses to do.** It
-survives for one caller and one reason: `digitize_a1.py` needs a 600 dpi raster on which
-Figure A1's eleven crossing speed lines are each a single 8-connected ink component, and
-connected-component labelling needs the frame square. A1's *axes* are calibrated on the
-native scan like every other figure's, so nothing resampled here reaches a published
-number through the calibration -- see `digitize_a1.py`, which says where the boundary is.
+**This resamples the page, which everything in `tools/figure/` refuses to do.** Its one
+caller is `digitize_a1.py`: on a 600 dpi raster Figure A1's eleven crossing speed lines are
+each one 8-connected ink component, and component labelling needs the frame square. A1's
+axes are calibrated on the native scan, so nothing resampled here reaches a published number
+through the calibration (see `digitize_a1.py`).
 
-The plot frame is not axis-parallel: pages 58-61 and 66 are keystoned, the bottom frame
-line dropping 10-16 px across the plot width while the top drops a different amount. So
-`rectify` fits the four frame lines, intersects them for the four corners, and maps that
-quadrilateral onto its enclosing rectangle. Residual drift afterwards is under 1 px.
-
-The tick-measuring half of this module was deleted on 2026-09-16: it served the
-`digitize.py` CLI, which no longer exists, and `tools/figure/ticks.py` does the same job
-without warping anything.
-
-This module lives in tools/ and may use SciPy, Matplotlib and PIL. Nothing here is
-imported by src/t700/.
+The frames are keystoned (pdf pp.58-61 and 66: the bottom line drops 10-16 px across the
+plot, the top a different amount), so `rectify` fits the four frame lines, intersects them,
+and maps that quadrilateral onto its enclosing rectangle.
 """
 
 from __future__ import annotations
@@ -116,9 +107,3 @@ def rectify(page: Path, out: Path) -> tuple[int, int, int, int]:
         im.size, Image.PERSPECTIVE, tuple(coeffs), resample=Image.BICUBIC, fillcolor=255
     ).save(out)
     return left, top, right, bottom
-
-
-# --------------------------------------------------------------------------- ticks
-
-
-# --------------------------------------------------------------------------- cli

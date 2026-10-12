@@ -1,26 +1,23 @@
 """Which model constants does the test suite actually notice? Change each one and find out.
 
 Every numeric constant in `t700.constants` and `t700.control.constants` is moved by +5 %
-(a zero by a stated amount instead), the whole suite runs, and the failing tests are
-recorded; then the ones nothing caught are tried at -5 %, because a limit can bind in one
-direction only. A constant is
+(a zero by `ZERO_STEP`), the whole suite runs, and the failing tests are recorded; the ones
+nothing caught are retried at -5 %, because a limit can bind in one direction only. A
+constant is
 
   * **behavioural** if a failing test does not name it -- a model output moved;
-  * **value-only** if every failing test reads it straight off its module (`k.CORR`),
-    which is what a transcription check does: it catches a typo and says nothing about
-    whether the model depends on the number;
+  * **value-only** if every failing test reads it straight off its module (`k.CORR`), as a
+    transcription check does, which says nothing about whether the model depends on it;
   * **unnoticed** if nothing fails.
 
-It runs in scratch git worktrees of HEAD, one per worker, so the real tree is never
-written to, and it needs only what a fresh clone has. First run 2026-10-12: 40 constants
-unnoticed in both directions, all on control paths no scenario reached.
+It runs in scratch git worktrees of HEAD, one per worker, so the real tree is never written.
 
     python3 tools/constant_sweep.py                 # all constants, 4 workers
     python3 tools/constant_sweep.py --workers 2 CR CORR
     python3 tools/constant_sweep.py --keep          # leave the worktrees and the raw results
 
-Takes about 20 minutes at 4 workers; each worker is one single-threaded pytest. The
-worktrees go in the system temp directory: set TMPDIR to a disk path where /tmp is RAM.
+A long job; each worker is one single-threaded pytest. The worktrees go in the system temp
+directory: set TMPDIR to a disk path where /tmp is RAM.
 """
 
 from __future__ import annotations

@@ -1,29 +1,14 @@
 """What is each map's read error worth? Push +1 sigma through the model and measure.
 
-Every digitized CSV carries a per-point 1 sigma in its own units. This shifts one map by
-exactly that, one axis at a time, resolves all three trims and both open-loop transients,
-and reports what moved. It is the only statement this project makes about what the
-digitizing uncertainty is *worth*, as opposed to what it is.
+Each digitized map is shifted by exactly its own per-point 1 sigma, one axis at a time, and
+all three trims and both open-loop transients are resolved. The steady column is the worst
+shaft-power change over the trims; the transient column is the largest change in any
+whole-curve panel rms, in points of that panel's excursion -- the only place a dynamic-only
+map such as `f_hs` shows up. Results: `docs/notes/digitizing-recipe.md`, "Read error".
 
-## Why it runs in a throwaway worktree, one subprocess per case
-
-Neither half of that is caution. `t700.maps` caches every loaded `Curve` and freezes its
-arrays -- deliberately, after `maps.f2().y *= 1.02` silently corrupted a table for a whole
-process -- so a perturbation applied in memory either raises or, worse, does nothing while
-appearing to work. A first attempt at this sweep reported every sensitivity as exactly
-0.000 % for that reason. And `DATA_ROOT` is resolved at import, so pointing the model at a
-different data directory means a different checkout, not a different variable.
-
-So: `git worktree add` a scratch copy of HEAD, perturb a CSV in it, run one subprocess,
-restore the file, repeat. The real tree is never written to.
-
-## Reading the output
-
-The steady column is the worst shaft-power change over the three trims. The transient column
-is the largest change in any whole-curve panel rms, in points of that panel's excursion --
-and it is the column that stops the table lying about dynamic-only quantities. `f_hs` sets a
-heat-sink time constant that does no work at equilibrium, so it costs exactly 0.000 % at
-every trim however wrong it is, and shows up only in the transient.
+It runs in a throwaway git worktree, one subprocess per case: `t700.maps` caches every loaded
+`Curve` with frozen arrays, so an in-memory perturbation raises or silently does nothing, and
+`DATA_ROOT` is resolved at import. The real tree is never written.
 
     python3 tools/sensitivity_sweep.py                 # every map with a sigma (not f1)
     python3 tools/sensitivity_sweep.py --keep          # leave the worktree for inspection

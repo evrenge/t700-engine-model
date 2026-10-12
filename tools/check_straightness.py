@@ -1,66 +1,16 @@
 """Is each printed curve straight between its markers? Measured in DATA space.
 
-## Why this exists
+`t700.maps` interpolates every table linearly, so what matters is whether the ink between
+two markers bends. The traced centreline goes through the figure's own calibration, read
+from its CSV header, which removes tilt, keystone, page bow and axis nonlinearity; in pixels
+a data-straight line is not straight (C29's quadratic x map alone bows one by 6 px).
 
-`t700.maps` interpolates every function table linearly, so the question that decides
-whether that loses anything is not how far apart the printed markers are -- it is whether
-the ink between them bends. A figure whose curve is drawn as a polyline is reproduced by
-`np.interp` exactly; one whose curve genuinely bows is not.
-
-## Why DATA space, and not pixels
-
-A first version of this check measured the bow in pixels and was wrong for two reasons
-that matter on every page in this report:
-
-* **The frames are tilted quadrilaterals.** Measured on the scans, opposite edges differ
-  in angle by up to 0.36 deg (Figure A8), so the distortion is keystone as well as
-  rotation. A line that is straight in data coordinates is not straight in pixels.
-* **The axis maps are polynomials.** The y map departs from linear by 0.20-0.25 % of the
-  axis span on these pages. Over one short inter-marker segment that is invisible -- the
-  effect scales as (segment/span)^2 -- but over a segment spanning most of the plot it is
-  not. Figure C29's data line spans the whole abscissa and its quadratic x map alone bows
-  a data-straight line by 6 px, which a pixel-space test reads as curvature in the ink.
-
-Pushing the traced centreline through the figure's own calibration removes tilt, keystone,
-page bow and axis nonlinearity in one step, because the calibration is exactly the thing
-that models them. What is left is the ink.
-
-## What it reports
-
-Per inter-marker segment: the rms residual from a straight line fitted in data space (the
-trace's own noise floor) and the fitted sagitta (systematic bow), both in the figure's y
-units and as a multiple of that file's own quoted 1 sigma.
-
-**Read this as drafting quality, not as information loss.** These figures are hand drawn,
-and a printed symbol marks a breakpoint of the underlying table: between two consecutive
-symbols the draughtsman drew a straight segment, so the chord IS the data and no denser
-sampling of that segment can add anything. A sagitta above 1 sigma therefore says the drawn
-line wandered, or the reproduction bowed it -- never that our table is missing a point.
-That distinction was got wrong on 2026-09-16 for Figure C29, whose entire content is two
-symbols and the line joining them: its 4.18 sigma was written up as evidence that Ballin's
-table held unmarked breakpoints, and a table cannot hold a smooth parabola. Two points
-define a line; a parabola through two points is not something a plotter or a table can
-produce, and the measured departure has no kinks anywhere along it, which is the signature
-of a drawn-and-reproduced straight line rather than of a polyline.
-
-The one figure where the ink genuinely carries more than the symbols is `f1`, whose speed
-lines are drawn as smooth curves rather than as segments between symbols -- which is why
-tracing them was right there and is not right here.
-
-**The statistic is rms and sagitta, never the maximum residual.** On a 1-bit scan the
-maximum is dominated by ink speckle: the right frame line of pdf p.62 is straight on the
-printed page and scores a 10.2 px maximum against a true sagitta of 0.61 px.
-
-## Coverage
-
-Runs on every figure whose CSV header publishes its frame model and axis maps. The rest --
-f1's raw table and the beta grid derived from it, F_EC1 and F_HM7 -- carry their own
-stronger checks and say so in their headers (F_HM7 requires every segment between
-consecutive knots to lie on ink, mean coverage 0.9800). f2 and f9 joined on 2026-10-12, when
-their hand-maintained headers began publishing the calibration their tools check.
-
-This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
-src/t700/.
+Per inter-marker segment: the rms residual from a straight line and the fitted sagitta, in y
+units and in multiples of the file's own 1 sigma. Read it as drafting quality: between two
+printed symbols the draughtsman drew a straight segment, so a sagitta above 1 sigma says the
+line wandered, not that the table misses a point. Never use the maximum residual, which ink
+speckle dominates on a 1-bit scan. Covers every CSV whose header publishes its calibration;
+`SKIP_STEMS` lists the rest, and why.
 """
 
 from __future__ import annotations
@@ -81,11 +31,8 @@ from figure.raster import native_bitmap
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 
-# Figures are DISCOVERED, not listed. Two reasons. A hardcoded list is what let
-# `digitize_multi_curve` sit outside the reproducibility gate, and
-# `tests/test_reproducibility_gate.py` classifies a tool as owning a data file by looking
-# for a literal "data/..." path in its source -- naming one here would make this
-# read-only analysis tool look like a digitizer that forgot to write its output.
+# Figures are discovered, not listed: `tests/test_reproducibility_gate.py` takes a literal
+# "data/..." path in a tool's source to mean the tool owns, and must write, that file.
 SKIP_STEMS = {
     "f1_compressor_mass_flow": "raw seven-point table; the beta map is what the model "
     "loads, and tools/digitize_a1.py reports its own fit residual per speed line",
@@ -193,10 +140,8 @@ def run_one(tag, path, yunit, clear=17.0):
     m = plot_ink(ink, frame, 5.0, 25.0)
     lab, _ = ndimage.label(m, structure=np.ones((3, 3)))
     sizes = ndimage.sum(m, lab, range(1, int(lab.max()) + 1))
-    # Look near EVERY marker and keep the biggest component any of them lands on. Seeding
-    # from one marker is not safe: a figure's first and last markers often sit on a frame
-    # line, and Figure A6's search from its own last marker found a 30 px speck outside
-    # the frame instead of the 6629 px curve.
+    # Look near EVERY marker and keep the biggest component any lands on: an end marker on
+    # a frame line can find a speck instead of the curve (A6's last did).
     found = {}
     rad = 26
     for mx, my in PX:
@@ -210,9 +155,7 @@ def run_one(tag, path, yunit, clear=17.0):
     cid = max(found, key=found.get)
     curve = lab == cid
     cols = np.nonzero(curve.any(axis=0))[0]
-    # Seed in the MIDDLE of the curve's own column range, not at a marker: the first and
-    # last markers of several figures sit on a frame line, and seeding there gives the
-    # trace nowhere to go in one direction and a contaminated start row in the other.
+    # Seed in the MIDDLE of the curve's column range, not at an end marker on a frame line.
     seed_col = int(np.clip(np.median(cols), cols.min() + 3, cols.max() - 3))
     want = float(np.interp(seed_col, PX[:, 0], PX[:, 1]))
     runs_here = np.split(
