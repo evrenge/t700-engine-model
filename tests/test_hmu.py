@@ -1,12 +1,9 @@
 """Structural checks on the HMU -- Appendix C, Figures C9-C22.
 
-These test the *wiring*, not agreement with any published result: that the droop line has
-the signs the figures draw, that the limit cascade is the one Figure C18 draws and in that
-order, that every block with memory actually has it, and that the schedules are wired to
-the signals the figures wire them to.
-
-Appendix C has no equations, so a transcription error here is a wrong picture, not a wrong
-number, and a wrong picture does not announce itself. That is what these are for.
+These test the wiring, not agreement with a published result: the droop line's signs, the
+Figure C18 limit cascade and its order, that every block with memory has it, and that the
+schedules take the signals the figures wire them to. Appendix C has no equations, so a
+transcription error here is a wrong picture, which does not announce itself.
 """
 
 from __future__ import annotations
@@ -70,13 +67,9 @@ def test_speed_droop_raises_fuel_flow():
 def test_the_limit_cascade_is_the_one_figure_c18_draws():
     """`HMUSEL = MAX( MIN( MAX(WFPDM, WFIDM), WFPAC ), WFPDC )`.
 
-    The order is drawn, not inferred, and it is not symmetric: the deceleration floor
-    outranks the acceleration ceiling. A min/max soup in any other order gives the same
-    answer almost everywhere and a different one exactly where it matters.
-
-    The idle floor never wins here: [pdf p.38] eliminated fuel control below flight-idle
-    power, so `WFIDM` should not win in any condition the engine model is valid over. Open
-    question #10.
+    The order is drawn, not inferred, and not symmetric: the deceleration floor outranks the
+    acceleration ceiling. The idle floor never wins here: [pdf p.38] eliminated fuel control
+    below flight-idle power (open question #10).
     """
     for xcpc in (10.0, 30.0, 50.0, 70.0, 90.0):
         _, o = settle(xcpc_pct=xcpc)
@@ -103,8 +96,7 @@ def test_the_deceleration_floor_binds_at_low_demand():
 def test_the_metering_valve_clamps_and_delays():
     """[Fig. C19] WFMIN/WFMAX bracket the valve, then a lag, then a transport delay. (The
     clamps are pinned by `test_control_blocks.py`.)"""
-    # the delay must actually delay: settle, then step the collective and check the
-    # output does not move on the first frame
+    # step the collective: the delivered flow must not move on the first frame
     s, before = settle(xcpc_pct=40.0)
     u = hmu.HMUInputs(**{**BASE, "xcpc_pct": 60.0})
     s1, o1 = hmu.step(s, u, DT)
@@ -142,33 +134,20 @@ IDLE_HOLD = dict(ps3_psia=176.34, t2_degR=518.67, pas_deg=28.0, xcpc_pct=0.0)
 """Ground idle as Appendix C draws it: the power-available spindle at the low end of
 Figure C25's printed 28-120 deg domain, and the collective on its stop.
 
-**The engine model is not valid here and that is the point.** [pdf p.38] eliminates fuel
-control below flight-idle power, so no operating point this project runs reaches the idle
-floor -- `test_the_limit_cascade_is_the_one_figure_c18_draws` asserts exactly that, at
-PAS = 100 deg, and stays true. What follows drives the HMU *alone*, as a block diagram,
-into the region Figures C20/C28/C29 were drawn for. It is a structural reproduction, not a
-comparison against a published number, because the report publishes none for idle."""
+The engine model is not valid here ([pdf p.38] eliminates fuel control below flight-idle
+power), so this drives the HMU alone, as a block diagram, into the region Figures
+C20/C28/C29 were drawn for: a structural reproduction, as the report publishes no idle
+numbers."""
 
 IDLE_WINDOW_PCT_NG = (44.5686, 53.8554)
 """Sensed NG over which the Figure C18 cascade selects `WFIDM`, at `IDLE_HOLD`.
 
-A characterization in the sense `SCOPE.md` names -- a regression detector, not an accuracy
-claim. What it is for: `F_HM5` and `F_HM6` were two of the four constants open question
-#65 left observable by nothing, and *nothing else in the project selects this branch*.
-Both edges are rigid translations of the two schedules, so the window places them:
-
-| | window | shift |
-|---|---|---|
-| as shipped | [44.5686, 53.8554] | -- |
-| `F_HM5` x1.02 | [44.3838, 53.6706] | -0.1848 |
-| `F_HM6` x1.002 | [44.7064, 53.9932] | +0.1378 |
-
-The asserted band is +/-0.05 %NG, so `F_HM5` is pinned to about 0.5 % and `F_HM6` to about
-0.07 %. The edges do not move with settle length at all -- identical to six decimals from
-120 frames to 6000 -- because both are algebraic crossings of *settled* droop lines, and
-`hmu.seed` starts every lag on them already settled. That is what lets the bisection run
-at 200 frames and 28 halvings and still land within 5e-8 %NG of the edge it converges to
-at 6000 and 50, which keeps these tests inside a second between them."""
+A characterization (see `SCOPE.md`), not an accuracy claim. Nothing else selects this
+branch, so this is what pins `F_HM5` and `F_HM6` (open question #65): both edges are rigid
+translations of the two schedules, and the +/-0.05 %NG band pins `F_HM5` to about 0.5 % and
+`F_HM6` to about 0.07 %. The edges are algebraic crossings of settled droop lines and
+`hmu.seed` starts every lag settled, so they do not depend on settle length: that is why the
+bisection can run at 200 frames."""
 
 
 def _idle_hold(ng_pct, n=200, **over):
@@ -194,17 +173,12 @@ def _idle_edge(kind, **over):
 
 
 def test_the_droop_line_and_the_idle_floor_are_parallel_in_ng():
-    """[Figs. C9, C20] Both carry the *same* gain `KNDRP` on sensed NG, so their
-    difference cannot depend on NG at all.
+    """[Figs. C9, C20] Both carry the same gain `KNDRP` on sensed NG, so their difference
+    cannot depend on NG at all.
 
-    This is the structure, and two places in this project described it wrongly until
-    2026-09-14: `hmu`'s own module docstring said the floor "only outbids the governor once
-    sensed NG has drooped roughly 8 to 11 percentage points below the idle reference", and
-    `docs/notes/inventory-appendix-c.md` reasoned the same way. `WFIRF/KNDRP` is where
-    `WFIDM` turns *positive*, which is a different question -- the floor is compared
-    against `WFPDM`, not against zero, and against `WFPDM` it never catches up by drooping.
-    What decides whether the floor outbids the governor is T2, PAS and collective; NG
-    decides only whether the *cascade* then lets the result through.
+    A trap: `WFIRF/KNDRP` is only where `WFIDM` turns positive. The floor is compared with
+    `WFPDM`, not zero, and never catches it by drooping. T2, PAS and collective decide
+    whether the floor outbids the governor; NG decides only whether the cascade lets it through.
     """
     held = [_idle_hold(g) for g in (40.0, 60.0, 80.0, 100.0)]
     diffs = [o.wfpdm - o.wfidm for o in held]
@@ -215,11 +189,10 @@ def test_the_droop_line_and_the_idle_floor_are_parallel_in_ng():
 def test_the_idle_floor_binds_in_the_window_the_two_idle_schedules_place():
     """`F_HM5` and `F_HM6` are observable here and nowhere else in this project.
 
-    At ground idle the floor outbids the governor at every NG (the test above), so what
-    bounds the window is the rest of the Figure C18 cascade: the acceleration ceiling
-    `WFPAC` cuts it off below, the deceleration floor `WFPDC` outranks it above. Both
-    crossings are `WFIDM = KNDRP*(PCNGI - NG) - WFIRF` set equal to a limit, so both move
-    one-for-one with `F_HM6` and four-for-one with `F_HM5`.
+    At ground idle the floor outbids the governor at every NG, so the window is bounded by
+    the rest of the Figure C18 cascade: `WFPAC` below, `WFPDC` above. Both crossings are
+    `WFIDM = KNDRP*(PCNGI - NG) - WFIRF` set equal to a limit, so both move one-for-one with
+    `F_HM6` and four-for-one with `F_HM5`.
     """
     o = _idle_hold(50.0)
     assert o.limit == "idle", (o.limit, o.wfpdm, o.wfidm, o.wfpac, o.wfpdc)

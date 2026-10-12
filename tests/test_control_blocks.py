@@ -1,18 +1,12 @@
 """Each Appendix C block driven where it acts, against the values the report prints.
 
-`tools/constant_sweep.py` moved every model constant by +-5 % on 2026-10-12 and found 40
-that no test noticed in either direction -- every one wired in, on a control path no
-scenario reached: limits never hit, thresholds never crossed, lags whose time constant no
-assertion looked at. The existing tests drive several of these blocks, but compare them
-with `c.WFMAX` and the like, so a wrong constant moves both sides of the check.
-
-These compare with `PRINTED`: 72 values read from the page images on 2026-10-12 without
-looking at `t700.control.constants`, which agrees with every one. Each test drives one block
-into the region where it acts -- a limit into its limit, a threshold to either side of it, a
-lag through a step, checked against the discrete recursion `_blocks` documents, run with the
-printed time constant. They test the block diagram, not agreement with an engine: no printed
-response isolates these paths (Figures 11-15 need Gen Hel). `UNCONSTRAINED` records the
-constants that cannot be pinned this way, and why.
+For control paths no scenario reaches (limits never hit, thresholds never crossed, lags no
+assertion looks at), found by `tools/constant_sweep.py`. A check against `c.WFMAX` moves with
+a wrong constant, so these compare with `PRINTED`, read from the page images independently
+of `t700.control.constants`. Each test drives one block where it acts: a limit into its
+limit, a threshold to either side, a lag through a step against the recursion `_blocks`
+documents. They test the block diagram, not an engine: no printed response isolates these
+paths (Figures 11-15 need Gen Hel). `UNCONSTRAINED` records what cannot be pinned this way.
 """
 
 from __future__ import annotations
@@ -43,8 +37,8 @@ PRINTED = {
     "ENGINE2_TORQUE_THRESHOLD": 180.0, "ZLOLIM_HIGH_TORQUE": -0.3, "TM_INPUT_BIAS": -0.44,
     "TM_LEAD": 0.04, "TM_LAG": 0.2, "TM_FORWARD_GAIN": 564.0, "TM_CURRENT_BIAS": -31.0,
     "FUEL_TRANSPORT_DELAY": 0.015,
-    # the three UNCONSTRAINED records below, read off the page images on 2026-10-12 for the
-    # trim survey: B6 from Table C.1 [p.83]; the 1000 gain and both relays' 1 from Fig. C3 [p.86]
+    # the relay chain of UNCONSTRAINED below: B6 from Table C.1 [p.83]; the 1000 gain and
+    # both relays' 1 from Fig. C3 [p.86]
     "B6": 1.0, "NP_LOOP_RELAY_GAIN": 1000.0, "RELAY_OUTPUT": 1.0,
 }  # fmt: skip
 P = PRINTED
@@ -161,9 +155,8 @@ def test_the_torque_motor_saturates_at_the_printed_limits(spdg: float, limit: st
 def test_the_torque_motor_first_frames_are_the_printed_loop():
     """Two frames after a step in SPDG from the null, run through the printed Fig. C10 loop:
     bias, lead-lag (0.04s+1)/(0.2s+1), gain 564, bias -31, deadband TMDB, TMGN/s, and the
-    TMLVG feedback from the first frame into the second. (Settled, the integrator rests
-    anywhere inside the deadband: at the 7 ms frame its loop gain is about 3.4 per frame,
-    so it overshoots and stops where it lands -- a continuum of equilibria, not one edge.)"""
+    TMLVG feedback. (Settled, the integrator rests anywhere inside the deadband: its loop
+    gain is about 3.4 per 7 ms frame, so it overshoots and stops where it lands.)"""
     null, half = _tm_null_and_band()
     step = null + 20.0 * half
     u0, u1 = dataclasses.replace(HMU_BASE, spdg=null), dataclasses.replace(HMU_BASE, spdg=step)

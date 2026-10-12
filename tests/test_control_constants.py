@@ -63,18 +63,11 @@ def test_time_constants_are_positive():
 def test_the_ten_millisecond_lags_are_still_lags_at_the_report_frame():
     """Six blocks at tau = 0.010 s against a 7 ms frame: dt/tau = 0.7. See `_blocks.lag`.
 
-    Explicit Euler puts the pole at `1 - dt/tau`, so these six sit at z = +0.300 with an
-    effective time constant of 5.814 ms -- **41.9 % short**. At `realtime.MAX_STEP_S`
-    (10 ms) the pole is exactly zero and the blocks respond in one frame; at `FRAME_NP_S`
-    (14 ms) it is negative and they alternate instead of lagging. Both of those frames are
-    named by the report (open question #33), so neither degenerate case is hypothetical.
-
-    Isolated, the discretization is worth at most 0.094 % on the closed-loop settled state
-    (see `_blocks.lag`), because every affected block is a sensor lag far above the loop
-    bandwidth. The condition is recorded, not removed: explicit Euler is the scheme the
-    model uses everywhere, by the architecture rule in CLAUDE.md.
-
-    This test exists so that a change of frame cannot make them deadbeat quietly.
+    Explicit Euler puts the pole at `1 - dt/tau`: z = +0.300, an effective time constant
+    41.9 % short. At `realtime.MAX_STEP_S` (10 ms) the pole is zero and the blocks respond in
+    one frame; at `FRAME_NP_S` (14 ms) it is negative and they alternate. The report names
+    both frames (open question #33). Recorded, not removed: explicit Euler is the model's
+    scheme. This test stops a change of frame from making them deadbeat quietly.
     """
     from t700 import realtime
 
@@ -97,10 +90,7 @@ def test_the_ten_millisecond_lags_are_still_lags_at_the_report_frame():
         f"the effective time constant is {tau_eff * 1000:.3f} ms, "
         f"{100 * (tau_eff / 0.010 - 1):+.1f} % against -41.9 % on record"
     )
-    assert pole > 0.0, (
-        "the 10 ms lags have gone deadbeat or worse at the shipped frame; they are no "
-        "longer first-order lags and every Appendix C sensor path is affected"
-    )
+    assert pole > 0.0, "the 10 ms lags are deadbeat or worse at the shipped frame"
 
     # the two frames the report itself names, for the record
     assert 1.0 - realtime.MAX_STEP_S / 0.010 == 0.0, "10 ms is exactly deadbeat for these"
