@@ -407,6 +407,38 @@ def tail_cv_report(t, val, frac=0.18, orders=(1, 2, 3, 4), unit=1.0, uname=""):
         )
 
 
+def point_sigma(P, fc, C, s, v, px, py, x_order, y_order, glyph_px, mx, my):
+    """Per-point 1 sigma in x and y for the native family (A2, A7, A9), by quadrature.
+
+    Three terms: the calibration, as each ticked edge's own standard error with its frame
+    values appended, blended across the plot; the glyph-centre uncertainty `glyph_px`,
+    converted through the local scale of the arcs; and the model spread `mx`/`my`. `P` is
+    the tick lattice with its `_xedges`/`_yedges`, `px`/`py` the per-edge axis maps.
+    Returns a dict of the totals `sx`, `sy` and the terms the tools print.
+    """
+    sig = {}
+    for nm, poly, order, arg in (
+        ("left", py[0], y_order, v),
+        ("right", py[1], y_order, v),
+        ("bottom", px[0], x_order, s),
+        ("top", px[1], x_order, s),
+    ):
+        t, val = P[nm]
+        lo, hi = P["_yedges"] if nm in ("left", "right") else P["_xedges"]
+        tt = np.concatenate([t, [0.0, 1.0]])
+        vv = np.concatenate([val, [lo, hi]])
+        sig[nm] = poly_se(tt, (vv - np.polyval(poly, tt)).std(), order, arg)
+    cal_y = np.hypot((1 - s) * sig["left"], s * sig["right"])
+    cal_x = np.hypot((1 - v) * sig["bottom"], v * sig["top"])
+    hpx = np.polyval(fc["right"], C[:, 1]) - np.polyval(fc["left"], C[:, 1])
+    vpx = np.polyval(fc["bottom"], C[:, 0]) - np.polyval(fc["top"], C[:, 0])
+    dXdpx = np.abs(np.polyval(np.polyder(px[0]), s)) / hpx
+    dYdpx = np.abs(np.polyval(np.polyder(py[0]), v)) / vpx
+    sx = np.sqrt(cal_x**2 + (glyph_px * dXdpx) ** 2 + mx**2)
+    sy = np.sqrt(cal_y**2 + (glyph_px * dYdpx) ** 2 + my**2)
+    return dict(sx=sx, sy=sy, cal_x=cal_x, cal_y=cal_y, dXdpx=dXdpx, dYdpx=dYdpx)
+
+
 def fit_soft_anchored(t, val, order, lo, hi):
     """Ordinary least squares with each printed frame value entered TWICE among the ticks.
 

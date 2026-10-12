@@ -31,13 +31,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
 
-from figure.axis import axis_values, blend_axis, held_out, poly_se, tail_cv_report
+from figure.axis import axis_values, blend_axis, held_out, point_sigma, tail_cv_report
 from figure.frame import corner_arc, curve_component, edge_at, fit_edges, make_sv, segment_lines
 from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
 from figure.provenance import calibration_lines, check_against_csv, check_calibration
-from figure.raster import native_bitmap
+from figure.raster import native_bitmap, overlay
 from figure.ticks import find_ticks, label_by_map, label_ticks
 
 OUT = Path("validation/out/digitize/a9redo")
@@ -181,31 +180,6 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
     )
 
 
-def overlay(ink, to_px, C, px, py):
-    im = Image.fromarray((~ink * 255).astype(np.uint8)).convert("RGB")
-    d = ImageDraw.Draw(im)
-    tt = np.linspace(0.0, 1.0, 20001)
-    for k in range(12):
-        u = float(tt[np.argmin(np.abs(np.polyval(px[0], tt) - (X0 + 0.05 * k)))])
-        a, b = to_px(u, 0.0), to_px(u, 1.0)
-        d.line([(a[0][0], a[1][0]), (b[0][0], b[1][0])], fill=(210, 230, 255), width=1)
-    for k in range(15):
-        v = float(tt[np.argmin(np.abs(np.polyval(py[0], tt) - (Y0 + 0.01 * k)))])
-        a, b = to_px(0.0, v), to_px(1.0, v)
-        d.line([(a[0][0], a[1][0]), (b[0][0], b[1][0])], fill=(210, 230, 255), width=1)
-    for x, y in C:
-        d.ellipse([x - 26, y - 26, x + 26, y + 26], outline=(220, 0, 0), width=3)
-        d.line([(x - 40, y), (x + 40, y)], fill=(0, 170, 0), width=1)
-        d.line([(x, y - 40), (x, y + 40)], fill=(0, 170, 0), width=1)
-    im.crop((400, 260, 2200, 2710)).resize((900, 1225), Image.LANCZOS).save(OUT / "a9_verify.png")
-    im.crop((430, 560, 780, 700)).resize((1400, 560), Image.LANCZOS).save(
-        OUT / "a9_verify_flat.png"
-    )
-    im.crop((2050, 2380, 2200, 2560)).resize((750, 900), Image.LANCZOS).save(
-        OUT / "a9_verify_m23.png"
-    )
-
-
 def main() -> int:
     ink = native_bitmap(PAGE)
     tickset.ink = ink
@@ -277,29 +251,22 @@ def main() -> int:
     mx = np.hypot(mx, np.abs(X - Xc))
     my = np.hypot(my, np.abs(Y - Yc))
 
-    sig = {}
-    for nm, poly, order, arg in (
-        ("left", py[0], Y_ORDER, v),
-        ("right", py[1], Y_ORDER, v),
-        ("bottom", px[0], X_ORDER, s),
-        ("top", px[1], X_ORDER, s),
-    ):
-        t, val = P[nm]
-        lo, hi = (Y0, Y1) if nm in ("left", "right") else (X0, X1)
-        tt = np.concatenate([t, [0.0, 1.0]])
-        vv = np.concatenate([val, [lo, hi]])
-        sig[nm] = poly_se(tt, (vv - np.polyval(poly, tt)).std(), order, arg)
-    cal_y = np.hypot((1 - s) * sig["left"], s * sig["right"])
-    cal_x = np.hypot((1 - v) * sig["bottom"], v * sig["top"])
-    hpx = np.polyval(fc["right"], C[:, 1]) - np.polyval(fc["left"], C[:, 1])
-    vpx = np.polyval(fc["bottom"], C[:, 0]) - np.polyval(fc["top"], C[:, 0])
-    dXdpx = np.abs(np.polyval(np.polyder(px[0]), s)) / hpx
-    dYdpx = np.abs(np.polyval(np.polyder(py[0]), v)) / vpx
     glyph_px = np.maximum(dd, 0.35)
-    sx = np.sqrt(cal_x**2 + (glyph_px * dXdpx) ** 2 + mx**2)
-    sy = np.sqrt(cal_y**2 + (glyph_px * dYdpx) ** 2 + my**2)
+    unc = point_sigma(P, fc, C, s, v, px, py, X_ORDER, Y_ORDER, glyph_px, mx, my)
+    sx, sy, cal_x, cal_y = unc["sx"], unc["sy"], unc["cal_x"], unc["cal_y"]
+    dXdpx, dYdpx = unc["dXdpx"], unc["dYdpx"]
 
-    overlay(ink, to_px, C, px, py)
+    overlay(
+        ink,
+        to_px,
+        C,
+        ((px[0], [X0 + 0.05 * k for k in range(12)]), (py[0], [Y0 + 0.01 * k for k in range(15)])),
+        [
+            ((400, 260, 2200, 2710), (900, 1225), OUT / "a9_verify.png"),
+            ((430, 560, 780, 700), (1400, 560), OUT / "a9_verify_flat.png"),
+            ((2050, 2380, 2200, 2560), (750, 900), OUT / "a9_verify_m23.png"),
+        ],
+    )
 
     print(
         "\n   k       x          y       1s_x    1s_y   | cal_x  glyph_x model_x |"

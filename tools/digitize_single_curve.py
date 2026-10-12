@@ -58,7 +58,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
 from scipy import ndimage
 
 from figure.axis import blend_value, calibrate_under
@@ -67,7 +66,7 @@ from figure.frame import dist as _dist
 from figure.glyph import fit_glyphs, glyph_only_windows, windows
 from figure.provenance import edge_str
 from figure.provenance import poly_str as _poly_str
-from figure.raster import native_bitmap
+from figure.raster import native_bitmap, overlay
 from figure.ticks import major_step, major_values
 
 FRAME_MARGIN = 0.90
@@ -365,35 +364,19 @@ def segment_check(ink, fr, C):
 # --------------------------------------------------------------------------- overlay
 
 
-def overlay(ink, to_px, corners4, C, cx, cy, cfg, tag):
+def gridlines(ink, to_px, corners4, C, cx, cy, cfg, tag):
     """The gridlines drawn back onto the scan, through whichever map the figure chose."""
-    im = Image.fromarray((~ink * 255).astype(np.uint8)).convert("RGB")
-    d = ImageDraw.Draw(im)
     TL, TR, BR, BL = corners4
-    tt = np.linspace(0.0, 1.0, 20001)
-    for spec, poly, horiz in ((cfg["x"], cx, False), (cfg["y"], cy, True)):
+    lines = []
+    for spec, poly in ((cfg["x"], cx), (cfg["y"], cy)):
         n = int(round((spec["hi"] - spec["lo"]) / major_step(spec)))
-        for k in range(n + 1):
-            val = spec["lo"] + major_step(spec) * k
-            s = float(tt[np.argmin(np.abs(np.polyval(poly, tt) - val))])
-            p0, p1 = ((0.0, s), (1.0, s)) if horiz else ((s, 0.0), (s, 1.0))
-            q0, q1 = to_px(*p0), to_px(*p1)
-            d.line(
-                [(q0[0].item(), q0[1].item()), (q1[0].item(), q1[1].item())],
-                fill=(210, 230, 255),
-                width=1,
-            )
-    for x, y in C:
-        d.ellipse([x - 26, y - 26, x + 26, y + 26], outline=(220, 0, 0), width=3)
-        d.line([(x - 40, y), (x + 40, y)], fill=(0, 170, 0), width=1)
-        d.line([(x, y - 40), (x, y + 40)], fill=(0, 170, 0), width=1)
+        lines.append((poly, [spec["lo"] + major_step(spec) * k for k in range(n + 1)]))
     x0 = int(min(TL[0], BL[0])) - 200
     x1 = int(max(TR[0], BR[0])) + 60
     y0 = int(min(TL[1], TR[1])) - 60
     y1 = int(max(BL[1], BR[1])) + 90
-    im.crop((x0, y0, x1, y1)).resize(((x1 - x0) // 2, (y1 - y0) // 2), Image.LANCZOS).save(
-        OUT / f"{tag}_verify.png"
-    )
+    crop = ((x0, y0, x1, y1), ((x1 - x0) // 2, (y1 - y0) // 2), OUT / f"{tag}_verify.png")
+    overlay(ink, to_px, C, tuple(lines), [crop])
 
 
 # --------------------------------------------------------------------------- driver
@@ -539,7 +522,7 @@ def run(key):
             f"(edge-to-edge spread {np.abs(per[0] - per[1]).max():.4g})"
         )
 
-    overlay(ink, to_px, (TL, TR, BR, BL), C, cx, cy, cfg, key)
+    gridlines(ink, to_px, (TL, TR, BR, BL), C, cx, cy, cfg, key)
     return dict(
         cfg=cfg,
         fc=fc,
