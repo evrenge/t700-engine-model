@@ -421,6 +421,26 @@ def fine_lattice(ink, edge_poly, along, sign, lo, hi, to_u, coarse, major_px, st
     return uk, vk, n, int(raw.size)
 
 
+def coarse_lattice(maj, cfg, tick_u):
+    """Each edge's interior majors as `(coordinate, value)`, any hidden by a marker dropped.
+
+    `tick_u(name, positions)` maps positions along an edge to the normalized plot coordinate
+    under whichever frame model the caller chose. This is the lattice `fine_lattice_all`
+    labels the fine ticks through, and its fallback where none resolves.
+    """
+    xv, yv = major_values(cfg["x"]), major_values(cfg["y"])
+    out = {}
+    for nm, vals, desc in (
+        ("bottom", xv, False),
+        ("top", xv, False),
+        ("left", yv, True),
+        ("right", yv, True),
+    ):
+        pos, val = paired(maj, nm, vals, desc)
+        out[nm] = (np.asarray(tick_u(nm, pos), float), val)
+    return out
+
+
 def fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of, verbose=True):
     """The minor lattice on all four edges, falling back to the majors where none resolves.
 

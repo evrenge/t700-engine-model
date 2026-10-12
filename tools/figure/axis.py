@@ -288,8 +288,7 @@ def calibrate_under(ink, fspec, cfg, forder, verbose=True):
     from .frame import apply_h as _apply
     from .frame import as_lines, edge_at, edge_uv, fit_edges, homography, make_sv
     from .frame import corners as frame_corners
-    from .ticks import fine_lattice_all, major_values, majors_all_edges
-    from .ticks import paired as _paired
+    from .ticks import coarse_lattice, fine_lattice_all, majors_all_edges
 
     if verbose:
         print("frame lines:")
@@ -327,16 +326,7 @@ def calibrate_under(ink, fspec, cfg, forder, verbose=True):
         print("ticks:")
     maj, allt, _ = majors_all_edges(ink, fc, cfg, verbose=verbose, order=forder)
     xs, ys = cfg["x"], cfg["y"]
-    xv, yv = major_values(xs), major_values(ys)
-    coarse_of = {}
-    for nm, vals, desc in (
-        ("bottom", xv, False),
-        ("top", xv, False),
-        ("left", yv, True),
-        ("right", yv, True),
-    ):
-        pos, val = _paired(maj, nm, vals, desc)
-        coarse_of[nm] = (np.asarray(tick_u(nm, pos), float), val)
+    coarse_of = coarse_lattice(maj, cfg, tick_u)
 
     # ---- the MINOR lattice, which until 2026-09-16 this path printed and ignored.
     # The axis map was fitted on the interior majors alone, four to thirty-four per axis,
