@@ -148,8 +148,8 @@ def test_the_figures_own_read_error_is_measured_not_estimated(fig: int):
     not chased", which is roughly nine times too permissive on PCNG -- the channel most
     of its headline agreements are quoted on.
 
-    `test_the_read_error_is_a_pixel_offset_not_a_fraction_of_value` is the evidence for
-    the %FS model; this test just pins the magnitude.
+    `test_the_two_figures_read_one_state_to_within_a_pixel` is the evidence for the %FS
+    model; this test just pins the magnitude.
     """
     lo, hi, t_step = WFPH_PRINTED[fig]
     span = PANEL_SPAN[fig]["wfph"]

@@ -327,10 +327,11 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
     2026-09-13. Held at its own 125 lbm/hr trim the shipped model still settles at 75.743
     %NG, and which root it reaches depends on the **parity** of `MAX_ITER_P45` and nothing
     else: 75.743 at caps 2, 4, 6, 8, 20 and 67.610 at 3, 5, 7, 9, 21. See
-    `test_the_sub_idle_root_is_selected_by_the_parity_of_the_pass_count`.) On 2026-09-13 the
-    **P3/P41** stopping test was corrected to measure the error the report states rather
-    than the iterate step (see `realtime.TOL_PRESSURE`). With the inner loop converged, the
-    125 lbm/hr chop settles at **66.895 %NG against a 67.039 % differential trim, -0.21 %**
+    `test_the_sub_idle_root_no_longer_depends_on_the_pass_count`, which records the fix.) On
+    2026-09-13 the **P3/P41** stopping test was corrected to measure the error the report
+    states rather than the iterate step (see `realtime.TOL_PRESSURE`). With the inner loop
+    converged, the 125 lbm/hr chop settles at **66.895 %NG against a 67.039 % differential
+    trim, -0.21 %**
     -- and identically at tol 1e-3, 1e-6 and 1e-9, to five figures. The P45 tolerance never
     mattered. The old table in this docstring, which showed 75.745 %NG at the printed
     tolerance and 66.895 at 1e-6, was reading the inner loop's convergence through the P45
@@ -500,9 +501,9 @@ def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
 
     # The differential trims come by CONTINUATION, and that is not a convenience.
     # `TrimResult` documents `trustworthy` as the thing a caller must check, and
-    # `test_trim_points.py::test_a_converged_trim_off_the_map_is_reported_as_such` asserts
-    # that a cold `solve` really can converge -- honestly, to a real root of the clamped
-    # system -- somewhere the model means nothing: once the state leaves the maps every
+    # `test_trim_points.py::test_a_solution_off_the_compressor_map_is_not_reported_as_good`
+    # asserts that a cold `solve` really can converge -- honestly, to a real root of the
+    # clamped system -- somewhere the model means nothing: once the state leaves the maps every
     # lookup returns a constant, both torques fall as 1/N because torque is power over
     # speed, and the NG residual goes to zero as NG goes to infinity.
     #

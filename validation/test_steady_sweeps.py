@@ -23,8 +23,8 @@ Figure 8 is the strongest independent check in the repository: it relates Ps3 to
 **no fuel flow in it at all**, so it validates the compressor and the station-3 volume
 without touching the combustor. It agrees to 1.6 % worst case over 24 points.
 
-Figure 6 does not, and the reason is a conflict inside the report -- see
-`test_figure_6_offset_is_the_table_b1_conflict`.
+Figure 6 did not, and the reason was taken for a conflict inside the report; it was our
+digitizer -- see `test_we_now_track_figure_6_across_its_whole_range`.
 
 ## The two GE models on the same figures
 
