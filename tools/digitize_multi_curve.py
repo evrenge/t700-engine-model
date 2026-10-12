@@ -1,32 +1,17 @@
 #!/usr/bin/env python3
-"""Figure C23 -- the multi-curve path, and why C30 needs a tool of its own.
+"""Figure C23 (`F_EC1`, pdf p.94) -- the multi-curve path, and why C30 has its own tool.
 
-C23 and C30 are the two Appendix C functions with more than one curve. **This tool
-extracts C23 and refuses C30**, by design: the method below separates curves by rank in y,
-and C30's curves cross. `digitize_c30.py` tracks those through the crossings instead. Ask
-for c30 here and it is refused as an unknown figure rather than emitting something
-plausible.
+C23's four curves are ordered 1 at the top through 4 at the bottom at every abscissa and
+never cross, so the curve a point belongs to is its RANK in y within its column. The curves
+are traced column by column and sampled at the printed knots; the printed digit markers
+are never read (they overprint where the curves converge). A column is used only if it
+yields exactly one ink run per curve.
 
-Neither fits the single-curve path in `digitize_single_curve`, for two reasons:
+C30's curves cross, so rank is not identity there: `digitize_c30.py` handles it, and c30
+is refused here as an unknown figure rather than emitting something plausible.
 
-**The markers are printed DIGITS, not `x` glyphs.** `fit_glyphs` models two crossing
-strokes and would be fitting the wrong shape, so this tool takes the marker position from
-the ink centroid of each digit instead. The digits are printed centred on the curve, so
-the centroid is the plotted point -- but it is a weaker estimator than a model fit, and
-the uncertainty reported here says so.
-
-**The digit says which curve the point belongs to, and it does not have to be read.**
-C23's four curves are ordered 1 at the top through 4 at the bottom at every abscissa, and
-never cross; C30's seven are likewise ordered by T2 everywhere the report draws a marker.
-So the curve a point belongs to is its RANK in y within its column of points, and no OCR
-is needed. Ranking is also checkable, which reading a 10 px digit off a 1988 scan is not:
-the assignment is rejected unless every column yields exactly the expected number of
-points.
-
-Everything upstream of the markers -- the frame location, the tick lattice, the held-out
-frame calibration and the axis polynomials -- is `figure.axis.calibrate_under`, the path
-`digitize_single_curve` uses, so these two figures are calibrated exactly as the other
-thirteen are.
+Calibration (frame, tick lattice, held-out axis polynomials) is
+`figure.axis.calibrate_under`, the path `digitize_single_curve` uses.
 
     python3 tools/digitize_multi_curve.py c23
 """
@@ -75,20 +60,16 @@ FIGS = {
 def trace(ink, fr, cfg, ncur, step=4, halfwidth=2):
     """Follow the curves column by column, ranking ink runs by y.
 
-    The curves of C23 and C30 are ordered by their parameter at every abscissa and never
-    cross, so at any column the n-th ink run from the top IS the n-th curve. That makes
-    tracing an ordering problem rather than a tracking one, and it needs no continuity
-    assumption to get started and no recovery when a column is ambiguous -- a column that
-    does not yield exactly `ncur` runs is simply reported as unresolved.
+    C23's curves never cross, so at any column the n-th ink run from the top IS the n-th
+    curve: an ordering problem, not a tracking one, with no continuity assumption.
 
-    Returns one list of run centres per column, or None where the count was wrong.
+    Returns the sampled columns and, per column, the run centres, or None where the count
+    was not `ncur`.
     """
     h, w = ink.shape
     Y, X = np.mgrid[0:h, 0:w]
-    # 18 px, not 8: the tick marks protrude INWARD from every frame by about 10 px, and a
-    # tick is an ink run like any other. At C23's x = 10 and x = 15 knots -- both tick
-    # columns -- a bottom tick was being counted as the fourth curve, putting TAU45 at 1.02
-    # where the figure shows 1.87.
+    # 18 px clears the ticks, which protrude ~10 px inward and are ink runs like any other
+    # (at the x = 10 and 15 knots a bottom tick would count as the fourth curve).
     pad = 18
     inside = (
         (_dist(fr["left"], X, Y) > pad)
@@ -174,12 +155,7 @@ def main(argv=None):
 
     ink = native_bitmap(cfg["page"])
     print(f"\n================ {cfg['fig']} {cfg['func']} (pdf p.{cfg['page']})")
-    # ---- calibration, exactly as the single-curve tool does it --------------------
-    # The MINOR lattice, on the same terms as the thirteen single-curve figures: the step
-    # measured from the ticks, each tick labelled through a fit made on the majors alone,
-    # and the axis keeping whichever lattice predicts the printed frame value it was never
-    # shown. This figure shares its calibration with `digitize_single_curve` and had been
-    # left behind on the majors when that path moved.
+    # ---- calibration: the single-curve path, with straight frame edges ------------
     cal = calibrate_under(ink, auto_frame_spec(cfg["page"]), cfg, 1)
     fr, to_uv, CX, CY = cal["fr"], cal["to_uv"], cal["CX"], cal["CY"]
 
@@ -198,9 +174,9 @@ def main(argv=None):
         vs.append([float(q[0]) for q in vv])
     us = np.array(us)
     vs = np.array(vs)
-    # Blended across the plot, as digitize_single_curve now does. The x map's blend
-    # coordinate is v, which differs per curve at a given column, so the column's mean v
-    # locates the knot; the y map's blend coordinate is that column's own u.
+    # Blended across the plot. The x map's blend coordinate is v, which differs per curve
+    # at a given column, so the column's mean v locates the knot; the y map's blend
+    # coordinate is that column's own u.
     xvals = blend_value(CX["edgec"], us, vs.mean(axis=1))
 
     knots = np.asarray(cfg["knots"], float)
