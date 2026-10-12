@@ -54,7 +54,6 @@ class Theme:
 
     name: str
     ground: str
-    surface: str
     ink: str
     muted: str
     faint: str
@@ -71,7 +70,6 @@ LIGHT = Theme(
     # slightly rather than sitting in a white card punched into the page. Both themes do the
     # same thing. Keep these in step with `--plot-mat` in site/template.html.
     ground="#f7f8fa",
-    surface="#eceef2",
     ink="#14171c",
     muted="#4d5563",
     faint="#626a77",
@@ -84,7 +82,6 @@ LIGHT = Theme(
 DARK = Theme(
     name="dark",
     ground="#171b21",
-    surface="#1e232b",
     ink="#e7eaef",
     muted="#a3adba",
     faint="#8b95a3",
@@ -159,16 +156,15 @@ def rc(theme: Theme) -> dict:
     }
 
 
-def title(fig, text: str, theme: Theme | None = None) -> None:
+def title(fig, text: str) -> None:
     """A figure title set like the page's section headings: condensed, left, flush.
 
-    `theme` defaults to whatever `rc_context` is currently in, read back out of rcParams,
-    so a caller inside `plotstyle.context(...)` need not pass it.
+    The ink is whatever `rc_context` is currently in, read back out of rcParams, so a caller
+    inside `plotstyle.context(...)` gets its theme's.
     """
-    ink = theme.ink if theme is not None else matplotlib.rcParams["text.color"]
     fig.suptitle(
         text,
-        color=ink,
+        color=matplotlib.rcParams["text.color"],
         fontsize=11.5,
         fontweight=600,
         x=0.010,

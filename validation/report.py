@@ -227,19 +227,13 @@ def steady_sweeps() -> dict:
             ours_x = np.array([grid[k]["ng_pct"] for k in gx])
             ours_y = np.array([grid[k]["ps3"] for k in gx])
             inside = (rt[0] >= ours_x.min()) & (rt[0] <= ours_x.max())
-            at_x, ref_x, ref_y = (
-                np.interp(rt[0][inside], ours_x, ours_y),
-                rt[0][inside],
-                rt[1][inside],
-            )
-            dropped = int((~inside).sum())
+            at_x, ref_y = np.interp(rt[0][inside], ours_x, ours_y), rt[1][inside]
         else:
             ours_x, ours_y = gx, np.array([grid[k][spec["key"]] for k in gx])
             at = tss._ladder(rt[0])
             keep = [i for i, k in enumerate(rt[0]) if k in at]
             ref_x, ref_y = rt[0][keep], rt[1][keep]
             at_x = np.array([at[k][spec["key"]] for k in ref_x])
-            dropped = int(rt[0].size - len(keep))
 
         ax.plot(unb[0], unb[1], "s", color=GE2, ms=4, alpha=0.75, zorder=2, label="GE unbalanced")
         ax.plot(s81[0], s81[1], "^", color=GE, ms=4, alpha=0.75, zorder=2, label="GE status 81")
@@ -283,10 +277,7 @@ def steady_sweeps() -> dict:
         out[f"figure_{no}"] = {
             **_stats(dev),
             "unit": unit,
-            "against": "Ballin real-time",
             "printed_points": int(rt[0].size),
-            "dropped_unreachable": dropped,
-            "worst_at": float(ref_x[int(np.argmax(np.abs(dev)))]),
         }
 
     fig.tight_layout()
@@ -348,17 +339,10 @@ def transients() -> dict:
                     late, t_last = tfs._settled_window(tb, vb)
                     if late.size:
                         mine = ours[(t > 4.0) & (t <= t_last)]
-                        pre_b = vb[tb < tfs.STEP_TIME[no] - 0.05]
-                        pre_u = ours[t < tfs.STEP_TIME[no] - 0.05]
                         panels[key] = {
                             "settled_dev_pct": float(
                                 100.0 * (mine.mean() - late.mean()) / abs(late.mean())
                             ),
-                            "initial_dev_pct": float(
-                                100.0 * (pre_u.mean() - pre_b.mean()) / abs(pre_b.mean())
-                            )
-                            if pre_b.size
-                            else None,
                             "ours_settled": float(mine.mean()),
                             "ballin_settled": float(late.mean()),
                             "ref_ends_s": float(t_last),
@@ -407,7 +391,7 @@ hours on 2026-09-14 and the Table B.1 rms read 0.2527 % instead of 0.2521."""
 def table_b1() -> dict:
     """The complete printed engine state at three trims: 21 numbers, open loop."""
     rows, devs = [], []
-    for i, name in enumerate(TRIMS, start=1):
+    for name in TRIMS:
         p = STATE_B1[name]
         wf = wf_pps_from_pph(p["wf"])
         r = trim.solve(wf, NP_TRIM_RPM, AMB)
@@ -434,7 +418,6 @@ def table_b1() -> dict:
                     "dev_pct": float(d),
                 }
             )
-        _ = i
     return {"rows": rows, **_stats(np.array(devs))}
 
 
@@ -487,15 +470,9 @@ def internal_spread(b1: dict) -> dict:
                     "nearest_marker_pph": near,
                 }
             )
-    inside = [r for r in rows if abs(r["ours_pct"]) < abs(r["theirs_pct"])]
     return {
         "rows": rows,
-        "n": len(rows),
         "widest_theirs_pct": max(rows, key=lambda r: abs(r["theirs_pct"]))["theirs_pct"],
-        "ours_inside_their_spread": len(inside),
-        "figure_6": "pdf p.40",
-        "figure_7": "pdf p.41",
-        "table_b1": "pdf p.67",
     }
 
 
@@ -556,27 +533,19 @@ def eigenvalues() -> dict:
                     }
                 )
 
-    for dofno, dof in DOF_FIGS.items():
+    for dofno in (3, 6):
         for t in (1, 2, 3):
-            ev, _ = _our_eigs(dof, t)
+            ev, _ = _our_eigs(DOF_FIGS[dofno], t)
             ref = ab.find(dofno, t)
             bal = np.linalg.eigvals(ref.A)
-            ours = _sorted_real(ev)
-            theirs = _sorted_real(bal)
             out["against_printed_matrices"].append(
                 {
                     "model": f"{dofno}-DOF",
                     "figure": ref.figure,
                     "trim": TRIMS[t - 1],
-                    "ours": [float(v) for v in ours],
-                    "ballin": [float(v) for v in theirs],
-                    "dev_pct": [
-                        float(100.0 * (a - b) / abs(b)) for a, b in zip(ours, theirs, strict=True)
-                    ],
-                    "ballin_complex": bool(np.max(np.abs(bal.imag)) > 1e-9),
+                    "ours": [float(v) for v in _sorted_real(ev)],
+                    "ballin": [float(v) for v in _sorted_real(bal)],
                     "ballin_unstable": bool(np.max(bal.real) > 0.0),
-                    "ours_complex": bool(np.max(np.abs(np.asarray(ev).imag)) > 1e-9),
-                    "ours_unstable": bool(np.max(np.asarray(ev).real) > 0.0),
                     "ill_conditioned": dofno == 6,
                 }
             )
@@ -680,44 +649,30 @@ def eigenvalue_plot(data: dict) -> None:
 
 def appendix_b() -> dict:
     """Every printed element against ours, as a scatter and as per-block statistics."""
-    figs = {
-        (2, 1): 1,
-        (2, 2): 3,
-        (2, 3): 5,
-        (3, 1): 7,
-        (3, 2): 9,
-        (3, 3): 11,
-        (5, 1): 2,
-        (5, 2): 4,
-        (5, 3): 6,
-        (6, 1): 8,
-        (6, 2): 10,
-        (6, 3): 12,
-    }
     pairs, blocks = [], {}
     a_dev, b_dev = [], []
-    for (dofno, t), _ in sorted(figs.items()):
-        dof = DOF_FIGS[dofno]
-        wf = wf_pps_from_pph(WF_PPH[t])
-        r = trim.solve(wf, c.NP_DES, AMB)
-        m = extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[t])
-        ref = ab.find(dofno, t)
-        n = len(ref.states)
-        for i in range(n):
-            for j in range(n):
-                if ref.A[i, j] == 0.0:
+    for dofno, dof in DOF_FIGS.items():
+        for t in (1, 2, 3):
+            wf = wf_pps_from_pph(WF_PPH[t])
+            r = trim.solve(wf, c.NP_DES, AMB)
+            m = extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[t])
+            ref = ab.find(dofno, t)
+            n = len(ref.states)
+            for i in range(n):
+                for j in range(n):
+                    if ref.A[i, j] == 0.0:
+                        continue
+                    d = 100.0 * (m.A[i, j] - ref.A[i, j]) / abs(ref.A[i, j])
+                    pairs.append((ref.A[i, j], m.A[i, j], f"{dofno}-DOF A"))
+                    a_dev.append(d)
+                    blocks.setdefault(f"{dofno}-DOF A", []).append(d)
+            for i in range(n):
+                if ref.b[i] == 0.0:
                     continue
-                d = 100.0 * (m.A[i, j] - ref.A[i, j]) / abs(ref.A[i, j])
-                pairs.append((ref.A[i, j], m.A[i, j], f"{dofno}-DOF A"))
-                a_dev.append(d)
-                blocks.setdefault(f"{dofno}-DOF A", []).append(d)
-        for i in range(n):
-            if ref.b[i] == 0.0:
-                continue
-            d = 100.0 * (m.b[i] - ref.b[i]) / abs(ref.b[i])
-            pairs.append((ref.b[i], m.b[i], f"{dofno}-DOF b"))
-            b_dev.append(d)
-            blocks.setdefault(f"{dofno}-DOF b", []).append(d)
+                d = 100.0 * (m.b[i] - ref.b[i]) / abs(ref.b[i])
+                pairs.append((ref.b[i], m.b[i], f"{dofno}-DOF b"))
+                b_dev.append(d)
+                blocks.setdefault(f"{dofno}-DOF b", []).append(d)
 
     fig, axes = plt.subplots(1, 2, figsize=fs(14.5, 5.6))
     ax = axes[0]
@@ -807,12 +762,11 @@ def closed_loop() -> dict:
     return {"rows": rows, **_stats(np.array(devs))}
 
 
-def phase_plane() -> dict:
+def phase_plane() -> None:
     """Ps3 against NG -- the comparison that discards the time axis, and with it #37."""
     import test_fuel_step as tfs
 
     fig, axes = plt.subplots(1, 2, figsize=fs(13.5, 5.4))
-    out = {}
     for ax, (no, wf_hi) in zip(axes, ((9, 775.0), (10, 125.0)), strict=True):
         tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
         ng = 100.0 * tr["ng"] / c.NG_DES
@@ -833,15 +787,8 @@ def phase_plane() -> dict:
             f"Figure {no} in the phase plane -- no time axis",
         )
         ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
-        lo, hi = max(vb.min(), ng.min()), min(vb.max(), ng.max())
-        grid = np.linspace(lo + 0.5, hi - 0.5, 40)
-        ours_i = np.interp(grid, ng[np.argsort(ng)], ps3[np.argsort(ng)])
-        o = np.argsort(vb)
-        bal_i = np.interp(grid, vb[o], bal_ps3[o])
-        out[f"figure_{no}"] = _stats(100.0 * (ours_i - bal_i) / np.abs(bal_i))
     fig.tight_layout()
     save(fig, "phase-plane")
-    return out
 
 
 def table_b1_plot(b1: dict, cl: dict) -> None:
@@ -896,7 +843,7 @@ def _render(data: dict) -> None:
     print("whole curve ...", flush=True)
     data["whole_curve"] = whole_curve()
     print("phase plane ...", flush=True)
-    data["phase_plane"] = phase_plane()
+    phase_plane()
     print("table B.1 ...", flush=True)
     data["table_b1"] = table_b1()
     print("closed loop ...", flush=True)
@@ -1017,7 +964,6 @@ def sheet_engine_steady() -> dict:
             g["ng"][g["shp"] > 50.0][int(np.argmin(g["sfc"][g["shp"] > 50.0]))]
         ),
         "shp_zero_crossing_ng": float(np.interp(0.0, g["shp"], g["ng"])),
-        "points": len(rows),
     }
 
 
@@ -1092,7 +1038,7 @@ def sheet_closed_loop() -> dict:
     slope = abs(tcl._dqpt_dnp(r, wf_pps)) * ratio
     base = dict(pas_deg=100.0, pcprf_pct=tcl.NP_TRIM_RPM * 100.0 / c.NP_DES)
 
-    def run(n, at, xcpc_of, load_of, ref_of=None):
+    def run(n, xcpc_of, load_of, ref_of=None):
         s, rec = None, {k: [] for k in ("t", "np", "ng", "wf", "t41", "spdg", "lim")}
         for i in range(n):
             pilot = loop.Pilot(
@@ -1112,7 +1058,6 @@ def sheet_closed_loop() -> dict:
             rec["t41"].append(fr.t41_degR)
             rec["spdg"].append(e.spdg)
             rec["lim"].append(h.limit)
-        _ = at
         return {k: (np.asarray(v) if k != "lim" else v) for k, v in rec.items()}
 
     xc = tcl.XCPC_PCT[name]
@@ -1121,7 +1066,6 @@ def sheet_closed_loop() -> dict:
             "15 % load step",
             run(
                 2600,
-                1400,
                 lambda i: xc,
                 lambda i: (
                     lambda v, s=1.15 if i >= 1400 else 1.0: q * s + slope * (v - tcl.NP_TRIM_RPM)
@@ -1132,7 +1076,6 @@ def sheet_closed_loop() -> dict:
             "collective 52.75 -> 70 %",
             run(
                 1800,
-                600,
                 lambda i: 70.0 if i >= 600 else xc,
                 lambda i: lambda v: q + slope * (v - tcl.NP_TRIM_RPM),
             ),
@@ -1141,7 +1084,6 @@ def sheet_closed_loop() -> dict:
             "speed reference 100 -> 102 %",
             run(
                 2600,
-                1200,
                 lambda i: xc,
                 lambda i: lambda v: q + slope * (v - tcl.NP_TRIM_RPM),
                 lambda i: base["pcprf_pct"] * (1.02 if i >= 1200 else 1.0),
@@ -1249,8 +1191,6 @@ def sheet_schedules() -> dict:
         out[name] = {
             "knots": int(cur.x.size),
             "source": src,
-            "x_range": [float(cur.x.min()), float(cur.x.max())],
-            "y_range": [float(cur.y.min()), float(cur.y.max())],
         }
 
     ax = axes.ravel()[6]
@@ -1273,7 +1213,6 @@ def sheet_schedules() -> dict:
     out["F_HM7"] = {
         "lines": int(len(m7.params)),
         "source": "Fig. C30, pdf p.101",
-        "params": [float(v) for v in m7.params],
     }
 
     ax = axes.ravel()[7]
@@ -1294,7 +1233,6 @@ def sheet_schedules() -> dict:
     out["F_EC1"] = {
         "lines": int(len(ec.params)),
         "source": "Fig. C23, pdf p.94",
-        "params": [float(v) for v in ec.params],
     }
 
     plotstyle.title(
@@ -1401,7 +1339,6 @@ def sheet_engine_maps() -> dict:
             "knots": int(cur.x.size),
             "source": src,
             "x_axis": xl,
-            "y_axis": yl,
             "conditioning_moved": float(maps.CONDITIONING.get(name, 0.0)),
         }
 

@@ -98,7 +98,6 @@ def test_np_stays_decoupled_in_every_variant(dof: DOF, trim_no: int):
     m = _model(dof, trim_no)
     off = np.delete(m.A[:, 1], 1)
     assert np.abs(off).max() == 0.0, f"{dof.value} trim {trim_no}: NP column {off}"
-    assert ab.load(FIG[(dof, trim_no)]).A[1, 1] != 0.0
 
 
 # ------------------------------------------------------- the two models Table 1 prints

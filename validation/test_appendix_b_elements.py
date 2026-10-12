@@ -238,15 +238,12 @@ def test_the_f7_error_shrinks_monotonically_with_power():
 def _knot_distance_f7(trim_no: int) -> float:
     """How far this trim's P45/P41 sits from the nearest `f7` knot, as a fraction of its
     segment. 0 means on a knot, where a linear interpolant's derivative is undefined."""
-    from t700.engine import frame
-
     wf = wf_pps_from_pph(WF_PPH[trim_no])
     r = trim.solve(wf, NP_RPM, AMB)
     arg = r.state.p45_psia / r.state.p41_psia
     x = maps.f7().x
     k = int(np.searchsorted(x, arg))
     frac = (arg - x[k - 1]) / (x[k] - x[k - 1])
-    assert frame  # the import above documents where P45/P41 comes from
     return min(frac, 1.0 - frac)
 
 

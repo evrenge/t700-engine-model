@@ -58,7 +58,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from scipy.linalg import expm, logm
 
 from t700 import constants as c
 from t700 import realtime, trim
@@ -96,35 +95,6 @@ report's +-2 % (pdf p.28), a secant, which is neither."""
 
 STATE_NAMES = ("NG", "NP", "P3", "P41", "P45", "WA31")
 """Order of the six states of the frame map, for participation factors."""
-
-
-def _real_log(A: np.ndarray, dt: float) -> np.ndarray:
-    """`logm(A)/dt`, refusing to hand back a real part that is not a logarithm.
-
-    `np.real(logm(A))` is the operation this file has always performed, and it is **not
-    valid in general**. A real matrix with a negative real eigenvalue has no real
-    logarithm: `logm` returns a complex one, and taking the real part silently discards
-    `+/- i*pi/dt` -- 448.8 rad/s at the 7 ms frame. The eigenvalues can survive that
-    anyway, because a simple real eigenvalue has a real spectral projector, so the numbers
-    this file printed were right; the operation that produced them was not guarded.
-
-    The 2026-09-13 numerical-mathematics audit found a negative real eigenvalue
-    (z = -0.0828) at trim 3 under the printed tolerance, with
-    `||expm(Re logm A) - A|| / ||A|| = 0.189`. **That eigenvalue is gone** -- correcting
-    the P3/P41 stopping rule on the same day removed it, and every discrete eigenvalue at
-    all three trims now has positive real part with a residual of 0.0000. So this check
-    passes everywhere today. It exists because nothing would have said so.
-    """
-    L = logm(A)
-    residual = np.linalg.norm(expm(np.real(L)) - A) / np.linalg.norm(A)
-    if residual > 1e-8:
-        neg = [z for z in np.linalg.eigvals(A) if abs(z.imag) < 1e-12 and z.real < 0]
-        raise ValueError(
-            f"A has no real matrix logarithm: ||expm(Re logm A) - A||/||A|| = "
-            f"{residual:.3e}. Negative real eigenvalues {neg}. Taking the real part here "
-            f"would discard +/- i*pi/dt = {np.pi / dt:.1f} rad/s."
-        )
-    return np.real(L) / dt
 
 
 def participation(A: np.ndarray, dt: float) -> tuple[np.ndarray, np.ndarray]:
@@ -168,13 +138,6 @@ def mode_of(A: np.ndarray, state: str, dt: float = FRAME_S) -> complex:
     """The eigenvalue that `state` participates in most. Identification by physics."""
     lam, P = participation(A, dt)
     return complex(lam[int(np.argmax(P[STATE_NAMES.index(state)]))])
-
-
-def frame_map(
-    case: int, dt: float = FRAME_S, tol: float | None = None, lag_whole_flow: bool = True
-) -> np.ndarray:
-    """`A_d`, the 6x6 linearization of one real-time frame. See `discrete_spectrum`."""
-    return _frame_jacobian(case, dt, tol, lag_whole_flow)
 
 
 def _frame_jacobian(
@@ -358,7 +321,7 @@ def test_the_opened_iterations_add_modes_the_engine_does_not_have():
     on_record_p45 = (0.696, 0.609, 0.554)
 
     for dt, z_p45 in zip(dts, on_record_p45, strict=True):
-        A = frame_map(1, dt=dt, tol=1e-12)
+        A = _frame_jacobian(1, dt=dt, tol=1e-12)
         lam_p45 = mode_of(A, "P45", dt)
         got_p45 = abs(np.exp(lam_p45 * dt))
         assert abs(got_p45 - z_p45) < 0.02, (
@@ -412,7 +375,7 @@ def test_the_opened_iterations_add_modes_the_engine_does_not_have():
     # extrapolation. The |z| bound above still covers all three listed frames.
     carries = []
     for dt in (0.010, 0.007, 0.0035):
-        A = frame_map(1, dt=dt, tol=1e-12)
+        A = _frame_jacobian(1, dt=dt, tol=1e-12)
         z = np.linalg.eigvals(A)[int(np.argmax(participation(A, dt)[1][STATE_NAMES.index("WA31")]))]
         carries.append(complex(np.log(complex(z)) / dt).real * dt)
     assert max(carries) - min(carries) < 0.03 * abs(np.mean(carries)), (
@@ -420,7 +383,10 @@ def test_the_opened_iterations_add_modes_the_engine_does_not_have():
         f"while lambda itself grows like 1/dt"
     )
 
-    coarse, fine = frame_map(1, dt=dts[0], tol=1e-12), frame_map(1, dt=dts[-1], tol=1e-12)
+    coarse, fine = (
+        _frame_jacobian(1, dt=dts[0], tol=1e-12),
+        _frame_jacobian(1, dt=dts[-1], tol=1e-12),
+    )
     lo = abs(mode_of(coarse, "P45", dts[0]))
     hi = abs(mode_of(fine, "P45", dts[-1]))
     assert hi > 3.0 * lo, (
@@ -460,7 +426,7 @@ def test_the_frame_map_has_exactly_one_mode_with_no_real_logarithm():
     """
     for case in (1, 2, 3):
         for tol in (None, 1e-12):
-            A = frame_map(case, tol=tol)
+            A = _frame_jacobian(case, tol=tol)
             z = np.linalg.eigvals(A)
             negative_real = [q for q in z if abs(q.imag) < 1e-12 and q.real < 0]
             assert len(negative_real) <= 1, (

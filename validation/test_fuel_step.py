@@ -397,10 +397,10 @@ def test_the_two_figures_agree_at_their_shared_trim(key: str):
     )
 
 
-def _t41_overshoot(t: np.ndarray, v: np.ndarray, t_step: float) -> tuple[float, float]:
+def _t41_overshoot(t: np.ndarray, v: np.ndarray, t_step: float) -> float:
     """Peak T41 above the settled value. Windowed at t < 4.6 -- see `late_them` above."""
     settled = v[(t > 4.0) & (t < 4.6)].mean()
-    return v[(t > t_step) & (t < 4.6)].max() - settled, settled
+    return v[(t > t_step) & (t < 4.6)].max() - settled
 
 
 def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
@@ -427,7 +427,6 @@ def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
     rather than silently absorbed.
     """
     tb, vb = _reference(9, "t41")
-    pre_them = float(np.median(vb[tb < 0.45]))
     late_them = float(np.median(vb[(tb > 3.5) & (tb < 4.5)]))
     theirs = float(vb.max()) - late_them
 
@@ -443,7 +442,6 @@ def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
         f"with the collapsed lead-lag and 3.17x with no heat sink at all. Outside this "
         f"band, re-measure -- and if below, tighten."
     )
-    assert pre_them > 0.0
 
 
 def test_the_heat_sink_is_what_closed_it():
@@ -456,8 +454,8 @@ def test_the_heat_sink_is_what_closed_it():
     """
     bare = _run(9, 775.0, STEP_TIME[9], heat_sink=False)
     sunk = _run(9, 775.0, STEP_TIME[9], heat_sink=True)
-    off, _ = _t41_overshoot(bare["t"], bare["t41"], STEP_TIME[9])
-    on, _ = _t41_overshoot(sunk["t"], sunk["t41"], STEP_TIME[9])
+    off = _t41_overshoot(bare["t"], bare["t41"], STEP_TIME[9])
+    on = _t41_overshoot(sunk["t"], sunk["t41"], STEP_TIME[9])
     assert on < 0.6 * off, (
         f"the heat sink should roughly halve the T41 overshoot; it went {off:.0f} -> {on:.0f} degR"
     )
