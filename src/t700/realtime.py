@@ -104,7 +104,7 @@ class FrameOut:
     inner_exit: Exit
     """How the P3/P41 sweep finished."""
     p45_exit: Exit
-    """How the P45 iteration finished. `BISECTED` below roughly 76 %NG is expected, not a
+    """How the P45 iteration finished. `EXACT` below roughly 76 %NG is expected, not a
     fault -- see `_p45_loop`."""
     wa31_substituted: bool
     """True when Eq. 74's carried mass flow came back non-positive and was replaced. See
@@ -143,10 +143,9 @@ class Exit(StrEnum):
     """The pass cap was reached first -- the report's "under the most extreme conditions,
     up to ten iterations may be required" [pdf p.37]. Expected during a transient."""
 
-    BISECTED = "bisected"
+    EXACT = "exact"
     """Eq. 80's printed iteration did not reach the printed criterion, so the same equation
-    was solved exactly by `_p45_exact` (named for the bisection that solve replaced). See
-    `_p45_loop` and open question #57."""
+    was solved exactly by `_p45_exact`. See `_p45_loop` and open question #57."""
 
     DIVERGING = "diverging"
     """The iteration did not contract: successive steps grew, or held level in a cycle.
@@ -285,7 +284,7 @@ def _p45_loop(
     crosses -1 near `Ps9/P45 ~ 0.77`, and above that the fixed point repels (open question
     #45). So the printed iteration runs first, exactly as printed, and returns if it meets
     the printed criterion. If not, the same equation is solved exactly by `_p45_exact`,
-    marked `Exit.BISECTED` and counted as one extra pass. A deliberate departure: it
+    marked `Exit.EXACT` and counted as one extra pass. A deliberate departure: it
     happens below flight idle, a regime the real-time model dropped [pdf p.38] and Ballin
     never measured, where the printed method returns a wrong root (open question #57).
     """
@@ -308,7 +307,7 @@ def _p45_loop(
     # --- it did not reach the printed criterion, so solve the printed equation -------
     root = _p45_exact(numerator, ps9, f9)
     f9(ps9 / root)  # one lookup, so a root off the end of f9's table still counts a clamp
-    return float(root), it + 1, Exit.BISECTED
+    return float(root), it + 1, Exit.EXACT
 
 
 def _p45_exact(numerator: float, ps9: float, f9) -> float:

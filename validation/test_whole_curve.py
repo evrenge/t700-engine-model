@@ -178,9 +178,9 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
     `g'(P45*) = dln(f9) / dln(Ps9/P45)`: the multiplier is f9's elasticity, which crosses -1
     near Ps9/P45 = 0.77. Above that the root repels, and the clamped plateau just beyond f9's
     data (elasticity 0) attracts a false root. Each frame restarts from the previous frame's
-    P45, already at the root, so the run does not blow up; `_p45_loop` reports a genuinely
-    diverging frame as `Exit.DIVERGING`. The settled speed must not depend on `tol`, which
-    `step(tol=...)` sets for the P3/P41 and P45 loops alike.
+    P45, already at the root, so the run does not blow up; where the printed iteration
+    fails, `_p45_loop` solves Eq. 80 exactly (`Exit.EXACT`). The settled speed must not
+    depend on `tol`, which `step(tol=...)` sets for the P3/P41 and P45 loops alike.
     """
     f9 = maps.f9()
 
