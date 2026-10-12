@@ -288,7 +288,7 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     **72.978 %NGc**. So his model ends **+1.95 %NG** above the hardware reference and ours
     **+1.77**, both inside the "1 to 2 percent" NG overestimate he declares for these two
     figures [pdf p.39]. Agreeing with GE more closely than Ballin does is not a result --
-    `validation/test_ge_reference.py` is explicit about that -- but it does say the gap
+    `validation/test_steady_sweeps.py` is explicit about that -- but it does say the gap
     against his trace is small next to the gap his trace has with its own reference.
 
     The second row looked like a triumph and was not: testing

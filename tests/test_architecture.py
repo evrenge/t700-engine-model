@@ -464,7 +464,7 @@ def test_core_never_reads_the_reference_data():
     That directory holds the traces we validate *against* -- Ballin's published curves and
     the two GE models he himself was checking. A model that read its own validation data
     would not be a model. The GE series in particular is a different engine model, and
-    agreeing with it is not evidence of anything; see `validation/test_ge_reference.py`.
+    agreeing with it is not evidence of anything; see `validation/test_steady_sweeps.py`.
 
     This is the mechanism behind the 2026-09-12 audit recorded in that file.
     """
