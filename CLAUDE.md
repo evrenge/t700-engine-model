@@ -164,6 +164,9 @@ Two typesetting traps the OCR layer cannot show, both load-bearing:
   `check_straightness.py` (is the printed curve straight between its markers, measured in
   data space), `compare_models.py` (what the frame model and the anchoring rule cost, per
   figure), `minor_lattice.py` (what tick lattice each edge resolves, and how cleanly).
+- `constant_sweep.py` audits the tests rather than a map: it moves each model constant by
+  ±5 % in a scratch worktree and reports which ones no test notices. It reruns the whole
+  suite once per constant, so it is a long job.
 
 ## Non-negotiables, and what actually enforces them
 
