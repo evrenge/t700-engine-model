@@ -67,7 +67,7 @@ UNCONSTRAINED = {
     "K_T49_2": "as K_T49_1",
 }
 """Pinned by value only, on purpose: the 10 ms lags by `test_control_constants.py`, the relay
-chain by `PRINTED` above, `K_T49_*` by `test_thermo.py`."""
+chain by `PRINTED` above, `K_T49_*` by `test_constants.py`."""
 
 
 def _lag(x: float, u: float, tau: float, dt: float = DT) -> float:

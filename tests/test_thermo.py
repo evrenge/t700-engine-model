@@ -25,14 +25,6 @@ def test_station_41_fits_are_mutual_inverses():
     assert c.K_T41_2 == pytest.approx(-c.K_H41_2 / c.K_H41_1, rel=2e-4)
 
 
-def test_station_49_fit_is_the_printed_one():
-    """K_T49_1 = 3.516 lbm*degR/Btu and K_T49_2 = 172.3 degR [Table A.1 rows 21, 22 -- pdf
-    p.55]. Pinned by value because nothing else can: T49 [Eq. 36] is read by nothing, the
-    report prints no T49, and no inverse fit is printed."""
-    assert c.K_T49_1 == 3.516
-    assert c.K_T49_2 == 172.3
-
-
 def test_station_41_round_trip():
     """T41 -> H41 -> T41 returns the original within the fits' printed precision.
 
