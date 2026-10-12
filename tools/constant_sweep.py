@@ -6,8 +6,9 @@ recorded; then the ones nothing caught are tried at -5 %, because a limit can bi
 direction only. A constant is
 
   * **behavioural** if a failing test does not name it -- a model output moved;
-  * **value-only** if every failing test names it, which is what a transcription check
-    does: it catches a typo and says nothing about whether the model depends on the number;
+  * **value-only** if every failing test reads it straight off its module (`k.CORR`),
+    which is what a transcription check does: it catches a typo and says nothing about
+    whether the model depends on the number;
   * **unnoticed** if nothing fails.
 
 It runs in scratch git worktrees of HEAD, one per worker, so the real tree is never
@@ -30,6 +31,7 @@ import os
 import queue
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -109,7 +111,10 @@ def sweep(trees: list[Path], items, factor: float) -> dict[str, list[str]]:
 
 
 def names_it(tree: Path, nodeid: str, name: str) -> bool:
-    """Whether the failing test's own function names the constant."""
+    """Whether the failing test's own function reads the constant off a module (`k.CORR`).
+
+    Attribute access, not the bare word: a block test keyed on the printed value
+    (`PRINTED["CORR"]`) is behavioural, and a docstring may name anything."""
     path, _, rest = nodeid.partition("::")
     func = rest.split("[")[0].split("::")[-1]
     src = (tree / path).read_text()
@@ -118,7 +123,7 @@ def names_it(tree: Path, nodeid: str, name: str) -> bool:
         return False
     m = re.search(r"^(def |class |@pytest)", src[i + 1 :], re.M)
     body = src[i : i + 1 + m.start()] if m else src[i:]
-    return re.search(rf"\b{re.escape(name)}\b", body) is not None
+    return re.search(rf"\.{re.escape(name)}\b", body) is not None
 
 
 def classify(tree: Path, name: str, failed: list[str]) -> str:
@@ -136,6 +141,9 @@ def main(argv=None) -> int:
     ap.add_argument("--keep", action="store_true")
     args = ap.parse_args(argv)
 
+    # a polite stop still restores and removes the worktrees; SIGKILL cannot, and leaves
+    # them for `git worktree prune` once the scratch directory is deleted
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     scratch = Path(tempfile.mkdtemp(prefix="t700-constant-sweep-"))
     trees = [scratch / f"wt{i}" for i in range(max(1, args.workers))]
     for t in trees:
