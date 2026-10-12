@@ -12,12 +12,15 @@ It runs in a throwaway git worktree, one subprocess per case: `t700.maps` caches
 
     python3 tools/sensitivity_sweep.py                 # every map with a sigma (not f1)
     python3 tools/sensitivity_sweep.py --keep          # leave the worktree for inspection
+
+The worktree goes in the system temp directory: set TMPDIR to a disk path where /tmp is RAM.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -153,6 +156,7 @@ def main(argv=None) -> int:
                 cwd=ROOT,
                 capture_output=True,
             )
+            shutil.rmtree(tmp, ignore_errors=True)
         else:
             print(f"\nworktree left at {sandbox}")
     return 0

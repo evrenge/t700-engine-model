@@ -49,10 +49,10 @@ for entry in "digitize_a1" "digitize_a2" "digitize_single_curve" "digitize_a7" "
     t=$1
     shift
     printf '%-26s ' "$entry"
-    if timeout 1800 python3 "tools/$t.py" "$@" >"/tmp/reproduce_$t.log" 2>&1; then
+    if timeout 1800 python3 "tools/$t.py" "$@" >"${TMPDIR:-/tmp}/reproduce_$t.log" 2>&1; then
         echo "ok"
     else
-        echo "FAILED (see /tmp/reproduce_$t.log)"
+        echo "FAILED (see ${TMPDIR:-/tmp}/reproduce_$t.log)"
         failed=$((failed + 1))
     fi
 done

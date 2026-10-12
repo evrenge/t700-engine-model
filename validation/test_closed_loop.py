@@ -266,16 +266,15 @@ def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope()
 @pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
 def test_the_closed_loop_stays_inside_its_digitized_data(name, wf, ng, ps3, q, ratio, shp):
     """The Phase 5 gate must not reach its answer through extrapolated maps; each trim runs
-    at its own collective (see `XCPC_PCT`). `f6` is exempt (see `maps.f6`).
+    at its own collective (see `XCPC_PCT`).
     """
     maps.reset_clamps()
     settle(wf, q, ratio, name=name, fresh=True)  # the clamps counted are this run's
     report = maps.clamp_report()
     maps.reset_clamps()
 
-    offenders = {k: v for k, v in report.items() if not k.startswith("f6")}
-    assert not offenders, (
-        f"{name}: the closed loop reads {offenders} outside their digitized range on the "
+    assert not report, (
+        f"{name}: the closed loop reads {report} outside their digitized range on the "
         f"way to its settled state. Every number this file reports would then be resting "
         f"on extrapolated maps."
     )

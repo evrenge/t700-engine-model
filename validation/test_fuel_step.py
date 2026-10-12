@@ -13,7 +13,7 @@ inferred rather than printed (see `docs/notes/heat-sink-configuration.md`). Tabl
 B1-B6 are heat sink off. Eq. 50 has unit DC gain, so the switch cannot move a trim.
 
 Tolerances are ours (SCOPE.md); the report's only numeric transient claim is a 1-2 % NG
-overestimate on the open-loop step [pdf pp.45-46].
+overestimate on the open-loop step [pdf p.39].
 """
 
 from __future__ import annotations
@@ -33,12 +33,12 @@ from t700.units import wf_pps_from_pph
 REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
 
-# Figure, final fuel flow, measured step time
 STEP_TIME = {9: 0.5232, 10: 0.5217}
 """When the fuel steps, seconds, measured from the WFPH panel's own 50 % crossing on the
 deskewed panels (#37, #63). The caption states both flow levels but not the instant
 [pdf pp.45-46]. A few ms matter here: a transient sampled every 7 ms."""
 
+# Figure, final fuel flow, measured step time
 STEPS = [(9, 775.0, STEP_TIME[9]), (10, 125.0, STEP_TIME[10])]
 
 # Panels comparable to a model output, and how to form that output from a run.

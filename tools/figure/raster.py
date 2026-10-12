@@ -97,4 +97,5 @@ def overlay(ink, to_px, C, grid, crops, n=20001):
         d.line([(x - 40, y), (x + 40, y)], fill=(0, 170, 0), width=1)
         d.line([(x, y - 40), (x, y + 40)], fill=(0, 170, 0), width=1)
     for box, size, path in crops:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)  # gitignored, so absent on a clone
         im.crop(box).resize(size, Image.LANCZOS).save(path)

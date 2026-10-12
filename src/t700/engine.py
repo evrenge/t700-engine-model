@@ -353,8 +353,8 @@ def frame(
     dp41 = c.K_V41 * t41 * (wa31 + wf_pps - w41)  # (43), sign per Eq. 73
     dp45 = c.K_V45 * t45 * (w41 - w45 + cp.b3 * c.K_BL * cp.wa2)  # (44)
     dng = shaft_change(q_gt, q_c, c.J_GT)  # (45)
-    j = c.J_PT + j_load  # (46)
-    dnp = shaft_change(q_pt, q_req_ftlbf, j)  # (47)
+    j_pt_total = c.J_PT + j_load  # (46)
+    dnp = shaft_change(q_pt, q_req_ftlbf, j_pt_total)  # (47)
     return Frame(
         theta2=cp.theta2,
         delta2=cp.delta2,

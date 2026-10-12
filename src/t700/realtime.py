@@ -574,10 +574,8 @@ def run(
     if multirate:
         if kw.get("dt_np") is not None:
             raise TypeError(
-                "run(multirate=True) sets dt_np itself, to 2*dt, so passing dt_np as well "
-                "is contradictory. It used to be accepted and silently discarded -- worth "
-                "6000 rpm on NP in the single-rate branch and nothing at all here. Pass "
-                "multirate=False to choose your own NP step."
+                "run(multirate=True) sets dt_np to 2*dt itself; pass multirate=False to "
+                "choose your own NP step."
             )
         kw["dt_np"] = 2.0 * dt
     for i in range(n):

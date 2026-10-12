@@ -270,12 +270,12 @@ def test_continuation_reaches_the_top_of_the_map():
 
     results = _trim.sweep([400.0, 500.0, 600.0, 700.0, 750.0, 775.0, 800.0])
     assert all(r.trustworthy for r in results), [r.trustworthy for r in results]
-    ngs = [100.0 * r.state.ng_rpm / 44700.0 for r in results]
+    ngs = [100.0 * r.state.ng_rpm / c.NG_DES for r in results]
     assert ngs == sorted(ngs), ngs
     assert 99.0 < ngs[-1] < 100.5, ngs[-1]
 
     # and the sweep agrees with the transient run at the same fuel flow
-    at_775 = 100.0 * results[5].state.ng_rpm / 44700.0
+    at_775 = 100.0 * results[5].state.ng_rpm / c.NG_DES
     assert abs(at_775 - 99.44) < 0.05, at_775
 
 
