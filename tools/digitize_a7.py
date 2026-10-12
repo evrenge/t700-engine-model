@@ -76,9 +76,10 @@ from figure.frame import (
     frame_offsets,
     inside_frame,
     make_sv,
+    print_segments,
     segment_lines,
 )
-from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
+from figure.glyph import fit_on_polyline
 from figure.provenance import check_against_csv
 from figure.raster import native_bitmap, overlay
 from figure.ticks import find_ticks, label_by_map, label_ticks
@@ -324,34 +325,21 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False, rad=20.0, framew=None, tm
 
         return f
 
-    W = []
-    for i in range(N):
-        mf = None
-        if i in MASK:
-            nm, w = MASK[i]
-            keep = mask_for(nm, w if framew is None else framew)
-            # `mask_for` marks what to KEEP; `windows` takes what to EXCLUDE.
-            mf = lambda X, Y, k=keep: ~k(X, Y)  # noqa: E731
-        wd = windows(ink, seeds[i : i + 1], rad, mask_fn=mf)[0]
-        # The half-segment towards the PREVIOUS marker runs backwards along segment i-1.
-        wd["seg"] = (
-            None if (mask_line or i == 0) else -lines[i - 1, 2:4],
-            None if (mask_line or i == N - 1) else lines[i, 2:4],
-        )
-        W.append(wd)
-    if mask_line:  # the independent check: hide the polyline instead of modelling it
-        hide_segments(W, seeds, lines)
-    t0 = tmpl0 or TMPL0
-    C, T = fit_glyphs(
-        W,
+    masks = {}
+    for i, (nm, w) in MASK.items():
+        keep = mask_for(nm, w if framew is None else framew)
+        # `mask_for` marks what to KEEP; `windows` takes what to EXCLUDE.
+        masks[i] = lambda X, Y, k=keep: ~k(X, Y)
+    C, T = fit_on_polyline(
+        ink,
         seeds,
-        t0,
-        rounds=6,
-        seglen=42.0,
-        simplex=2.0,
+        lines,
+        tmpl0 or TMPL0,
+        42.0,
+        masks,
+        mask_line=mask_line,  # the independent check: hide the polyline instead of modelling it
+        rad=rad,
         max_move=None,  # this figure asserts a tighter 4 px bound of its own, just below
-        centre=CENTRE_NATIVE,
-        template=TEMPLATE_NATIVE,
         verbose=False,
     )
     moved = np.hypot(*(C - seeds).T)
@@ -499,11 +487,7 @@ def main() -> int:
 
     lines = segment_lines(pts, seeds, clear=26.0, band=4.5, extra=clear_of_frame)
     print("\njoining segments (total least squares, 26 px clear of every marker):")
-    for i, ln in enumerate(lines):
-        print(
-            f"  seg{i + 1}: len {ln[4]:7.1f} px  n {int(ln[5]):5d}  rms {ln[6]:.3f} px  "
-            f"dir {np.degrees(np.arctan2(ln[3], ln[2])):+8.3f} deg"
-        )
+    print_segments(lines)
 
     print("\nglyph fit:")
     rs = refine_seeds(ink, fc, seeds, lines, TMPL0)

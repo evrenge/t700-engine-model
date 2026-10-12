@@ -473,6 +473,15 @@ def segment_lines(curve_pts, seeds, clear=24.0, band=4.5, extra=None):
     return np.array(lines)
 
 
+def print_segments(lines):
+    """One line per joining segment from `segment_lines`: length, samples, rms, direction."""
+    for i, ln in enumerate(lines):
+        print(
+            f"  seg{i + 1:2d}: len {ln[4]:6.1f} px  n {int(ln[5]):5d}  rms {ln[6]:.3f} px  "
+            f"dir {np.degrees(np.arctan2(ln[3], ln[2])):+8.3f} deg"
+        )
+
+
 def longest_run(mask) -> int:
     """Length of the longest contiguous True run in a 1-D boolean array."""
     return max((int(b - a) for a, b in runs(mask)), default=0)

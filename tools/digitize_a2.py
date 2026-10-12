@@ -33,8 +33,16 @@ from pathlib import Path
 import numpy as np
 
 from figure.axis import axis_values, blend_axis, held_out, point_sigma, tail_cv_report
-from figure.frame import corner_arc, curve_component, edge_at, fit_edges, make_sv, segment_lines
-from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
+from figure.frame import (
+    corner_arc,
+    curve_component,
+    edge_at,
+    fit_edges,
+    make_sv,
+    print_segments,
+    segment_lines,
+)
+from figure.glyph import fit_on_polyline, seeds_from_lattice
 from figure.provenance import calibration_lines, check_against_csv, check_calibration
 from figure.raster import native_bitmap, overlay
 from figure.ticks import find_ticks, label_ticks
@@ -107,20 +115,6 @@ def report_models(P):
             tail_cv_report(t, val, unit=unit, uname=uname)
 
 
-def seeds_from_lattice(ink, to_sv, cur):
-    Y = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]][0]
-    cnt = cur.sum(0)
-    cols = np.flatnonzero(cnt > 0)
-    yc = (cur * Y).sum(0)[cols] / cnt[cols]
-    s = to_sv(cols.astype(float), yc)[0]
-    seeds = []
-    for k in range(1, N + 1):
-        j = int(np.argmin(np.abs(s - k / 20.0)))
-        seeds.append((float(cols[j]), float(yc[j])))
-    seeds[-1] = (2257.0, 533.0)  # marker 20 sits ON the right frame, so it is not in `cur`
-    return np.array(seeds)
-
-
 def glyph_pass(ink, fc, seeds, lines, mask_line=False):
     """Fit the 20 glyphs.  `mask_line` is the independent check: hide the joining polyline
     from the score entirely instead of modelling it, and see whether the centres move."""
@@ -130,25 +124,15 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
         off_tick = ~((Y >= 536) & (Y <= 552) & (X <= 2256))  # the 2.8 major under marker 20
         return off_frame & off_tick
 
-    W = []
-    for i in range(N):
-        # `frame_mask` marks what to KEEP; `windows` takes what to EXCLUDE.
-        mf = (lambda X, Y: ~frame_mask(X, Y)) if i == N - 1 else None
-        w = windows(ink, seeds[i : i + 1], 20.0, mask_fn=mf)[0]
-        # The half-segment towards the PREVIOUS marker runs backwards along segment i-1.
-        w["seg"] = (
-            None if (mask_line or i == 0) else -lines[i - 1, 2:4],
-            None if (mask_line or i == N - 1) else lines[i, 2:4],
-        )
-        W.append(w)
-    if mask_line:
-        hide_segments(W, seeds, lines)
-    return fit_glyphs(
-        W,
+    return fit_on_polyline(
+        ink,
         seeds,
+        lines,
         [np.radians(-45.0), 15.0, np.radians(45.0), 15.0, 3.3, 3.3],
-        rounds=6,
-        seglen=42.0,
+        42.0,
+        # `frame_mask` marks what to KEEP; `windows` takes what to EXCLUDE.
+        {N - 1: lambda X, Y: ~frame_mask(X, Y)},
+        mask_line=mask_line,
         # Trap 8's guard, adopted 2026-09-16 after measuring it: an explicit 2 px simplex
         # on the OFFSET, and a refusal of any centre more than 10 px from its seed. A2's
         # own free check -- its markers sit at integer PS3/P2 and the tool is never told
@@ -157,10 +141,7 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
         # is the honest verdict. The reason to adopt it anyway is that the unguarded fit
         # depends on SciPy's default simplex not walking off the page, and on this figure
         # the markers run out to column 2256, where that first step is 113 px.
-        simplex=2.0,
         max_move=10.0,
-        centre=CENTRE_NATIVE,
-        template=TEMPLATE_NATIVE,
     )
 
 
@@ -179,15 +160,14 @@ def main() -> int:
     print("  each edge fitted alone with its two printed frame values, then blended.")
 
     cur = curve_component(ink, fc)
-    seeds = seeds_from_lattice(ink, to_sv, cur)
+    # marker 20 sits ON the right frame, so it is not in `cur`
+    seeds = seeds_from_lattice(
+        cur, to_sv, [k / 20.0 for k in range(1, N + 1)], {N - 1: (2257.0, 533.0)}
+    )
     ys, xs = np.nonzero(cur)
     lines = segment_lines(np.stack([xs, ys], 1).astype(float), seeds)
     print("\njoining segments:")
-    for i, ln in enumerate(lines):
-        print(
-            f"  seg{i + 1:2d}: len {ln[4]:6.1f} px  n {int(ln[5]):5d}  rms {ln[6]:.3f} px  "
-            f"dir {np.degrees(np.arctan2(ln[3], ln[2])):+8.3f} deg"
-        )
+    print_segments(lines)
 
     print("\nglyph fit:")
     C, _ = glyph_pass(ink, fc, seeds, lines)

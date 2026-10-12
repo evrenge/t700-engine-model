@@ -283,3 +283,72 @@ def hide_segments(W, C, lines, half=6.0, reach=6.0):
                 p = -dx * d[1] + dy * d[0]
                 w["keep"] &= ~((t > reach) & (np.abs(p) < half))
     return W
+
+
+def seeds_from_lattice(cur, to_sv, targets, fixed):
+    """Marker seeds where the curve crosses given abscissae, for markers on a regular lattice.
+
+    `cur` is the curve's own ink (`curve_component`); its centreline column by column is
+    carried into the unit square by `to_sv`, and the column nearest each `targets` value of
+    s is the seed. `fixed` maps a marker index to a seed given by hand -- a marker sitting ON
+    a frame line is not in `cur`. The native family's, from A2 and A9.
+    """
+    Y = np.mgrid[0 : cur.shape[0], 0 : cur.shape[1]][0]
+    cnt = cur.sum(0)
+    cols = np.flatnonzero(cnt > 0)
+    yc = (cur * Y).sum(0)[cols] / cnt[cols]
+    s = to_sv(cols.astype(float), yc)[0]
+    seeds = []
+    for target in targets:
+        j = int(np.argmin(np.abs(s - target)))
+        seeds.append((float(cols[j]), float(yc[j])))
+    for i, xy in fixed.items():
+        seeds[i] = xy
+    return np.array(seeds)
+
+
+def fit_on_polyline(
+    ink,
+    seeds,
+    lines,
+    tpl0,
+    seglen,
+    masks=None,
+    *,
+    mask_line=False,
+    rad=20.0,
+    max_move=10.0,
+    verbose=True,
+):
+    """The native family's glyph fit (A2, A7, A9): one window per marker, the half-segments
+    either side fixed along the independently fitted joining segments, centres and template
+    refined with the native tolerances.
+
+    `masks[i]` marks the pixels to EXCLUDE from marker i's window -- a frame line or a tick
+    under it. `mask_line` is the independent check: hide the joining polyline from the score
+    entirely instead of modelling it, and see whether the centres move.
+    """
+    masks = masks or {}
+    n = len(seeds)
+    W = []
+    for i in range(n):
+        w = windows(ink, seeds[i : i + 1], rad, mask_fn=masks.get(i))[0]
+        # The half-segment towards the PREVIOUS marker runs backwards along segment i-1.
+        w["seg"] = (
+            None if (mask_line or i == 0) else -lines[i - 1, 2:4],
+            None if (mask_line or i == n - 1) else lines[i, 2:4],
+        )
+        W.append(w)
+    if mask_line:
+        hide_segments(W, seeds, lines)
+    return fit_glyphs(
+        W,
+        seeds,
+        tpl0,
+        rounds=6,
+        seglen=seglen,
+        max_move=max_move,
+        centre=CENTRE_NATIVE,
+        template=TEMPLATE_NATIVE,
+        verbose=verbose,
+    )

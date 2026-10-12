@@ -33,8 +33,16 @@ from pathlib import Path
 import numpy as np
 
 from figure.axis import axis_values, blend_axis, held_out, point_sigma, tail_cv_report
-from figure.frame import corner_arc, curve_component, edge_at, fit_edges, make_sv, segment_lines
-from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
+from figure.frame import (
+    corner_arc,
+    curve_component,
+    edge_at,
+    fit_edges,
+    make_sv,
+    print_segments,
+    segment_lines,
+)
+from figure.glyph import fit_on_polyline, seeds_from_lattice
 from figure.provenance import calibration_lines, check_against_csv, check_calibration
 from figure.raster import native_bitmap, overlay
 from figure.ticks import find_ticks, label_by_map, label_ticks
@@ -126,21 +134,6 @@ def report_models(P):
             tail_cv_report(t, val, unit=1e-5, uname="e-5")
 
 
-def seeds_from_lattice(ink, to_sv, cur):
-    Y = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]][0]
-    cnt = cur.sum(0)
-    cols = np.flatnonzero(cnt > 0)
-    yc = (cur * Y).sum(0)[cols] / cnt[cols]
-    s = to_sv(cols.astype(float), yc)[0]
-    seeds = []
-    for k in range(N):
-        j = int(np.argmin(np.abs(s - k / (N - 1.0))))
-        seeds.append((float(cols[j]), float(yc[j])))
-    seeds[0] = (469.4, 612.6)  # on the left frame, so not in `cur`
-    seeds[-1] = (2126.0, 2468.0)  # on the right frame
-    return np.array(seeds)
-
-
 def glyph_pass(ink, fc, seeds, lines, mask_line=False):
     def left_mask(X, Y):
         return np.abs(X - np.polyval(fc["left"], Y)) > 5.0
@@ -148,35 +141,21 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
     def right_mask(X, Y):
         return np.abs(X - np.polyval(fc["right"], Y)) > 5.0
 
-    W = []
-    for i in range(N):
-        # The masks mark what to KEEP; `windows` takes what to EXCLUDE.
-        keep = left_mask if i == 0 else (right_mask if i == N - 1 else None)
-        mf = (lambda X, Y, k=keep: ~k(X, Y)) if keep is not None else None
-        w = windows(ink, seeds[i : i + 1], 20.0, mask_fn=mf)[0]
-        # The half-segment towards the PREVIOUS marker runs backwards along segment i-1.
-        w["seg"] = (
-            None if (mask_line or i == 0) else -lines[i - 1, 2:4],
-            None if (mask_line or i == N - 1) else lines[i, 2:4],
-        )
-        W.append(w)
-    if mask_line:
-        hide_segments(W, seeds, lines)
-    return fit_glyphs(
-        W,
+    return fit_on_polyline(
+        ink,
         seeds,
+        lines,
         [np.radians(-45.0), 15.0, np.radians(45.0), 15.0, 3.6, 2.4],
-        rounds=6,
-        seglen=32.0,
+        32.0,
+        # The masks mark what to KEEP; `windows` takes what to EXCLUDE.
+        {0: lambda X, Y: ~left_mask(X, Y), N - 1: lambda X, Y: ~right_mask(X, Y)},
+        mask_line=mask_line,
         # Trap 8's guard, adopted 2026-09-16 after measuring it. A9's own free check --
         # its abscissae fall on a 0.025 lattice the tool is never told about -- comes out
         # consistently better guarded, on the worst point at every order: 2.18 -> 2.10 px,
         # 1.99 -> 1.91, 1.51 -> 1.44 at the chosen order 3, with sd unchanged. Small, and
         # in the right direction on the map SCOPE.md puts at +7.46 % SHP per +1 %.
-        simplex=2.0,
         max_move=10.0,
-        centre=CENTRE_NATIVE,
-        template=TEMPLATE_NATIVE,
     )
 
 
@@ -197,15 +176,17 @@ def main() -> int:
     print("  each edge fitted alone with its printed frame values, then blended.")
 
     cur = curve_component(ink, fc, close=3)
-    seeds = seeds_from_lattice(ink, to_sv, cur)
+    # the first and last markers sit ON the left and right frames, so are not in `cur`
+    seeds = seeds_from_lattice(
+        cur,
+        to_sv,
+        [k / (N - 1.0) for k in range(N)],
+        {0: (469.4, 612.6), N - 1: (2126.0, 2468.0)},
+    )
     ys, xs = np.nonzero(cur)
     lines = segment_lines(np.stack([xs, ys], 1).astype(float), seeds, clear=20.0, band=4.0)
     print("\njoining segments:")
-    for i, ln in enumerate(lines):
-        print(
-            f"  seg{i + 1:2d}: len {ln[4]:6.1f} px  n {int(ln[5]):5d}  rms {ln[6]:.3f} px  "
-            f"dir {np.degrees(np.arctan2(ln[3], ln[2])):+8.3f} deg"
-        )
+    print_segments(lines)
 
     print("\nglyph fit:")
     C, _ = glyph_pass(ink, fc, seeds, lines)
