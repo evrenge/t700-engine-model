@@ -1,35 +1,11 @@
-"""The HMU against the report -- and there is no figure to check it against.
+"""The HMU against Table B.1: a consistency check, since no printed trace exists.
 
-The report's only closed-loop results are Figures 11-15, and every one of them needs the
-Gen Hel UH-60A blade-element simulation, which this report consumes and does not contain.
-So Phase 5 has no published trace to overlay. `SCOPE.md` records that as a gate warning
-rather than a surprise.
-
-What *is* available is a consistency check across two independently digitized halves of
-the report, and it is a real one. Table B.1 [pdf p.67] prints the engine's state at three
-trims -- gas generator speed, station 3 static pressure, fuel flow. The HMU is built
-entirely from Appendix C: 22 block diagrams and eight scheduling functions digitized from
-Figures C23-C30. Nothing in Appendix C knows about Table B.1, and nothing in Table B.1
-knows about Appendix C.
-
-So: hold the engine at each printed trim state, and ask what collective position the HMU
-needs in order to command the printed fuel flow. If the two halves disagree, the answer
-comes out absurd -- off the spindle's range, or in the wrong order, or pinned against a
-cam limit. It does not:
-
-    hover          Wf 476.3 lbm/hr  ->  XCPC 52.75 %   on the droop line
-    level 80 kt    Wf 349.3         ->  XCPC 35.87 %   on the droop line
-    descent 80 kt  Wf 267.7         ->  XCPC 23.01 %   on the droop line
-
-All three land on the **droop line** rather than on the idle, acceleration or deceleration
-cams -- which is where a governor is supposed to sit in steady flight -- and the collective
-falls monotonically with power, hover to level to descent. Nothing was tuned to make that
-happen; the only free variable is the collective, and it is the one the pilot holds.
-
-This is weaker than an overlay and stronger than nothing. It would catch an inverted sign
-on the droop line, a schedule wired to the wrong signal, a units error in the collective
-rigging (it did catch one -- `XCPC` is percent of maximum, not inches), or a limit cascade
-in the wrong order.
+The report's closed-loop Figures 11-15 all need Gen Hel, which it does not contain. Instead,
+hold the engine at each Table B.1 trim [pdf p.67] and bisect for the collective at which the
+HMU, built only from Appendix C, commands the printed fuel flow. The two halves of the report
+are digitized independently, so a sign, wiring or units error (`XCPC` is percent of maximum,
+not inches) shows as a collective that is off the spindle's range, out of order, or on a cam
+limit rather than the droop line.
 """
 
 from __future__ import annotations
@@ -46,18 +22,15 @@ STANDARD_DAY_T2 = 518.67
 """Table B.1's trims are sea level standard [pdf p.67]."""
 
 PAS_DEG = 100.0
-"""The power available spindle is **not printed** for these trims -- no part of the report
-states the cockpit power lever position at the Table B.1 conditions. 100 deg is a fixed
-choice, held the same across all three so the comparison is between trims rather than
-against an absolute. Moving it slides all three collectives together; see
-`test_the_result_does_not_depend_on_the_unprinted_power_lever`."""
+"""The power available spindle is not printed for these trims: a fixed choice of ours, the
+same at all three. See `test_the_result_does_not_depend_on_the_unprinted_power_lever`."""
 
 # Table B.1 [pdf p.67], from `test_trim_points`: name, NG rpm, Ps3 psia, Wf lbm/hr
 TRIMS = [(case.name, case.ng_rpm, STATE_B1[case.name]["ps3"], case.wf_pph) for case in CASES]
 
 COLLECTIVE_RANGE_PCT = (5.0, 95.0)
-"""The band a commanded collective must fall inside to be believable. Ours, not the
-report's -- it states no collective for these trims. Declared in `SCOPE.md`."""
+"""The band a commanded collective must fall inside to be believable. Ours: the report prints
+no collective for these trims. See SCOPE.md."""
 
 
 def settle(ng_rpm, ps3_psia, xcpc_pct, n: int = 250, t2=STANDARD_DAY_T2, pas=PAS_DEG):
@@ -73,9 +46,7 @@ def collective_for(ng_rpm, ps3_psia, wf_pph, **kw) -> tuple[float, object]:
     """Bisect for the collective at which the HMU commands `wf_pph`."""
     lo, hi = 0.0, 100.0
     mid, out = 50.0, None
-    # 40 halvings of a 100-point range is 1e-10, far past what the bisection needs; the
-    # settle is 250 frames because the slowest lag in the HMU is CLLDS = 0.2 s and the
-    # output stops moving at the sixth decimal by frame 200.
+    # The settle is 250 frames because the slowest HMU lag is CLLDS = 0.2 s.
     for _ in range(40):
         mid = 0.5 * (lo + hi)
         out = settle(ng_rpm, ps3_psia, mid, **kw)
@@ -99,18 +70,9 @@ def test_the_hmu_commands_each_printed_trim_from_a_believable_collective(name, n
 
 
 def test_the_result_does_not_depend_on_the_unprinted_power_lever():
-    """`PAS_DEG` is a choice, so the conclusion must not rest on it.
-
-    Sweeping the power lever over a wide band moves every commanded collective, but the
-    ordering and the droop-line finding have to survive -- otherwise this file is reporting
-    the choice rather than the model.
-
-    At `PAS_DEG` itself this is also the file's droop-line and ordering check. A governor in
-    steady flight sits on its droop line, not on the idle floor, the acceleration ceiling or
-    the deceleration floor; if a printed trim landed on a cam, either the cam schedule or the
-    droop line is wrong. And the ordering is the check that survives the unprinted power
-    lever: PAS shifts all three together, so their *order* is a property of the model rather
-    than of the choice.
+    """Every trim stays on the droop line, collective falling hover > level > descent, at
+    any power lever: PAS shifts all three together, so the order is the model's, not the
+    choice's. A trim on a cam means the cam schedule or the droop line is wrong.
     """
     for pas in (90.0, 100.0, 110.0):
         xs = []
@@ -132,18 +94,9 @@ def test_the_result_does_not_depend_on_the_unprinted_power_lever():
 
 
 def test_inlet_temperature_moves_the_collective_the_way_the_topping_line_does():
-    """[Fig. C24] `F_HM1` is the only schedule in the HMU driven by inlet temperature
-    alone, and it sets the ceiling of the droop line. Its slope is the thing worth pinning,
-    because a reversed x axis on C24 would be invisible everywhere else in the model.
-
-    It **rises** with T2 -- 0.24 at 395 deg R to 3.42 at 500, then roughly flat to 3.35 at
-    634 -- which is the right sign for a Wf/Ps3 limit: at a hotter, less dense inlet the
-    engine needs a larger fuel-to-pressure ratio for the same power, so the ceiling has to
-    rise with it. A higher ceiling means the load demand has less to make up, so the
-    collective needed for a *fixed* fuel flow moves opposite to the topping line.
-
-    My first reading of this had the sign backwards and the model caught it, which is the
-    argument for testing the direction rather than asserting the number.
+    """[Fig. C24] `F_HM1`, the droop line's ceiling, rises with T2, so a hot day needs less
+    collective for the same fuel flow. Pins the direction: a reversed x axis on C24 would be
+    invisible everywhere else in the model.
     """
     name, ng, ps3, wf = TRIMS[0]
     cold_t2, hot_t2 = 470.0, 560.0

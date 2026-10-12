@@ -1,24 +1,11 @@
-"""Validate the engine against Table B.1's three trim conditions.
+"""Validate the engine against Table B.1's three trim conditions [TM-100991 pdf p.67].
 
-This is the first real comparison against the report, and it is available early because it
-needs only the eleven digitized `f` functions -- no control system, no digitized result
-figures, no Gen Hel.
+Give the model the printed fuel flow, NP and ambient, solve for the equilibrium, and compare
+what comes out: NG, shaft power, torque and the printed station state. Nothing about the trim
+state is handed to the solver; the initial guess is scaled off the design point.
 
-## The comparison
-
-Table B.1 [TM-100991 pdf p.67] prints, for each trim: ambient, NP, fuel flow, gas
-generator speed, shaft horsepower and engine torque. Give the model the printed **fuel
-flow, NP and ambient**, solve for the gas generator equilibrium, and compare the NG,
-torque and horsepower that come out.
-
-Fuel flow is the input because it is what the engine physically consumes; NG and shaft
-power are the model's answer. Nothing about the trim state is handed to the solver -- the
-initial guess is scaled off the design point, not off any trim.
-
-## Tolerances
-
-From `SCOPE.md`, and they are **ours, not Ballin's**. He states no percentage tolerance
-for torque or power anywhere in the report, and his own accepted NG deviations run 1-4 %.
+Tolerances are ours, declared in `SCOPE.md`: the report states none for torque or power, and
+Ballin's own accepted NG deviations run 1-4 %.
 """
 
 from __future__ import annotations
@@ -93,10 +80,8 @@ def test_shaft_horsepower(case: TrimCase):
 
 @pytest.mark.parametrize("case", CASES, ids=lambda c: c.name)
 def test_shaft_torque(case: TrimCase):
-    """Against Table B.1's *shaft*-referenced torque row, not the hub row.
-
-    The hub row is ~145x larger, past the UH-60A main gearbox. Reading the hub figure as
-    engine torque is what made open question #11 look like a defect in the report.
+    """Against Table B.1's *shaft*-referenced torque row, not the hub row, which is past the
+    UH-60A main gearbox and ~145x larger (open question #11).
     """
     r = _solve(case)
     dev = (r.frame.q_pt_ftlbf - case.q_shaft_ftlbf) / case.q_shaft_ftlbf * 100.0
@@ -108,10 +93,8 @@ def test_shaft_torque(case: TrimCase):
 
 @pytest.mark.parametrize("case", CASES, ids=lambda c: c.name)
 def test_gas_path_is_physically_ordered(case: TrimCase):
-    """Pressures and temperatures must fall in the right direction through the engine.
-
-    Cheap, and it catches a whole class of wiring error that a percentage comparison can
-    miss -- a model can hit NG while running the gas path backwards.
+    """Pressures and temperatures must fall in the right direction through the engine: a
+    model can hit NG while running the gas path backwards.
     """
     r = _solve(case)
     f, s = r.frame, r.state
@@ -127,10 +110,8 @@ def test_gas_path_is_physically_ordered(case: TrimCase):
 def test_solution_sits_inside_the_digitized_data(case: TrimCase):
     """A trim that sits outside the maps is extrapolating, and must be declared.
 
-    The descent trim clamps `f1@82` once: at NGc = 84.99 % the solver blends speed lines
-    82 and 85, and the query pressure ratio 7.704 is 0.292 beyond line 82's last knot. The
-    blend weight on line 82 is 0.0033, so clamping rather than extrapolating moves WA2c by
-    0.011 %. Recorded, allowed, and bounded -- not ignored.
+    The descent trim sits just below the 85 % speed line, so the blend reads line 82 past its
+    last knot with a weight of a few thousandths: allowed, recorded, not ignored.
     """
     r = _solve(case)
     allowed = {"f1@82"} if case.name == "descent 80 kt" else set()
@@ -145,69 +126,19 @@ def test_solution_sits_inside_the_digitized_data(case: TrimCase):
 
 
 EIGENVALUE_TOL_PCT = 8.0
-"""Ours. **A characterization, not an accuracy claim** -- a regression detector set above
-the measurement: 4.70 % worst over all 27 printed modes (the 2-DOF NG mode at hover) since
-the report's +-2 % extraction step was adopted on 2026-10-12, when this tightened 30 -> 8.
-On the tangent the worst was 14.87 %, carrying the #31/#43 knot residual.
-
-Ballin calls a 4 % eigenvalue mismatch "good agreement" for his own comparison [pdf p.29].
-Ours is not that, and quoting this bound as though it were an accuracy standard would be
-the error `SCOPE.md` warns about where it defines the characterization category.
-
-This docstring said "declared in `SCOPE.md`" until 2026-09-19 and `SCOPE.md` had never
-mentioned it -- the loosest bound in the project, self-certifying, on the one validation
-surface that is a restatement of another. It has a row there now, so
-`tests/test_scope_tolerances.py` holds the two in step. It was an inline `30.0` under a
-docstring claiming a 4 % standard until 2026-09-13."""
+"""Ours, declared in `SCOPE.md`. A characterization, not an accuracy claim: a regression
+detector set above the measurement at the report's +-2 % extraction step [pdf p.28]. Ballin
+calls his own Table 1 columns, about 4 % apart, "in good agreement" [pdf p.29]; ours is not
+that."""
 
 
 def test_jacobian_eigenvalues_against_table_1():
-    """Compare our own linearization with the report's printed modes [Table 1, pdf p.31].
+    """Our linearization against the report's printed 5-DOF modes [Table 1, pdf p.31], at
+    hover: a check on the derivatives of every equation, not just their equilibrium.
 
-    A far stronger check than the trim values: it tests the *derivatives* of every
-    equation, not just their equilibrium.
-
-    ## Two defects this test carried until 2026-09-13
-
-    **It compared the wrong mode.** It sorted the spectrum, dropped `ours[0]` as "the
-    load-dependent slowest mode ... the NP/rotor mode", and compared the rest against
-    Table 1. At hover the sorted spectrum is [-4870.69, -2603.82, -55.43, -2.792, -2.287]
-    and the structural NP mode is `A[1,1] = -2.792` -- so it dropped **-2.287, the NG
-    mode**, and compared **-2.792, the NP mode**, against Ballin's printed NG mode of
-    -2.66, reporting **+5.0 %** where the correct pairing is **-14.0 %**. That is exactly
-    what `tests/test_linear.py::test_sorting_would_mispair_the_slow_modes` exists to
-    forbid, and that test's own docstring names these numbers. Found by the 2026-09-13
-    code-quality audit.
-
-    `LinearModel.comparable_eigenvalues` already identifies NP structurally -- column NP is
-    otherwise all zeros in every printed variant, so `A[1,1]` *is* that eigenvalue -- and
-    this now uses it instead of hand-rolling a Jacobian.
-
-    **And it stated a standard it did not apply.** It said Ballin calls a 4 % mismatch
-    "good agreement" [pdf p.29] "which is the standard used here", and then asserted 30 %.
-    pdf p.29 says only "in good agreement" and prints no number; the 4 % is the project's
-    own arithmetic on Table 1 (-2.69 against -2.81 at hover is 4.3 %). The bound is in
-    `SCOPE.md` now and the docstring no longer claims to be something it is not.
-
-    ## What it measures
-
-    Paired by physics, at the hover trim, against Table 1's printed NG / P3 / P45 / P41:
-
-        NG    -2.381 vs -2.66     -10.5 %
-        P3   -53.158 vs -51.6      +3.0 %
-        P45 -2603.8  vs -3060.0   -14.9 %
-        P41 -4870.4  vs -4900.0    -0.6 %
-
-    Only NG and P3 go through `f1`, and only they have ever moved: P45 and P41 have read
-    -14.9 % and -0.6 % through every revision of it. NG and P3 were -14.0 % and +7.4 %
-    before 2026-09-13, -10.7 % and +1.5 % after that day's constant-k interpolation along
-    Figure A1's construction lines, and -10.5 % and +3.0 % since the 2026-09-15 traced-line
-    digitisation. NG has improved at every step; P3 went the other way this time, and it
-    is much the smaller of the two residuals.
-
-    The NG residual is the one `test_all_dof_models` reports as -9.1 / -0.3 / -22.6 %
-    across the three trims, and `docs/notes/derivative-ambiguity.md` attributes it to
-    interpolation rather than to a wrong equation.
+    Paired by physics, never by position in a sorted spectrum: `comparable_eigenvalues`
+    drops NP structurally (`A[1,1]`), since sorting mispairs the slow modes (see
+    `tests/test_linear.py::test_sorting_would_mispair_the_slow_modes`).
     """
     case = CASES[0]
     amb = Ambient(case.p_amb_psia, case.t_amb_degR)
@@ -217,14 +148,12 @@ def test_jacobian_eigenvalues_against_table_1():
     model = extract(r, wf, DOF.FIVE, amb)
     ours = np.sort(np.real(model.comparable_eigenvalues))[::-1]  # least to most negative
 
-    # Table 1, trim 1, with the NP row excluded -- it is built from dQreq/dNP, a Gen Hel
-    # quantity we do not have, and is the same row Appendix B flags as not independently
-    # reproducible. Imported here rather than at the top: `test_all_dof_models` takes
-    # Table B.1 from this file, so a module-level import would be circular.
+    # Table 1, trim 1, NP row excluded: it is built from dQreq/dNP, a Gen Hel quantity.
+    # Imported here: `test_all_dof_models` imports this file, so a top-level import is circular.
     from test_all_dof_models import TABLE_1_5DOF
 
     printed = [TABLE_1_5DOF[1][k] for k in ("NG", "P3", "P45", "P41")]
-    # the report's +-2 % step [pdf p.28]; on the tangent these were -10.7, +3.1, -14.9, -0.6
+    # at the report's +-2 % step [pdf p.28]
     on_record = [1.2, 0.2, 3.5, 2.2]
 
     assert ours.size == len(printed), f"expected 4 comparable modes, got {ours}"
@@ -242,11 +171,8 @@ def test_jacobian_eigenvalues_against_table_1():
 
 
 def test_the_model_is_too_stiff_for_explicit_integration_at_the_report_frame_time():
-    """Records *why* Eqs. 74-80 exist, as an executable fact.
-
-    The fastest mode is ~0.2 ms, so explicit integration of all five states is stable only
-    below ~0.4 ms. The report runs the engine at 7 ms. The quasi-steady formulation, which
-    makes the three pressures algebraic, is therefore not a preference but a necessity.
+    """Why Eqs. 74-80 exist: explicit integration of all five states is stable only far below
+    the report's 7 ms frame, so making the three pressures algebraic is a necessity.
     """
     import numpy as np
 
@@ -283,32 +209,14 @@ def test_the_model_is_too_stiff_for_explicit_integration_at_the_report_frame_tim
 
 
 def test_a_solution_off_the_compressor_map_is_not_reported_as_good():
-    """The degenerate root of the clamped system, and why a cold solve cannot reach it now.
+    """The degenerate root of the clamped system, and why a cold solve cannot reach it.
 
-    ## The mechanism, which has not changed
-
-    Once the state leaves the function tables every lookup returns a constant, so both
-    powers go flat in NG while both torques fall as 1/NG -- torque is power over speed.
-    `dNG/dt` is proportional to a torque imbalance, so it tends to zero as NG tends to
-    infinity **whatever the powers are doing**, and that is a root of the residual which is
-    not an equilibrium of the engine. Newton used to walk to it: 750 lbm/hr reached
-    NG = 2.16e11 rpm with a residual of 6.6e-9 and called itself converged, and after the
-    2026-09-15 `f1` retrace a cold 160 lbm/hr reached NGc 4.19e9.
-
-    This test pins the mechanism directly, because it is the durable part.
-
-    ## What changed on 2026-09-15
-
-    `solve`'s line search now refuses a trial step that leaves `f1`'s speed range widened
-    by a tenth of itself. That is enough: measured across both residual forms and three
-    bound widths, **no configuration carrying a bound produces a degenerate root at all**.
-    Writing the NG residual as a power balance removes the root analytically too, and was
-    rejected -- it under-weights the NG equation at low speed and a cold 125 lbm/hr then
-    wanders to NGc 24.8, so it fixes the top of the range by breaking the bottom.
-
-    A cold 800 lbm/hr now stops at the bound and reports `residual_converged` False, which
-    is an honest failure rather than a confident wrong answer. `test_continuation_reaches_
-    the_top_of_the_map` is how 800 is actually reached. Open question #71.
+    Off the function tables every lookup is constant, so both powers go flat in NG while both
+    torques fall as 1/NG: `dNG/dt` tends to zero as NG tends to infinity, a root of the
+    residual that is not an equilibrium. `solve`'s line search refuses a step that leaves
+    `f1`'s speed range widened by a tenth, so a cold solve trims on the map or fails honestly.
+    A power-balance residual would remove the root too but under-weights the NG equation at
+    low speed. Open question #71.
     """
     import numpy as np
 
@@ -372,22 +280,12 @@ def test_continuation_reaches_the_top_of_the_map():
 
 
 def test_the_sweep_refuses_past_the_maps_top_speed_line():
-    """850 lbm/hr is past `f1`'s 100 % speed line and no amount of continuation reaches it.
+    """850 lbm/hr is past `f1`'s 100 % speed line and no amount of continuation reaches it:
+    the solve must pin at the bound and report `residual_converged` False.
 
-    **The ladder's spacing used to matter near the top, and does not any more.** This test
-    used [400, 600, 800, 850] until 2026-09-13 and the 600 -> 800 jump stopped working when
-    `f6` became the constant Figure A6 draws: the 0.0037 % more combustor efficiency that
-    gave at FAR 0.024 moved the 800 lbm/hr solution from NGc 99.872 to exactly 100.000,
-    `f1`'s top speed line, where `np.clip` pins the parameter, the residual stops depending
-    on NG and the forward-difference Jacobian reads a zero column. `solve` now differences
-    INWARD at that bound and projects trial steps onto it, so the boundary is no longer a
-    trap: a COLD 800 lbm/hr trims at NGc 99.8904 with no continuation at all, where before
-    2026-09-15 it returned a degenerate NGc 3.9e7 with `residual_converged` True.
-
-    What is left is the genuine limit. 850 lbm/hr asks for more airflow than the 100 %
-    speed line carries, so there is no equilibrium on the map to find, and the solve says
-    so by pinning at NGc 100.0000 and reporting `residual_converged` False -- an honest
-    failure rather than a confident wrong answer. That is the assertion worth keeping.
+    Trap: at the top speed line `np.clip` pins the parameter and a forward-difference
+    Jacobian reads a zero column; `solve` differences inward at that bound and projects trial
+    steps onto it, so a cold 800 lbm/hr trims with no continuation.
     """
     from t700 import trim as _trim
 
@@ -414,53 +312,29 @@ def test_the_sweep_refuses_past_the_maps_top_speed_line():
         )
 
 
-# ------------------------------------------------- the rest of Table B.1, long unused
+# ------------------------------------------------- the rest of Table B.1, the station state
 
 STATE_B1 = {
     # [TM-100991 pdf p.67, Table B.1] the printed engine state at each trim.
-    # Ps3, P41, T41, P45 and T45 are printed there and were unused by this project until
-    # 2026-09-12 -- fifteen numbers, including the one quantity with a 13x gain on the
-    # transient (open question #47).
     "hover": dict(ps3=176.34, p41=174.28, t41=2292.0, p45=37.42, t45=1632.0),
     "level 80 kt": dict(ps3=142.13, p41=140.26, t41=2102.0, p45=30.66, t45=1501.0),
     "descent 80 kt": dict(ps3=114.27, p41=112.77, t41=1982.0, p45=25.54, t45=1424.0),
 }
 
 STATE_TOL_PCT = 0.5
-"""Tolerance on the printed station pressures and temperatures.
-
-Measured worst deviations are Ps3 **0.338 %**, P41 0.331, P45 0.265, T45 0.172 and T41
-0.087, all at descent, so 0.5 % is a ratchet a little above the worst rather than a target.
-(This line read 0.31 / 0.30 / 0.25 / 0.16 / 0.08 until 2026-09-14 and 0.366 / 0.358 / 0.283 /
-0.188 / 0.099 until 2026-09-19 -- understated the first time, overstated the second, and both
-times because the maps moved underneath a number nothing recomputes.) Note the
-printed T41 and T45 carry only four significant figures with a trailing decimal point --
-"2292." -- so a quarter of a degree is the printing resolution at T41 and the agreement
-there is at that limit."""
+"""Tolerance on the printed station pressures and temperatures: a ratchet a little above the
+worst, declared in `SCOPE.md`. The printed T41 and T45 carry four significant figures
+("2292."), so the T41 agreement is at the printing resolution."""
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda c: c.name)
 def test_the_printed_station_state_matches(case: TrimCase):
-    """Ps3, P41, T41, P45 and T45 against Table B.1 -- fifteen numbers never checked.
+    """Ps3, P41, T41, P45 and T45 against Table B.1: printed numbers, with no read error of
+    ours in them.
 
-    This closes the largest evidence gap the project had. Until now the trim comparison
-    used three quantities per condition (speed, shaft power, shaft torque) while Table
-    B.1 prints eight, and the five unused ones are exactly the ones the transient work
-    needed: open question #47 spent a long time asking whether our Ps3 was right at low
-    power, comparing a digitized Figure 10 *transient* against the report's steady-state
-    Figure 8 -- an invalid comparison, since a chop must run below the equilibrium locus
-    (open question #53 records the retraction) -- while a printed Ps3 sat in Table B.1 the
-    whole time.
-
-    It is also the anchor against which the `f1` interpolation question was scored, and
-    this paragraph had the answer backwards until 2026-09-14. Over all twenty-one printed
-    numbers, interpolation at constant **pressure ratio** gives rms **0.2018 %** and
-    interpolation at constant **beta** gives **0.2439 %** -- and beta is what ships. It is
-    measurably worse on this table and better on everything derivative: the worst Table 1
-    NG mode goes -22.6 % to +7.6 %, and the chop stops leaving the compressor map entirely,
-    389 frames to zero. The trade was made deliberately and is recorded in open questions
-    **#43** (the interpolation ambiguity) and **#60** (the beta grid as a departure); the
-    "#52" this line cited is Eq. 29's energy balance, a different subject.
+    Interpolating `f1` on the beta grid is slightly worse on this table than constant
+    pressure ratio and better on everything derivative; the trade is deliberate (open
+    questions #43 and #60).
     """
     want = STATE_B1[case.name]
     r = _solve(case)
@@ -483,17 +357,11 @@ def test_the_printed_station_state_matches(case: TrimCase):
 def test_the_printed_state_is_self_consistent_under_a_forced_pressure():
     """Imposing the printed Ps3 and integrating recovers the printed P41, P45 and NG.
 
-    A different kind of check from the one above, and a stronger one. P3 stops being a
-    state and becomes an input held at Table B.1's printed Ps3; NG, P41 and P45 then
-    integrate from a deliberately displaced start, seven percent low. If the printed
-    state is a genuine equilibrium of these equations, the run must find it.
-
-    It does, to four significant figures on both pressures -- P41 174.288 / 140.261 /
-    112.764 against the printed 174.28 / 140.26 / 112.77, and P45 37.424 / 30.651 /
-    25.531 against 37.42 / 30.66 / 25.54. That is what licenses the forced-Ps3
-    experiments in open question #47 to be read as attribution rather than as an
-    artifact of an ill-posed reduction.
+    P3 becomes an input held at Table B.1's Ps3; NG, P41 and P45 integrate from a start seven
+    percent low. If the printed state is an equilibrium of these equations, the run finds it,
+    which is what lets the forced-Ps3 experiments of open question #47 be read as attribution.
     """
+
     from scipy.integrate import solve_ivp
 
     from t700.engine import State

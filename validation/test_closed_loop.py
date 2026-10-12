@@ -1,41 +1,13 @@
-"""Engine, ECU and HMU closed on one another, against Table B.1.
+"""Engine, ECU and HMU closed on one another, against Table B.1 [pdf p.67].
 
-**This is the only quantitative check Phase 5 gets, and it is a real one.**
+The report's closed-loop Figures 11-15 all need Gen Hel, so the Phase 5 check is this: hold
+the load at Table B.1's printed torque, set the speed reference, and the loop must settle at
+the printed state with fuel flow as an output. The engine (body, Appendix A) and the control
+(Appendix C) are independent halves, so this is a cross-check, not a restatement.
 
-The report's closed-loop results are Figures 11-15 and every one needs the Gen Hel UH-60A
-blade-element simulation, which this report consumes and does not contain. So there is no
-published closed-loop trace to overlay, and that was known before Phase 5 started --
-`SCOPE.md` records it as a gate warning rather than a surprise.
-
-What there is, is Table B.1 [pdf p.67]: the complete engine state at three trims, printed
-as numbers, including the power turbine speed and the shaft torque. Hold the load at the
-printed torque and set the speed reference, and the loop must settle at the printed state
-**with fuel flow as an output** rather than an input. That is a materially harder test than
-anything in Phases 0-4, where Wf was prescribed and the engine only had to agree about what
-it produced.
-
-It is also a genuine cross-check rather than a restatement: the engine comes from the
-report's body and Appendix A, the control from Appendix C's 22 block diagrams and eight
-digitized schedules, and neither half knows the other exists.
-
-## The load matters, and it is not zero
-
-A free power turbine against a speed-*independent* load has no aerodynamic damping at all:
-`dQreq/dNP = 0` leaves the governor as the only thing holding NP, which is not the system
-the report models. Appendix B says so -- its NP diagonal carries a ~52 % residual against
-ours precisely because `dQreq/dNP` is the other Gen Hel quantity. Open question #6 recovers
-it in ratio form, **1.78 / 1.45 / 1.18 times `|dQ_PT/dNP|`** at hover / level / descent,
-positive because rotor torque rises with speed. That ratio is what this file uses, together
-with the load inertia `J_LOAD_UH60A` recovered the same way. Both are properties of the
-airframe Appendix B was trimmed on, and both are cited, not invented.
-
-## What the governor is supposed to absorb
-
-The collective is a *pilot* input, and in a governed system it must not set the trim: it
-sets where the ECU's integrator sits while the engine goes where the load tells it. That is
-tested here explicitly, and it is the strongest statement in the file -- over a 35 to 70 %
-collective sweep the settled state moves by less than 0.2 % while `SPDG` travels from -0.40
-to +1.62.
+The load is not speed-independent: `dQreq/dNP = 0` would leave the governor alone holding NP.
+The slope is recovered from Appendix B in ratio to `|dQ_PT/dNP|` (open question #6), and the
+load inertia `J_LOAD_UH60A` the same way; both are the airframe's, cited, not invented.
 """
 
 from __future__ import annotations
@@ -58,7 +30,7 @@ DT = 0.007
 
 SETTLE_FRAMES = 4000
 """28 s. The slowest thing in the loop is the ECU's P+I integrator against the rotor
-inertia; everything is inside 0.05 % of its final value by 20 s."""
+inertia, settled by about 20 s."""
 
 NP_TRIM_RPM = 20895.0
 """Table B.1's power turbine speed, printed at all three trims [pdf p.67]."""
@@ -67,20 +39,10 @@ PCPRF_PCT = NP_TRIM_RPM * 100.0 / engine_c.NP_DES
 """The cockpit speed reference that holds NP at `NP_TRIM_RPM`, percent of NP_des."""
 
 CLOSED_LOOP_TOL_PCT = 0.5
-"""Ours, declared in `SCOPE.md`. This is the Phase 5 gate.
-
-Measured worst **0.337 %**, descent fuel flow, as a cycle mean over the fifteen
-comparisons. **Tightened 1.0 -> 0.5 on 2026-09-14**, never widened, and the model did not
-change: what changed is the statistic. The loop settles to a limit cycle rather than to a
-point (open question #61), and this file compared a *terminal sample* of it -- one phase,
-depending on where the run happened to stop. That number is 0.876 %, and versions of it
-have been quoted as the headline closed-loop result at 0.74, 0.696, 0.62 and 0.865 % as
-the run length and the seeding moved around. The cycle mean is 0.337 % and does not move.
-
-The worst is still descent fuel flow and it is still partly inherited: descent shaft power
-is -0.900 % out open-loop. The governor converts that error rather than adding to it --
-closed loop, descent shp is -0.019 % and the fuel flow carries it instead, because fuel is
-an output here and the loop trims it until the torque matches."""
+"""Ours, declared in `SCOPE.md`: the Phase 5 gate. Applied to the cycle mean, never to a
+terminal sample, which is one phase of the limit cycle (open question #61). The worst,
+descent fuel flow, is partly inherited: the loop trims fuel until the torque matches, so the
+open-loop descent shaft-power error shows up in fuel flow instead."""
 
 # name, Wf lbm/hr, NG rpm, Ps3 psia, shaft torque ft*lbf, dQreq/dNP ratio (#6), shp --
 # Table B.1 from `test_trim_points`, the ratio from open question #6
@@ -92,26 +54,9 @@ TRIMS = [
 XCPC_PCT = {"hover": 52.75, "level 80 kt": 35.87, "descent 80 kt": 23.01}
 """Collective at each trim, from `test_hmu_trim.py`'s own droop-line solve.
 
-**All three ran at the hover collective, 52.75 %, until 2026-09-13.** The settled state
-barely notices -- the governor is what absorbs a wrong collective, and that is the thing
-`test_the_governor_absorbs_the_collective` is about -- but the *path* there does not:
-
-    level,   52.75 %   Wf peak +57.4 %,  NP peak +2.04 %   f6 x46
-    level,   35.87 %   Wf peak  +0.6 %,  NP peak +0.03 %   none
-    descent, 52.75 %   Wf peak +94.1 %,  NP peak +3.53 %   f6 x215, f1@85 x10, f1@82 x228
-    descent, 23.01 %   Wf peak  +0.7 %,  NP peak +0.03 %   none
-
-(Measured after the `ecu.seed` fix of the same day. The control-systems audit that found
-this measured +78.7 / +107.9 % on the peaks against the unfixed seed, which was adding its
-own +31.8 % slam on top; the f1 clamping is the part that matters and it is unchanged in
-kind.)
-
-So every level and descent run in what `SCOPE.md` calls the Phase 5 gate was leaving the
-digitized compressor map -- 273 evaluations off `f1`'s 82 % speed line at descent -- and
-nothing reported it, because `maps.reset_clamps()` was called only inside the acceleration
-test. Found by the 2026-09-13 control-systems audit. The settled deviations against
-Table B.1 are unchanged by the fix; what changes is that the model now stays inside its
-own data on the way there."""
+The settled state barely depends on it (the governor absorbs it), but the path does: at the
+hover collective, the level and descent runs spike fuel flow and leave `f1`'s data on the way
+there."""
 
 
 def _dqpt_dnp(result, wf_pps: float) -> float:
@@ -133,17 +78,9 @@ def _dqpt_dnp(result, wf_pps: float) -> float:
 CYCLE_FRAMES = 1500
 """How many trailing frames to average a closed-loop result over: 10.5 s at 7 ms.
 
-**The loop does not settle to a point. It settles to a limit cycle**, and a terminal
-sample is a phase of that cycle rather than a steady state -- see open question #61, where
-it is traced to `CH`, the printed 0.05 %NG hysteresis on the gas-generator speed sensor
-[Fig. C15, pdf p.91]. Measured peak-to-peak at the three trims: NP 7.5 / 12.0 / 16.7 rpm,
-NG 10.7 / 24.8 / 39.8 rpm, period 5.8 / 4.9 / 4.8 s. It survives step refinement to
-1.75 ms, so it is the model's and not the integrator's.
-
-1500 frames covers at least two full periods at every trim, so the mean is a cycle mean
-and not a phase. It matters: the worst deviation from Table B.1 is **0.308 %** as a cycle
-mean and **0.876 %** as a terminal sample, and this project quoted the terminal number --
-0.62 %, then 0.865 % -- for as long as it has had a closed loop.
+The loop settles to a limit cycle, not a point, so a terminal sample is one phase of it
+(open question #61, traced to `CH`, the 0.05 %NG hysteresis on the gas-generator speed
+sensor [Fig. C15, pdf p.91]). 1500 frames covers at least two full periods at every trim.
 """
 
 
@@ -221,7 +158,8 @@ def settle(
 
 
 def settle_cycle(wf_pph, q_shaft, ratio, name=None, n=SETTLE_FRAMES):
-    """As `settle`, but returning the **mean over the last whole cycles** of each output.
+    """As `settle`, but returning the mean over the last whole cycles of each output.
+
 
     Also returns the peak-to-peak of each, so a caller can say how much of a deviation is
     the cycle and how much is the model.
@@ -234,12 +172,8 @@ def settle_cycle(wf_pph, q_shaft, ratio, name=None, n=SETTLE_FRAMES):
 
 @pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
 def test_the_closed_loop_governs_to_the_printed_trim(name, wf, ng, ps3, q, ratio, shp):
-    """Fuel flow is an **output** here. Nothing tells the loop what it should be.
-
-    Compared as a **cycle mean**, not as a terminal sample: the loop settles to a limit
-    cycle rather than to a point (open question #61, `CYCLE_FRAMES`). This test was named
-    `..._settles_on_the_printed_trim` and took the last frame until 2026-09-14, which is
-    both the wrong statistic and the wrong word.
+    """Fuel flow is an output here: nothing tells the loop what it should be. Compared as a
+    cycle mean (open question #61, `CYCLE_FRAMES`).
     """
     got, ptp = settle_cycle(wf, q, ratio, name=name)
     want = {"NG": ng, "NP": NP_TRIM_RPM, "Wf": wf, "Ps3": ps3, "shp": shp}
@@ -261,11 +195,9 @@ def test_every_printed_trim_governs_on_the_droop_line(name, wf, ng, ps3, q, rati
 
 
 def test_the_governor_absorbs_the_collective():
-    """The strongest claim in this file, and the one a broken loop fails first.
-
-    A collective is a pilot input. In a governed system it must not set the trim -- the
-    load does that, and the collective only moves where the ECU's integrator sits. Sweep
-    it nearly twofold and the settled engine should barely notice, while `SPDG` travels.
+    """A collective is a pilot input and must not set the trim: the load does that, and the
+    collective only moves where the ECU's integrator sits. Sweep it nearly twofold and the
+    settled engine barely notices, while `SPDG` travels.
     """
     _name, wf, ng, _ps3, q, ratio, _shp = TRIMS[0]
     seen = []
@@ -288,8 +220,7 @@ def test_the_governor_absorbs_the_collective():
 
 def test_the_speed_reference_is_what_sets_power_turbine_speed():
     """[Fig. C1] The governor drives sensed NP to `PCPRF`, so the trimmed speed is the
-    cockpit reference and not `NP_DES`. Table B.1's 20895 against a design 20900 is
-    99.976 %, which is a *prediction* of the loop rather than an input to it.
+    cockpit reference and not `NP_DES`.
     """
     _name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
     for pcprf, expect in ((99.0, 0.99 * engine_c.NP_DES), (100.0, engine_c.NP_DES)):
@@ -302,20 +233,10 @@ def test_the_speed_reference_is_what_sets_power_turbine_speed():
 
 
 def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope():
-    """This is open question #45, and closing the loop answers it.
-
-    An open-loop 400 -> 775 lbm/hr step drives the model well outside the data it was
-    built from: the compressor map, the gas generator turbine energy function and the
-    power turbine flow function all clamp. That has been recorded as a limitation since
-    Phase 4.
-
-    But it is an artifact of prescribing a fuel step **the control would never command**.
-    `F_HM7` exists precisely to cap fuel during an acceleration, and with the loop closed a
-    *harder* demand than Figure 9's -- collective slammed 52.75 -> 95 % and the power lever
-    to 120 deg -- leaves `f1`, `f7` and `f9` untouched. The acceleration limit binds for
-    about a hundred frames and does its job.
-
-    So the envelope excursion is a property of the open-loop test, not of the model.
+    """Open question #45: an open-loop fuel step leaves the maps, but the control would never
+    command one. With the loop closed, a harder demand than Figure 9's (collective 52.75 ->
+    95 %, power lever 120 deg) leaves `f1`, `f7` and `f9` untouched: `F_HM7`, the
+    acceleration limit, binds and caps the fuel.
     """
     _name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
     cruise = loop.Pilot(xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=PCPRF_PCT)
@@ -344,17 +265,8 @@ def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope()
 
 @pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
 def test_the_closed_loop_stays_inside_its_digitized_data(name, wf, ng, ps3, q, ratio, shp):
-    """The Phase 5 gate must not reach its answer through extrapolated maps.
-
-    Nothing checked this until 2026-09-13: `maps.reset_clamps()` was called only inside
-    the acceleration test, so every level and descent run here left the compressor map
-    unreported. The cause was the collective -- see `XCPC_PCT` -- and at descent it was
-    273 evaluations off `f1`'s 82 % speed line, in the comparison `SCOPE.md` calls the
-    gate for Phase 5.
-
-    `f6` is the one clamp that is allowed, and only above about 590 lbm/hr: it is a
-    two-point, nearly constant table (0.98504 to 0.98496) whose clamp costs 1e-4, and the
-    top of the power range cannot avoid it. See `trim.TrimResult.extrapolated_tables`.
+    """The Phase 5 gate must not reach its answer through extrapolated maps; each trim runs
+    at its own collective (see `XCPC_PCT`). `f6` is exempt (see `maps.f6`).
     """
     maps.reset_clamps()
     settle(wf, q, ratio, name=name, fresh=True)  # the clamps counted are this run's
@@ -372,15 +284,9 @@ def test_the_closed_loop_stays_inside_its_digitized_data(name, wf, ng, ps3, q, r
 def test_the_limit_cycle_is_what_it_is_measured_to_be():
     """Pin the limit cycle, so it cannot grow or vanish unnoticed.
 
-    It is a property of the report's control system as specified, not a defect in this
-    implementation, and open question #61 sets out the three measurements behind that: it
-    survives step refinement to 1.75 ms, it collapses when `CH` alone is removed, and its
-    amplitude scales with the printed band width.
-
-    `CH` is the gas-generator speed sensor's hysteresis, 0.05 %NG [Fig. C15, pdf p.91] --
-    22 rpm on NG_DES. The governor cannot resolve speed more finely than that, and the loop
-    cycles at 0.5 to 1.8 times the band. Every closed-loop number in this project is a mean
-    over it; `CYCLE_FRAMES` is why.
+    It is the report's control system as specified (open question #61): `CH`, the speed
+    sensor's 0.05 %NG hysteresis [Fig. C15, pdf p.91], is finer than the governor can
+    resolve, and the cycle survives step refinement and collapses when `CH` alone is removed.
     """
     want = {"hover": (7.5, 10.9), "level 80 kt": (12.0, 24.8), "descent 80 kt": (16.7, 39.8)}
     for name, wf, _ng, _ps3, q, ratio, _shp in TRIMS:
@@ -398,50 +304,19 @@ LOAD_STEP_PCT = 15.0
 NP_DIP_RPM = (193.4, 195.4)
 WF_PEAK_PPH = (550.0, 558.0)
 SLAM_RISE_MS = (140.0, 155.0)
-"""Characterizations of the loop's *transient*, not accuracy claims -- see `SCOPE.md`,
-"A third category exists". The report prints no closed-loop time history, so there is
-nothing to be accurate against; what these bounds do is make Appendix C's forward-path
-gains observable at all.
+"""Characterizations of the loop's transient, not accuracy claims (SCOPE.md's third
+category): the report prints no closed-loop time history (open question #65).
 
-**They were not.** The 2026-09-14 validation-quality audit mutated 30 constants and found
-nine that no test in the project detected, all in the fuel control. The mechanism is
-structural: `test_hmu_trim` bisects the *collective* until the HMU commands the printed
-fuel flow, so a forward-path gain change is absorbed into the collective; and the
-closed-loop tests let the governor trim it out in steady state. Every steady test either
-solves for a free input or integrates the error away, so no forward-path gain in Appendix C
-was observable anywhere.
-
-A transient is where a loop gain shows. Measured:
-
-| perturbation | NP dip | Wf peak | slam rise |
-|---|---|---|---|
-| baseline | 194.4 rpm | 554.1 pph | 147 ms |
-| `TMLG` +10 % | **189.3** | **556.9** | 147 |
-| `TMGN` x10 | 193.1 | 552.8 | 147 |
-| `TMGN` +10 % | 194.3 | 554.1 | 147 |
-| `CLLDS` x2 | 194.4 | 554.1 | **175** |
-| `TLGE` +50 % | 194.4 | 554.1 | 147 (bit-identical) |
-
-So the load step pins `TMLG` at +10 % and `TMGN` at the order-of-magnitude level, and the
-collective slam pins `CLLDS` at x2. The NP dip is the discriminator and its band is 1 % wide
-about the measured 194.392 rpm, which makes it a tripwire rather than a tolerance -- any
-real change to the loop will trip it and should be looked at. `TMGN` at +10 % moves the dip
-by 0.07 rpm and stays out of reach even so. `TLGE` is bit-identical in every
-*closed-loop* configuration, and `test_the_t45_harness_lag_is_invisible_to_the_closed_loop`
-records why; it is pinned instead in `tests/test_ecu.py`, where the ECU can be driven into
-the temperature limiter directly."""
+Every steady test either solves for a free input or integrates the error away, so no
+forward-path gain in Appendix C shows there; a transient is where a loop gain shows. The
+load step pins `TMLG` (and `TMGN` only coarsely), the collective slam pins `CLLDS`. The bands
+are about 1 % wide around the measured values: tripwires, not tolerances. `TLGE` is pinned in
+`tests/test_ecu.py` instead (see `test_the_t45_harness_lag_is_invisible_to_the_closed_loop`)."""
 
 
 def test_a_load_step_response_pins_the_torque_motor_linkage():
-    """A 15 % load step at hover, characterized -- so a forward-path gain cannot move freely.
-
-    The quantities are the ones a governor is judged on and the ones a loop gain moves: how
-    far NP is dragged down before the fuel catches up, and how much fuel it takes.
-
-    It is also what a governor is for: raise the demanded torque and NP must come back. That
-    is the only dynamic statement available without Gen Hel, and it is a weak one -- a
-    direction and a settling time, not a trace -- so the run continues 3000 frames past the
-    step and asserts the recovery as well.
+    """A 15 % load step at hover, characterized: how far NP is dragged down before the fuel
+    catches up, how much fuel it takes, and that NP comes back.
     """
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
     pilot = loop.Pilot(xcpc_pct=XCPC_PCT[name], pas_deg=100.0, pcprf_pct=PCPRF_PCT)
@@ -476,11 +351,8 @@ def test_a_load_step_response_pins_the_torque_motor_linkage():
 
 
 def test_a_collective_slam_pins_the_collective_lag():
-    """`CLLDS` is the load-demand-spindle lag, and only a *moving* collective can see it.
-
-    Every other test in the project holds the collective fixed, which is why doubling this
-    constant was undetectable. Slam it from the hover setting to 85 % and the fuel command's
-    10-90 % rise time is the observable: 147 ms as shipped, 175 ms at 2x.
+    """`CLLDS` is the load-demand-spindle lag, and only a moving collective can see it: slam
+    the collective from the hover setting to 85 % and time the fuel command's 10-90 % rise.
     """
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
     out, at, n = [], 600, 1800
@@ -505,24 +377,12 @@ def test_a_collective_slam_pins_the_collective_lag():
 
 
 def test_the_t45_harness_lag_is_invisible_to_the_closed_loop():
-    """`TLGE` cannot be constrained by anything run **against the engine**, and why is the point.
+    """`TLGE`, the T45 harness lag, cannot be constrained by anything run against the engine.
 
-    It is the lag on the T45 thermocouple harness, which feeds the ECU's **temperature
-    limiter**. At every condition the project exercises the ECU is governing *speed* --
-    `test_every_printed_trim_governs_on_the_droop_line` asserts exactly that -- so the T45
-    path carries a signal nothing downstream acts on, and changing its time constant is
-    bit-identical on every output of a closed-loop run.
-
-    **This test was called `..._is_structurally_unreachable` until 2026-09-14 and claimed
-    `TLGE` "cannot be constrained by anything this suite runs".** That was a statement about
-    the suite mistaken for one about the model. The limiter is unreachable with the engine
-    attached -- `T45REF - T45COR` is 1993 degR against Table B.1's hottest trim of 1632, so
-    reaching it needs an NG past the 100 % ceiling the report declares validity to. It is
-    perfectly reachable in the ECU *alone*, which is a block diagram with inputs, and
-    `tests/test_ecu.py::test_the_thermocouple_lag_shapes_the_overtemperature_handover` now
-    pins `TLGE` to **5.6 %** there, and `F_EC1` to **0.08 %** -- both measured by bisecting
-    the scale factor at which `OVERTEMP_SPDG` starts to fail. What survives here is the
-    narrower and still-useful fact below.
+    It feeds the ECU's temperature limiter, which needs an NG past the report's 100 % ceiling
+    to reach, so at every trim the ECU governs speed and `TLGE` is bit-identical on every
+    output. The ECU alone can reach it:
+    `tests/test_ecu.py::test_the_thermocouple_lag_shapes_the_overtemperature_handover`.
     """
     from t700.control import constants as control_c
 
@@ -551,35 +411,15 @@ SLAM_NP_RISE_RPM = (519.0, 531.0)
 SLAM_PEAK_PPH = (683.0, 690.0)
 """A collective slam small enough that no limit binds -- which is what makes `F_HM4` visible.
 
-`F_HM4` is the load-demand fuel-flow feedforward, `WFQPS3 = F_HM4(XLDSH)` [Fig. C17], and
-it is on the droop line's forward path: it is 0.297 of the 1.341 demand cut at the hover
-collective, 22 % of it. Open question #65 still listed it as observable by nothing, and
-`test_a_collective_slam_pins_the_collective_lag` is the test that ought to have seen it.
+`F_HM4` is the load-demand fuel-flow feedforward, `WFQPS3 = F_HM4(XLDSH)` [Fig. C17], on the
+droop line's forward path (#65). The 85 % slam above puts the Figure C18 cascade on its
+acceleration ceiling, where `MIN(., WFPAC)` discards the feedforward; stopping at 70 % keeps
+it on `droop`. Characterizations, as above; the NP rise is the better discriminator because
+it is monotone in a change to `F_HM4`.
 
-**It could not, because that slam saturates.** Going to 85 % collective puts the Figure C18
-cascade on its acceleration ceiling for 24 frames, and `MIN(., WFPAC)` throws the
-feedforward away: `F_HM4` x1.1 moves that slam's fuel peak by **+0.0022 %**. Stopping at
-70 % keeps the cascade on `droop` for every frame of the run, and the same mutation moves
-the peak by **+0.715 %** and the speed rise by **+10.7 rpm**.
-
-Characterizations, in `SCOPE.md`'s third sense -- the report prints no collective transient.
-Measured, with NP rise = peak - 20895 rpm:
-
-| | Wf peak | NP rise |
-|---|---|---|
-| as shipped | 686.49 pph | 525.18 rpm |
-| `F_HM4` x1.1 | 691.40 | 535.87 |
-| `F_HM4` x0.9 | 680.95 | 512.42 |
-
-The NP rise is the better discriminator: it is monotone in the mutation where the fuel peak
-is not, because the peak's *location* moves as well as its height. Its band is +/-6 rpm,
-1.1 % of the rise, matching `NP_DIP_RPM`'s 1 % above.
-
-**This is the feedforward path exercised alone, not a helicopter manoeuvre.** The load here
-is a function of NP only, so moving the collective moves what the control *anticipates*
-without moving what the rotor actually takes -- which is precisely why NP rises rather than
-dipping. Ballin's own load-demand compensation is one of his admitted limits, "weaker than
-the real aircraft" [pdf p.54]; this measures the path, not its adequacy."""
+The load is a function of NP only, so this exercises the feedforward path alone, not a
+manoeuvre: NP rises rather than dips. Ballin's load-demand compensation is an admitted limit,
+"weaker than the real aircraft" [pdf p.54]; this measures the path, not its adequacy."""
 
 
 def test_a_gentle_collective_slam_pins_the_load_demand_feedforward():
