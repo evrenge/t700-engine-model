@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from figure.frame import longest_run
+from figure.frame import corner_line, homography, longest_run
 from figure.raster import load_gray
 from figure.ticks import index_groups
 
@@ -92,40 +92,26 @@ def edge_fits(ink: np.ndarray, axis: int) -> tuple[tuple[float, float], tuple[fl
 # --------------------------------------------------------------------------- rectify
 
 
-def perspective_coeffs(dst, src) -> np.ndarray:
-    """Coefficients for PIL PERSPECTIVE, which maps an output point to an input point."""
-    a, b = [], []
-    for (bx, by), (sx, sy) in zip(dst, src, strict=True):
-        a.append([bx, by, 1, 0, 0, 0, -sx * bx, -sx * by])
-        b.append(sx)
-        a.append([0, 0, 0, bx, by, 1, -sy * bx, -sy * by])
-        b.append(sy)
-    return np.linalg.solve(np.asarray(a, float), np.asarray(b, float))
-
-
 def rectify(page: Path, out: Path) -> tuple[int, int, int, int]:
     """Warp `page` so its plot frame is an exact rectangle. Returns (left, top, right, bottom)."""
     ink = load_gray(page) < 0.55
     (st, it), (sb, ib) = edge_fits(ink, 0)
     (sl, il), (sr, ir) = edge_fits(ink, 1)
 
-    def corner(srow, irow, scol, icol):
-        x = (icol + scol * irow) / (1 - scol * srow)
-        return x, irow + srow * x
-
-    tl = corner(st, it, sl, il)
-    tr = corner(st, it, sr, ir)
-    bl = corner(sb, ib, sl, il)
-    br = corner(sb, ib, sr, ir)
+    tl = corner_line((it, st), (il, sl))
+    tr = corner_line((it, st), (ir, sr))
+    bl = corner_line((ib, sb), (il, sl))
+    br = corner_line((ib, sb), (ir, sr))
     left = round((tl[0] + bl[0]) / 2)
     right = round((tr[0] + br[0]) / 2)
     top = round((tl[1] + tr[1]) / 2)
     bottom = round((bl[1] + br[1]) / 2)
 
     im = Image.open(page).convert("L")
-    coeffs = perspective_coeffs(
+    # PIL's PERSPECTIVE maps an OUTPUT point to an input point: the rectangle to the scan.
+    coeffs = homography(
         [(left, top), (right, top), (right, bottom), (left, bottom)], [tl, tr, br, bl]
-    )
+    ).ravel()[:8]
     im.transform(
         im.size, Image.PERSPECTIVE, tuple(coeffs), resample=Image.BICUBIC, fillcolor=255
     ).save(out)

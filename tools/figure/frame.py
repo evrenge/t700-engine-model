@@ -53,8 +53,8 @@ EDGE = {  # name -> (along, inward sign)
 
 
 def runs(mask):
-    """(start, end) of every contiguous True run in a 1-D boolean array."""
-    e = np.flatnonzero(np.diff(np.concatenate(([0], mask.view(np.int8), [0]))))
+    """(start, end) of every contiguous True run in a 1-D boolean array; `end` is exclusive."""
+    e = np.flatnonzero(np.diff(np.concatenate(([0], np.asarray(mask).view(np.int8), [0]))))
     return list(zip(e[0::2], e[1::2], strict=True))
 
 
@@ -475,8 +475,7 @@ def segment_lines(curve_pts, seeds, clear=24.0, band=4.5, extra=None):
 
 def longest_run(mask) -> int:
     """Length of the longest contiguous True run in a 1-D boolean array."""
-    e = np.flatnonzero(np.diff(np.concatenate(([0], np.asarray(mask).view(np.int8), [0]))))
-    return 0 if e.size == 0 else int((e[1::2] - e[0::2]).max())
+    return max((int(b - a) for a, b in runs(mask)), default=0)
 
 
 def edge_uv(fr, H):

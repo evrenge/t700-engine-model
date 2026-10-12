@@ -80,7 +80,7 @@ from scipy import ndimage
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from figure.axis import blend_value, calibrate_under
-from figure.frame import auto_frame_spec
+from figure.frame import auto_frame_spec, runs
 from figure.raster import native_bitmap
 
 PAGE = 101
@@ -297,10 +297,8 @@ def plot_mask(ink, box):
 
 
 def runs_in_column(work, col, top, bot):
-    d = np.diff(np.concatenate(([0], work[top:bot, col].view(np.int8), [0])))
-    a = np.flatnonzero(d == 1) + top
-    b = np.flatnonzero(d == -1) + top - 1
-    return list(zip(a.astype(float), b.astype(float), strict=True))
+    """`(first, last)` row of every ink run in one column between `top` and `bot`."""
+    return [(float(a + top), float(b + top - 1)) for a, b in runs(work[top:bot, col])]
 
 
 def main(argv=None) -> int:
