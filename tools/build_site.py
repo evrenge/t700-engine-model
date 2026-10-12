@@ -33,12 +33,6 @@ _SPLIT = re.compile(r"(?<!\\)\|")
 
 # Curated one-line summaries. The row number and verdict are verified against the ledger.
 OPEN_SUMMARY = {
-    43: (
-        "Interpolation scheme for the function tables",
-        "The body calls them &ldquo;function table lookups&rdquo; and never says linear or "
-        "spline, which changes every value between knots. Implemented as linear by "
-        "decision. The mechanism is established; there is no cure in the source.",
-    ),
     59: (
         "Integrator anti-windup",
         "Figures C3, C7 and C10 all draw an unlimited <code>1/s</code> followed by a "
@@ -50,12 +44,6 @@ OPEN_SUMMARY = {
         "A deliberate departure. It removes a manufactured extrapolation entirely and "
         "halves the worst Table&nbsp;1 speed mode, at a cost of 0.2018&nbsp;&rarr;&nbsp;"
         "0.2439 % on Table B.1&rsquo;s rms.",
-    ),
-    62: (
-        "<code>f6</code> loaded as a constant",
-        "Figure A6 draws a curve with a visible slope. Measured, that slope is the "
-        "page&rsquo;s own skew &mdash; the thirteen glyphs sit on a horizontal line to well "
-        "inside the ink width. Our reading, not the report&rsquo;s.",
     ),
     74: (
         "Figure&nbsp;A1&rsquo;s speed lines do not form a smooth family",
