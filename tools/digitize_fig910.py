@@ -1,7 +1,6 @@
-"""Digitize Figures 9 and 10 -- the open-loop fuel-step transients.
+"""Digitize Figures 9 and 10 -- the open-loop fuel-step transients [pdf pp.45-46].
 
-These are the report's transient validation evidence and the target for our real-time
-model. Each figure is **six stacked panels** sharing one time axis [pdf pp.45-46]:
+Each figure is six stacked panels sharing one time axis:
 
     1 WFPH    fuel flow, the input -- solid line only
     2 PS3     compressor discharge static pressure
@@ -10,24 +9,16 @@ model. Each figure is **six stacked panels** sharing one time axis [pdf pp.45-46
     5 T45     power turbine inlet temperature
     6 TORQ45  output torque -- the report's measure of power, since NP is held
 
-Each data panel carries **two traces that mean different things**:
+Each data panel carries two traces that mean different things, written to separate files:
 
-* a **solid line** -- Ballin's real-time model. This is our replication target: we are
-  reproducing his model, so his trace is what our output must match.
-* **`+` markers** -- the GE performance-standard status-81 simulation, labelled
-  `REFERENCE STANDARD MODEL DATA`. This is the hardware-side reference Ballin was himself
-  validating against, and he does not match it perfectly.
+* a solid line -- Ballin's real-time model, our replication target;
+* `+` markers -- the GE status-81 simulation, `REFERENCE STANDARD MODEL DATA`, the
+  reference Ballin was himself validating against and does not match perfectly.
 
-They are written to separate files. Merging them would destroy the distinction between
-"what we must reproduce" and "what he was trying to reproduce".
-
-Method is the one accumulated across Appendix A (`docs/notes/digitizing-recipe.md`):
-native 300 dpi 1-bit via `pdfimages`, never resampled; per-axis polynomial order chosen by
-the held-out frame-edge test; the scan bows differently on every page.
-
-Separating the two traces: a `+` glyph has a horizontal stroke several pixels wide, while
-the model trace is a thin near-vertical-gradient line. A horizontal opening isolates the
-marker bars; the residual ink is the line.
+Works on the native 300 dpi 1-bit scan, never resampled. The pages are skewed, so every
+frame is fitted per panel (`Panel`, `frame_tilt`), and the caption's exactly stated fuel
+step checks each page (`check_fuel_panel`). Markers are found by `marker_centres`, the
+model trace by `trace_line`.
 """
 
 from __future__ import annotations
@@ -47,12 +38,7 @@ OUT = Path("validation/out/digitize/fig910")
 REF = Path("data/reference")
 
 # y-axis ranges, transcribed from each figure's own printed tick labels
-# [docs/notes/body-validation.md, sections 2.4 and 2.5].
-#
-# **The two figures do NOT share axis ranges.** A first pass assumed they did and applied
-# Figure 9's to both; Figure 10's WFPH runs 0-500, not 250-1000, so every Figure 10 value
-# came out wrong -- the fuel step read +99 % against a caption that states it exactly. The
-# caption's stated step levels are what caught it, which is why that check is run.
+# [docs/notes/body-validation.md, sections 2.4 and 2.5]. The two figures do NOT share them.
 PANEL_RANGES = {
     9: [
         ("wfph", "WFPH", 250.0, 1000.0),  # input: solid line only, no markers
@@ -72,28 +58,17 @@ PANEL_RANGES = {
     ],
 }
 # The caption states the fuel step exactly [pdf pp.45-46: "from 400 to 775 lb_m per hour",
-# "from 400 to 125 lb_m per hour"], so the WFPH panel is the one place on either page where
-# the truth behind a plotted curve is known. That makes it the calibration check for the
-# whole page: the commanded flow is constant either side of the step, so both its LEVEL and
-# its FLATNESS are checkable.
-#
-# It was declared here and used nowhere until 2026-09-14, with a comment saying the check
-# "is run". It was not, and running it failed: on Figure 10 the pre-step level read +1.70 %
-# and the post-step level fell 4.0 % of panel height across the record, which is the page
-# skew now corrected in `frame_tilt`. A gate that cannot fail is not a gate.
+# "from 400 to 125 lb_m per hour"], so the WFPH panel is the one place where the truth behind
+# a plotted curve is known: the LEVEL and FLATNESS of the commanded flow either side of the
+# step check the whole page (`check_fuel_panel`).
 FUEL_STEP = {9: (400.0, 775.0), 10: (400.0, 125.0)}
 
 FUEL_LEVEL_TOL_PCT_HEIGHT = 1.0
 FUEL_TILT_TOL_PCT_HEIGHT = 1.0
-"""Tolerances for that check, both as a percentage of panel height -- the unit the error
-is actually made in, since a read error is a pixel error and the panels do not share a
-data range.
-
-Set from the trace's own centroid noise, not from what happens to pass: the model trace is
-4-6 px thick and its per-column centroid scatters 0.5-1.1 px (1 sigma) about a fitted
-frame, which on a 330 px panel is 0.15-0.33 percent of height. 1.0 percent is three sigma
-of that, and 3.3 px -- it admits ordinary line-centroid error and rejects the 11-14 px
-skew that was there before."""
+"""Tolerances for that check, as a percentage of panel height (a read error is a pixel
+error, and the panels do not share a data range). The trace's per-column centroid scatters
+0.5-1.1 px (1 sigma), 0.15-0.33 % of a 330 px panel; 1.0 % is three sigma of that, and
+rejects the 11-14 px skew of an uncorrected page."""
 N_PANELS = 6
 T_LO, T_HI = 0.0, 5.0
 
@@ -111,17 +86,9 @@ class Panel:
     top_slope: float = 0.0
     bot_slope: float = 0.0
     """Tilt of the panel's two horizontal frame lines, in rows per column, measured at
-    `left`. **The pages are skewed and the frames are not horizontal**: on pdf p.46 every
-    frame descends 11-14 px across the panel width, 3.3-4.2 percent of panel height, and
-    on pdf p.45 2-5 px, 0.7-1.6 percent. Ignoring that put a ramp of exactly that size
-    into every digitized trace on both pages -- a monotone fake decay on top of the real
-    one, worst on Figure 10, which is the chop transient.
-
-    It was found by checking the one panel whose truth is printed: the caption states the
-    fuel step exactly, and the WFPH trace -- a commanded constant either side of the step
-    -- read 4.0 percent of panel height lower at t=5 than at t=0 on Figure 10, matching
-    the frames' own 3.35 percent to within the trace's centroid noise. `check_fuel_panel`
-    below is that check, run every time rather than remembered."""
+    `left`. The pages are skewed: on pdf p.46 every frame descends 11-14 px across the panel
+    width (3.3-4.2 % of panel height), on p.45 2-5 px. Ignored, that puts a fake ramp of the
+    same size into every trace (open question #63); `check_fuel_panel` catches it."""
 
     left_slope: float = 0.0
     left_at_top: float = 0.0
@@ -130,21 +97,11 @@ class Panel:
     """The two VERTICAL frames, fitted over this panel's own rows: columns per row, and
     the column at the panel's top row.
 
-    **Each panel needs its own time axis.** `find_panels` returns one `left`/`right` pair
-    for the whole page -- the extreme columns of the longest columnar runs -- and until
-    2026-09-14 every panel was calibrated against that one pair. The pages are skewed, so
-    the shared vertical frames drift left going down: on pdf p.45 the left frame sits at
-    column 603.9 in the WFPH panel and 592.6 in TORQ45, and on pdf p.46 at 494.7 and
-    477.6. Against a single `left` taken at the bottom, the upper panels' times read up to
-    **+38 ms too large**, and the error varies from panel to panel down the page.
-
-    That is not a rounding nuisance on a transient sampled every 7 ms. It showed up as our
-    model appearing to respond *earlier* than Ballin's by an amount that grew down the
-    page -- 2 ms on PCNG, 37 on T41, 49 on T45, 54 on TORQ45 -- which reads as a physical
-    lag in the temperatures and is not one.
-
-    The panel's width is per-panel too, for the same reason: 1658.9 px on Figure 9's WFPH
-    against the shared 1671, a 0.75 percent stretch worth 37 ms over the 5 s record."""
+    Each panel needs its own time axis. The page is skewed, so the vertical frames drift
+    left going down (pdf p.45: column 603.9 in WFPH, 592.6 in TORQ45); against the one
+    page-wide `left`/`right` the upper panels' times read up to 38 ms late, which looks like
+    a physical lag in the temperatures and is not one. Width is per panel for the same
+    reason."""
 
     def top_at(self, x: float) -> float:
         """Row of the upper frame at column `x`."""
@@ -164,13 +121,9 @@ class Panel:
 GLYPH_BAR_MIN_PX = 14
 GLYPH_BAR_MAX_PX = 34
 GLYPH_BAR_MAX_WID_PX = 20
-"""Bounds on a `+` glyph's vertical stroke, in native-scan pixels.
-
-Measured across the five marker-bearing panels of Figure 9: the strokes run 19-25 px
-tall (median 21). Widths run 4-6 px where the bar stands alone but reach 17 px where it
-merges with its own horizontal arm, so the width bound is 20: at 10 it rejected eight real
-markers on Figure 9's Ps3 panel and two on Figure 10's T41. The outliers at 85-212 px
-are the trace's own steep segments, which the upper bound is there to exclude."""
+"""Bounds on a `+` glyph's vertical stroke, in native-scan pixels. On Figure 9 the strokes
+run 19-25 px tall; widths reach 17 px where the bar merges with its own horizontal arm. The
+upper height bound excludes the trace's own steep segments (85-212 px)."""
 
 LATTICE_MAX_GAP = 2.5
 """How many lattice pitches an end detection may sit from its neighbour before it is
@@ -184,33 +137,19 @@ TRACE_LINK_SLOPE_PX = 5.0
 TRACE_LINK_OFFSET_PX = 5.0
 """Continuity constraints on the model trace.
 
-The trace is one connected thin line, so between ADJACENT columns it moves at most a few
-pixels; a jump of more than `TRACE_MAX_STEP_PX` between neighbouring columns is not the
-trace, and splits the candidates into blocks.
-
-A minimum block LENGTH was tried first and is wrong. Blocks are only about 14 columns
-long -- the markers sit every 33 px and the mask around each removes some 18 columns -- so
-a threshold anywhere near that length throws away real trace. It threw away Figure 9's T41
-peak, a legitimate 7-column block holding the 2790 degR maximum, which is the single most
-quoted number in the whole comparison.
-
-So blocks are linked by SLOPE instead. Blocks of `TRACE_BACKBONE_MIN` columns or more are
-the backbone; a shorter block joins it if its endpoint reaches an accepted block's
-endpoint at no more than `TRACE_LINK_SLOPE_PX` per column plus a fixed
-`TRACE_LINK_OFFSET_PX`. The peak block connects at 1.8 px per column. Glyph debris does
-not: it is 4-6 columns wide and sits tens of pixels off the curve, needing 8 px per column
-or more. The step riser needs no special case -- the levels either side of it are both
-backbone, so both are kept without ever having to link across it."""
+Between adjacent columns the trace moves a few pixels; a jump over `TRACE_MAX_STEP_PX`
+splits the candidates into blocks. Blocks of `TRACE_BACKBONE_MIN` columns or more are the
+backbone; a shorter block (at least `TRACE_LINK_MIN`) joins it if its endpoint reaches an
+accepted block's at no more than `TRACE_LINK_SLOPE_PX` per column plus
+`TRACE_LINK_OFFSET_PX`. Linked by slope, not by a minimum length: blocks between markers
+are only ~14 columns, and a length threshold drops Figure 9's T41 peak (a legitimate
+7-column block). Glyph debris needs 8 px per column or more to link."""
 
 
 FRAME_HALF_BAND_PX = 7
-"""How far either side of a nominal frame row to look for the frame's own ink.
-
-The skew moves a frame by up to 14 px end to end, so the search band has to be wider than
-the tilt it is measuring -- but not so wide that it catches the trace where the trace runs
-along the frame. 7 px is measured: every frame's ink lands within 7 px of the row the
-arithmetic-progression fit puts it at, and the residual about the fitted tilt is 0.45-1.45
-px on all twenty-four frame lines."""
+"""How far either side of a nominal frame row to look for the frame's own ink: wide enough
+for the up-to-14 px skew it measures, narrow enough to miss the trace where it runs along
+the frame. Every frame's ink lands within 7 px of the row the panel search predicts."""
 
 FRAME_MIN_COLUMNS = 50
 """Below this many usable columns the tilt is not measured and the panel stays level."""
@@ -224,15 +163,11 @@ because the page-wide `left` can be a dozen pixels from the line inside a given 
 def frame_tilt(ink: np.ndarray, y0: int, left: int, right: int) -> tuple[float, float, float]:
     """Fit one horizontal frame line: `(slope, row at `left`, residual)`, all in pixels.
 
-    The frame is the only thing inked across the whole panel width at that height, so
-    taking the ink centroid of a narrow vertical band per column and fitting a line
-    recovers both its tilt and its true position. Columns whose band holds more than 8
-    inked rows are dropped: that is the trace crossing the frame, or a tick, not the frame.
-
-    The fitted row replaces the one the panel search produced, which was a centroid of the
-    *smeared* tilted line plus a modal panel height applied uniformly. That approximation
-    left the Figure 10 fuel panel reading 1.2 percent of panel height high even after the
-    tilt was taken out; fitting each frame on its own removes it.
+    The pages are skewed, so the frames are not horizontal (see `Panel.top_slope`). The
+    frame is the only ink across the whole panel width at its height: take the ink centroid
+    of a narrow band per column, drop columns with more than 8 inked rows (the trace
+    crossing, or a tick), fit a line. The fitted row also replaces the panel search's,
+    which is a centroid of the smeared tilted line.
     """
     xs: list[int] = []
     ys: list[float] = []
@@ -282,17 +217,9 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     """Locate the six panel frames.
 
     The vertical frame lines are the longest columnar runs, searched away from the page
-    edges so the scan's left-margin junk cannot pose as a frame.
-
-    Finding the horizontal frames needs care. A row inked across the plot width is not
-    necessarily a frame: panel 1's WFPH trace is a *step*, so its two flat levels are
-    full-width lines too. A first attempt that paired adjacent lines by height accepted
-    that trace as panel 2's top and shifted every label by one panel -- the kind of error
-    that silently mislabels an entire dataset.
-
-    The fix is structural. The six panels have equal height *and* equal pitch, so the
-    tops form an arithmetic progression. Search for the progression rather than pairing
-    neighbours, and the trace lines cannot join it.
+    edges. A full-width row is not necessarily a frame (the WFPH step's two flat levels are
+    full-width lines too, and pairing neighbours shifts every label by one panel), so the
+    six tops are found as an arithmetic progression, which the trace lines cannot join.
     """
     h, w = ink.shape
     m0, m1 = int(w * 0.08), int(w * 0.97)
@@ -339,14 +266,8 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     if err > 6.0 * N_PANELS:
         raise RuntimeError(f"progression fits poorly (total {err:.1f} px): {tops}")
 
-    # Panel height, like panel pitch, is the same for all six -- so take it once, as the
-    # modal top-to-bottom distance, and apply it uniformly.
-    #
-    # Choosing each bottom independently as "the nearest line below the top" fails on the
-    # WFPH panel, whose trace is a step: on Figure 10 the post-step level at 125 lbm/hr
-    # sits where a frame would plausibly be, and taking it gave that panel a height of 246
-    # px against ~330 everywhere else. Every Figure 10 fuel value was then wrong by 6 %,
-    # which the caption's stated levels caught.
+    # Panel height is the same for all six, so take it once (the median top-to-bottom
+    # distance): the nearest line below a top can be the WFPH step's level, not a frame.
     cands = []
     for t in tops:
         below = lines[(lines > t + 0.5 * pitch) & (lines < t + 0.95 * pitch)]
@@ -380,47 +301,16 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
 def marker_centres(ink: np.ndarray, p: Panel, bar: int = 7, margin: int = 16) -> np.ndarray:
     """Find `+` glyph centres inside a panel.
 
-    A `+` is the only thing on the page with **both** a horizontal stroke and a vertical
-    one at the same place. That is the discriminator:
+    A `+` is the only thing with both a horizontal and a vertical stroke at one place: the
+    flat trace has only the first, the steep trace only the second. `margin` (16 px) clears
+    the frame ticks, which reach 13 px and would otherwise pass that test.
 
-    * the model trace where it runs flat has horizontal extent but no vertical extent;
-    * the model trace where it runs steep has vertical extent but no horizontal extent;
-    * a `+` has both.
-
-    A first attempt used the horizontal opening alone and returned 146 "markers" in the
-    WFPH panel -- which carries no markers at all, only a step whose two flat levels are
-    long horizontal runs. Requiring both strokes removes that entire class of false
-    positive.
-
-    `margin` removes the other class. Every frame carries **tick marks**, and a tick
-    crossing its own frame line presents a vertical and a horizontal stroke at the same
-    place -- indistinguishable from a glyph by the test above. Ticks reach 13 px at the
-    99th percentile across all twelve panels, so 16 px inside every frame clears them.
-
-    ## The centre comes from the VERTICAL stroke, and that is the fix
-
-    Until 2026-09-12 the centre was the centre of mass of `horiz & vert`. Where a marker
-    sits **on** the model line -- which is most of them, since Ballin plotted the GE data
-    against his own curve -- the horizontal stroke in that intersection *is the model
-    line*, so the centre of mass was pulled onto the line and the GE sample inherited the
-    model's value. That is the "GE data accounted as Ballin" half of the contamination:
-    on Figure 10, three PCNG markers, and one each on Ps3, T41, T45 and TORQ45, read the
-    model curve to within a pixel.
-
-    The vertical stroke belongs only to the glyph: a `+`'s bar is symmetric about its
-    centre, and where the bar merges with the line the merged run is still centred on the
-    glyph. So the centre is taken from the vertical blob alone, with the horizontal stroke
-    kept only as a presence test.
-
-    The height bounds are measured, not guessed. Across the five marker-bearing panels of
-    Figure 9 the vertical strokes run 19-25 px (median 21) and 4-6 px wide; the outliers
-    at 85-212 px are the trace's own steep segments, which is what the upper bound excludes.
+    The centre comes from the VERTICAL stroke alone, the horizontal one only testing
+    presence: where a marker sits on the model line the horizontal stroke IS the line, and
+    a centre of mass of both pulls the GE sample onto Ballin's curve.
     """
-    # The rectangle spans the whole data region -- shrinking it to the part no tilted
-    # frame reaches costs 28 px of a 330 px panel and lost five of Figure 10's sixteen
-    # TORQ45 markers, which sit near the bottom of that axis. Instead the rectangle stays
-    # and the two tilted frames are blanked out of it, which is what `margin` was doing
-    # before the tilt was known.
+    # The rectangle spans the whole data region and the tilted frames are blanked out of it:
+    # shrinking it to clear the tilt loses markers near the bottom of an axis.
     lo = int(np.floor(min(p.top_at(p.left), p.top_at(p.right)))) + margin
     hi = int(np.ceil(max(p.bot_at(p.left), p.bot_at(p.right)))) - margin
     x0, x1 = p.left + margin, p.right - margin
@@ -452,14 +342,8 @@ def marker_centres(ink: np.ndarray, p: Panel, bar: int = 7, margin: int = 16) ->
 def snap_to_lattice(pts: np.ndarray, pitch_hint: float = 33.0) -> tuple[np.ndarray, dict]:
     """Keep one detection per sample slot, using the markers' own regular spacing.
 
-    The reference series is sampled at a fixed interval, so its markers sit on a lattice.
-    Where the model's trace touches a glyph the detector can split it in two or add a
-    spurious blob nearby; both show up as extra points *between* lattice slots. Fitting
-    the lattice and taking the best detection per slot removes them without inventing
-    anything -- the structure is printed on the page.
-
-    This is the same principle the appendix work settled on: assert on structure, not on
-    count. A stable count can be stably wrong.
+    The reference series is sampled at a fixed interval, so a split glyph or a spurious
+    blob nearby falls between lattice slots; the detection nearest each slot centre is kept.
     """
     if pts.shape[0] < 5:
         return pts, {"slots": 0, "pitch": float("nan"), "dropped": 0}
@@ -485,12 +369,8 @@ def snap_to_lattice(pts: np.ndarray, pitch_hint: float = 33.0) -> tuple[np.ndarr
         keep.append(cand[np.argmin(np.abs(cand[:, 0] - want))])
     out = np.array(sorted(keep, key=lambda q: q[0]))
 
-    # The series is sampled contiguously, so a detection separated from the rest by
-    # several empty slots is not a sample. Exactly one exists across the ten
-    # marker-bearing panels: Figure 10's T45 carries a blob five pitches past the end of
-    # the series, reading 1795.6 where the series ends at 1290.9, and it drew a lone `+`
-    # floating above that panel in every overlay. Trimmed from both ends, because the
-    # reason is symmetric.
+    # The series is sampled contiguously, so an end detection more than LATTICE_MAX_GAP
+    # pitches from its neighbour is not a sample. Trimmed from both ends.
     n_trim = 0
     while out.shape[0] > 5 and out[-1, 0] - out[-2, 0] > LATTICE_MAX_GAP * pitch:
         out = out[:-1]
@@ -511,69 +391,22 @@ def trace_line(
 ) -> np.ndarray:
     """Follow the solid model trace, one sample per column, markers masked out.
 
-    Two things had to be excluded, and the caption's stated fuel levels caught both.
+    A column is a sample only if, between the tilted frames less `margin`, it holds exactly
+    one ink run and that run is thin: legend text, a marker, a crossing or a near-vertical
+    segment is skipped, leaving a gap rather than a wrong sample. Count the runs BEFORE
+    filtering by width: filtering first lets a glyph's detached bar-top win over the merged
+    bar-and-line run (the spikes of open question #51).
 
-    `margin` removes the frame's **tick marks**: averaging a column over the full panel
-    height mixes the trace with the ticks and drags every sample toward the panel centre,
-    which read Figure 9's 400 lbm/hr level as 344.
+    `margin` (16 px) clears the frame ticks, which reach 13 px at the 99th percentile; a
+    wider one clips the trace where it settles near a frame (Figure 9's PCNG).
 
-    Its value is **measured, not guessed**. Scanning the inward protrusion of ink attached
-    to the top and bottom frame of all twelve panels, ticks reach at most 13 px at the 99th
-    percentile (the two larger readings, 26 and 21 px, are places where the trace itself
-    touches a frame). It was 20 px, and that was too much: Figure 9's PCNG trace settles at
-    98.79 %, which lands on row 1177.0 of a panel whose top is 1157 -- exactly the old
-    window edge. The trace was clipped out of those columns and the only ink left in them
-    was a GE `+` marker at 96.95, so the tracer read the marker as the curve and drew a
-    notch into the last 0.4 s of every PCNG overlay. 16 px clears the ticks and keeps the
-    trace.
-
-    The single-thin-run test removes the **legend**. It sits inside a panel in the right
-    half of the page, so from about t = 2 s onward the column mean was averaging the trace
-    with legend text -- the level read 775.6 correctly at t = 1.6 s and 453.6 at t = 4.6 s
-    on a line that never moves. A column of the bare trace is one run of a few pixels;
-    anything else is not the trace.
-
-    ## The spikes, and why they were ours
-
-    Until 2026-09-12 this function filtered the runs *before* counting them:
-    `runs = [r for r in runs if r.size <= 6]` and then `if len(runs) != 1`. That discards
-    a long run instead of rejecting the column, so a column carrying BOTH a long run and
-    a short one passed, and the short one won.
-
-    That is exactly the geometry of these panels. The GE `+` markers are drawn **on** the
-    model line, and each one's vertical bar has a slightly detached top. A column through
-    such a bar holds a long run -- the bar merged with the line -- plus a short, separate
-    run at the bar's top. The long run was thrown away and the sample was taken 40 px
-    above the trace, which on the T45 panel is 61 deg R. Those were the vertical spikes in
-    every overlay plot, and they were reported as a data defect of the scan (open question
-    #51) when they were a defect of this loop.
-
-    The fix is one line: count the runs **before** filtering. A column of the bare trace
-    has exactly one run and it is thin; anything else -- a marker, a crossing, legend
-    text, or a near-vertical segment of the trace itself -- is skipped, leaving a gap
-    rather than a wrong sample.
-
-    ## Why thinness is not enough, and continuity is
-
-    Counting the runs fixed the spikes that sat 40 px off the trace, but not all of them:
-    a glyph's detached bar-top is itself a thin single run in its column, and so is a
-    scrap of legend rule. Those survived, and on Figure 9's TORQ45 and Figure 10's T45
-    they put samples on the GE curve at the very end of the record, where a local
-    smoothness test cannot see them either because there is no "local" left.
-
-    The trace is a **connected** line, which is a far stronger property than thinness. So
-    the candidates are split wherever adjacency breaks -- a skipped column, or a jump
-    larger than the trace can make in one column -- and the blocks are then linked by
-    slope, from a backbone of the long ones outward. See the constants above for why
-    linking by slope and not by block length: a length threshold discarded Figure 9's
-    T41 peak.
+    A thin single run can still be a bar-top or a scrap of legend rule, so the candidates
+    are split into connected blocks and linked by slope (see the `TRACE_*` constants).
     """
     cand = []
     for x in range(p.left + margin, p.right - margin):
-        # The window follows the tilted frames. A fixed window is wrong by the tilt at the
-        # far end of the panel: on pdf p.46 the frames drop 11-14 px across the width, so a
-        # window pinned to the left-hand frame rows leaves only 2 px of clearance under the
-        # top frame at x = right, and the frame's own ink then enters the column as "trace".
+        # The window follows the tilted frames; a fixed one lets the frame's own ink into
+        # the column at the far end of the panel.
         y0 = int(np.ceil(p.top_at(x))) + margin
         y1 = int(np.floor(p.bot_at(x))) - margin
         col = ink[y0:y1, x]
@@ -592,11 +425,8 @@ def trace_line(
     if not cand:
         return np.zeros((0, 2))
 
-    # Continuity. A thin single run at a plausible y is still not proof: a glyph's
-    # detached bar-top presents exactly that, and so does a scrap of legend rule. The
-    # trace is a CONNECTED line, so split the candidates wherever adjacency breaks --
-    # either a skipped column or a jump larger than the trace can make in one column --
-    # and keep only blocks long enough to be trace rather than glyph.
+    # Continuity: split wherever adjacency breaks (a skipped column, or a jump larger than
+    # the trace can make in one column), then link the blocks by slope.
     blocks: list[list[tuple[int, float]]] = [[cand[0]]]
     for (x0, y0), (x1, y1) in zip(cand, cand[1:], strict=False):
         if x1 - x0 == 1 and abs(y1 - y0) <= TRACE_MAX_STEP_PX:
@@ -639,15 +469,9 @@ def trace_line(
 def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     """Map pixels to data for one panel, and check the map against the printed ticks.
 
-    Both frame lines of every axis here carry a printed value, so the frames pin the map
-    and the *interior major ticks* become the held-out check -- the reverse of the
-    appendix test, and just as strong: fit on two numbers, predict the ones you were not
-    given.
-
-    **`v_of` needs the column as well as the row.** The frames are tilted (see
-    `Panel.top_slope`), so the row that means `v_hi` depends on where along the panel you
-    are. Reading the value off the left-hand frame position alone put a ramp of up to 4
-    percent of panel height into every trace on pdf p.46.
+    Both frames of every axis carry a printed value, so they pin the (straight) map and the
+    interior major ticks are the held-out check. `v_of` needs the column as well as the row,
+    because the frames are tilted (see `Panel.top_slope`).
     """
 
     def x_of(px, py):
@@ -662,17 +486,9 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
         f = (np.asarray(py, float) - top) / (bottom - top)
         return p.v_hi + f * (p.v_lo - p.v_hi)
 
-    # The tick band follows the lower frame too, for the same reason the trace window does.
-    #
-    # It is rows 6 to 11 above the frame, and that is measured, not assumed. Counting
-    # inked columns row by row on the pdf p.45 PCNG panel: the frame's own antialiased
-    # shoulder puts 124 to 344 of 1672 columns in rows 2 to 5, the ticks put 35 to 45 in
-    # rows 6 to 11, and rows 12 and above hold only the trace, 7 to 15. Nothing is below
-    # the frame at all past row 3, so the ticks point inward. The band used to run rows 4
-    # to 16, which swallowed the shoulder at one end and the trace at the other: it found
-    # 62 groups across the twelve panels of which only 14 were within 0.3 s of an interior
-    # major, and it reported a contaminated worst miss of 0.1079 s. Rows 6 to 11 find 35 of
-    # the 48, worst 0.0154 s.
+    # The tick band follows the lower frame. Rows 6 to 11 above it, measured on the p.45
+    # PCNG panel: rows 2-5 hold the frame's own shoulder, rows 12 and up only the trace,
+    # and nothing lies below the frame, so the ticks point inward.
     counts = np.zeros(p.right - p.left + 1, dtype=int)
     for i, x in enumerate(range(p.left, p.right + 1)):
         yb = int(round(p.bot_at(x)))
@@ -695,11 +511,8 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
 def check_fuel_panel(fig: int, ts: np.ndarray, vs: np.ndarray, span: float) -> list[str]:
     """The WFPH panel against the caption. Returns a list of failures, empty if it passes.
 
-    Two things are checked, and the second is the one that matters. The **level** of each
-    plateau against the caption's stated flow catches a wrong axis range (it caught Figure
-    10 being digitized on Figure 9's 250-1000 axis). The **tilt** of each plateau catches
-    a wrong axis *orientation* -- a commanded constant that is not flat is the page skew,
-    and nothing else on either page can reveal it.
+    The LEVEL of each plateau against the stated flow catches a wrong axis range; the TILT
+    catches page skew, since a commanded constant must be flat.
     """
     lo, hi = FUEL_STEP[fig]
     mid = 0.5 * (lo + hi)
@@ -806,23 +619,11 @@ def main() -> int:
                             f"# sample lattice: pitch {info['pitch']:.2f} px "
                             f"= {x_of(p.left_at_top + info['pitch'], p.top) - T_LO:.4f} s\n"
                         )
-                    # The plotted curve ends before the panel does, and past its end the
-                    # walker re-acquires ink -- a frame line, a legend rule, a stray glyph
-                    # -- and emits it as more "samples". They are not data, and they were
-                    # what put a dip in every Figure 9 PCNG overlay.
-                    #
-                    # The separation is unambiguous, which is why this can be a rule and
-                    # not a judgment: measured over all twelve panels, every artifact sits
-                    # behind an x-gap of **more than 130x** the median sample interval,
-                    # while every legitimate continuation of a curve sits behind a gap of
-                    # 20-25x. The threshold is set at 50x, in the empty middle.
-                    #
-                    # Dropped, not annotated-and-kept as before. The earlier note said
-                    # "consumers must window it out", and three of them did not: the
-                    # overlay plots, the whole-curve metric and the shape metrics each had
-                    # to grow their own filter, and one of those filters was itself wrong
-                    # for a while. Provenance is preserved by recording here exactly what
-                    # was removed and why -- which is what the rule below writes.
+                    # Past the end of the plotted curve the walker re-acquires ink (a frame
+                    # line, a legend rule, a stray glyph). Every such artifact sits behind an
+                    # x-gap of more than 130x the median sample interval, every legitimate
+                    # continuation behind 20-25x, so `dropped` (above) cuts at 50x. Dropped
+                    # rather than kept, and recorded in the header (open question #48).
                     ts = ts_all
                     if dropped:
                         gaps = np.diff(ts)
