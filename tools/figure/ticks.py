@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .frame import EDGE, edge_spans
+from .frame import EDGE, corner_arc, edge_at, edge_spans
 from .frame import corners as frame_corners
 
 # --------------------------------------------------------------------------- the lattice
@@ -482,3 +482,69 @@ def fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of, verbose=True):
             )
         out[nm] = (fu, fv)
     return out
+
+
+def native_lattice(
+    ink, fc, to_sv, edges, guess, xedges, yedges, fine=True, tol=0.15, verbose=False
+):
+    """Every printed tick on the four edges, labelled, frame-edge ticks removed -- the native
+    family's lattice (A2, A7, A9), in the form `axis.axis_values` reads.
+
+    `edges[name]` is `(along, sign, lo, hi, long-tick threshold, all-tick threshold, coarse
+    step, fine step)`, `guess` the seeds for the four arc corners keyed `TL`, `TR`, `BL`,
+    `BR`, and `xedges`/`yedges` the frame values. `fine=False` keeps the long ticks alone,
+    which is all A2 uses.
+
+    Labelling is `label_ticks` on the long ticks (a discrete slot choice from the two frame
+    values, so it cannot leak into the continuous fit that is later tested against them),
+    then `label_by_map` for the fine lattice through a cubic fitted to the long ticks --
+    never through the straight line between the corners, which is several pixels out
+    mid-page and would silently discard a block of good minor ticks.
+    """
+    at = edge_at(fc, to_sv)
+    TL = corner_arc(fc, "top", "left", guess["TL"])
+    TR = corner_arc(fc, "top", "right", guess["TR"])
+    BL = corner_arc(fc, "bottom", "left", guess["BL"])
+    BR = corner_arc(fc, "bottom", "right", guess["BR"])
+    (X0, X1), (Y0, Y1) = xedges, yedges
+    ends = {
+        "left": (BL[1], TL[1], Y0, Y1),
+        "right": (BR[1], TR[1], Y0, Y1),
+        "bottom": (BL[0], BR[0], X0, X1),
+        "top": (TL[0], TR[0], X0, X1),
+    }
+
+    P = {"_xedges": xedges, "_yedges": yedges, "_span": {}}
+    for nm, (along, sign, lo, hi, th_long, th_all, step_c, step_f) in edges.items():
+        w0, w1, v0, v1 = ends[nm]
+        coarse = find_ticks(ink, fc[nm], along, sign, lo, hi, th_long)
+        wc, vc, keep_c = label_ticks(coarse, w0, w1, v0, v1, step_c, tol=tol)
+        tc = at(nm, wc)
+        if fine:
+            pc = np.polyfit(tc, vc, 3)
+            allt = find_ticks(ink, fc[nm], along, sign, lo, hi, th_all)
+            t, val, keep_f = label_by_map(at(nm, allt), pc, step_f)
+            n_raw, n_kept = allt.size, int(keep_f.sum())
+        else:
+            t, val = tc, vc
+            n_raw, n_kept = coarse.size, int(keep_c.sum())
+        step = step_f if fine else step_c
+        # how many steps does the frame span, by a STRAIGHT line through the lattice?
+        # This is the free check that fixes the unlabelled frame: it only has to pick an
+        # integer, so the bow's leak into it (~0.03 steps on A7) cannot reach the answer.
+        cl = np.polyfit(t, val, 1)
+        span = np.polyval(cl, 1.0) - np.polyval(cl, 0.0)
+        P["_span"][nm] = (float(span / step_c), float(span / step_f) if fine else None)
+        interior = (val > v0 + 0.4 * step) & (val < v1 - 0.4 * step)
+        P[nm] = (t[interior], val[interior])
+        if verbose:
+            k = np.round(val / step).astype(int)
+            slots = set(range(k.min(), k.max() + 1))
+            print(
+                f"  {nm:6s}: {coarse.size} long ticks -> {int(keep_c.sum())} labelled "
+                f"(dropped {np.round(coarse[~keep_c], 1)});  {n_raw} ticks at {step} -> "
+                f"{n_kept} labelled, {interior.sum()} interior; "
+                f"slots {k.min()}..{k.max()}, missing {sorted(slots - set(k.tolist()))}, "
+                f"duplicates {len(k) - len(set(k.tolist()))}"
+            )
+    return P

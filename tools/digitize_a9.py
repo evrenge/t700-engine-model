@@ -32,11 +32,9 @@ from pathlib import Path
 
 import numpy as np
 
-from figure.axis import axis_values, blend_axis, held_out, point_sigma, tail_cv_report
+from figure.axis import axis_values, blend_axis, held_out_table, point_sigma
 from figure.frame import (
-    corner_arc,
     curve_component,
-    edge_at,
     fit_edges,
     make_sv,
     print_segments,
@@ -45,7 +43,7 @@ from figure.frame import (
 from figure.glyph import fit_on_polyline, seeds_from_lattice
 from figure.provenance import calibration_lines, check_against_csv, check_calibration
 from figure.raster import native_bitmap, overlay
-from figure.ticks import find_ticks, label_by_map, label_ticks
+from figure.ticks import native_lattice
 
 OUT = Path("validation/out/digitize/a9redo")
 CSV = Path("data/maps/f9_pt_mass_flow.csv")
@@ -77,44 +75,18 @@ EDGES = {
 
 
 def tickset(fc, to_sv, verbose=False, fine=None):
-    ink = tickset.ink
-    at = edge_at(fc, to_sv)
-    fine = FINE if fine is None else fine
-    TL = corner_arc(fc, "top", "left", (469, 311))
-    TR = corner_arc(fc, "top", "right", (2130, 321))
-    BL = corner_arc(fc, "bottom", "left", (468, 2645))
-    BR = corner_arc(fc, "bottom", "right", (2125, 2662))
-    ends = {
-        "left": (BL[1], TL[1], Y0, Y1),
-        "right": (BR[1], TR[1], Y0, Y1),
-        "bottom": (BL[0], BR[0], X0, X1),
-        "top": (TL[0], TR[0], X0, X1),
-    }
-
-    P = {"_xedges": (X0, X1), "_yedges": (Y0, Y1)}
-    for nm, (along, sign, lo, hi, th_long, th_all, step_c, step_f) in EDGES.items():
-        w0, w1, v0, v1 = ends[nm]
-        coarse = find_ticks(ink, fc[nm], along, sign, lo, hi, th_long)
-        wc, vc, keep_c = label_ticks(coarse, w0, w1, v0, v1, step_c, tol=0.15)
-        tc = at(nm, wc)
-        pc = np.polyfit(tc, vc, 3)
-        if fine:
-            allt = find_ticks(ink, fc[nm], along, sign, lo, hi, th_all)
-            wf, vf, keep_f = label_by_map(at(nm, allt), pc, step_f)
-            t, val = wf, vf
-            n_raw, n_kept = allt.size, int(keep_f.sum())
-        else:
-            t, val = tc, vc
-            n_raw, n_kept = coarse.size, int(keep_c.sum())
-        step = step_f if fine else step_c
-        interior = (val > v0 + 0.4 * step) & (val < v1 - 0.4 * step)
-        P[nm] = (t[interior], val[interior])
-        if verbose:
-            print(
-                f"  {nm:6s}: {coarse.size} long ticks -> {keep_c.sum()} labelled;  "
-                f"{n_raw} ticks at {step} -> {n_kept} labelled, {interior.sum()} interior"
-            )
-    return P
+    """This page's tick lattice: `figure.ticks.native_lattice` with its edges and corners."""
+    return native_lattice(
+        tickset.ink,
+        fc,
+        to_sv,
+        EDGES,
+        {"TL": (469, 311), "TR": (2130, 321), "BL": (468, 2645), "BR": (2125, 2662)},
+        (X0, X1),
+        (Y0, Y1),
+        fine=FINE if fine is None else fine,
+        verbose=verbose,
+    )
 
 
 def report_models(P):
@@ -124,14 +96,13 @@ def report_models(P):
     ):
         for nm in edges:
             t, val = P[nm]
-            print(f"\n  --- {axis}, {nm} edge ({t.size} interior ticks) ---")
+            print(f"\n  --- {axis}, {nm} edge ---")
             lab = f"printed {hi} at 1" + ("" if lo is None else f", printed {lo} at 0")
             print(
                 f"   frame-edge held out ({lab}; not in the fit).  edge0 unprinted = a prediction"
             )
-            held_out(t, val, lo, hi, unit=1e-5, uname="e-5")
-            print("   tail CV (fit the middle 64 % of the lattice, predict the two ends):")
-            tail_cv_report(t, val, unit=1e-5, uname="e-5")
+            print("   tail CV: fit the middle 64 % of the lattice, predict the two ends")
+            held_out_table(t, val, lo, hi, 1e-5, "e-5", orders=(1, 2, 3, 4))
 
 
 def glyph_pass(ink, fc, seeds, lines, mask_line=False):

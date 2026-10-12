@@ -377,34 +377,34 @@ def axis_values(ink, spec, tickspec, C, frame_order, x_order, y_order, blend=Tru
     return out[0], out[1]
 
 
-def held_out(t, val, edge_lo, edge_hi, orders=(1, 2, 3, 4), unit=1.0, uname=""):
-    """Fit on interior ticks only, then predict the printed value at each frame edge."""
-    rows = []
+def held_out_table(t, val, lo, hi, unit=1.0, uname="", orders=(1, 2, 3, 4, 5, 6), label=""):
+    """Fit interior ticks alone; predict BOTH printed frame values; report LOO and tail CV.
+
+    `lo` or `hi` is None where that frame prints no value: the fit's prediction there is
+    still shown, as a measurement of the unprinted frame, with no error beside it. Returns
+    `{order: (interior rms, LOO, predicted low frame, predicted high frame)}`.
+    """
+    print(f"   {label}({t.size} interior ticks)")
+    print(
+        "     ord  interior rms       LOO     predict low frame (err)   "
+        "predict high frame (err)    tail-CV rms/max"
+    )
+    rows = {}
     for o in orders:
         c = np.polyfit(t, val, o)
         r = val - np.polyval(c, t)
         a, b = float(np.polyval(c, 0.0)), float(np.polyval(c, 1.0))
-        rows.append((o, float(r.std()), a, b))
-        ea = "     -    " if edge_lo is None else f"{a - edge_lo:+9.5f}"
-        eb = "     -    " if edge_hi is None else f"{b - edge_hi:+9.5f}"
+        e_loo = loo(t, val, o)
+        tc, tm = tail_cv(t, val, o)
+        rows[o] = (float(r.std()), e_loo, a, b)
+        ea = "unprinted" if lo is None else f"{(a - lo) / unit:+8.4f}{uname}"
+        eb = "unprinted" if hi is None else f"{(b - hi) / unit:+8.4f}{uname}"
         print(
-            f"    order {o}: interior rms {r.std() / unit:8.3f}{uname}   "
-            f"edge0 {a:11.6f} ({ea})   edge1 {b:11.6f} ({eb})"
+            f"     {o}  {r.std() / unit:10.4f}{uname} {e_loo / unit:9.4f}{uname}  "
+            f"{a:11.5f} ({ea})  {b:11.5f} ({eb})"
+            f"   {tc / unit:7.3f}/{tm / unit:7.3f}"
         )
     return rows
-
-
-def tail_cv_report(t, val, frac=0.18, orders=(1, 2, 3, 4), unit=1.0, uname=""):
-    """`tail_cv` over a range of orders, printed. Uses no printed frame value."""
-    for o in orders:
-        rms, mx = tail_cv(t, val, o, frac)
-        lo, hi = t.min(), t.max()
-        span = hi - lo
-        inner = (t > lo + frac * span) & (t < hi - frac * span)
-        print(
-            f"    order {o}: held-out rms {rms / unit:8.3f}{uname}  max {mx / unit:8.3f}{uname}"
-            f"   (fit {inner.sum()}, test {(~inner).sum()})"
-        )
 
 
 def point_sigma(P, fc, C, s, v, px, py, x_order, y_order, glyph_px, mx, my):

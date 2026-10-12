@@ -63,15 +63,12 @@ from figure.axis import (
     choose,
     fit_anchored,
     fit_soft_anchored,
+    held_out_table,
     parity,
     point_sigma,
-    tail_cv,
 )
-from figure.axis import loo as _loo
 from figure.frame import (
-    corner_arc,
     curve_component,
-    edge_at,
     fit_edges,
     frame_offsets,
     inside_frame,
@@ -82,7 +79,7 @@ from figure.frame import (
 from figure.glyph import fit_on_polyline
 from figure.provenance import check_against_csv
 from figure.raster import native_bitmap, overlay
-from figure.ticks import find_ticks, label_by_map, label_ticks
+from figure.ticks import native_lattice
 
 OUT = Path("validation/out/digitize/a7redo")
 CSV = Path("data/maps/f7_gg_turbine_energy.csv")
@@ -119,6 +116,8 @@ VARIANTS = [
     for hd in (True, False)
 ]
 
+CORNER_GUESS = {"TL": (480, 303), "TR": (2140, 325), "BL": (458, 2639), "BR": (2114, 2669)}
+
 MASK = {0: ("left", 7.0), 5: ("right", 7.0)}  # markers that sit ON a frame line
 TMPL0 = [np.radians(-44.0), 14.9, np.radians(46.0), 15.2, 3.46, 3.52]
 
@@ -127,91 +126,21 @@ TMPL0 = [np.radians(-44.0), 14.9, np.radians(46.0), 15.2, 3.46, 3.52]
 
 
 def tickset(fc, to_sv, verbose=False, fine=None):
-    """Every printed tick on the four edges, labelled, frame-edge ticks removed.
-
-    Labelling is `label_ticks` on the long ticks (a discrete slot choice from the two frame
-    values, so it cannot leak into the continuous fit that is later tested against them),
-    then `label_by_map` for the fine lattice through a cubic fitted to the long ticks --
-    never through the straight line between the corners, which is several pixels out
-    mid-page and would silently discard a block of good minor ticks.
-    """
-    ink = tickset.ink
-    at = edge_at(fc, to_sv)
-    fine = FINE if fine is None else fine
-    TL = corner_arc(fc, "top", "left", (480, 303))
-    TR = corner_arc(fc, "top", "right", (2140, 325))
-    BL = corner_arc(fc, "bottom", "left", (458, 2639))
-    BR = corner_arc(fc, "bottom", "right", (2114, 2669))
-    ends = {
-        "left": (BL[1], TL[1], Y0, Y1),
-        "right": (BR[1], TR[1], Y0, Y1),
-        "bottom": (BL[0], BR[0], X0, X1),
-        "top": (TL[0], TR[0], X0, X1),
-    }
-
-    P = {"_xedges": (X0, X1), "_yedges": (Y0, Y1), "_span": {}}
-    for nm, (along, sign, lo, hi, th_long, th_all, step_c, step_f) in EDGES.items():
-        w0, w1, v0, v1 = ends[nm]
-        coarse = find_ticks(ink, fc[nm], along, sign, lo, hi, th_long)
-        wc, vc, keep_c = label_ticks(coarse, w0, w1, v0, v1, step_c, tol=0.15)
-        tc = at(nm, wc)
-        pc = np.polyfit(tc, vc, 3)
-        if fine:
-            allt = find_ticks(ink, fc[nm], along, sign, lo, hi, th_all)
-            t, val, keep_f = label_by_map(at(nm, allt), pc, step_f)
-            n_raw, n_kept = allt.size, int(keep_f.sum())
-        else:
-            t, val = tc, vc
-            n_raw, n_kept = coarse.size, int(keep_c.sum())
-        step = step_f if fine else step_c
-        # how many steps does the frame span, by a STRAIGHT line through the lattice?
-        # This is the free check that fixes the unlabelled frame: it only has to pick an
-        # integer, so the bow's leak into it (~0.03 steps here) cannot reach the answer.
-        cl = np.polyfit(t, val, 1)
-        P["_span"][nm] = (
-            float((np.polyval(cl, 1.0) - np.polyval(cl, 0.0)) / step_c),
-            float((np.polyval(cl, 1.0) - np.polyval(cl, 0.0)) / step_f),
-        )
-        interior = (val > v0 + 0.4 * step) & (val < v1 - 0.4 * step)
-        P[nm] = (t[interior], val[interior])
-        if verbose:
-            k = np.round(val / step).astype(int)
-            slots = set(range(k.min(), k.max() + 1))
-            print(
-                f"  {nm:6s}: {coarse.size} long ticks -> {int(keep_c.sum())} labelled "
-                f"(dropped {np.round(coarse[~keep_c], 1)});  {n_raw} ticks at {step} -> "
-                f"{n_kept} labelled, {interior.sum()} interior; "
-                f"slots {k.min()}..{k.max()}, missing {sorted(slots - set(k.tolist()))}, "
-                f"duplicates {len(k) - len(set(k.tolist()))}"
-            )
-    return P
+    """This page's tick lattice: `figure.ticks.native_lattice` with its edges and corners."""
+    return native_lattice(
+        tickset.ink,
+        fc,
+        to_sv,
+        EDGES,
+        CORNER_GUESS,
+        (X0, X1),
+        (Y0, Y1),
+        fine=FINE if fine is None else fine,
+        verbose=verbose,
+    )
 
 
 # --------------------------------------------------------------------------- axis model
-
-
-def held_out_table(t, val, lo, hi, unit=1.0, uname="", orders=(1, 2, 3, 4, 5, 6), label=""):
-    """Fit interior ticks alone; predict BOTH printed frame values; report LOO and tail CV."""
-    print(f"   {label}({t.size} interior ticks)")
-    print(
-        "     ord  interior rms       LOO     predict low frame (err)   "
-        "predict high frame (err)    tail-CV rms/max"
-    )
-    rows = {}
-    for o in orders:
-        c = np.polyfit(t, val, o)
-        r = val - np.polyval(c, t)
-        a, b = float(np.polyval(c, 0.0)), float(np.polyval(c, 1.0))
-        loo = _loo(t, val, o)
-        tc, tm = tail_cv(t, val, o)
-        rows[o] = (float(r.std()), loo, a, b)
-        print(
-            f"     {o}  {r.std() / unit:10.4f}{uname} {loo / unit:9.4f}{uname}  "
-            f"{a:11.5f} ({(a - lo) / unit:+8.4f}{uname})  "
-            f"{b:11.5f} ({(b - hi) / unit:+8.4f}{uname})"
-            f"   {tc / unit:7.3f}/{tm / unit:7.3f}"
-        )
-    return rows
 
 
 def choose_order(rows, lo, hi, unit=1.0, uname=""):
