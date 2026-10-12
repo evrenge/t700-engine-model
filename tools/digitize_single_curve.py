@@ -1,10 +1,10 @@
 """The single-curve digitizer: thirteen figures across both appendices of TM-100991.
 
-Same method as `tools/digitize_a7.py`, generalised. Every figure here plots one curve or
-one marker series per panel, which is what lets the markers be found without reading
-anything off the page; the two Appendix C figures whose curves must be told apart live in
-`digitize_multi_curve.py` and `digitize_c30.py`, and both take their frame location,
-tick lattice and axis calibration from `figure.axis.calibrate_under`, as this tool does.
+Same method as `tools/digitize_a7.py`, generalised (see `docs/notes/digitizing-recipe.md`).
+Every figure here plots one curve or marker series, so the markers are found without reading
+anything off the page. The two Appendix C figures whose curves must be told apart live in
+`digitize_multi_curve.py` and `digitize_c30.py`; both take their calibration from
+`figure.axis.calibrate_under`, as this tool does.
 
     A3,  pdf p.58 -> f3    seal-pressurization bleed      data/maps/f3_seal_bleed_fraction.csv
     A4,  pdf p.59 -> f4    PT-balance bleed               data/maps/f4_pt_balance_bleed_fraction.csv
@@ -15,41 +15,17 @@ tick lattice and axis calibration from `figure.axis.calibrate_under`, as this to
     A11, pdf p.66 -> f_hs  station 4.1 heat-sink constant data/maps/fhs_heat_sink_constant.csv
     C24-C29, pp.95-100 -> F_HM1..F_HM6                    data/schedules/fhm[1-6]_*.csv
 
-A1, A2, A7 and A9 have their own tools: each needed something this path does not do.
+A1, A2, A7 and A9 have their own tools.
 
-Why A6, A8 and A10 were redone first, which is where the method here came from:
-re-digitizing A7 showed that a LINEAR axis map cannot fit these
-scans -- the page bows along the scan direction by several pixels -- and that every figure
-which prints a value at a frame edge can test its own calibration model against a number
-the fit was never given.  All three figures here print a value at at least three of their
-four frame edges, so the test is available on every axis.
-
-What this does:
-
-1.  Works on the SCAN.  `pdfimages -list` shows pp.61/63/65 are each one 300 dpi 1-bit
-    CCITT image, so any higher-dpi render is an upsample.  The bitmap is pulled out with
-    `pdfimages` and NEVER resampled: rotation and keystone are carried as a homography
-    applied to the measured points, so no interpolation touches the data.
-2.  Fits the four frame lines sub-pixel and calibrates on every printed MAJOR tick on all
-    four edges.  Ticks are matched to their printed values by predicted lattice slot, not
-    by a protrusion-length threshold -- a marker sitting on a frame line out-protrudes a
-    major tick, and on A6 the flat data line protrudes all the way across.
-3.  Chooses the polynomial order per axis by the HELD-OUT FRAME TEST: fit the interior
-    majors only, then predict the printed value at the frame.  Reports orders 1-4 against
-    printed, guards the choice with leave-one-tick-out on the ticks themselves (without it
-    a high order wins A10's x axis by fitting noise), and refits from each edge separately
-    to check they agree.  The order that wins is NOT the same on any two of the six axes.
-4.  Locates the markers by fitting a generative model of the local ink -- two glyph
-    strokes plus the joining half-segments, all radiating from one point -- scored against
-    ink AND background over an unmasked disc.  Frame lines and tick marks are masked
-    (symmetrically about the frame line, so the mask cannot bias the abscissa), never
-    modelled.  Seeds come from a morphological opening, which is independent of density.
+Per figure: the native 300 dpi scan, never resampled; frame edges fitted straight or as
+arcs, whichever predicts the printed frame values better; ticks matched to their printed
+values by predicted lattice slot, not protrusion length (a marker on a frame out-protrudes
+a major tick); axis order by the held-out frame test, guarded by leave-one-tick-out;
+markers seeded by a morphological opening and fitted by the generative glyph model, with
+frame and ticks masked symmetrically so the mask cannot bias the abscissa.
 
 Run from the repo root.  Writes the thirteen CSVs and overlays under
 validation/out/digitize/.  Needs `pdfimages` (poppler).
-
-This module lives in tools/ and may use SciPy and PIL.  Nothing here is imported by
-src/t700/.
 """
 
 from __future__ import annotations
@@ -240,29 +216,14 @@ def seeds(
 ):
     """Marker seeds from a morphological opening -- no density, no threshold sweep.
 
-    The joining polyline is ~3.5 px wide; where two 3.5 px strokes cross at right angles
-    the ink is ~5 px wide in every direction, so a 7x7 opening erases the line and every
-    tick and leaves one core per marker.  Cores closer than 12 px are one marker split by
-    the scan (A10's 70 % marker does this).
-
-    `open_sz` and `rail` exist because the Appendix C plots are drawn with a lighter pen.
-    On C24 a 7x7 opening erases the ninth marker outright -- it is not filtered out, it is
-    never found -- while 6x6 keeps it and also keeps a rail of fragments along the frame
-    lines. `rail` is the distance from a frame inside which a component is discarded: the
-    default -14 keeps anything up to 14 px OUTSIDE the frame, which A6/A8/A10 need because
-    their end markers sit on it, and a positive value discards anything within that many
-    pixels INSIDE it, which C24 needs because its markers all stand at least 33 px clear.
-
-    `min_size` drops fragments by area. A3 needs it: at the 6x6 opening its two steepest
-    markers finally separate from the curve, but four fragments survive as well -- three on
-    the left frame rail and one on the top frame -- and they are 36 to 48 px against 72 to
-    151 px for every real marker. Size separates them where position cannot, because A3's
-    first and last markers sit on those same frames.
-
-    `rail` may also be a 4-tuple `(left, right, top, bottom)` when a page needs both at once.
-    A11 does: its end markers sit ON the left and right frames, so those two must stay
-    negative, while a band of tick-label fragments runs along the inside of the bottom
-    frame and has to be excluded -- its real markers all stand 450 px clear of it.
+    A 7x7 opening erases the ~3.5 px joining line and every tick but keeps the crossing of
+    a marker's two strokes; cores closer than `merge` px are one marker split by the scan.
+    `open_sz` 6 keeps the lighter-pen Appendix C markers that a 7x7 opening erases outright.
+    `rail` is the distance from a frame inside which a component is discarded: negative
+    keeps components up to that far OUTSIDE it (end markers that sit on a frame), positive
+    drops those that far INSIDE it; a 4-tuple `(left, right, top, bottom)` sets each frame.
+    `min_size` drops small fragments anywhere, `rail_min_size` only within `rail_zone` of a
+    frame. The per-figure reasons are in `FIGS` and the CSV headers.
     """
     Y, X = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]]
     dL = _dist(fr["left"], X, Y)
@@ -286,11 +247,8 @@ def seeds(
     if min_size:
         ky &= sz >= min_size
     if rail_min_size:
-        # A size floor that applies ONLY within `rail_zone` of a frame line. C27 needs
-        # exactly this: seven fragments of its left frame survive the opening at 36 px,
-        # its marker at XLDSA = 0 sits on that same frame at 209 px, and its marker at
-        # XLDSA = 90 is also 36 px but stands in open plot. A global floor would drop the
-        # real one; a rail exclusion would drop the other. Size near a frame separates them.
+        # a size floor near a frame only: C27's frame fragments are as small as a real
+        # marker standing in open plot
         near = (
             (np.abs(_dist(fr["left"], cx, cy)) < rail_zone)
             | (np.abs(_dist(fr["right"], cx, cy)) < rail_zone)
@@ -372,23 +330,12 @@ def run(key):
     ink = native_bitmap(cfg["page"])
     fspec = auto_frame_spec(cfg["page"])
 
-    # ---- straight edges or arcs? The figure decides, by the same held-out frame test.
-    #
-    # A printed straight edge does not image straight here: fitted as a quadratic these
-    # frame edges carry sagittae of 0.3 to 3.5 px, and `docs/notes/digitizing-recipe.md`
-    # trap 7 concluded from that "the frame edges are arcs, so a homography is wrong too".
-    # Measured across all thirteen figures, that does not generalise -- most of them
-    # predict their own printed frame value BETTER under the straight model. So the rule
-    # is the one used everywhere else here: run both, keep whichever predicts the number
-    # it was never shown, summed over the figure's two axes.
-    #
-    # It has to be asked on the FINE lattice to get the right answer. On the majors alone
-    # A8 preferred arcs by 17.7x; with ten times the ticks it prefers straight by 7.9x.
+    # ---- straight edges or arcs? The figure decides (recipe trap 7): run both, keep
+    # whichever predicts the printed frame values better, summed over both axes. Asked on
+    # the fine lattice; on the majors alone A8 gives the opposite answer.
     trials = {fo: calibrate_under(ink, fspec, cfg, fo, verbose=False) for fo in (1, 2)}
-    # Straight is the incumbent, so arcs have to win by a MARGIN, not a hair. Without one,
-    # C27 switches on 1.537 against 1.525 per-mille -- eight parts in a thousand, which is
-    # a coin flip, and a coin flip should not move a published number. The four figures
-    # that clear 10 % clear it by 2.1x, 4.3x and 11x; nothing sits near the threshold.
+    # Straight is the incumbent, so arcs must win by a margin: a near-tie should not move a
+    # published number.
     forder = 2 if trials[2]["score"] < FRAME_MARGIN * trials[1]["score"] else 1
     print(
         f"frame model: straight {trials[1]['score']:.3f} per-mille vs arcs "
@@ -474,13 +421,9 @@ def run(key):
             f"(max {s.max():.4g})"
         )
 
-    # ---- independent bow-free check: local linear interpolation between the two ticks
-    #      that bracket each point, done on each ticked edge and averaged.
-    #
-    # It cannot see a global bow because it never fits one, so where it agrees with the
-    # chosen polynomial, that polynomial is not wandering between ticks. The nodes are
-    # whichever lattice the axis chose -- on a fine lattice the brackets are five to
-    # twenty-five times tighter, which makes this a much sharper check than it was.
+    # ---- independent bow-free check: linear interpolation between the two ticks that
+    #      bracket each point, on each ticked edge, averaged. It never fits a bow, so where
+    #      it agrees with the chosen polynomial, that polynomial is not wandering between ticks.
     print("  local two-tick check (bow-free), chosen-model minus local:")
     twotick = {}
     for ax, t, aspec, poly, edges in (
@@ -539,6 +482,7 @@ def run(key):
 
 # --------------------------------------------------------------------------- the CSVs
 
+# The 2026-09-10 extraction, kept so the header's MOVEMENT block can report the move in sigma.
 OLD = {
     "a3": [
         (65.0605, 0.108942),
@@ -564,7 +508,7 @@ OLD = {
         (80.1002, 6.20473),
         (85.0158, 7.49719),
         (99.9736, 7.49719),
-    ],  # the 2026-09-10 extraction, kept so the move can be reported in sigma
+    ],
     "a8": [
         (0.300661, 33.8654),
         (0.35024, 30.2596),
@@ -1133,12 +1077,8 @@ def _pixel_to_unit(to_uv, C, axis):
 
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    # Every figure this tool owns, not a subset. It defaulted to ["a8", "a10", "a6"] --
-    # the three the old filename `digitize_a6810.py` named -- while FIGS grew to thirteen,
-    # and `tools/reproduce_all.sh` invokes this with no arguments. So ten committed files
-    # (f3, f4, f5, f_hs and F_HM1-F_HM6) carried a header saying "reruns and reproduces
-    # this file" that nothing had ever checked. Found 2026-09-14 by the rename: a full gate
-    # run rewrote the provenance line in three files and left those ten untouched.
+    # Every figure this tool owns: the gate runs it with no arguments, so a narrower
+    # default would leave committed files unchecked (tests/test_reproducibility_gate.py).
     keys = [a for a in argv if a in FIGS] or list(FIGS)
     for k in keys:
         r = run(k)
