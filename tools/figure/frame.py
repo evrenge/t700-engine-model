@@ -80,9 +80,15 @@ def trace(ink, along, lo, hi, tlo, thi, maxw=8):
 def robust_keep(t, v, tol=2.0, it=8):
     """Which traced points belong to the line: iterated straight fit, |resid| < `tol`."""
     keep = np.ones(t.shape, bool)
-    for _ in range(it):
+    for k in range(it):
         s, i = np.polyfit(t[keep], v[keep], 1)
         new = np.abs(v - (i + s * t)) < tol
+        if new.sum() < 20 and k == 0:
+            # keeping `keep` here would fit the whole contaminated trace
+            raise AssertionError(
+                f"only {int(new.sum())} of {t.size} traced points lie within {tol} px of a "
+                f"straight fit -- the trace is not one line"
+            )
         if new.sum() < 20 or (new == keep).all():
             break
         keep = new
@@ -169,6 +175,9 @@ def corner_arc(fc, hor, ver, guess):
 def corners(fc, order=1, guess=None):
     """The four corners as (TL, TR, BR, BL), by whichever formula the model admits."""
     if order == 1:
+        if any(np.atleast_1d(c).size > 2 for c in fc.values()):
+            # `as_lines` would return the tangent at t = 0, far off the ink
+            raise AssertionError("corners(order=1) was handed a higher-order frame fit")
         fr = as_lines(fc)
         return (
             corner_line(fr["top"], fr["left"]),

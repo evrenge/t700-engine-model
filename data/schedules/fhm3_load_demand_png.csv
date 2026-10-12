@@ -25,7 +25,7 @@
 # does not image straight here, so BOTH models are fitted and the figure chooses: fit
 # each edge as a line, or as an arc, and keep whichever predicts the printed frame
 # values it was never shown. Summed held-out error over both axes, per-mille of range:
-#   straight 2.483   arcs 1.204   ->  ARCS (arcs must win by 10 %; straight is the incumbent)
+#   straight 1.498   arcs 1.204   ->  ARCS (arcs must win by 10 %; straight is the incumbent)
 #   left   x = 607.029 -0.00162893241 y -3.42134307e-07 y^2   (-0.151 deg, 1655 samples, rms 1.01 px, sagitta +0.46 px)
 #   right  x = 2273.752 -0.00153883485 y -7.35935749e-07 y^2   (-0.219 deg, 1820 samples, rms 0.94 px, sagitta +0.84 px)
 #   top    y = 296.414 +0.00301869732 x +8.39014971e-07 x^2   (+0.311 deg, 1489 samples, rms 0.74 px, sagitta -0.56 px)

@@ -42,18 +42,37 @@ from .frame import corners as frame_corners
 
 # --------------------------------------------------------------------------- the lattice
 
+MAX_TICK_WIDTH_PX = 10
+"""Widest protrusion run accepted as a major tick. Measured 2026-10-12 over 797 matched
+majors on the thirteen single-curve figures: median 4 px, 99th percentile 5. The rejects
+are C25's right edge -- a 129 px run where ticks merge with a thickened frame, whose
+centroid sat 32 px off the y = 11 tick, and the marker printed on the frame at y = 0."""
+
+SLOT_TOL = 0.1
+"""How far from its predicted slot a major may be matched, as a fraction of the major step.
+Correct matches sit within 0.05. The 0.25 used before let a minor tick stand in for a major
+hidden under a marker: A11 and C26 under the straight frame took one 4 and 2 minors away."""
+
+MINOR_RATIO_TOL = 0.02
+"""Largest departure of major/minor spacing from a whole number, relative. Worst 1.7 %."""
+
 
 def major_step(ax):
     """The axis's major-tick interval, whether given as `step` or implied by `majors`."""
     if "step" in ax:
-        return float(ax["step"])
-    v = np.asarray(ax["majors"], float)
-    d = np.diff(v)
-    if d.size == 0:
-        raise AssertionError("an axis needs either `step` or two or more `majors`")
-    if np.ptp(d) > 1e-9 * abs(d[0]):
-        raise AssertionError(f"majors are not evenly spaced: {v}")
-    return float(d[0])
+        step = float(ax["step"])
+    else:
+        v = np.asarray(ax["majors"], float)
+        d = np.diff(v)
+        if d.size == 0:
+            raise AssertionError("an axis needs either `step` or two or more `majors`")
+        if np.ptp(d) > 1e-9 * abs(d[0]):
+            raise AssertionError(f"majors are not evenly spaced: {v}")
+        step = float(d[0])
+    if step <= 0.0:
+        # a negative step disables `_dedupe`'s off-lattice rejection without a sound
+        raise AssertionError(f"major step is {step}; list `majors` ascending")
+    return step
 
 
 def major_values(ax):
@@ -138,6 +157,7 @@ def pick_majors(cands, t0, t1, frac, name, max_missing=2, verbose=True):
     n = len(frac)
     slots = [t0 + (t1 - t0) * f for f in frac]
     step = (t1 - t0) / (n + 1)
+    cands = [g for g in cands if g[2] <= MAX_TICK_WIDTH_PX]
     win = 0.25 * abs(step)
     seed = []
     for s in slots:
@@ -149,7 +169,11 @@ def pick_majors(cands, t0, t1, frac, name, max_missing=2, verbose=True):
     lmaj = float(np.median(seed))
     out, missing = [], 0
     for s in slots:
-        c = [g for g in cands if abs(g[0] - s) < win and 0.55 * lmaj <= g[1] <= 1.7 * lmaj]
+        c = [
+            g
+            for g in cands
+            if abs(g[0] - s) < SLOT_TOL * abs(step) and 0.55 * lmaj <= g[1] <= 1.7 * lmaj
+        ]
         if not c:
             out.append(float("nan"))
             missing += 1
@@ -281,6 +305,8 @@ def find_ticks(ink, edge_poly, along, sign, lo, hi, thresh, half=60, gap=2, maxw
 
 def _dedupe(t, est, step, tol):
     """Keep one tick per lattice slot -- the closest -- and drop anything off-lattice."""
+    if step <= 0.0:
+        raise AssertionError(f"lattice step is {step}; off-lattice rejection needs it positive")
     k = np.round(est / step)
     d = np.abs(est - k * step) / step
     keep = d <= tol
@@ -384,7 +410,11 @@ def fine_lattice(ink, edge_poly, along, sign, lo, hi, to_u, coarse, major_px, st
     got = minors_per_major(raw, major_px)
     if got is None:
         return None
-    n, _ratio, _minor_px = got
+    n, ratio, _minor_px = got
+    if n < 1 or abs(ratio - n) > MINOR_RATIO_TOL * n:
+        raise AssertionError(
+            f"major/minor spacing is {ratio:.3f}, not a whole number to {MINOR_RATIO_TOL:.0%}"
+        )
     u = np.asarray(to_u(raw), float)
     uk, vk, _keep = label_by_map(u, coarse, step / n)
     return uk, vk, n, int(raw.size)

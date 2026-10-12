@@ -71,6 +71,9 @@ def edge_str(name, coeffs, var, along):
     larger than the bow the term exists to describe.
     """
     c = np.atleast_1d(np.asarray(coeffs, float))
+    if c.size > 1 and abs(c[-2]) > 0.1:
+        # frames are within a degree of square; a large slope is an (intercept, slope) pair
+        raise ValueError(f"{name}: slope {c[-2]:.4g} -- coefficients not highest power first?")
     terms = [f"{c[-1]:.3f}"]
     for p in range(1, len(c)):
         a = c[len(c) - 1 - p]
@@ -96,6 +99,10 @@ def parse_poly(expr: str, var: str) -> np.ndarray:
     as the variable.
     """
     expr = expr.split("(")[0].strip()
+    foreign = set(re.findall(r"(?<![\d.])[A-Za-z_]+", expr)) - {var}
+    if foreign:
+        # parsing `0.55 u + 0.30` for `y` used to sum the two into a constant, silently
+        raise ValueError(f"{expr!r} names {sorted(foreign)}, expected only {var!r}")
     c: dict[int, float] = {}
     pattern = rf"([-+]?\s*[\d.]+(?:[eE][-+]?\d+)?)\s*(?:\*\s*)?({var}(?:\^(\d+))?)?"
     for coef, hasvar, power in re.findall(pattern, expr):
@@ -114,7 +121,7 @@ def parse_poly(expr: str, var: str) -> np.ndarray:
             k = 1
         c[k] = c.get(k, 0.0) + value
     if not c:
-        return np.array([0.0])
+        raise ValueError(f"no polynomial in {expr!r}")
     return np.array([c.get(k, 0.0) for k in range(max(c), -1, -1)])
 
 
@@ -128,11 +135,15 @@ def parse_calibration(path):
     txt = header(path)
     frame = {}
     for name in ("left", "right", "top", "bottom"):
-        m = re.search(rf"^#\s+{name}\s+([xy]) = ([^\n(]+)", txt, re.M)
-        if not m:
+        # the axis maps share this prefix (`left x = ... u`); take the line in the frame's
+        # own variable, not the first match
+        for m in re.finditer(rf"^#\s+{name}\s+([xy]) = ([^\n(]+)", txt, re.M):
+            var = "y" if m.group(1) == "x" else "x"
+            if re.search(rf"(?<![A-Za-z]){var}(?![A-Za-z])", m.group(2)):
+                frame[name] = parse_poly(m.group(2), var)
+                break
+        else:
             return None
-        var = "y" if m.group(1) == "x" else "x"
-        frame[name] = parse_poly(m.group(2), var)
     axes = {}
     for axis, var in (("x", "u"), ("y", "v")):
         cand = []

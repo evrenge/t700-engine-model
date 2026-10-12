@@ -28,15 +28,15 @@ than quoting a stored number.
 |---|---|
 | **Table B.1, the printed engine state** | **rms 0.22 %** over 21 numbers — worst shaft power −0.81 % at descent |
 | **Table 1, printed eigenvalues** | all **27** modes across three model variants: rms 5.4 %, worst +14.9 % on the 5-DOF P45 mode at hover |
-| **Appendix B, 297 printed elements** | zero structure exact; **all 206 non-zero elements** carry a numeric per-element comparison. `A` rms 7.8 % over 158, `b` rms 5.3 % over 42 |
-| **Closed loop vs Table B.1** | **worst 0.32 %** over NG, NP, Wf, Ps3 and shaft power at three trims — **with fuel flow as an output**, averaged over the governor's own limit cycle |
-| Figure 6, NG vs fuel flow | mean +0.01 %NG, rms 0.24, worst −1.00 over all 29 printed points |
-| Figure 7, shaft power vs fuel flow | mean −0.13 %, rms 0.60 %, worst −1.67 over all 15 |
-| Figure 8, Ps3 vs NG | mean −0.35 %, rms 0.46 %, worst −0.98 over 26 of 27 |
-| Figures 9 and 10, fuel transients | whole-curve rms **0.66–3.82 %** of each panel's excursion, mean 1.66 % over ten panels |
+| **Appendix B, 297 printed elements** | zero structure exact; **all 206 non-zero elements** carry a numeric per-element comparison. `A` rms 7.8 % over 158, `b` rms 5.5 % over 42 |
+| **Closed loop vs Table B.1** | **worst 0.25 %** over NG, NP, Wf, Ps3 and shaft power at three trims — **with fuel flow as an output**, averaged over the governor's own limit cycle |
+| Figure 6, NG vs fuel flow | mean 0.00 %NG, rms 0.23, worst −1.01 over all 29 printed points |
+| Figure 7, shaft power vs fuel flow | mean +0.19 %, rms 0.68 %, worst +2.15 over 14 of 15 |
+| Figure 8, Ps3 vs NG | mean +0.06 %, rms 0.27 %, worst +0.65 over 26 of 27 |
+| Figures 9 and 10, fuel transients | whole-curve rms **0.62–3.80 %** of each panel's excursion, mean 1.64 % over ten panels |
 | The report's own claim about Figure 6 | reproduced: we overestimate fuel by **+6.17 %** in the 81–86 %NG band it names, against its own line's +5.82 % and its printed "as much as five percent" |
 | Frame cost | **31 µs** at a held trim, against the report's 10 ms budget |
-| Tests | 1152 passing, 3 skipped, lint and formatting clean; the suite runs in 34 s |
+| Tests | 1182 passing, 1 failing — the descent 3-DOF `b(T41)`, open question #73 — 3 skipped; lint and formatting clean; the suite runs in 42 s |
 
 ## What is in here
 
