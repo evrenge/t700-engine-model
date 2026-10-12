@@ -829,8 +829,10 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   turbine row of every linear comparison is supplied rather than predicted. The residual
   without them is the same &minus;51.8 / &minus;53.5 / &minus;54.6 % in all four model variants
   to five figures, which is what a missing term in one equation should do.</p>
-  <p><strong>{{n_open}} open questions remain</strong>, listed in &sect;9 with where each one
-  stands.</p>
+  <p><strong>Six open questions remain</strong>, and every one is a place where the report is
+  silent and a choice was made, not a place where something is unexplained. Four are
+  deliberate departures on record; two are ambiguities the source cannot settle, both with
+  their cost measured.</p>
   <p><strong>Above 100 %NG nothing is claimed.</strong> That ceiling is Ballin&rsquo;s, stated
   in his own validation section, and a replication inherits it.</p>
   </div>
@@ -842,7 +844,10 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   <div class="col">
   <p>Anything the report does not answer goes into a ledger rather than into the code as a
   guess. Of {{n_logged}} questions logged over the project, these {{n_open}} remain open and
-  {{n_partly}} are partly closed.</p>
+  {{n_partly}} are partly closed. <strong>Every open one is a place where the report is
+  silent and a choice was made</strong>, not a place where something is unexplained &mdash;
+  four are deliberate departures on record, and two are ambiguities the source cannot settle,
+  both with their cost measured.</p>
   <p>None of them blocks a result. They are listed because a departure nobody can see is a
   departure that will be undone by accident, and because a reader deciding how much weight to
   put on a number in &sect;6 should know which of these sits underneath it.</p></div>
@@ -851,13 +856,13 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
       <th scope="col">Question</th><th scope="col">Where it stands</th></tr></thead>
     <tbody>{{oq_rows}}</tbody>
   </table></div>
-  <div class="note-box"><h3>Two closed rows are load-bearing on the numbers in &sect;6</h3>
+  <div class="note-box"><h3>Two of these are load-bearing on the numbers in &sect;6</h3>
   <p><strong>#43</strong>, the interpolation scheme, sets what every function table returns
-  <em>between</em> its printed knots, and the report states no scheme anywhere. Linear wins on
-  everything printed: a shape-preserving cubic through the same knots takes Table&nbsp;B.1&rsquo;s
-  rms from 0.222 to 0.373 % and Table&nbsp;1&rsquo;s from 1.75 to 5.85 %. <strong>#56</strong>,
-  the Jacobian step, is the report&rsquo;s own &plusmn;2 % [pdf p.28], and it took
-  Table&nbsp;1&rsquo;s rms from 5.41 to 1.75 %.</p>
+  <em>between</em> its printed knots &mdash; and the report states no scheme anywhere. It is
+  the residual behind the spread in the linear-model comparison, and changing the scheme (as
+  #60 did) redistributes that spread across trims rather than removing it. <strong>#56</strong>,
+  the Jacobian step, changes the worst eigenvalue by up to 23 % depending on which question
+  one thinks Appendix&nbsp;B's matrices answer. Neither can be settled from the source.</p>
   </div>
 </section>
 

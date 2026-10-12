@@ -365,8 +365,9 @@ the first place.
 
 ## Open questions
 
-Tracked in `docs/notes/open-questions.md`, whose tally is checked by
-`tests/test_open_questions_ledger.py` rather than maintained by hand. Numbering is deliberately non-contiguous; never renumber a row. Each row states what
+Tracked in `docs/notes/open-questions.md` — 66 logged, 55 closed, 4 partly closed, 7 open,
+with the tally checked by `tests/test_open_questions_ledger.py` rather than maintained by
+hand. Numbering is deliberately non-contiguous; never renumber a row. Each row states what
 was asked and what was decided; the investigations that reached those decisions are in git
 history, and that test fails if a closed row states a verdict without a finding.
 

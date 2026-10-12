@@ -30,10 +30,25 @@ finding, which is what eleven of them did before the cut.
 > caused by that change; each is a fragility or an inconsistency that was already there
 > and needed a perturbation to show itself.
 >
-> **Of the two open rows, #60 is a deliberate departure on record and #74 an inconsistency
-> in the source** that only Ballin's original table could settle. #54, #56, #59, #62, #65 and
-> #69, which this paragraph described as open until 2026-10-12, closed that day; each row
-> carries its outcome.
+> **Six of the seven open rows are a place where the report is silent and we made a
+> choice**, not a place where something is unexplained. Four are deliberate departures on
+> record (#59, #60, #62, and the Eq. 80 fallback inside #57); two are ambiguities the
+> source cannot settle, both with their cost measured (#54, #56).
+>
+> **#69 is the seventh and it is a different kind of row — the only one that is a measured
+> disagreement rather than a silence in the source.** It exists because the internal spread
+> SCOPE.md quoted as a governing rule was prose that nothing computed, and it was seven
+> times the measured value after the 2026-09-14 digitizer corrections. Our descent shaft
+> power is now the larger of the two errors at that point. It is recorded and unfixed;
+> nothing was tuned when it was found. The one partly-closed row
+> that is a *gap* rather than an ambiguity is **#65**, and the gap is much smaller than it
+> was: **all eight named constants are pinned** as of the second round on 2026-09-14, and a
+> full +/-10 % mutation sweep of all 81 control constants and schedules now detects 46 and
+> misses 35. Seventeen of the thirty-five are unobservable for reasons the report creates --
+> limits that never bind, the load-share path Fig. C2 draws open, the NP-loop relay -- which
+> leaves about eighteen that are observable in principle and have no test sharp enough yet.
+> "Four Appendix C constants and about 45 of Table C.1's values compared against nothing"
+> was this line until that round.
 >
 > **The first word of the Status cell is the verdict and is kept truthful.** Six rows had
 > theirs buried mid-cell until 2026-09-12; rows 57 and 58 did it again on 2026-09-13/14,
