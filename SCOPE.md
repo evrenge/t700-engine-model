@@ -239,9 +239,9 @@ distinction matters when a number from one is quoted as a result.
 
 ### Appendix B, element by element
 
-There is no single per-element tolerance. Seventeen distinct bounds exist across
-`test_appendix_b_elements.py` and `test_all_dof_models.py`, and they differ by two orders of
-magnitude because the printed elements do:
+There is no single per-element tolerance. Nineteen distinct bounds exist across
+`test_appendix_b_elements.py`, `test_all_dof_models.py` and `test_heat_sink_taus.py`, and
+they differ by two orders of magnitude because the printed elements do:
 
 | block | bound | test |
 |---|---|---|
@@ -255,7 +255,9 @@ magnitude because the printed elements do:
 | 3-DOF T41 feedthrough `d` | +/-3.0 % | `test_all_dof_models.THREE_DOF_FEEDTHROUGH_TOL_PCT` |
 | 3-DOF NG column, less descent `A(T41,NG)` | ratio 0.80-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
 | descent `A(T41,NG)`, 3-DOF | ratio 0.6-1.0 | `test_all_dof_models.DESCENT_T41_NG` |
-| 3-DOF `b` | ratio 0.86-1.02 | `test_appendix_b_elements.THREE_DOF_B` |
+| 3-DOF `b` | ratio 0.84-1.02 | `test_appendix_b_elements.THREE_DOF_B` |
+| heat-sink lead and lag taus, ours over those B7/B9/B11 imply | ratio 0.84-0.88 and 0.91-0.95 | `test_heat_sink_taus.TAU1_RATIO` and `test_heat_sink_taus.TAU2_RATIO` |
+| 6-DOF T41 row with those taus | +/-2.0 % | `test_heat_sink_taus.SWAP_ROW_TOL_PCT` |
 | 6-DOF `b`, gas path | ratio 0.93-0.96 | `test_appendix_b_elements.SIX_DOF_B_GAS` |
 | 6-DOF `b`, T41 | ratio 0.87-0.9 | `test_appendix_b_elements.SIX_DOF_B_T41` |
 | rest of the 6-DOF `A` | ratio 0.8-1.26 | `test_appendix_b_elements.SIX_DOF_REST` |

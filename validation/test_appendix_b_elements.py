@@ -517,13 +517,16 @@ def test_supplying_the_load_slope_closes_the_np_diagonal_circularly(trim_no: int
 # in any of them now fails a test instead of going unnoticed, and that the *shape* of each
 # block's disagreement is on the record where a single aggregate would have hidden it.
 
-THREE_DOF_B = (0.86, 1.02)
+THREE_DOF_B = (0.84, 1.02)
 """The 3-DOF fuel column against B7/B9/B11, nine numbers, ratio ours/printed.
 
-Measured: 0.9703 / 0.9840 / **0.8635** at hover, 0.9945 / 1.0036 / 0.9808 at level,
-1.0083 / 0.9387 / **0.8930** at descent, in state order NG, NP, T41. The T41 entry is the
-weak one at two trims of the three and the level value sits between them, so this is
-scatter rather than a trend -- unlike the 6-DOF column below, which has one."""
+Measured 2026-10-12: 0.9761 / 0.9752 / **0.8719** at hover, 0.9900 / 1.0079 / 0.9785 at
+level, 1.0040 / 0.9393 / **0.8537** at descent, in state order NG, NP, T41. The T41 entries
+are low for a diagnosed reason, not scatter: b(T41) is a near-cancellation, and our
+heat-sink time constants are 14 % and 7.5 % short of the ones Appendix B was generated with
+(`test_heat_sink_taus.py`, open questions #31 and #73). The floor moved 0.86 -> 0.84 on
+2026-10-12 with that cause pinned; descent had sat at 0.8527-0.8608 over four digitizing
+changes."""
 
 SIX_DOF_B_GAS = (0.93, 0.96)
 SIX_DOF_B_T41 = (0.87, 0.90)

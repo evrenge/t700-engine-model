@@ -35,10 +35,10 @@ _SPLIT = re.compile(r"(?<!\\)\|")
 OPEN_SUMMARY = {
     31: (
         "Heat-sink time constants &tau;&#8321; and &tau;&#8322;",
-        "Not printed anywhere and trim-dependent by definition. Recovered from "
-        "Appendix&nbsp;B, which fixes their <em>ratio</em> though neither survives its own "
-        "print precision alone. Ours runs 7.3 % low, uniformly, in three independent "
-        "blocks.",
+        "Not printed anywhere and trim-dependent by definition. Appendix&nbsp;B&rsquo;s own "
+        "3- and 6-DOF blocks agree on values 14&nbsp;% (lead) and 7.5&nbsp;% (lag) longer "
+        "than the printed TC<sub>T41</sub> and f<sub>hs</sub> give. We replicate the printed "
+        "ones; the inconsistency is the report&rsquo;s.",
     ),
     43: (
         "Interpolation scheme for the function tables",
