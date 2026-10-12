@@ -1,9 +1,8 @@
 """Small-perturbation linear models: the five variants Ballin published.
 
-Ballin extracted linear models from **two different nonlinear simulations**, each run
-with and without the station 4.1 heat sink, and separately derived one by order
-reduction. That is five distinct models, and they are not interchangeable -- comparing
-ours against the wrong one is a category error, not a tolerance problem.
+Two nonlinear simulations, each with and without the station 4.1 heat sink, plus one
+order reduction. They are not interchangeable: comparing against the wrong one is a
+category error, not a tolerance problem.
 
 ```
                           heat sink off        heat sink on
@@ -11,71 +10,31 @@ ours against the wrong one is a category error, not a tolerance problem.
   volume dyn. approx.     2-DOF  B1,B3,B5      3-DOF  B7,B9,B11
 ```
 
-plus **reduced-order 5-DOF**, which appears in Table 1's third column only and is nowhere
-in Appendix B.
+plus reduced-order 5-DOF, in Table 1 column 5 only and nowhere in Appendix B.
 
-## The one that trips people up
-
-**The 2-DOF is not a reduction of the 5-DOF.** It is *extracted from a different
-nonlinear simulation* -- the one that "approximate[s] the dynamics between the control
-volumes to be instantaneous" [pdf p.67]. Only Table 1's third column is an order
-reduction: "Order reduction was performed by setting the state derivatives P3-dot,
-P41-dot and P45-dot to zero and solving the equations for the remaining two states"
-[pdf p.28]. The same holds for 3-DOF versus 6-DOF: p.33 calls both "extracted", and the
-report prints no order reduction of the 6-DOF anywhere.
-
-So `TWO` and `REDUCED_FIVE` are genuinely different computations in Ballin's hands, and
-Table 1 prints both -- at hover, -2.69 against -2.81.
-
-**Ours coincide exactly, and that is a theorem, not a defect.** If `g(s) = f1(s, p(s))`
-where `p(s)` solves `f2(s, p) = 0`, then implicit differentiation gives
-`dg/ds = A11 - A12 A22^-1 A21` -- precisely the Schur complement that `REDUCED_FIVE`
-forms. Linearizing an exactly-solved quasi-steady system and residualizing the full
-Jacobian are the same operation. Measured, they agree to ~1e-12.
-
-Ballin's two differ because his reduced-order model is **a separately coded nonlinear
-program**, not the exact algebraic limit of his full one: it carries the opened
-compressor iteration of Eq. 74, a finite inner-loop count, and the independent P45 solve,
-none of which are exact. So the 0.12 /sec spread at hover measures *his* quasi-steady
-numerics, and reproducing it would mean linearizing our `realtime.step` discrete map
-rather than a Newton solve. That is a real and worthwhile test -- it would put a number
-on what the real-time approximation costs -- but it needs a discrete-to-continuous
-conversion and is deliberately **not** done here. Logged as open question #49.
-
-The consequence for validation: **`TWO` cannot be checked independently against Table 1
-column 4.** It carries the same information as `REDUCED_FIVE`, and column 5 is its proper
-target.
-
-## Which of our two model layers feeds which
-
-Our code already mirrors Ballin's two nonlinear simulations, because it followed his
-structure:
+The 2-DOF is not a reduction of the 5-DOF: it is extracted from a different nonlinear
+simulation, with the volume dynamics "instantaneous" [pdf p.67]. Only `REDUCED_FIVE` is an
+order reduction [pdf p.28]; likewise 3-DOF and 6-DOF are both "extracted" [pdf p.33].
+Ballin's 2-DOF and reduced-5 differ (Table 1, hover -2.69 against -2.81) because his
+reduced-order model is a separate program with inexact numerics. Ours coincide exactly:
+linearizing the exactly solved quasi-steady system gives, by implicit differentiation,
+the Schur complement `A11 - A12 A22^-1 A21` that `REDUCED_FIVE` forms (open question #49).
+So our `TWO` is no independent check on Table 1 column 4.
 
 | Ballin | ours |
 |---|---|
 | complete nonlinear digital simulation | `engine.frame` -- pressures are states, Eqs. 42-44 |
-| reduced-order nonlinear simulation | the quasi-steady system -- pressures solved algebraically |
+| reduced-order nonlinear simulation | `_quasi_steady_deriv` -- pressures solved to equilibrium |
 
-`realtime.step` is a *discrete* implementation of the second. For linearization we want
-the continuous quasi-steady system, which `_quasi_steady_deriv` builds directly: solve
-the three pressures to equilibrium at fixed (NG, NP), then return the two speed
-derivatives. Linearizing the discrete map instead would give a discrete-time Jacobian,
-and Appendix B's matrices are continuous.
-
-## Conventions
+Not `realtime.step`: that is a discrete map, and Appendix B's matrices are continuous.
 
 States and units follow the report [pdf pp.27, 32; nomenclature pp.11-13]: NG, NP in rpm,
-P3/P41/P45 in psia, T41 in deg R, and the single input Wf in **lbm/sec** (Table B.1
-quotes trim fuel flow in lbm/hr -- convert). So `A[i,j] = d(xi-dot)/d(xj)`.
+P3/P41/P45 in psia, T41 in deg R, the single input Wf in lbm/sec (Table B.1 quotes
+lbm/hr -- convert). `A[i,j] = d(xi-dot)/d(xj)`.
 
-## What is not reproducible here, and why
-
-The **slowest mode is the NP/rotor mode** and it is not comparable at any DOF. Its
-eigenvalue depends on dQreq/dNP and on the load inertia added to J_PT [Eq. 46], both
-supplied by the Gen Hel UH-60A simulation, which this report consumes and does not
-contain. We hold Qreq constant and default `j_load` to zero, so the derivative is zero and
-the inertia is the bare turbine's. Appendix B flags the same row as not independently
-reproducible. See `docs/notes/open-questions.md` #6.
+The slowest, NP/rotor mode depends on dQreq/dNP and the load inertia [Eq. 46], both from
+the Gen Hel UH-60A simulation the report does not contain (open question #6), so it is
+not comparable at any DOF by default; see `LinearModel.comparable_eigenvalues`.
 """
 
 from __future__ import annotations
@@ -94,8 +53,7 @@ class DOF(StrEnum):
     TWO = "2dof"
     """The quasi-steady nonlinear model, linearized. Figs. B1/B3/B5, Table 1 col. 4.
 
-    Equals `REDUCED_FIVE` identically for us -- see the module docstring. Ballin's does
-    not, because his is a separate program."""
+    Equals `REDUCED_FIVE` identically for us; see the module docstring."""
 
     THREE = "3dof"
     """`TWO` plus the heat-sink state. Figs. B7/B9/B11. No printed eigenvalues exist."""
@@ -106,10 +64,8 @@ class DOF(StrEnum):
     SIX = "6dof"
     """`FIVE` plus the heat-sink state. Figs. B8/B10/B12.
 
-    **Never compare eigenvalues of this one.** The printed matrices are ill-conditioned
-    by the report's own arithmetic -- `A(6,3)` and `A(6,4)` carry about +-50 absolute --
-    and B8 is unstable as printed. Element-wise only; `appendix_b.Reference.ill_conditioned`
-    flags it."""
+    Never compare eigenvalues of this one: the printed matrices are ill-conditioned (B8 is
+    unstable as printed). Element-wise only; see `appendix_b.Reference.ill_conditioned`."""
 
     REDUCED_FIVE = "reduced5"
     """Order reduction of `FIVE` [pdf p.28]. Table 1 col. 5 only; not in Appendix B."""
@@ -124,7 +80,7 @@ STATES: dict[DOF, tuple[str, ...]] = {
 }
 """State vectors. `FIVE` is printed [pdf p.27], `SIX` is printed [pdf p.32]. `TWO` is
 stated in prose ("the two turbine-speed degrees-of-freedom", p.27) but not displayed, and
-**`THREE`'s ordering is inferred, not printed** -- see `inventory-appendix-b.md` 2.4."""
+`THREE`'s ordering is inferred, not printed (`inventory-appendix-b.md` 2.4)."""
 
 HEAT_SINK = {DOF.THREE, DOF.SIX}
 
@@ -154,8 +110,8 @@ class LinearModel:
     def comparable_eigenvalues(self) -> np.ndarray:
         """Eigenvalues with the NP/rotor mode dropped -- see the module docstring.
 
-        The NP mode is identified structurally rather than by position: column NP is
-        otherwise all zeros in every printed variant, so `A[1,1]` *is* that eigenvalue.
+        Identified structurally, not by position: column NP is otherwise all zeros in every
+        printed variant, so `A[1,1]` is that eigenvalue.
         """
         ev = self.eigenvalues
         npq = self.A[1, 1]
@@ -173,8 +129,7 @@ def _full_frame(x: np.ndarray, wf: float, amb: Ambient, qreq: float, j_load: flo
 def _full_deriv(x: np.ndarray, wf: float, amb: Ambient, qreq: float, j_load: float, t41=None):
     """Five derivatives from `engine.frame`: the complete nonlinear simulation.
 
-    `t41` drives station 4.1 temperature instead of computing it, which is what makes it
-    a sixth state rather than an algebraic result [pdf p.23, Eq. 23].
+    `t41` drives station 4.1 temperature, making it a sixth state [pdf p.23, Eq. 23].
     """
     f = _full_frame(x, wf, amb, qreq, j_load, t41)
     return np.array([f.dng_dt, f.dnp_dt, f.dp3_dt, f.dp41_dt, f.dp45_dt])
@@ -195,8 +150,8 @@ def _solve_pressures(
     """Solve P3, P41, P45 to equilibrium at fixed (NG, NP) -- the volume dynamics
     approximation, "instantaneous" between control volumes [pdf p.67].
 
-    Newton on the three pressure residuals. This is the *continuous* statement of what
-    Eqs. 74-80 compute iteratively each frame.
+    Newton on the three pressure residuals: the continuous statement of what Eqs. 74-80
+    compute iteratively each frame.
     """
     p = p_guess.astype(float).copy()
 
@@ -240,15 +195,10 @@ def _quasi_steady_deriv(
 def _central_jacobian(f, x0: np.ndarray, n_out: int, rel: float) -> np.ndarray:
     """Central differences at `rel` of each equilibrium value.
 
-    `extract` passes the report's own step by default: "a perturbation step-size of plus or
-    minus two percent of equilibruim [*sic*] conditions" [pdf p.28] -- an amplitude, so a
-    finite secant rather than a derivative. Adopted 2026-10-12 (open question #56) after
-    measuring it against everything Table 1 and Appendix B print: Table 1 rms 5.41 -> 1.75 %
-    over all 27 modes, Appendix B `A` 7.93 -> 6.26 %, the hover `f7` group 24 % -> 6 %.
-    The cost is in the pressure equations, where Eq. 18's square root makes the secant
-    visibly non-tangent and B2/B4/B6 sit with the tangent (2.7 % against 0.7 %). Until then
-    this used `rel=1e-5`, inside the plateau where the 5-DOF eigenvalues are converged to 5
-    significant figures over rel = 1e-4 .. 1e-8; the tests about local slopes still do.
+    `extract` defaults to the report's own step, "a perturbation step-size of plus or minus
+    two percent of equilibruim [*sic*] conditions" [pdf p.28]: an amplitude, so a finite
+    secant rather than a derivative (open question #56). Tests about local slopes pass a
+    small `rel` instead.
     """
     A = np.zeros((n_out, len(x0)))
     for i in range(len(x0)):
@@ -277,9 +227,9 @@ def _heat_sink_taus(f: Frame) -> tuple[float, float]:
     Eq. 50 gives the same transfer function built from the nonlinear model, so
     `tau2 = tau_a` (Eq. 51) and `tau1 = tau_a - tau_b` (Eqs. 52-53).
 
-    **The report prints no numeric value for either** -- open question #31. They are
-    trim-dependent by definition, "those values corresponding to the trim operating
-    condition" [pdf p.31], so they can only come from our own Eqs. 50-53 at trim.
+    The report prints no value for either (open question #31). They are trim-dependent,
+    "those values corresponding to the trim operating condition" [pdf p.31], so they come
+    from our own Eqs. 50-53 at trim.
     """
     tau_a, tau_b = heat_sink_taus(f.t41_ns_degR, f.w41_pps, f.ngc_pct)  # (51)-(53)
     return tau_a - tau_b, tau_a
@@ -299,7 +249,7 @@ def _chen(F1, F2, G1, G2):
 
     This also answers open question #32. The report writes `b = F1^-1 G1 + F F1^-1 G2`
     with `F` defined nowhere; the transformation gives `b = B0 + A B1`, so
-    `F == A == F1^-1 F2`. **Derived here, not transcribed.**
+    `F == A == F1^-1 F2`. Derived here, not transcribed.
     """
     A = np.linalg.solve(F1, F2)
     B0 = np.linalg.solve(F1, G1)
@@ -311,21 +261,18 @@ def _extract_heat_sink(dof, f_deriv, f_t41ns, z0, wf_pps, rel_step, taus, states
     """Build one heat-sink linear model from its two vector fields.
 
     `z0` is the trim state with T41 last. `f_deriv(z, wf)` gives the `m` engine-state
-    derivatives with T41 **driven**; `f_t41ns(z, wf)` gives T41_ns at the same point.
+    derivatives with T41 driven; `f_t41ns(z, wf)` gives T41_ns at the same point.
 
     The T41 row is Eq. 63 written out. With `cx = dT41_ns/dz` and `cw = dT41_ns/dWf`:
 
         tau2 T41dot + T41 = tau1 (cx.zdot + cw Wfdot) + (cx.z + cw Wf)
 
     Rearranged into `F1 zdot = F2 z + G1 Wf + G2 Wfdot`, `G2` comes out zero in every row
-    but T41's -- which is what Appendix B prints [pdf p.33], and therefore a check on the
-    derivation rather than an input to it.
+    but T41's, as Appendix B prints [pdf p.33]: a check on the derivation.
 
     `cx` is taken with the T41 state held at trim, so its T41 entry is zero: "During
-    derivative extraction, T41 was held fixed at the trim value and the change in T41 was
-    determined for each state perturbation" [pdf p.31]. In the 6-DOF that entry is zero
-    anyway. In the 3-DOF the settled pressures would carry 0.057-0.070 of it, and B7/B9/B11
-    are matched without it (`validation/test_heat_sink_taus.py`).
+    derivative extraction, T41 was held fixed at the trim value" [pdf p.31]
+    (`validation/test_heat_sink_taus.py`).
     """
     tau1, tau2 = taus
     m = len(z0) - 1
@@ -376,13 +323,10 @@ def extract(
         dof: which of the five.
         j_load: load inertia added to J_PT [Eq. 46]. Zero means the bare power turbine.
         dq_req_dnp: slope of the load torque with power turbine speed, ft*lbf per rpm.
-            `Q_req` is an **input** to this model [Eq. 47], supplied by Gen Hel; holding
-            it constant means asserting `dQreq/dNP = 0`, which is not a neutral default
-            but a statement that the rotor does not resist a speed change. It does. This
-            completes the load specification rather than altering the engine: nothing in
-            `engine.frame` changes, only what `Q_req` is at a perturbed NP. Recovered
-            from Appendix B as +0.019471 / +0.015869 / +0.012950 at the three trims
-            (open question #6); trim-dependent, so there is no single constant to store.
+            `Q_req` is an input [Eq. 47], supplied by Gen Hel; the default 0 asserts that
+            the rotor does not resist a speed change, which is not neutral. Only `Q_req`
+            at a perturbed NP changes, not `engine.frame`. Trim-dependent; recovered from
+            Appendix B in open question #6.
 
     The input column `b` is `d(x-dot)/d(Wf)`, differenced about the same trim.
     """
@@ -442,9 +386,8 @@ def extract(
 
     if dof is DOF.REDUCED_FIVE:
         # "setting the state derivatives P3-dot, P41-dot and P45-dot to zero and solving
-        # the equations for the remaining two states" [pdf p.28]. The algebra itself is
-        # not printed; this is the standard residualization and is checkable against
-        # Table 1 column 5.
+        # the equations for the remaining two states" [pdf p.28]. The algebra is not
+        # printed; this is the standard residualization, checked against Table 1 column 5.
         m5 = extract(trim_result, wf_pps, DOF.FIVE, amb, j_load, dq_req_dnp, rel_step)
         A11, A12 = m5.A[:2, :2], m5.A[:2, 2:]
         A21, A22 = m5.A[2:, :2], m5.A[2:, 2:]
