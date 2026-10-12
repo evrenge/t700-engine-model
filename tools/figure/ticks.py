@@ -115,11 +115,12 @@ def protrusion(ink, edge, along, sign, lo, hi, maxlen=60):
     return out
 
 
-def groups(p, lo, thresh, gap=3):
-    """Tick candidates: ink-weighted centroid, peak protrusion, width."""
-    idx = np.flatnonzero(p >= thresh)
-    if idx.size == 0:
-        return []
+def index_groups(idx, gap):
+    """Split ascending indices into runs whose consecutive members are at most `gap` apart.
+
+    One implementation for the three places that grouped this way until 2026-10-12:
+    `groups`, `find_ticks` and `rectify_page.long_lines`. `idx` must not be empty.
+    """
     out, cur = [], [int(idx[0])]
     for v in idx[1:]:
         if v - cur[-1] <= gap:
@@ -128,8 +129,16 @@ def groups(p, lo, thresh, gap=3):
             out.append(cur)
             cur = [int(v)]
     out.append(cur)
+    return out
+
+
+def groups(p, lo, thresh, gap=3):
+    """Tick candidates: ink-weighted centroid, peak protrusion, width."""
+    idx = np.flatnonzero(p >= thresh)
+    if idx.size == 0:
+        return []
     res = []
-    for g in out:
+    for g in index_groups(idx, gap):
         g = np.asarray(g)
         w = p[g].astype(float)
         res.append((float(lo + (g * w).sum() / w.sum()), float(p[g].max()), len(g)))
@@ -281,16 +290,8 @@ def find_ticks(ink, edge_poly, along, sign, lo, hi, thresh, half=60, gap=2, maxw
     idx = np.flatnonzero(ex >= thresh)
     if idx.size == 0:
         return np.zeros(0)
-    grp, cur = [], [int(idx[0])]
-    for v in idx[1:]:
-        if v - cur[-1] <= gap:
-            cur.append(int(v))
-        else:
-            grp.append(cur)
-            cur = [int(v)]
-    grp.append(cur)
     out = []
-    for g in grp:
+    for g in index_groups(idx, gap):
         g = np.asarray(g)
         if (g[-1] - g[0] + 1) > maxw:
             continue

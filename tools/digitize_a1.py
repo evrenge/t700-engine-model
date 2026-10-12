@@ -69,6 +69,7 @@ from figure.frame import corner_line as corner
 from figure.frame import homography, robust_keep
 from figure.frame import trace as _trace
 from figure.raster import load_gray, native_bitmap, render
+from figure.ticks import groups as _tick_groups
 from figure.ticks import protrusion as _protrusion
 
 # This file is a script whose work happens at module level, so *importing* it used to run
@@ -182,27 +183,6 @@ def to_native(u, v):
     return _apply(HI, u, v)
 
 
-def _groups(p, lo, thresh=2, gap=3, maxlen=20):
-    """Tick centres: ink-weighted centroid of each run of positions that protrude."""
-    idx = np.flatnonzero(p >= thresh)
-    out, cur = [], [int(idx[0])]
-    for v in idx[1:]:
-        if v - cur[-1] <= gap:
-            cur.append(int(v))
-        else:
-            out.append(cur)
-            cur = [int(v)]
-    out.append(cur)
-    res = []
-    for g in out:
-        g = np.asarray(g)
-        if p[g].max() >= maxlen:  # a frame corner or a marker sitting on the line
-            continue
-        w = p[g].astype(float)
-        res.append(float(lo + (g * w).sum() / w.sum()))
-    return res
-
-
 def calibrate(ink, fr):
     """Every printed tick on all four edges, and the held-out frame-edge model test.
 
@@ -218,7 +198,8 @@ def calibrate(ink, fr):
         # power first, so the pair is reversed here rather than guessed at inside it.
         a, b = fr[nm]
         pr = _protrusion(ink, (b, a), along, sign, lo, hi, maxlen=40)
-        return np.array(_groups(pr, lo))
+        # a peak of 20 or more is a frame corner or a marker sitting on the line
+        return np.array([c for c, pk, _ in _tick_groups(pr, lo, 2) if pk < 20])
 
     bot = T("bottom", 1, -1, 462, 2110)
     top = T("top", 1, +1, 462, 2110)

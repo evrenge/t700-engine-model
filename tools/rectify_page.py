@@ -29,21 +29,9 @@ from PIL import Image
 
 from figure.frame import longest_run
 from figure.raster import load_gray
+from figure.ticks import index_groups
 
 # --------------------------------------------------------------------------- line finding
-
-
-def _group(idx: np.ndarray, gap: int) -> list[list[int]]:
-    groups: list[list[int]] = []
-    cur = [int(idx[0])]
-    for v in idx[1:]:
-        if v - cur[-1] <= gap:
-            cur.append(int(v))
-        else:
-            groups.append(cur)
-            cur = [int(v)]
-    groups.append(cur)
-    return groups
 
 
 def long_lines(ink: np.ndarray, centre: int, half: int = 100, frac: float = 0.80) -> list[float]:
@@ -58,7 +46,7 @@ def long_lines(ink: np.ndarray, centre: int, half: int = 100, frac: float = 0.80
     hits = np.flatnonzero(runs > frac * (b - a))
     if hits.size == 0:
         return []
-    return [float(np.mean(g)) for g in _group(hits, gap=3)]
+    return [float(np.mean(g)) for g in index_groups(hits, gap=3)]
 
 
 def robust_fit(xs, ys, tol: float = 12.0) -> tuple[float, float]:
