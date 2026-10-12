@@ -127,7 +127,6 @@ def test_the_integrator_lower_limit_follows_the_other_engine():
 
 
 def test_the_integrator_respects_whichever_limit_applies():
-    _, _o = settle(np_rpm=engine_c.NP_DES * 0.90, n=6000)
     s, _ = settle(np_rpm=engine_c.NP_DES * 0.90, n=6000)
     assert c.ZLOLIM - 1e-12 <= s.pi_int <= c.ZHILIM + 1e-12, s.pi_int
 

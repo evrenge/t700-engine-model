@@ -57,10 +57,6 @@ class Ambient:
     p_amb_psia: float = 14.696
     t_amb_degR: float = 518.67
 
-    @property
-    def is_standard_day(self) -> bool:
-        return corrections.ambient_is_standard(self.t_amb_degR, self.p_amb_psia)
-
 
 STANDARD_DAY = Ambient()
 """Standard sea level, the report's trim condition [Table B.1, pdf p.67]. A frozen
@@ -335,14 +331,3 @@ def frame(
         dnp_dt=dnp,
         combustor_flow_substituted=bool(substituted),
     )
-
-
-def residuals(state: State, wf_pps: float, ambient: Ambient = STANDARD_DAY) -> np.ndarray:
-    """The four gas-generator derivatives that must vanish at trim.
-
-    NP is excluded: Eq. 47 balances Q_PT against Qreq, and Qreq is supplied by the Gen Hel
-    helicopter simulation, not by this report. At a trim we hold NP at its printed value
-    and read Qreq off as whatever Q_PT comes out to be.
-    """
-    f = frame(state, wf_pps, ambient)
-    return np.array([f.dng_dt, f.dp3_dt, f.dp41_dt, f.dp45_dt])

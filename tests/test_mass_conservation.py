@@ -37,7 +37,7 @@ import numpy as np
 import pytest
 
 from t700 import constants as c
-from t700 import realtime, trim
+from t700 import maps, realtime, trim
 from t700.engine import Ambient, State, frame
 from t700.units import wf_pps_from_pph
 
@@ -340,13 +340,8 @@ def test_the_combustor_flow_guards_never_fire():
 
     Checked across the whole operating range and both published transients.
     """
-    from t700 import maps, realtime, trim
-    from t700.units import wf_pps_from_pph
-
-    amb = Ambient(14.696, 518.67)
-
     for pph in range(100, 801, 25):
-        r = trim.solve(wf_pps_from_pph(float(pph)), c.NP_DES, amb)
+        r = trim.solve(wf_pps_from_pph(float(pph)), c.NP_DES, AMB)
         if not r.trustworthy:
             continue
         assert not r.frame.combustor_flow_substituted, (
@@ -355,14 +350,14 @@ def test_the_combustor_flow_guards_never_fire():
         )
 
     wf0 = wf_pps_from_pph(400.0)
-    r0 = trim.solve(wf0, c.NP_DES, amb)
-    f0 = frame(r0.state, wf0, amb)
+    r0 = trim.solve(wf0, c.NP_DES, AMB)
+    f0 = frame(r0.state, wf0, AMB)
     for target in (775.0, 125.0):
         st = realtime.from_trim(r0, f0.wa31_pps, f0)
         tr = realtime.run(
             st,
             lambda t, g=target: wf0 if t < 0.5 else wf_pps_from_pph(g),
-            amb,
+            AMB,
             duration_s=3.0,
             q_req_ftlbf=f0.q_pt_ftlbf,
             integrate_np=False,

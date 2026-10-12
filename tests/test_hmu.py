@@ -145,10 +145,7 @@ def test_the_deadband_is_what_stops_the_torque_motor_drifting():
 def test_hysteresis_blocks_actually_hold():
     """[Figs. C11, C13, C15] Three blocks carry backlash. A dither smaller than the band
     must not reach the output."""
-    u = hmu.HMUInputs(**BASE)
-    s = hmu.seed(u)
-    for _ in range(2000):
-        s, _ = hmu.step(s, u, DT)
+    s, _ = settle(2000)
     held = s.xldsh
     small = hmu.HMUInputs(
         **{**BASE, "xcpc_pct": BASE["xcpc_pct"] + 0.4 * c.XLDHYS / c.COLLECTIVE_RIGGING_GAIN}

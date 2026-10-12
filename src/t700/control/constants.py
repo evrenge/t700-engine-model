@@ -34,8 +34,6 @@ from __future__ import annotations
 
 from typing import Final
 
-SOURCE_TABLE: Final = "TM-100991 pdf pp.83-84, Table C.1"
-
 # =========================================================================== Table C.1
 # First printed page [pdf p.83, printed 69] -- 28 rows, AWFP through T17.
 

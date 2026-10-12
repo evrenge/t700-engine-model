@@ -40,23 +40,7 @@ RAD_PER_REV = 2.0 * math.pi  # definitional
 RPM_TO_RAD_PER_SEC = RAD_PER_REV / SEC_PER_MIN
 RAD_PER_SEC_TO_RPM = SEC_PER_MIN / RAD_PER_REV
 
-LBM_PER_SEC_TO_LBM_PER_HR = 3600.0  # definitional
-LBM_PER_HR_TO_LBM_PER_SEC = 1.0 / 3600.0
-
-PSI_TO_PSF = 144.0  # definitional (in^2 per ft^2)
-PSF_TO_PSI = 1.0 / 144.0
-
-RANKINE_FAHRENHEIT_OFFSET = 459.67  # definitional
-
-
-def degR_from_degF(t_degF: float) -> float:
-    """Fahrenheit to Rankine. Boundary conversion only -- internal units are deg R."""
-    return t_degF + RANKINE_FAHRENHEIT_OFFSET
-
-
-def degF_from_degR(t_degR: float) -> float:
-    """Rankine to Fahrenheit, for display."""
-    return t_degR - RANKINE_FAHRENHEIT_OFFSET
+LBM_PER_HR_TO_LBM_PER_SEC = 1.0 / 3600.0  # definitional
 
 
 def wf_pps_from_pph(wf_pph: float) -> float:
@@ -67,11 +51,6 @@ def wf_pps_from_pph(wf_pph: float) -> float:
     control input is lbm/sec [nomenclature pdf p.13].
     """
     return wf_pph * LBM_PER_HR_TO_LBM_PER_SEC
-
-
-def wf_pph_from_pps(wf_pps: float) -> float:
-    """Fuel flow lbm/sec to lbm/hr, for comparison against the report's tables."""
-    return wf_pps * LBM_PER_SEC_TO_LBM_PER_HR
 
 
 def shp_from_torque(q_ftlbf: float, n_rpm: float) -> float:
@@ -85,16 +64,3 @@ def shp_from_torque(q_ftlbf: float, n_rpm: float) -> float:
     229.0 ft*lbf, matching the printed 229.0 [pdf p.67].
     """
     return q_ftlbf * n_rpm * RPM_TO_RAD_PER_SEC / 550.0
-
-
-def torque_from_shp(shp: float, n_rpm: float) -> float:
-    """Torque (ft*lbf) from shaft horsepower and speed (rpm). Inverse of `shp_from_torque`.
-
-    Worth keeping in view when reading the report: Table B.1 prints torque referred to
-    two different places. The *shaft* row is ~229 ft*lbf at hover; the *hub* row is
-    ~32865, past the UH-60A main gearbox. Reading the hub figure as engine torque is the
-    error that made open question #11 look like a report defect when it was ours.
-    """
-    if n_rpm == 0.0:
-        raise ZeroDivisionError("shaft speed is zero; torque is undefined")
-    return shp * 550.0 / (n_rpm * RPM_TO_RAD_PER_SEC)

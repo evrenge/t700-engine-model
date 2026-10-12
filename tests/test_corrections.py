@@ -22,7 +22,6 @@ def test_table_b1_sea_level_trim_gives_unity_corrections():
     """
     assert corr.theta2(518.67) == pytest.approx(1.0)
     assert corr.delta2(14.696) == pytest.approx(1.0)
-    assert corr.ambient_is_standard(518.67, 14.696)
 
 
 def test_corrections_move_the_right_way():
@@ -37,21 +36,21 @@ def test_corrected_speed_equals_physical_at_standard_day():
     assert corr.corrected_speed(ng, corr.theta2(518.67)) == pytest.approx(ng)
 
 
-def test_flow_correction_round_trips():
-    """Correcting then uncorrecting must return the original flow.
+def test_physical_flow_uncorrects_by_delta_over_root_theta():
+    """Uncorrecting must apply W = Wc*delta/sqrt(theta), the inverse of the correction.
 
-    The compressor map is drawn in corrected flow, so every physical flow makes this
-    round trip. An inverted correction is invisible at sea level and wrong everywhere
-    else, which is the worst way for a bug to behave.
+    The compressor map is drawn in corrected flow, so every physical flow passes through
+    this. An inverted correction is invisible at sea level and wrong everywhere else,
+    which is the worst way for a bug to behave.
     """
-    w = np.array([2.5, 7.5, 12.0])
+    wc = np.array([2.5, 7.5, 12.0])
     for t2, p2 in ((518.67, 14.696), (560.0, 10.9), (470.0, 4.4)):
         th, de = corr.theta2(t2), corr.delta2(p2)
-        assert np.allclose(corr.physical_flow(corr.corrected_flow(w, th, de), th, de), w)
+        assert np.allclose(corr.physical_flow(wc, th, de), wc * de / np.sqrt(th))
 
 
-def test_corrected_flow_is_not_the_identity_off_standard_day():
+def test_physical_flow_is_not_the_identity_off_standard_day():
     """Guard against someone 'simplifying' the correction away."""
-    w = 10.0
+    wc = 10.0
     th, de = corr.theta2(560.0), corr.delta2(10.9)
-    assert corr.corrected_flow(w, th, de) != pytest.approx(w, rel=1e-3)
+    assert corr.physical_flow(wc, th, de) != pytest.approx(wc, rel=1e-3)

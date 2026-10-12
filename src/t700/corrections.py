@@ -75,26 +75,12 @@ def corrected_speed(n_rpm, theta):
     return n_rpm / theta**0.5
 
 
-def corrected_flow(w_pps, theta, delta):
-    """Corrected mass flow, W*sqrt(theta)/delta, lbm/sec.
-
-    The compressor map is drawn in corrected flow, so the physical flow out of `f1` has
-    to be uncorrected again before it enters any mass balance. Getting that backwards
-    produces an engine that is subtly wrong only away from sea level, which is the worst
-    place for an error to hide.
-    """
-    return w_pps * theta**0.5 / delta
-
-
 def physical_flow(wc_pps, theta, delta):
-    """Physical mass flow from corrected, lbm/sec. Inverse of `corrected_flow`."""
-    return wc_pps * delta / theta**0.5
+    """Physical mass flow from corrected, Wc*delta/sqrt(theta), lbm/sec.
 
-
-def ambient_is_standard(t2_degR, p2_psia, tol: float = 1e-9) -> bool:
-    """True when both corrections are unity, i.e. standard sea level.
-
-    Exists so a test can assert the Table B.1 sea-level trim really does give
-    theta_2 = delta_2 = 1, which is the evidence T_std and P_std rest on.
+    The compressor map is drawn in corrected flow, W*sqrt(theta)/delta, so the physical
+    flow out of `f1` has to be uncorrected again before it enters any mass balance.
+    Getting that backwards produces an engine that is subtly wrong only away from sea
+    level, which is the worst place for an error to hide.
     """
-    return abs(theta2(t2_degR) - 1.0) < tol and abs(delta2(p2_psia) - 1.0) < tol
+    return wc_pps * delta / theta**0.5

@@ -33,7 +33,6 @@ def _names():
     Figure-only constants were named by us and all contain one.
     """
     public = [n for n in dir(k) if n.isupper() and not n.startswith("_")]
-    public = [n for n in public if n != "SOURCE_TABLE"]
     table = [n for n in public if "_" not in n]
     figure = [n for n in public if "_" in n]
     return table, figure

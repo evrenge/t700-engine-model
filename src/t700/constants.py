@@ -19,9 +19,6 @@ from __future__ import annotations
 
 from typing import Final
 
-# Source for every constant in this module.
-SOURCE: Final = "TM-100991 pdf p.55, Table A.1"
-
 # --------------------------------------------------------------------------- fuel
 
 HVF: Final = 18300.0

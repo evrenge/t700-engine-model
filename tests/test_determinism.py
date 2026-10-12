@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 
 from t700 import constants as c
-from t700 import maps, realtime, thermo, trim, units
+from t700 import maps, realtime, thermo, trim
 from t700.control import loop
 from t700.engine import Ambient, frame
 from t700.units import wf_pps_from_pph
@@ -52,12 +52,6 @@ def test_scalar_and_array_paths_agree_exactly():
     scalar = np.array([thermo.h41_from_t41(v) for v in values])
     array = thermo.h41_from_t41(np.array(values))
     assert np.array_equal(scalar, array)
-
-
-def test_unit_conversions_round_trip_exactly_where_they_should():
-    """lbm/hr <-> lbm/sec is exact in binary for these magnitudes."""
-    for pph in (125.0, 267.7, 349.3, 400.0, 476.3, 775.0):
-        assert units.wf_pph_from_pps(units.wf_pps_from_pph(pph)) == pph
 
 
 # --------------------------------------------------------------------------------------

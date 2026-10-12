@@ -128,8 +128,6 @@ def step(
     load: float | Callable[[float], float] = 0.0,
     j_load: float = 0.0,
     heat_sink: bool = True,
-    integrate_np: bool = True,
-    dt_np: float | None = None,
 ) -> tuple[LoopState, ecu_mod.ECUOutputs, hmu_mod.HMUOutputs, realtime.FrameOut]:
     """One frame of the whole propulsion system: ECU, then HMU, then engine.
 
@@ -141,19 +139,6 @@ def step(
     residual against ours precisely because `dQreq/dNP` is a Gen Hel quantity we do not
     have, and open question #6 recovers it as roughly 1.78 / 1.45 / 1.18 times
     `|dQ_PT/dNP|` at the three trims -- positive, because rotor torque rises with speed.
-
-    `dt_np` and `integrate_np` pass the report's 2:1 multirate through to the engine
-    [pdf p.47]: a caller driving this at 7 ms who wants the shipped configuration calls it
-    with `dt_np=realtime.FRAME_NP_S` on even frames and `integrate_np=False` on odd ones.
-    It cannot move a settled result -- at equilibrium `dNP/dt` is zero whatever step it is
-    multiplied by -- so every closed-loop comparison against Table B.1 here is
-    rate-independent by construction, and only the path there responds.
-
-    **Both arguments were documented here and did not exist** between two commits on
-    2026-09-13: the patch that was meant to add them raised before writing the file, the
-    follow-up fixed only this docstring, and the audit ledger recorded a fix that had not
-    been made. `grep -rn dt_np` over `control/` returning nothing is what caught it. They
-    exist now.
     """
     e_in = ecu_mod.ECUInputs(
         np_rpm=state.engine.np_rpm,
@@ -183,9 +168,7 @@ def step(
         dt=dt,
         q_req_ftlbf=q_req,
         j_load=j_load,
-        integrate_np=integrate_np,
         heat_sink=heat_sink,
-        dt_np=dt_np,
     )
     # All six fields are rewritten -- see the note in `ecu.step`.
     new = LoopState(

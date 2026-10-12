@@ -10,6 +10,3 @@ and pandas belong in `tools/` and `validation/`; a test enforces the boundary.
 from __future__ import annotations
 
 __version__ = "0.0.1"
-
-REPORT = "NASA TM-100991 (Ballin, 1988)"
-"""The source document. Every constant in this package cites a page of it."""

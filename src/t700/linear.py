@@ -129,7 +129,6 @@ stated in prose ("the two turbine-speed degrees-of-freedom", p.27) but not displ
 **`THREE`'s ordering is inferred, not printed** -- see `inventory-appendix-b.md` 2.4."""
 
 HEAT_SINK = {DOF.THREE, DOF.SIX}
-QUASI_STEADY = {DOF.TWO, DOF.THREE}
 
 
 @dataclass(frozen=True)

@@ -28,9 +28,6 @@ from t700 import corrections, maps
 from t700.engine import STANDARD_DAY, Ambient, Frame, State, frame
 from t700.units import shp_from_torque
 
-# The four unknowns, in the order the residual vector uses.
-UNKNOWNS = ("NG", "P3", "P41", "P45")
-
 
 @dataclass
 class TrimResult:
@@ -44,7 +41,6 @@ class TrimResult:
     and that is exactly the mistake this class exists to prevent."""
     iterations: int
     residual_norm: float
-    residuals: np.ndarray
     clamps: dict[str, int]
     """Map clamps accumulated over the WHOLE solve, Jacobian evaluations included. Mostly
     from intermediate iterates, so not evidence about the answer."""
@@ -351,7 +347,6 @@ def solve(
         residual_converged=converged,
         iterations=it,
         residual_norm=float(np.linalg.norm(r / scale)),
-        residuals=r,
         clamps=during,
         clamps_at_solution=at_solution,
     )

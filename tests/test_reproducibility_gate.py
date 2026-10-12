@@ -26,10 +26,10 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "tools" / "reproduce_all.sh"
-
-TOOLS = Path(__file__).resolve().parent.parent / "tools"
-DATA = Path(__file__).resolve().parent.parent / "data"
+ROOT = Path(__file__).resolve().parent.parent
+TOOLS = ROOT / "tools"
+DATA = ROOT / "data"
+SCRIPT = TOOLS / "reproduce_all.sh"
 
 
 def data_tools() -> set[str]:
@@ -170,7 +170,7 @@ def test_no_gate_tool_reads_a_gitignored_input_it_does_not_produce():
     The rule this enforces: a tool that names a path under `validation/out/` must also
     contain the command that creates it.
     """
-    ignored = (Path(__file__).resolve().parent.parent / ".gitignore").read_text()
+    ignored = (ROOT / ".gitignore").read_text()
     assert "validation/out/" in ignored, "validation/out/ is tracked now; revisit this test"
 
     for path in sorted(TOOLS.glob("*.py")):
@@ -270,7 +270,7 @@ def test_the_gate_reaches_every_committed_data_file(source: str):
     )
 
 
-def test_no_committed_data_file_names_a_tool_that_does_not_exist(source: str):
+def test_no_committed_data_file_names_a_tool_that_does_not_exist():
     """A provenance header is a claim about a file on disk. Renames must carry it."""
     bad = []
     for csv in sorted(DATA.rglob("*.csv")):

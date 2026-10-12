@@ -67,7 +67,7 @@ import numpy as np
 
 from t700 import constants as c
 from t700 import corrections, maps, thermo
-from t700.engine import STANDARD_DAY, Ambient, Frame, State
+from t700.engine import STANDARD_DAY, Ambient, Frame
 from t700.units import BTU_TO_FTLBF, RAD_PER_SEC_TO_RPM, RPM_TO_RAD_PER_SEC
 
 _TORQUE_SCALE = BTU_TO_FTLBF * RAD_PER_SEC_TO_RPM
@@ -129,9 +129,6 @@ class RTState:
     theta41, which depends on T41 -- the quantity the heat sink is computing. Lagged one
     frame, exactly as Eq. 74 opens the mass-flow loop. Unused when `heat_sink=False`."""
 
-    def to_state(self) -> State:
-        return State(self.ng_rpm, self.np_rpm, self.p3_psia, self.p41_psia, self.p45_psia)
-
 
 @dataclass(frozen=True)
 class FrameOut:
@@ -143,7 +140,7 @@ class FrameOut:
     """How the P3/P41 sweep finished. Discarded by `run()` until 2026-09-13, so a run that
     spent every frame at the pass cap emitted no signal at all."""
     p45_exit: Exit
-    """How the P45 iteration finished. `DIVERGING` below roughly 76 %NG is expected, not a
+    """How the P45 iteration finished. `BISECTED` below roughly 76 %NG is expected, not a
     fault -- see `_p45_loop`."""
     wa31_substituted: bool
     """True when Eq. 74's carried mass flow came back non-positive and was replaced. See
@@ -153,10 +150,7 @@ class FrameOut:
     """T41 before the heat sink. Equal to `t41_degR` when `heat_sink=False` [Eq. 23]."""
     t45_degR: float
     q_pt_ftlbf: float
-    q_gt_ftlbf: float
-    q_c_ftlbf: float
     wa2_pps: float
-    w41_pps: float
     w45_pps: float
     far: float
 
@@ -206,13 +200,15 @@ class Exit(StrEnum):
 
     BISECTED = "bisected"
     """Eq. 80's printed iteration did not reach the printed criterion, so the same equation
-    was solved by bisection instead. See `_p45_loop` and open question #57."""
+    was solved exactly instead, by `_p45_exact` (the name is from the bisection that solve
+    replaced). See `_p45_loop` and open question #57."""
 
     DIVERGING = "diverging"
     """The iteration did not contract: successive steps grew, or held level in a cycle.
-    For P45 this is a real operating regime and not a numerical accident -- see
-    `_p45_loop` and open question #45. `_stalled` decides it, and it does not separate
-    divergence from a limit cycle; the name is kept for the field it fills."""
+    Only the P3/P41 sweep reports it: where Eq. 80's printed iteration fails, `_p45_loop`
+    solves the same equation exactly instead (open question #45). `_stalled` decides it,
+    and it does not separate divergence from a limit cycle; the name is kept for the field
+    it fills."""
 
 
 def _contraction_error(step: float, prev_step: float, value: float) -> tuple[float, float]:
@@ -245,8 +241,8 @@ def _contraction_error(step: float, prev_step: float, value: float) -> tuple[flo
     1e-13 relative still produces a ratio against another 1e-13 step, that ratio is noise,
     and when it comes out above 1 the estimate is infinite and the loop reports failure at
     a fixed point it is already sitting on. At the 349.3 lbm/hr trim that happened on
-    **one frame in 144**, and because `_p45_loop` falls back to bisection on failure, that
-    one frame moved P45 by the bisection tolerance and kicked NG by 1.2e-3 rpm -- enough to
+    **one frame in 144**, and because `_p45_loop` then fell back to bisection on failure,
+    that one frame moved P45 by the bisection tolerance and kicked NG by 1.2e-3 rpm -- enough to
     stop a published trim being a fixed point.
     """
     if step <= _CONVERGED_STEP * abs(value):
@@ -294,33 +290,9 @@ _CONVERGED_STEP: Final = 1.0e-9
 
 Not a tolerance -- a noise floor for the *estimator*. For an error above the 1e-3 the
 report states, a step this small would need a contraction factor within 1e-9 of unity,
-which is an iteration that is not moving at all. Four orders below `TOL_P45_BISECT` and six
-below `TOL_PRESSURE`, so it cannot mask a real failure to converge; it only stops a ratio
-of two rounding-level steps from being read as one. See `_contraction_error`.
-"""
-
-TOL_P45_BISECT: Final = 1.0e-5
-"""Relative bracket width at which `_p45_bisect` stops. **Ours, not the report's.**
-
-The report states no tolerance for Eq. 80 at all -- it states that eight passes of its own
-iteration achieved less than 0.1 percent error [pdf p.37]. This is the stopping rule for
-the *fallback*, which only runs where that iteration fails, so there is no printed number
-to inherit and the choice has to be argued instead:
-
-  * **Two orders below the printed 0.1 percent**, so the fallback is never the reason a
-    frame misses the criterion the report does state. A bisection bracket is a *rigorous*
-    bound rather than the fixed-point method's estimate, so 1e-5 here is strictly better
-    than 1e-5 there would be.
-  * **Tight enough that the volume balances still close.** Stopping at the printed 1e-3
-    left Eq. 42's residual at 8.6e-9 of WA2 where the differential model closes to 1e-13,
-    and `tests/test_mass_conservation.py` asserts 1e-9. Measured at 1e-5 the balances close
-    at the same level they do everywhere else.
-  * **Loose enough to be worth running.** Halving to 1e-5 takes about 15 steps against the
-    ~47 that reaching the rounding floor needs, which is the difference between ~23 and ~55
-    passes a frame in the regime where the fallback fires.
-
-It was the rounding floor for one commit on 2026-09-13. That was overkill bought at 3x the
-cost for accuracy nothing downstream can use.
+which is an iteration that is not moving at all. Six orders below `TOL_PRESSURE`, so it
+cannot mask a real failure to converge; it only stops a ratio of two rounding-level steps
+from being read as one. See `_contraction_error`.
 """
 
 MAX_ITER_P45: Final = 8
@@ -458,7 +430,7 @@ def _p45_loop(
     at 400 lbm/hr it exits on pass one, at 175 lbm/hr on pass two, and Figure 9's whole-curve
     panels do not move to two decimals.
 
-    If it does *not* meet the criterion, the same equation is solved by `_p45_bisect`.
+    If it does *not* meet the criterion, the same equation is solved exactly by `_p45_exact`.
     That is a deliberate departure from the method the report describes -- the report
     accounts for "four arithmetic operations and one function-table look-up" per pass, which
     is successive substitution specifically -- and the reason is that the printed method
@@ -490,17 +462,15 @@ def _p45_loop(
         a gap of 0.184 %NG, inside that panel's 0.236 %NG read error. See
         `validation/test_fuel_step.py::test_step_down_runs_off_the_bottom_of_the_maps`.
 
-    The cost is the pass count, and it is real: below about 160 lbm/hr this loop runs a
-    mean of **~23 passes a frame** -- the printed eight, then ~15 bisection steps -- against
-    the report's budget of eight. Above flight idle it is 1 to 2. A real-time model would
-    not pay that, but a real-time model was never asked to run here.
+    The cost is the pass count: below about 160 lbm/hr this loop counts **nine passes a
+    frame** -- the printed eight, then the exact solve -- against the report's budget of
+    eight. Above flight idle it is 1 to 2.
 
     `Exit.BISECTED` marks the frames that took the fallback, so the cost and its extent are
     visible in `run()`'s traces rather than hidden. Open question #57.
     """
     numerator = (w41 + b3 * c.K_BL * wa2) * sqrt(theta45)
     f9 = maps.f9()
-    entering = p45
 
     # --- Eq. 80 exactly as printed, first -------------------------------------------
     prev = 0.0
@@ -517,16 +487,11 @@ def _p45_loop(
 
     # --- it did not reach the printed criterion, so solve the printed equation -------
     root = _p45_exact(numerator, ps9, f9)
-    if root is None:  # f9 not non-increasing, so phi may not be monotone: bracket instead
-        root, steps = _p45_bisect(entering, numerator, ps9, f9)
-        if root is None:
-            return float(p45), it, Exit.DIVERGING
-        return float(root), it + steps, Exit.BISECTED
     f9(ps9 / root)  # one lookup, so a root off the end of f9's table still counts a clamp
     return float(root), it + 1, Exit.BISECTED
 
 
-def _p45_exact(numerator: float, ps9: float, f9) -> float | None:
+def _p45_exact(numerator: float, ps9: float, f9) -> float:
     """Solve `P45 = N / f9(Ps9/P45)` exactly, on f9's own piecewise-linear table.
 
     Same equation, same data, same root -- and no iteration at all. Substituting
@@ -551,7 +516,7 @@ def _p45_exact(numerator: float, ps9: float, f9) -> float | None:
 
     Measured over every fallback the published transients take -- 801 of them, across
     Figure 10's chop and held trims from 110 to 175 lbm/hr -- the bisection's answer sits
-    within **3.05e-6** relative of this one, inside its own `TOL_P45_BISECT` of 1e-5 as it
+    within **3.05e-6** relative of this one, inside its own bracket tolerance of 1e-5 as it
     must, at a mean of **16.0** bisection steps and sixteen f9 lookups apiece. The root
     here satisfies Eq. 80 to better than **1e-12** relative on all 801, so the move is
     toward the true root and not away from it. What it costs downstream is bounded and
@@ -559,13 +524,10 @@ def _p45_exact(numerator: float, ps9: float, f9) -> float | None:
     that channel's own excursion** (P45; NG moves 0.0046 rpm in 8188), and every trim,
     every Appendix B matrix and Figure 9's accel are bit-identical because none of them
     ever takes this path.
-
-    Returns `None` if f9 is not non-increasing, in which case `phi` may not be monotone and
-    the caller falls back to bracketing. That cannot happen for the shipped table.
     """
     m = numerator / ps9
-    if not f9.non_increasing:
-        return None
+    if not f9.non_increasing:  # maps.f9 conditions it monotone="dec"; uniqueness needs it
+        raise ValueError("f9 is not non-increasing, so Eq. 80's root is no longer unique")
     xl, yl, n = f9._xl, f9._yl, f9._n
     if yl[0] - m * xl[0] <= 0.0:  # the root sits on the left clamped extension
         return ps9 / (yl[0] / m)
@@ -581,62 +543,6 @@ def _p45_exact(numerator: float, ps9: float, f9) -> float | None:
     x0, y0 = xl[lo], yl[lo]
     s = (yl[lo + 1] - y0) / (xl[lo + 1] - x0)
     return ps9 / ((s * x0 - y0) / (s - m))
-
-
-def _p45_bisect(
-    guess: float,
-    numerator: float,
-    ps9: float,
-    f9,
-    max_expand: int = 60,
-    max_steps: int = 80,
-) -> tuple[float | None, int]:
-    """Solve `P45 = N / f9(Ps9/P45)` by bisection. Returns `(root, steps)`.
-
-    The same equation, the same f9 data -- only the method differs, and it differs in the
-    one way that matters: a bracket cannot fail to contain a root, so convergence does not
-    depend on the map's elasticity. The bracket is expanded geometrically from the entering
-    P45 until the residual changes sign, then halved until its relative width is below
-    `TOL_P45_BISECT`, which makes the error bound rigorous where the fixed-point estimate
-    was only an estimate.
-
-    **It stops at `TOL_P45_BISECT`, not at the report's 0.1 percent and not at rounding.**
-    The report's number is a statement about what eight passes of successive substitution
-    achieved, i.e. a cost constraint on *that* method, and stopping the bracket there is
-    measurably too loose: it left the station 3 volume balance closing to 8.6e-9 of WA2
-    where the printed iteration closes to 1e-13. Rounding is the other extreme and costs
-    three times the steps for accuracy nothing downstream reads. See `TOL_P45_BISECT`.
-
-    `None` when no bracket can be found, which has not been observed; the caller then
-    returns the iterate it held and reports `Exit.DIVERGING`.
-    """
-
-    def residual(p: float) -> float:
-        return p - numerator / float(f9(ps9 / p))
-
-    lo = hi = guess
-    r_lo = r_hi = residual(guess)
-    if r_lo == 0.0:
-        return float(guess), 0
-    for _ in range(max_expand):
-        lo *= 0.9
-        hi *= 1.1
-        r_lo, r_hi = residual(lo), residual(hi)
-        if r_lo * r_hi <= 0.0:
-            break
-    else:
-        return None, 0
-
-    for k in range(max_steps):
-        mid = 0.5 * (lo + hi)
-        if hi - lo <= TOL_P45_BISECT * mid:
-            return float(mid), k + 1
-        r_mid = residual(mid)
-        if r_lo * r_mid <= 0.0:
-            hi = mid
-        else:
-            lo, r_lo = mid, r_mid
-    return float(0.5 * (lo + hi)), max_steps
 
 
 def _heat_sink(
@@ -841,10 +747,7 @@ def step(
         t41_ns_degR=t41_ns,
         t45_degR=t45,
         q_pt_ftlbf=q_pt,
-        q_gt_ftlbf=q_gt,
-        q_c_ftlbf=q_c,
         wa2_pps=wa2,
-        w41_pps=w41,
         w45_pps=w45,
         far=far,
     )
@@ -922,11 +825,11 @@ def run(
     `integrate_np=False`, which is the configuration Figures 9 and 10 run in.
 
     Two of the traces are diagnostics rather than model outputs. `inner_iters` and
-    `p45_iters` are the pass counts, and `inner_capped` / `p45_capped` / `p45_diverging`
-    are the exit conditions as 0/1 flags -- `FrameOut` carried all of this and `run()`
-    dropped it until 2026-09-13, so a run that spent every frame at the pass cap, or every
-    frame on a repelling P45 fixed point, produced traces indistinguishable from a
-    converged one. `iteration_report` summarises them.
+    `p45_iters` are the pass counts, and `inner_capped` is the inner loop's exit condition
+    as a 0/1 flag -- `FrameOut` carried all of this and `run()` dropped it until
+    2026-09-13, so a run that spent every frame at the pass cap, or every frame on a
+    repelling P45 fixed point, produced traces indistinguishable from a converged one.
+    `iteration_report` summarises them.
     """
     n = int(round(duration_s / dt)) + 1
     keys = (
@@ -946,8 +849,6 @@ def run(
         "inner_iters",
         "p45_iters",
         "inner_capped",
-        "p45_capped",
-        "p45_diverging",
         "wa31_substituted",
     )
     tr = {k: np.zeros(n) for k in keys}
@@ -993,8 +894,6 @@ def run(
         tr["inner_iters"][i] = out.inner_iters
         tr["p45_iters"][i] = out.p45_iters
         tr["inner_capped"][i] = out.inner_exit is Exit.CAPPED
-        tr["p45_capped"][i] = out.p45_exit is Exit.CAPPED
-        tr["p45_diverging"][i] = out.p45_exit is Exit.DIVERGING
         tr["wa31_substituted"][i] = out.wa31_substituted
     return tr
 
@@ -1014,20 +913,5 @@ def iteration_report(tr: dict[str, np.ndarray]) -> dict[str, float]:
         "inner_capped_frac": float(tr["inner_capped"].mean()),
         "p45_iters_mean": float(tr["p45_iters"].mean()),
         "p45_iters_max": float(tr["p45_iters"].max()),
-        "p45_capped_frac": float(tr["p45_capped"].mean()),
-        "p45_diverging_frac": float(tr["p45_diverging"].mean()),
         "wa31_substituted_frac": float(tr["wa31_substituted"].mean()),
     }
-
-
-__all__ = [
-    "FRAME_ENGINE_S",
-    "MAX_STEP_S",
-    "Exit",
-    "FrameOut",
-    "RTState",
-    "from_trim",
-    "iteration_report",
-    "run",
-    "step",
-]
