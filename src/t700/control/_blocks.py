@@ -102,10 +102,10 @@ def integrator(x: float, u: float, gain: float, lo: float, hi: float, dt: float)
     and 330 pph Wf (69 %). Figure C3's torque integrator free-runs to 9650-11549 ft*lbf*s
     against its clip at 40 -- a 241-289x windup that would take about 480 s to unwind.
 
-    **The anti-windup behaviour is kept for now and the departure is recorded**, because
-    choosing between them is a replication decision rather than a bug fix: the report draws
-    windup, a physical op-amp integrator against a stop does not have it, and this project's
-    rule is to reproduce what is printed and record the objection. Open question #59.
+    **The anti-windup behaviour is kept, by decision** (open question #59, closed
+    2026-10-12): the report draws windup, but nothing it prints tells the two apart -- they
+    agree on every printed surface and by 0.4 % NP inside Figure 15's window -- and only a
+    sustained saturation separates them, where the drawn windup overspeeds NP by 9 %.
     """
     return clamp(x + dt * gain * u, lo, hi)
 

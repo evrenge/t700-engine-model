@@ -33,12 +33,6 @@ _SPLIT = re.compile(r"(?<!\\)\|")
 
 # Curated one-line summaries. The row number and verdict are verified against the ledger.
 OPEN_SUMMARY = {
-    59: (
-        "Integrator anti-windup",
-        "Figures C3, C7 and C10 all draw an unlimited <code>1/s</code> followed by a "
-        "separate saturation &mdash; a topology that winds up. We clamp the state, which "
-        "does not. Invisible until a limit binds; 1240&nbsp;rpm on NP when one does.",
-    ),
     60: (
         "<code>f1</code> on a beta grid, not the printed table",
         "A deliberate departure. It removes a manufactured extrapolation entirely and "
