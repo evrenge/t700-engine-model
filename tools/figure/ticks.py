@@ -88,11 +88,6 @@ def major_values(ax):
     return np.array([ax["lo"] + ax["step"] * (k + 1) for k in range(ax["n"])])
 
 
-def n_majors(ax):
-    """How many interior majors the axis has."""
-    return len(major_values(ax))
-
-
 # ------------------------------------------------------- detector 1: the inward probe
 
 

@@ -66,13 +66,14 @@ def native_bitmap(page: int, out: Path | None = None) -> np.ndarray:
 
 
 def render(page: int, dpi: int, stem: Path) -> Path:
-    """A `pdftoppm` raster of the page at `dpi`, cached. **This resamples the page.**
+    """A `pdftoppm` raster of the page at `dpi`, cached by page and dpi. **This resamples.**
 
     Only Figure A1 uses it, and not for geometry: at 600 dpi each of its eleven speed
     lines is a single 8-connected ink component, which is what separates a family of
     curves that cross and crowd. A1's axes are calibrated on `native_bitmap` like every
     other figure's.
     """
+    stem = stem.parent / f"{stem.name}-{dpi}dpi"
     stem.parent.mkdir(parents=True, exist_ok=True)
     png = stem.parent / f"{stem.name}-{page:03d}.png"
     if not png.exists():

@@ -254,7 +254,7 @@ def fit_glyphs(
     return C, tpl
 
 
-def glyph_only_windows(ink, C, tpl, rad, mask_fn=None, seglen=45.0):
+def glyph_only_windows(ink, C, tpl, rad, mask_fn=None):
     """The same windows, with the joining polyline's own pixels excluded from scoring.
 
     One of the honest variations the uncertainty budget is built from: if the fitted centre

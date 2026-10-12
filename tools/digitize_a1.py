@@ -35,8 +35,8 @@ Run from the repo root; writes data/maps/f1_compressor_mass_flow.csv and the per
 CSVs that `digitize.py verify` consumes. Inputs:
 
     pdfimages -f 56 -l 56 -png docs/ballin-tm100991.pdf validation/out/digitize/a1redo/native
-    pdftoppm -f 56 -l 56 -r 600 -png docs/ballin-tm100991.pdf validation/out/digitize/a1_600
-    python3 tools/rectify_page.py rectify --page validation/out/digitize/a1_600-056.png \
+    pdftoppm -f 56 -l 56 -r 600 -png docs/ballin-tm100991.pdf validation/out/digitize/a1-600dpi
+    python3 tools/rectify_page.py rectify --page validation/out/digitize/a1-600dpi-056.png \
         --out validation/out/digitize/a1r_600-056.png
 
 All three are pulled automatically if missing -- see `native_bitmap` and `ensure_page` --
@@ -54,7 +54,6 @@ from __future__ import annotations
 
 import csv
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -70,7 +69,7 @@ from figure.frame import apply_h as _apply
 from figure.frame import corner_line as corner
 from figure.frame import homography, robust_keep
 from figure.frame import trace as _trace
-from figure.raster import native_bitmap
+from figure.raster import load_gray, native_bitmap, render
 from figure.ticks import protrusion as _protrusion
 
 # This file is a script whose work happens at module level, so *importing* it used to run
@@ -88,10 +87,8 @@ if __name__ != "__main__":
     )
 
 SP = os.environ.get("A1_WORK", "validation/out/digitize")  # intermediate .npy arrays
-PDF = Path("docs/ballin-tm100991.pdf")
 NAT = Path("validation/out/digitize/a1redo")
 PAGE_NO = 56
-RENDER = Path("validation/out/digitize/a1_600-056.png")
 PAGE = Path("validation/out/digitize/a1r_600-056.png")
 
 
@@ -109,33 +106,16 @@ def ensure_page() -> None:
     `pdftoppm` rasterizes the page and `rectify_page.rectify` fits the four printed frame
     lines and maps their quadrilateral onto its enclosing rectangle.
     """
-    PAGE.parent.mkdir(parents=True, exist_ok=True)
-    if not RENDER.exists():
-        print(f"rendering page {PAGE_NO} at 600 dpi -> {RENDER}")
-        subprocess.run(
-            [
-                "pdftoppm",
-                "-f",
-                str(PAGE_NO),
-                "-l",
-                str(PAGE_NO),
-                "-r",
-                "600",
-                "-png",
-                str(PDF),
-                str(RENDER.parent / "a1_600"),
-            ],
-            check=True,
-        )
     if not PAGE.exists():
         print(f"rectifying -> {PAGE}")
-        left, top, right, bottom = rectify_page.rectify(RENDER, PAGE)
+        rendered = render(PAGE_NO, 600, PAGE.parent / "a1")
+        left, top, right, bottom = rectify_page.rectify(rendered, PAGE)
         print(f"  frame {left},{top},{right},{bottom}")
 
 
 ensure_page()
 
-img = np.asarray(Image.open(PAGE).convert("L"), dtype=float) / 255.0
+img = load_gray(PAGE)
 RAW = img < 0.6
 X0, X1, Y0, Y1 = 914, 4221, 818, 5006  # plot interior, just inside the rectified frame
 RFRAME = (910.0, 814.0, 4225.0, 5010.0)  # rectified frame: left, top, right, bottom (px)
