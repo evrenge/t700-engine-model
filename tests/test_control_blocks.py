@@ -43,6 +43,9 @@ PRINTED = {
     "ENGINE2_TORQUE_THRESHOLD": 180.0, "ZLOLIM_HIGH_TORQUE": -0.3, "TM_INPUT_BIAS": -0.44,
     "TM_LEAD": 0.04, "TM_LAG": 0.2, "TM_FORWARD_GAIN": 564.0, "TM_CURRENT_BIAS": -31.0,
     "FUEL_TRANSPORT_DELAY": 0.015,
+    # the three UNCONSTRAINED records below, read off the page images on 2026-10-12 for the
+    # trim survey: B6 from Table C.1 [p.83]; the 1000 gain and both relays' 1 from Fig. C3 [p.86]
+    "B6": 1.0, "NP_LOOP_RELAY_GAIN": 1000.0, "RELAY_OUTPUT": 1.0,
 }  # fmt: skip
 P = PRINTED
 
@@ -69,7 +72,8 @@ UNCONSTRAINED = {
     "K_T49_1": "T49 is computed [Eq. 36] and read by nothing, and the report prints no T49",
     "K_T49_2": "as K_T49_1",
 }
-"""Pinned by value only (`test_control_constants.py`, `PRINTED` above), on purpose."""
+"""Pinned by value only, on purpose: the 10 ms lags by `test_control_constants.py`, the relay
+chain by `PRINTED` above, `K_T49_*` by `test_thermo.py`."""
 
 
 def _lag(x: float, u: float, tau: float, dt: float = DT) -> float:

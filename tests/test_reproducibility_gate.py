@@ -115,16 +115,53 @@ def source() -> str:
     return SCRIPT.read_text()
 
 
-def test_the_gate_checks_its_interpreter_before_doing_anything(source: str):
-    """Refusing an interpreter without NumPy is what makes the rest of the run meaningful."""
-    assert "import numpy" in source, (
-        "the script no longer verifies that its python3 can import NumPy. Without that "
-        "check, running it outside the t700-dev container crashes every digitizer and "
-        "reports success, which is the 2026-09-12 defect."
+def _code(source: str) -> str:
+    """The script without its comments, so a needle mentioned in prose cannot satisfy a guard.
+
+    A `#` after whitespace starts a comment in bash unless it is quoted; cutting a quoted one
+    too can only hide a needle, never invent one, so it errs toward failing.
+    """
+    lines = (ln for ln in source.splitlines() if not ln.lstrip().startswith("#"))
+    return "\n".join(re.sub(r"\s#.*$", "", ln) for ln in lines)
+
+
+_NO_POPPLER = (
+    "the gate no longer checks that poppler is on PATH; a machine without it gets a "
+    "FileNotFoundError per tool and no indication of what to install"
+)
+
+
+@pytest.mark.parametrize(
+    "needle, why",
+    [
+        (
+            "import numpy",
+            "the script no longer verifies that its python3 can import NumPy. Without that "
+            "check, running it outside the t700-dev container crashes every digitizer and "
+            "reports success, which is the 2026-09-12 defect.",
+        ),
+        ("pdftoppm", _NO_POPPLER),
+        ("pdfimages", _NO_POPPLER),
+    ],
+)
+def test_the_gate_checks_its_prerequisites_before_doing_anything(source, needle, why):
+    """Refusing an interpreter without NumPy is what makes the rest of the run meaningful,
+    and poppler is the prerequisite a Python dependency list cannot express.
+
+    Every digitizer shells out to `pdftoppm` or `pdfimages`. Without them the tools fail
+    one at a time with a FileNotFoundError naming a binary, which reads as a broken
+    digitizer rather than a missing package -- and the string "poppler" appeared nowhere
+    in this repository until 2026-09-13.
+
+    Searched in the script's code only. Until 2026-10-12 these searched the whole file, and
+    the header comment names `pdftoppm` and `pdfimages` before the real check does, so
+    deleting the check failed nothing.
+    """
+    code = _code(source)
+    assert needle in code, why
+    assert code.index(needle) < code.index("for entry in "), (
+        f"the {needle} check must come before the digitizer loop"
     )
-    guard = source.index("import numpy")
-    loop = source.index("for entry in ")
-    assert guard < loop, "the NumPy check must come before the digitizer loop"
 
 
 def test_a_failed_digitizer_poisons_the_verdict(source: str):
@@ -140,23 +177,6 @@ def test_a_failed_digitizer_poisons_the_verdict(source: str):
     assert check < success, (
         "the failure count must be tested before the success message can be reached"
     )
-
-
-def test_the_gate_checks_for_poppler_before_doing_anything(source: str):
-    """The prerequisite a Python dependency list cannot express.
-
-    Every digitizer shells out to `pdftoppm` or `pdfimages`. Without them the tools fail
-    one at a time with a FileNotFoundError naming a binary, which reads as a broken
-    digitizer rather than a missing package -- and the string "poppler" appeared nowhere
-    in this repository until 2026-09-13.
-    """
-    assert "pdftoppm" in source and "pdfimages" in source, (
-        "the gate no longer checks that poppler is on PATH; a machine without it gets a "
-        "FileNotFoundError per tool and no indication of what to install"
-    )
-    guard = min(source.index("pdftoppm"), source.index("pdfimages"))
-    loop = source.index("for entry in ")
-    assert guard < loop, "the poppler check must come before the digitizer loop"
 
 
 def test_no_gate_tool_reads_a_gitignored_input_it_does_not_produce():

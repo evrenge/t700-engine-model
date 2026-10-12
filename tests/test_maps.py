@@ -85,7 +85,7 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
     passes on the digitized slope too -- the two printed endpoints differ by less than a
     tenth of their own read error -- so every range check in this file is blind to whether
     `f6` is a constant or a line. That is the same hole
-    `test_f1_is_on_a_beta_grid_not_the_printed_table` exists to close for #60, found the
+    `test_f1_is_interpolated_on_a_smooth_analytic_beta_grid` exists to close for #60, found the
     same way: revert the departure and watch the suite stay green.
 
     Four things are asserted, and the last two are what keep the provenance honest.
