@@ -643,6 +643,7 @@ def overlay():
             u, v = to_uv_rect(*PX[lbl][k])
             x, y = at(float(u), float(v))
             d.ellipse([x - 7, y - 7, x + 7, y + 7], outline=(0, 170, 0), width=2)
+    NAT.mkdir(parents=True, exist_ok=True)  # gitignored, so absent on a fresh clone
     im.crop((380, 360, 2180, 2560)).save(NAT / "a1_verify.png")
     im.crop((380, 360, 900, 900)).resize((1040, 1080), Image.LANCZOS).save(
         NAT / "a1_verify_topleft.png"

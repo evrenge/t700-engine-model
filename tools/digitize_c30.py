@@ -292,7 +292,7 @@ def main(argv=None) -> int:
         """Runs in a column, keeping only those narrow enough to be line and not glyph."""
         return [(a, b) for a, b in runs_in_column(work, c, lo_r, hi_r) if (b - a) <= 8]
 
-    def fit_segment(k, x0, v0, x1, v1):
+    def fit_segment(x0, v0, x1, v1):
         """Least-squares line through the glyph-free columns strictly inside a segment.
 
         The printed markers are the polyline's vertices, but a run centre measured *at* a
@@ -351,7 +351,7 @@ def main(argv=None) -> int:
         # replace each interior vertex by the intersection of its two fitted segments
         sx = [q[0] for q in pts]
         sv = [q[1] for q in pts]
-        fits = [fit_segment(k, sx[i], sv[i], sx[i + 1], sv[i + 1]) for i in range(len(pts) - 1)]
+        fits = [fit_segment(sx[i], sv[i], sx[i + 1], sv[i + 1]) for i in range(len(pts) - 1)]
         out = list(pts)
         for i in range(1, len(pts) - 1):
             f0, f1 = fits[i - 1], fits[i]
