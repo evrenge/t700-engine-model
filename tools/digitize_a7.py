@@ -1,54 +1,27 @@
 """Extract Figure A7 (`f7`, gas-generator turbine energy) from TM-100991 pdf p.62.
 
-Why this figure gets the most care of any in the appendix.  `f7` carries six points, five
-of them packed into a knee 0.015 wide whose steepest segment runs at -526 BTU/LBM per unit
-P45/P41, and a sensitivity sweep of the trimmed engine gives +2.9 % to +5.5 % of shaft
-power per +1 % on `f7`, with all three published trim conditions sitting inside that knee.
-One pixel of read error there is 0.047 BTU/LBM.
+`f7` gets the most care in the appendix: five of its six points sit in a knee 0.015 wide,
+and all three published trim conditions sit inside it. The CSV is hand-maintained; this
+tool recomputes its rows and checks them, returning non-zero on any difference.
 
-This is the 2026-09-11 *recalibration*, replacing the same day's first redo.  What changed:
-
-1.  **Both** y frame values are used.  The top frame prints 52.5; the bottom frame is
-    unlabelled, and the tick lattice fixes it -- the frame spans 13.03 major steps of 2.5
-    and 130.3 minor steps of 0.25, so it is a lattice point and the bottom frame is
-    **20.0 exactly**.  With two known frame values the held-out test can separate an even
-    axis correction from an odd one, which one value cannot.  x is the same story: the
-    right frame prints 0.35, the left is unlabelled and the lattice spans 15.00 majors of
-    0.01, so it is **0.20 exactly**.
-2.  **The minor ticks are used** -- 0.25 in y (131 of them on the left edge, every slot
-    filled exactly once) and 0.002 in x (76).  Ten times the data the long ticks give, and
-    enough to fit and *test* an order-5 axis map instead of guessing between order 2 and
-    order 4 on twelve ticks.
-3.  **The frame edges are fitted as arcs** (`figure.frame.make_sv`), not as a
-    homography between four corners.  p.62's sagittae are -0.44 / -0.75 / -0.38 / -0.14 px.
-4.  **The frame values are anchored exactly**, not carried as two extra data points among
-    76 ticks (`fit_anchored`).  With the soft anchor the order-3 x map misses the left
-    frame by 2.0 px, and marker 1 *sits on that frame*.
-5.  **Seeds come from a global search before the local fit.**  Marker seeds are the cores
-    of a 6x6 morphological opening -- six of them, an independent marker count -- but the
-    core of a marker on a frame line is the union of glyph, frame and tick and can be 10 px
-    out; handed that, the local fit slid marker 1 18 px down the joining line into a
-    converged-looking wrong minimum, 0.27 BTU/LBM low.  `refine_seeds` grid-searches the
-    hard-edged model over +-16 px first, and the fit then moves <= 0.66 px.
-6.  Nelder-Mead is given an explicit 2 px simplex on the glyph *offset*.  Its default
-    simplex is 5 % of each coordinate, which at marker 6's column of x = 2118 is a 106 px
-    first step into flat, converged-looking nonsense.
-
-What the axis order came out as, and how it was chosen: see `choose_order` -- minimise the
-held-out frame error among orders whose leave-one-tick-out error is within 1.2x of the
-best, ties within 1.25x to the lower order.  On the fine lattice that gives **order 5 in y**
-(the quadratic in use before misses the bottom frame by 0.081-0.091 BTU/LBM) and **order 3
-in x**.  The bow is even *and* odd: fitted as Legendre coefficients of the y value
-function, P2 = -3.8/-4.8 px (35 sigma), P3 = -3.5/-4.1 px (27 sigma), P4 = +2.6/+2.7 px
-(17 sigma), P5 = +1.1 px (6 sigma), P6 nothing.  That is the answer the single printed
-frame value could not give.
+1.  Both frame values of each axis are used. The top frame prints 52.5; the bottom is
+    unlabelled, but the tick lattice puts it 13 major steps of 2.5 below, a lattice point:
+    20.0 exactly. Likewise the right frame prints 0.35 and the left spans 15 majors of
+    0.01: 0.20. Two known frame values let the held-out test separate an even axis
+    correction from an odd one.
+2.  The minor ticks are used (0.25 in y, 0.002 in x): enough to fit and test an order-5
+    map. The order is chosen by `choose_order`.
+3.  The frame edges are fitted as arcs (`figure.frame.make_sv`), not a homography.
+4.  The frame values are anchored exactly (`fit_anchored`), not carried as two soft data
+    points: marker 1 sits on the left frame.
+5.  Seeds come from a global grid search (`refine_seeds`) before the local fit: the
+    opening core of a marker on a frame line can be 10 px out, and a local fit handed that
+    slides down the joining line into a converged-looking wrong minimum.
+6.  Nelder-Mead gets an explicit 2 px simplex on the glyph offset (recipe trap 8).
 
 Run from the repo root, with `tools/` on PYTHONPATH.  Writes overlays under
 validation/out/digitize/a7redo/ and prints the rows of data/maps/f7_gg_turbine_energy.csv.
 Needs `pdfimages` (poppler).
-
-This module lives in tools/ and may use SciPy and PIL.  Nothing here is imported by
-src/t700/.
 """
 
 from __future__ import annotations
@@ -146,10 +119,8 @@ def tickset(fc, to_sv, verbose=False, fine=None):
 
 
 def choose_order(rows, lo, hi, unit=1.0, uname=""):
-    """A6/A8/A10's rule: minimise the held-out frame error, but only among orders whose
-    leave-one-tick-out error is within 1.2x of the best -- otherwise a high order can win
-    the extrapolation by fitting noise in between.  Ties within 1.25x go to the lower
-    order.  Both criteria are held out; neither is a fit statistic on the fitted data."""
+    """Lowest held-out frame error among orders whose leave-one-tick-out error is within
+    1.2x of the best; ties within 1.25x go to the lower order (recipe trap 6)."""
     errs = {o: max(abs(a - lo), abs(b - hi)) for o, (_, _, a, b) in rows.items()}
     loos = {o: v[1] for o, v in rows.items()}
     order, ok = choose(errs, loos)
@@ -353,10 +324,8 @@ def main() -> int:
         tt = np.concatenate([P[edges[0]][0], P[edges[1]][0]])
         vv = np.concatenate([P[edges[0]][1], P[edges[1]][1]])
         pooled = held_out_table(tt, vv, lo, hi, unit, uname, label="both edges pooled, fine ")
-        # The model actually used fits each edge ALONE and blends, so the per-edge test is
-        # the one that matters; pooling is reported as a cross-check and, where the two
-        # edges carry a real offset from each other (x here: 2.5 px at the right frame),
-        # it cannot see curvature at all -- the same defect the A10 x note describes.
+        # The model fits each edge alone and blends, so the per-edge test is the one that
+        # matters; pooled is a cross-check only, blind to curvature where the edges are offset.
         pick = choose_order(pooled, lo, hi, unit, uname)
         orders[axis[0]] = (rows[edges[0]], rows[edges[1]], pick)
         Pc = tickset(fc, to_sv, fine=False)
