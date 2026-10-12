@@ -1,11 +1,10 @@
 """The heat-sink time constants Appendix B was generated with, recovered from its own numbers.
 
-Open questions #31 and #73, diagnosed 2026-10-12. Eqs. 50-53 [pdf p.26], `TC_T41 = 0.29`
-[p.55] and the f_hs plateau at 7.50 [Fig. A11, p.66] are all as printed, and they give time
-constants 14 % (tau1) and 9 % (tau2) shorter than the ones Appendix B was generated with.
-Expressed as inputs, the whole difference is TC_T41: Appendix B behaves as if it were 0.320,
-and as if f_hs were the plotted one to 0.4 %. The replication keeps the printed 0.29; this
-file pins the inconsistency.
+Open questions #31 and #73. Eqs. 50-53 [pdf p.26], `TC_T41 = 0.29` [p.55] and the f_hs
+plateau [Fig. A11, p.66], all as printed, give time constants shorter than the ones Appendix B
+was generated with; expressed as inputs, the whole difference is TC_T41 (Appendix B behaves
+as if it were about 0.32). The replication keeps the printed 0.29; this file pins the
+inconsistency.
 
 With T41 held fixed during extraction [pdf p.31], `dT41_ns/dT41` is zero, and writing
 `q = A(T41,NG) / (1 + tau1 A(NG,NG))` the Chen form gives, per trim:
@@ -13,9 +12,7 @@ With T41 held fixed during extraction [pdf p.31], `dT41_ns/dT41` is zero, and wr
     B0    = d / tau1 + tau1 Jw q                  Jw = b(NG) - A(NG,T41) d
     tau2  = -1 / (A(T41,T41) - tau1 A(NG,T41) q)
 
-so both come from one printed 3-DOF block alone. Recovered from B7/B9/B11, tau1/tau2 is
-0.6712 / 0.6446 / 0.6202; derivative-ambiguity.md's feedthrough estimator on the 6-DOF
-blocks gives 0.6712 / 0.6450 / 0.6182.
+so both come from one printed 3-DOF block alone.
 """
 
 from __future__ import annotations
@@ -33,23 +30,23 @@ from test_all_dof_models import AMB, DQ_REQ_DNP, FIG, NP_RPM, TRIM, WF_PPH, _mod
 
 TAU1_RATIO = (0.84, 0.88)
 TAU2_RATIO = (0.89, 0.93)
-"""Ours over Appendix B's. Measured 0.862 / 0.855 / 0.852 and 0.907 / 0.906 / 0.910."""
+"""Ours over Appendix B's, per trim. See SCOPE.md."""
 
 SIX_DOF_SWAP_TOL_PCT = 0.5
 """The 6-DOF fuel column -- gas-path `b` and `d(T41)` -- with the taus recovered from the
-3-DOF. Measured worst 0.37 %; with our own taus it runs 5-6 % low."""
+3-DOF. With our own taus it runs several percent low."""
 
 IMPLIED_TC_T41 = (0.315, 0.325)
 IMPLIED_F_HS_TOL_PCT = 1.0
-"""Eqs. 51 and 53 inverted at our trims for the recovered taus. Measured TC_T41 0.3198 /
-0.3201 / 0.3188 against the printed 0.29; f_hs within 0.12 / 0.16 / 0.37 % of the plot."""
+"""Eqs. 51 and 53 inverted at our trims for the recovered taus, against the printed
+TC_T41 = 0.29 [pdf p.55] and the f_hs plot [Fig. A11, pdf p.66]."""
 
 THREE_DOF_SWAP_TOL_PCT = 2.0
 SHIPPED_THREE_DOF_SWAP_TOL_PCT = 8.0
-"""The 3-DOF T41 row -- `A(T41,T41)`, `b(T41)`, `d` -- with those taus. On the tangent, hover
-and descent: measured worst 1.7 %; level sits 0.07 %NGc above f1's 89 % line and a tangent
-takes one side of it (1.07 and 1.15 there). At the shipped +-2 % step, which straddles that
-line as B9 does, all three trims: measured worst 6.5 % (level `b(T41)`)."""
+"""The 3-DOF T41 row -- `A(T41,T41)`, `b(T41)`, `d` -- with those taus. The tight bound is on
+the tangent, hover and descent only: level sits just above f1's 89 % line and a tangent takes
+one side of it. The loose one is at the report's +-2 % step, which straddles that line as B9
+does, all three trims."""
 
 
 def _parts(m):
