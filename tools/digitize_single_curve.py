@@ -1001,6 +1001,8 @@ def _cal_block(CA, spec, axis):
     order = CA["order"]
     var = "u" if axis == "x" else "v"
     side = {"lo": "left" if axis == "x" else "bottom", "hi": "right" if axis == "x" else "top"}
+    # the frames bounding the axis (above) are not the edges carrying its ticks (below)
+    edge = ("bottom", "top") if axis == "x" else ("left", "right")
     anch = spec.get("anchor", spec["printed"])
     words = ", ".join(
         f"{side[s]} = {spec[s]:g}" + ("" if s in spec["printed"] else " (DERIVED, see below)")
@@ -1012,8 +1014,8 @@ def _cal_block(CA, spec, axis):
         f"where {var} = 0 at the {side['lo']} frame and 1 at the {side['hi']} frame.",
         "#      The two ticked edges are fitted SEPARATELY and blended across the plot;",
         "#      the value at a point is the map its own end of the plot measured.",
-        f"#        {side['lo']:6s} {axis} = {_poly_str(CA['edgec'][0], var)}",
-        f"#        {side['hi']:6s} {axis} = {_poly_str(CA['edgec'][1], var)}",
+        f"#        {edge[0]:6s} {axis} = {_poly_str(CA['edgec'][0], var)}",
+        f"#        {edge[1]:6s} {axis} = {_poly_str(CA['edgec'][1], var)}",
         "#      Pooling them, which this tool did until 2026-09-16, averages away a real",
         f"#      difference; the pooled map was {axis} = {_poly_str(CA['c'], var)}",
         f"#      Fitted on {CA['n']} interior ticks ({CA['lattice']} lattice, "
@@ -1146,7 +1148,11 @@ def write_csv(key, r):
         f"{np.abs(np.polyval(r['cy'], r['v']) - r['loc']['y']).max():.3g} in y, worst point."
     )
     A("#")
-    A(f"# MARKERS. {cfg['nmark']} 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the")
+    k = cfg.get("open_sz", 7)
+    A(
+        f"# MARKERS. {cfg['nmark']} 'x' glyphs. Seeds come from a {k}x{k} morphological "
+        "OPENING of the"
+    )
     A("# ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does")
     A("# not -- which is independent of density and needs no threshold sweep. Each centre is")
     A("# then fitted with a generative model of the local ink: (stroke1 U stroke2 U incoming")
