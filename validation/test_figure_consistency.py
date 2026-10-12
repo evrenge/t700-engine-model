@@ -1,25 +1,14 @@
 """Are the report's own result figures mutually consistent, and are we on all of them?
 
-This file exists because of a mistake. Comparing Figure 10's transient Ps3 against
-Figure 8's steady-state sweep at matched gas generator speed produced 3-6 % deviations,
-and those were written up as the report disagreeing with itself. **That comparison is
-invalid.** Figures 6-8 are equilibrium sweeps; Figures 9-10 are transients. During a chop
-fuel is cut, T41 falls, and the choked station 4.1 nozzle then passes the same flow at a
-lower P41 -- so P3 *must* sit below its equilibrium value at that speed. The excursion is
-the reason a transient model exists.
+Trap: a transient (Figures 9-10) must not be compared with an equilibrium sweep (Figures 6-8)
+at matched NG. During a chop T41 falls and the choked station 4.1 nozzle passes the same flow
+at a lower P41, so P3 sits below its equilibrium value by construction (#46). Valid
+comparisons are trace against trace, settled state against the sweep, and the phase plane.
 
-Ballin also settles the question in text. Of Figure 9 he writes [pdf p.39]:
-
-    "Gas generator speed is overestimated by 1 to 2 percent; this is reflected in the
-    trim differences between the real-time model and the status-81 model in figure 6."
-
-He cross-references the transient figure's trim to the steady figure's, which he could
-only do if they share a condition. The tests below check that he was right, and that we
-sit on both sides of every apparent disagreement at once -- which is the operative point,
-because a single model cannot match two genuinely contradictory datasets.
-
-See `SCOPE.md` -> "Comparing a transient to a steady-state figure" for the tolerances and
-for the measured read error of Figures 9-10.
+Ballin ties the figures to one condition in text [pdf p.39]: "Gas generator speed is
+overestimated by 1 to 2 percent; this is reflected in the trim differences between the
+real-time model and the status-81 model in figure 6." See SCOPE.md, "Comparing a transient
+to a steady-state figure" and "The figures' own read error".
 """
 
 from __future__ import annotations
@@ -42,16 +31,9 @@ AMB = Ambient(14.696, 518.67)
 PHASE_PLANE_TOL_PCT = 2.5
 BOTH_SIDES_TOL_PCT = 0.5
 READ_ERROR_CEILING_PCT_FS = 0.6
-"""All three declared in `SCOPE.md`; none is derived from the report, which states no
-transient tolerance at all.
-
-The last one is expressed **as a fraction of each panel's full scale**, which is the only
-currency it can honestly be quoted in -- see `PANEL_SPAN` below.
-
-**Tightened 1.6 -> 0.6 on 2026-09-14**, never widened. 1.6 covered an uncorrected page
-skew of up to 4.2 % of panel height that the digitizer now takes out. What is left is what
-the two measurements below actually read: 0.38 %FS worst against the WFPH caption, 0.40
-%FS worst between the two figures' reads of one state. 0.6 is those with headroom."""
+"""All three ours, declared in `SCOPE.md`; the report states no transient tolerance. The
+read-error ceiling is a fraction of each panel's full scale, not of value -- see
+`PANEL_SPAN`."""
 
 # Full-scale span of each panel's y axis, from `tools/digitize_fig910.py`'s PANEL_RANGES.
 # `calibrate()` there maps pixels to values by a straight line between the two frame rows,
@@ -61,32 +43,15 @@ PANEL_SPAN = {
     10: dict(wfph=500.0, ps3=200.0, pcng=40.0, t41=1000.0, t45=1000.0, torq45=400.0),
 }
 
-# [pdf p.43, Table 2] NASA-Lewis test conditions. The only non-standard ambient printed
-# in the report -- and it belongs to Table 3, not to Figures 9-10. Kept here because
-# `test_figures_9_and_10_are_sea_level_standard` has to rule it out with numbers.
+# [pdf p.43, Table 2] NASA-Lewis test conditions, the only non-standard ambient printed;
+# it belongs to Table 3. Here so `test_figures_9_and_10_are_sea_level_standard` can rule it out.
 T2_WF_PPH = np.array([140.1, 297.2, 372.0, 458.4, 560.6, 694.4])
 T2_P2_PSIA = np.array([14.37, 14.17, 14.16, 14.09, 14.02, 13.92])
 T2_T2_DEGR = np.array([516.7, 515.6, 508.3, 508.0, 507.2, 507.2])
 
 PRE_STEP_KEYS = ("pcng", "ps3", "t41", "t45", "torq45", "wfph")
-"""Ballin's pre-step plateau is **measured from the files**, not transcribed into this
-module.
-
-It used to be a literal dict. That went stale the moment the digitizer changed: the frame
-deskew of 2026-09-14 moved every one of the ten numbers, and two tests went on comparing
-the new WFPH panels against the old plateaus without failing, because the plateaus were
-constants. Measuring them here costs twelve CSV reads and cannot go stale.
-
-For the record, the values this file asserted against until then, and what they read now:
-
-| panel | fig 9 was | is | fig 10 was | is |
-|---|---|---|---|---|
-| pcng | 90.903 | 90.764 | 91.235 | 90.756 |
-| ps3 | 156.953 | 156.017 | 157.543 | 155.629 |
-| t41 | 2188.33 | 2183.83 | 2193.50 | 2185.95 |
-| t45 | 1563.46 | 1555.28 | 1571.79 | 1557.39 |
-| torq45 | 175.20 | 172.84 | 184.11 | 174.45 |
-"""
+"""Panels whose pre-step plateau is measured from the reference files, never transcribed
+here: a literal copy goes stale silently when the digitizer changes."""
 
 
 def _pre_step(fig: int) -> dict[str, float]:
@@ -110,18 +75,9 @@ WFPH_PRINTED = {9: (400.0, 775.0, 0.539), 10: (400.0, 125.0, 0.545)}
 def test_the_figures_own_read_error_is_measured_not_estimated(fig: int):
     """The WFPH panel's true value is printed, so digitizing it measures our read error.
 
-    **In percent of full scale, not percent of value.** That distinction was got wrong
-    once and it matters more than the measurement: `calibrate()` in
-    `tools/digitize_fig910.py` maps pixel rows to values by a straight line between the
-    two frame rows, so the error is a pixel offset -- a fixed fraction of the panel's
-    *span*. Quoted as a fraction of the value it happens to sit on, the same pixel offset
-    reads +1.83 % at 400 on a 250-1000 axis and +0.21 % on the 80-100 PCNG axis. The
-    project briefly carried the 1.83 % as a universal floor "under which deviations are
-    not chased", which is roughly nine times too permissive on PCNG -- the channel most
-    of its headline agreements are quoted on.
-
-    `test_the_two_figures_read_one_state_to_within_a_pixel` is the evidence for the %FS
-    model; this test just pins the magnitude.
+    In percent of full scale, not of value: the digitizer maps pixels linearly between two
+    frame rows, so the error is a pixel offset. Quoted per value, one offset reads very
+    differently on a wide WFPH axis and the narrow PCNG one.
     """
     lo, hi, t_step = WFPH_PRINTED[fig]
     span = PANEL_SPAN[fig]["wfph"]
@@ -139,34 +95,8 @@ def test_the_figures_own_read_error_is_measured_not_estimated(fig: int):
 
 
 def test_the_two_figures_read_one_state_to_within_a_pixel():
-    """Two figures read one state, so their disagreement is pure read error. Bound it.
-
-    Figures 9 and 10 are both trimmed at 400 lbm/hr on axes of different span, so the
-    difference between their pre-step plateaus contains no model and no physics -- only
-    what the digitizer did. That makes it the honest measurement of the read floor, and a
-    broader one than the WFPH caption check, which constrains one panel per page.
-
-    **This test replaced a predictor.** The earlier version calibrated a single pixel
-    offset per page from the WFPH panel and predicted the other panels from it, which was
-    the argument for quoting the floor in percent of full scale. The predictor is gone
-    because what it predicted is gone: until 2026-09-14 the digitizer mapped every panel
-    through one pair of frame rows taken at the panel's left edge, and the pages are
-    skewed, so a single per-page offset really did describe most of the error. Each panel's
-    frames are now fitted along their own length and the residual is sub-pixel and
-    uncorrelated between panels. What survives is the currency argument, as a measurement:
-
-    | panel | fig10 - fig9 | % of full scale | % of value |
-    |---|---|---|---|
-    | pcng | -0.008 %NG | 0.02 | 0.009 |
-    | ps3 | -0.388 psia | 0.19 | 0.249 |
-    | t41 | +2.12 degR | 0.21 | 0.097 |
-    | t45 | +2.11 degR | 0.21 | 0.136 |
-    | torq45 | +1.61 ft*lbf | 0.40 | 0.929 |
-    | wfph | -2.21 lbm/hr | 0.29 | 0.551 |
-
-    Before the deskew those five ran 0.33 %NG, 0.59 psia, 5.2 degR, 8.3 degR and 8.9
-    ft*lbf -- the last of which had been written up as a defect in Figure 10's TORQ45 panel
-    and excluded from the comparison. It was our own uncorrected page skew.
+    """Figures 9 and 10 both start at the 400 lbm/hr trim, on axes of different span, so the
+    difference between their pre-step plateaus is pure read error, on every panel (#63).
     """
     a, b = _pre_step(9), _pre_step(10)
     for key in PRE_STEP_KEYS:
@@ -183,9 +113,8 @@ def test_the_two_figures_read_one_state_to_within_a_pixel():
 def test_ballins_own_cross_reference_between_figures_9_and_6_holds():
     """[pdf p.39] "overestimated by 1 to 2 percent; this is reflected in ... figure 6."
 
-    The trim gap between his model and status-81 should be the same quantity in the
-    transient figure and in the steady sweep. It is: +1.27 % in Figure 9, +1.03 % in
-    Figure 6 at the same fuel flow, against his stated 1-2 %.
+    The trim gap between his model and status-81 is the same quantity in Figure 9 and in
+    Figure 6 at the same fuel flow.
     """
     ng9_b, ng9_g = _pre_step(9)["pcng"], 89.759  # Ballin's line, GE '+' markers
     gap_transient = 100.0 * (ng9_b / ng9_g - 1.0)
@@ -204,28 +133,12 @@ def test_ballins_own_cross_reference_between_figures_9_and_6_holds():
 
 
 def test_figures_9_and_10_are_sea_level_standard():
-    """Their captions do not say so; Figures 6-8's do. Decided by experiment.
+    """Their captions do not say so (Figures 6-8's do); Figures 9-10 use the NASA-Lewis
+    dynamometer [pdf p.39], so Table 2's Lewis condition [pdf p.43] is a candidate (#53).
 
-    Table 2 [pdf p.43] is the only non-standard ambient the report prints (P2 13.92-14.37
-    psia, T2 507-517 deg R), and Figures 9-10 use "the dynamometer used for testing of the
-    NASA-Lewis experimental engine" [pdf p.39] -- so the Lewis test-cell condition is a
-    live possibility. It loses, but by less than this test once claimed: on the four
-    trusted channels our standard-day trim fits Ballin's pre-step plateau at rms
-    **0.42 %** against **0.90 %** for the Lewis condition -- a factor of **2.1**, not the
-    "roughly four times" first written here. That 4x was the five-channel rms, and the
-    fifth channel is TORQ45, which this same file excludes elsewhere as bad reference
-    data and whose own read-error floor is ~2.2 % of value. Dropping it removes most of
-    the discrimination, which is the honest result.
-
-    So this is a supporting leg, not the load-bearing one. The load-bearing evidence that
-    Figures 6-10 share a condition is documentary: Ballin's own cross-reference on pdf
-    p.39, checked by `test_ballins_own_cross_reference_between_figures_9_and_6_holds`.
-    What this test still establishes is that the Lewis condition is not *better*, which
-    is what would have to be true for Table 2 to apply here.
-
-    That is consistent with Table 2 belonging to Table 3 alone, which also swapped in
-    Lewis-derived compressor and turbine functions "in place of the standard functions"
-    and is therefore a different model, not merely a different day.
+    Our standard-day trim fits Ballin's pre-step plateau better than the Lewis condition on
+    the four trusted channels (TORQ45 left out). A supporting leg only: the load-bearing
+    evidence is Ballin's own cross-reference, checked above.
     """
     p2 = float(np.interp(400.0, T2_WF_PPH, T2_P2_PSIA))
     t2 = float(np.interp(400.0, T2_WF_PPH, T2_T2_DEGR))
@@ -278,33 +191,13 @@ def _ballin_phase_plane(fig: int, t_step: float) -> tuple[np.ndarray, np.ndarray
     ],
 )
 def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
-    """Ps3 against NG -- the comparison that needs no time axis.
+    """Ps3 against NG -- the comparison that discards the time axis, and with it the
+    unprinted step time (#37).
 
-    Every time-domain comparison against these figures carries the unprinted step time
-    (open question #37) and a rate comparison on top of the state error. Plotting Ps3
-    against NG discards both: what is left is the thermodynamic path the engine takes
-    through the state space, which is set by the turbine flow function and the station 4.1
-    temperature dynamics.
-
-    **Only Figure 10's panel carries real information, and that was overclaimed once.**
-    Ballin's Figure 9 Ps3(NG) over 92-98 %NG is a straight line -- R^2 = 0.9994, and the
-    chord through its two endpoints reproduces the trace to 0.30 %. So a model that
-    merely lands on the 400 and 775 lbm/hr trims traces an indistinguishable path there,
-    and Figure 9's agreement -- **1.66 %** -- is in fact *larger* than the curvature it
-    would have to explain, so that panel carries nothing.
-    Figure 10 is different: its chord error is **7.24 %**, so our **1.30 %** means the
-    trajectory is about **5.6 times** closer to Ballin's than a straight line is.
-    (1.42 / 1.02 / "seven times" were on record until 2026-09-13; `SCOPE.md` had already
-    been updated to 1.66 / 1.30 by the stopping-rule change and this docstring had not.)
-    `test_the_phase_plane_is_not_a_degenerate_comparison` pins that distinction.
-
-    Two further limits, both measured. The metric is **blind to the volume constants**:
-    perturbing `K_V3` and `K_V41` by +/-30 % leaves it bit-identical, because the
-    real-time formulation solves the pressures algebraically and they drop out. And it is
-    **not converged in dt on Figure 9**, so its number at the shipped 7 ms is partly
-    cancellation. Figure 10 behaves properly: monotone in dt, improving as the frame
-    shrinks. (Both were re-measured after the 2026-09-13 trace-alignment fix, which moved
-    Figure 9 from an apparent 0.59 % to a true 1.42 %.)
+    Only Figure 10's panel is evidence: Figure 9's Ps3(NG) is nearly a straight chord between
+    the two trims (see `test_the_phase_plane_is_not_a_degenerate_comparison`). The metric is
+    blind to the volume constants `K_V3` and `K_V41`, which drop out of the algebraic
+    pressure solve, and on Figure 9 it is not converged in dt.
     """
     bn, bp = _ballin_phase_plane(fig, t_step)
     tr = tfs._run(wf_hi, t_step, True)
@@ -327,12 +220,8 @@ def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
 
 
 def test_the_phase_plane_is_not_a_degenerate_comparison():
-    """Figure 10's trajectory is curved; Figure 9's is not. Only the first is evidence.
-
-    The baseline a phase-plane comparison has to beat is the chord: the straight line
-    between the two endpoint trims, which any model matching the steady-state sweeps
-    already reproduces. If the reference trace is itself straight, matching it proves
-    nothing beyond the endpoints.
+    """Figure 10's trajectory is curved; Figure 9's is not. Only the first is evidence: a
+    model matching the two endpoint trims already reproduces the straight chord.
     """
     for fig, t_step, grid, straight in (
         (9, 0.539, (92.0, 94.0, 96.0, 98.0), True),
@@ -354,7 +243,7 @@ def test_the_phase_plane_is_not_a_degenerate_comparison():
         if straight:
             assert chord < 1.0, (
                 f"fig {fig}: the chord now misses Ballin's trace by {chord:.2f} %, so this "
-                f"panel has become informative and its docstring caveat is stale"
+                f"panel has become informative"
             )
         else:
             assert chord > 4.0, (
@@ -366,11 +255,8 @@ def test_the_phase_plane_is_not_a_degenerate_comparison():
 
 @pytest.mark.parametrize("fig,wf_hi,t_step", [(9, 775.0, 0.539), (10, 125.0, 0.545)])
 def test_the_transient_sits_off_the_steady_locus_in_the_right_direction(fig, wf_hi, t_step):
-    """An accel runs above the equilibrium Ps3 line, a chop below it. Both models do.
-
-    This is the test that would have caught the invalid comparison in the first place. It
-    asserts the sign of a physical effect, not a magnitude, so it is a statement about the
-    model rather than about the digitizer.
+    """An accel runs above the equilibrium Ps3 line, a chop below it: the sign of a physical
+    effect, so a statement about the model rather than the digitizer.
     """
     ng8, ps8 = read_reference("fig08_realtime.csv")
     tr = tfs._run(wf_hi, t_step, True)
@@ -390,26 +276,9 @@ def test_the_transient_sits_off_the_steady_locus_in_the_right_direction(fig, wf_
 
 
 def test_we_match_both_sides_of_the_figure_6_to_9_gap():
-    """At 775 lbm/hr the sweep and the transient disagree -- because one has not settled.
-
-    Figure 6 reads 99.38 %NG, Figure 9 reads 98.94 at the end of its record; Figure 8 and
-    Figure 7 show the same pattern on Ps3 and shp. Ballin's Figure 9 trace is still
-    climbing when the record ends, so the two figures are not describing the same instant.
-
-    The operative fact is that we match **both**, simultaneously: a single model cannot fit
-    two mutually contradictory datasets, so there is no contradiction to resolve.
-
-    | | sweep | transient | gap | ours vs sweep | ours vs transient | gap we reproduce |
-    |---|---|---|---|---|---|---|
-    | NG | 99.377 | 98.941 | 0.44 % | +0.020 % | +0.062 % | 90 % |
-    | Ps3 | 239.32 | 235.96 | 1.43 % | +0.067 % | +0.074 % | 99 % |
-    | shp | 1712.0 | 1660.0 | 3.13 % | -0.136 % | +0.179 % | 90 % |
-
-    Those last two columns read 1.92 % worst and 39-62 % until 2026-09-14, when the two
-    digitizer corrections landed -- the Figure 9/10 page skew (#63) and the page-40 frame
-    that was the figure's own caption (#64). The gap between the report's steady and
-    transient figures is now accounted for almost entirely by our own model still
-    climbing, which is what the explanation always claimed and could not previously show.
+    """At 775 lbm/hr the sweeps (Figures 6-8) and Figure 9 disagree because Figure 9 has not
+    settled when its record ends. We match both at once, and our own unsettled deficit
+    accounts for the gap.
     """
     t_end = 4.46  # where Ballin's Figure 9 record stops
     r775 = trim.sweep(np.arange(400.0, 776.0, 25.0), c.NP_DES, AMB)[-1]

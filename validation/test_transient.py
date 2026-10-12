@@ -28,16 +28,9 @@ def _seed(wf_pph: float, lag_whole_flow: bool = True):
 
 @pytest.mark.parametrize("wf_pph", [case.wf_pph for case in CASES] + [400.0])
 def test_every_published_trim_is_a_fixed_point(wf_pph: float):
-    """The strongest available check that the two formulations agree.
-
-    `trim.solve` finds the equilibrium of the differential model (Eqs. 42-45); the
-    real-time frame solves the same physics with the pressures made algebraic
-    (Eqs. 74-80). If the algebraic reduction were wrong, a trimmed engine would drift.
-
-    400 lbm/hr is Figures 9 and 10's starting trim. Its stillness over the half second
-    before their step, heat sink off, is the one bound the deleted
-    `test_fuel_step_moves_the_engine_the_right_way` held that nothing else did; its NG and
-    T41 rise claims are `test_fuel_step`'s Figure 9 initial and settled comparisons.
+    """The trim of the differential model (Eqs. 42-45) is a fixed point of the real-time frame
+    (Eqs. 74-80); a wrong algebraic reduction would drift. 400 lbm/hr is Figures 9 and 10's
+    starting trim, which must be still for the half second before their step.
     """
     st, wf, qreq = _seed(wf_pph)
     tr = realtime.run(st, lambda t: wf, AMB, duration_s=2.0, q_req_ftlbf=qreq)
@@ -53,46 +46,15 @@ def test_every_published_trim_is_a_fixed_point(wf_pph: float):
 
 
 def test_both_readings_of_eq_74_converge_to_the_same_limit():
-    """**Both** readings of Eq. 74 are consistent discretizations. Open question #22.
+    """Both readings of Eq. 74 [pdf p.36] are first-order discretizations with one limit (#22).
 
-    This test used to assert the opposite -- that the equation *as printed* "converges to
-    nothing" -- and #22 was closed on it, with the report recorded as contradicting
-    itself. That was our bug, not the report's.
+    As printed it lags the bleed, `WA31(n) = WA3(n) - WA3_bl(n-1)`; the prose lags the whole
+    compressor flow. The shipped model uses the prose reading because the prose describes
+    opening the loop, not because the printed equation fails. Trap: carrying `WA31` instead of
+    `WA3_bl` in the printed branch makes an involution that oscillates with period two.
 
-    Eq. 74 as printed [pdf p.36] lags the **bleed**: `WA31(n) = WA3(n) - WA3_bl(n-1)`. The
-    implementation carried `WA31` in that branch instead of `WA3_bl`, making the recurrence
-    `WA31(n) = WA3(n) - WA31(n-1)` -- an involution whose only fixed point is `WA3/2`.
-    Everything else is a period-2 oscillation, so a *trimmed* engine did not even sit still
-    there (T41ns alternated ~10600 / ~2200 degR), and no convergence conclusion drawn from
-    it could mean anything. The carry is now the bleed, and the two readings are simply two
-    different one-frame lags of the same opened loop.
-
-    Measured at t = 1.0 s after a 400 -> 775 lbm/hr step, refining dt from 8 ms to 0.25 ms:
-
-        prose    44024.0  43924.7  43880.1  43860.7  43851.5  43847.1
-        printed  44045.1  43936.6  43885.5  43863.3  43852.8  43847.7
-
-    Both halve their successive difference as dt halves -- first order, as an explicit
-    Euler frame with a one-step lag must be -- and they agree to **0.6 rpm (0.0014 %)** at
-    the finest step. At the report's own 7 ms they differ by about 0.05 %.
-
-    The shipped model uses the prose reading, and that has not changed: it is the reading
-    whose own words describe opening the loop ("the mass flow entering the combustor for a
-    given interval is approximately equal to the mass flow leaving the compressor in the
-    previous interval"). But it is chosen because the prose says so, **not** because the
-    printed equation fails.
-
-    **The refinement is run with `tol` at machine precision on purpose, and that is not a
-    widened tolerance -- it is the opposite.** This is a numerical-convergence experiment:
-    it asks whether the scheme is a discretization of a continuous system, which is only
-    answerable when the time step is the *only* error source. The shipped default is the
-    report's printed 0.1 percent [pdf p.37], and at small dt that tolerance floor dominates
-    the dt error, so a refinement study run at the default measures the solver rather than
-    the discretization. Replication runs use the default; this experiment does not.
-
-    That experiment, run on the prose reading alone, is what decided open question #22, and
-    it asserted that each halving of dt cuts the difference to under 0.75 of the last -- 0.43
-    to 0.48 on record, for both readings. It was a test of its own until 2026-10-12.
+    `tol` is at machine precision on purpose: a refinement study at the report's 0.1 percent
+    [pdf p.37] measures the solver's tolerance floor, not the discretization.
     """
     limits = {}
     for lag in (True, False):
@@ -136,12 +98,8 @@ def test_both_readings_of_eq_74_converge_to_the_same_limit():
 
 
 def test_a_trimmed_engine_sits_still_in_both_readings_of_eq_74():
-    """The check that would have caught the carry bug immediately.
-
-    Neither reading of Eq. 74 changes the *equilibrium* -- at steady state the lagged
-    quantity equals its own current value, whichever quantity it is. So a trimmed engine
-    must sit still in both branches. Before the carry was fixed, the printed branch
-    oscillated with a period of two frames and never sat anywhere.
+    """Neither reading of Eq. 74 changes the equilibrium, so a trimmed engine sits still in
+    both. A wrong carried quantity shows here as a period-two oscillation.
     """
     for lag in (True, False):
         st, wf0, qreq = _seed(400.0, lag_whole_flow=lag)
@@ -165,11 +123,8 @@ def test_a_trimmed_engine_sits_still_in_both_readings_of_eq_74():
 
 
 def test_transient_excursions_outside_the_maps_are_counted():
-    """An open-loop step leaves the digitized data, and the model must say so.
-
-    FAR reaches ~0.033 against f6's plotted 0.010-0.020. That is probably faithful -- a
-    1988 table processor would clamp at the table ends too -- but it must never be
-    silent. Open question #45.
+    """An open-loop step leaves the digitized data (FAR past f6's plotted 0.010-0.020), and
+    the clamp counter must record it. Open question #45.
     """
     maps.reset_clamps()
     st, wf0, qreq = _seed(400.0)
@@ -188,28 +143,11 @@ def test_transient_excursions_outside_the_maps_are_counted():
 
 
 def test_the_two_to_one_multirate_costs_little_but_is_the_reports():
-    """`FRAME_NP_S = 0.014` was declared and referenced nowhere in `src/` until 2026-09-13.
+    """The report's 2:1 multirate [pdf p.47]: engine every 7 ms, NP on the 14 ms rotor frame.
 
-    [pdf p.47]: "the engine model is updated twice for each rotor routine cycle, or once
-    every 7 msec", with the NP degree of freedom on the 14 ms rotor frame. Every NP
-    integration here ran at the 7 ms engine frame instead -- a single-rate model wearing a
-    multirate constant.
-
-    `realtime.run(multirate=True)` is now the default and advances NP on alternate frames
-    over the 14 ms it spans. What that is worth, measured on an open-loop 400 -> 775
-    lbm/hr step with NP free against a constant load torque -- deliberately the worst case,
-    since a free turbine with no aerodynamic damping runs far off design:
-
-        NP    up to 81.6 rpm apart, 0.39 % of NP_DES
-        NG    0.000 rpm apart
-
-    NG is untouched to the bit, which is structural rather than lucky: NP enters the gas
-    generator through nothing at all. Eq. 41's power-turbine torque depends on NP, but
-    Eq. 45 differences only Q_GT and Q_C.
-
-    And with `integrate_np=False` -- the configuration Figures 9 and 10 run in [pdf p.39]
-    -- the switch is a **bit-identical no-op**, which is why no transient comparison in
-    this repository moved when it was implemented.
+    On an open-loop step with NP free against a constant load (the worst case) it moves NP
+    measurably and NG not at all, since Eq. 45 differences only Q_GT and Q_C. With
+    `integrate_np=False`, as Figures 9 and 10 run [pdf p.39], it is a bit-identical no-op.
     """
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
@@ -230,8 +168,7 @@ def test_the_two_to_one_multirate_costs_little_but_is_the_reports():
     single, multi = go(False, True), go(True, True)
     d_np = float(np.abs(multi["np"] - single["np"]).max())
     assert 50.0 < d_np < 120.0, (
-        f"the multirate moves NP by {d_np:.1f} rpm, against 81.6 on record; if this has "
-        f"collapsed to zero the 2:1 is no longer being applied"
+        f"the multirate moves NP by {d_np:.1f} rpm; near zero means the 2:1 is not applied"
     )
     assert np.array_equal(multi["ng"], single["ng"]), (
         "NP must not reach NG: Eq. 45 differences Q_GT and Q_C, neither of which sees NP"

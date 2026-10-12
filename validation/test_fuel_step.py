@@ -4,34 +4,16 @@ Figures 9 and 10 [pdf pp.45-46] are the report's open-loop transient evidence: a
 from 400 to 775 lbm/hr and a step down from 400 to 125 lbm/hr, both with "the power
 turbine speeds ... held constant by suppressing the NP integration" [pdf p.39].
 
-The comparison target is **Ballin's own model trace** (the solid line), not the GE
-reference markers. We are replicating his model, so his output is what ours must match;
-the GE data is the hardware reference he was himself validating against, and he does not
-match it perfectly either.
+The target is Ballin's own model trace (the solid line), not the GE reference markers he was
+himself validating against. This file compares the initial trim and the settled state on
+each panel; the whole curve is `test_whole_curve.py`.
 
-## Which configuration these run
+Heat sink on: Figures 9 and 10 were generated with the station 4.1 heat sink active,
+inferred rather than printed (see `docs/notes/heat-sink-configuration.md`). Table 1 and
+B1-B6 are heat sink off. Eq. 50 has unit DC gain, so the switch cannot move a trim.
 
-**Heat sink on.** Figures 9 and 10 were generated with the station 4.1 heat-sink model
-active -- inferred, not printed; the evidence and its strength are laid out in
-`docs/notes/heat-sink-configuration.md`. Running our 5-DOF (`T41 = T41ns`) model against
-them is a category error, and was the leading cause of transients that ran 1.4-3.5x too
-fast. Table 1 and Appendix B figures B1-B6 are the opposite case, heat sink **off**, and
-are compared elsewhere against the 5-DOF model.
-
-Because Eq. 50 has unit DC gain, the switch cannot move a trim -- so the initial-state
-tests below are configuration-independent by construction, and only the transient shape
-and settled state respond to it.
-
-## What these tests establish, and what they do not
-
-They compare the **initial trim** and the **settled final state** on each panel. They do
-not yet compare the shape of the transition, which needs the traces resampled onto a
-common time base and a decision about how to treat the step-time uncertainty (the step
-time is not printed; measured at 0.5232 s and 0.5217 s -- open question #37).
-
-Tolerances here are **ours**. The report states no percentage tolerance for any transient
-quantity; its only numeric transient claim is a 1-2 % NG overestimate on the open-loop
-step [pdf pp.45-46].
+Tolerances are ours (SCOPE.md); the report's only numeric transient claim is a 1-2 % NG
+overestimate on the open-loop step [pdf pp.45-46].
 """
 
 from __future__ import annotations
@@ -53,17 +35,9 @@ AMB = Ambient(14.696, 518.67)
 
 # Figure, final fuel flow, measured step time
 STEP_TIME = {9: 0.5232, 10: 0.5217}
-"""When the fuel steps, seconds, **measured from the WFPH panel's own 50 % crossing**.
-
-The caption states both flow levels and not the instant [pdf pp.45-46], so this is read off
-the figure -- open question #37, closed 2026-09-14 by this measurement.
-
-It read 0.539 and 0.545 until then, eyeballed, and the two figures were assumed to differ.
-They do not: measured on the deskewed panels with each panel's own time axis (#63), Figure
-9 steps at **0.5232 s** and Figure 10 at **0.5217 s**, agreeing to 1.5 ms, as one test
-setup should. The 16-23 ms correction is not a nicety on a transient sampled every 7 ms --
-it was the whole of the apparent lag between our temperatures and Ballin's. See
-`test_whole_curve`."""
+"""When the fuel steps, seconds, measured from the WFPH panel's own 50 % crossing on the
+deskewed panels (#37, #63). The caption states both flow levels but not the instant
+[pdf pp.45-46]. A few ms matter here: a transient sampled every 7 ms."""
 
 STEPS = [(9, 775.0, STEP_TIME[9]), (10, 125.0, STEP_TIME[10])]
 
@@ -77,52 +51,17 @@ PANELS = {
 }
 
 INITIAL_TOL_PCT = 1.5
-"""The trim is the same physics the steady-state tests already check, so it should agree
-tightly -- this is really a check that the figures' own y calibration is sound."""
+"""The trim is the same physics the steady tests check, so this is really a check that the
+figures' own y calibration is sound. See SCOPE.md."""
 
 FINAL_TOL_PCT = {9: 1.0, 10: 1.0}
-"""One bound for both figures now, and Figure 10 no longer needs the looser one.
-
-It was 20.0 while the settled T41 ran +11.5 % and T45 +17.4 %. Adopting the report's own
-printed convergence criterion [pdf p.37] brought those to +3.2 % and +3.4 %, which took
-the pair to 5.0 and 8.0. **Tightened, never widened** -- and this pair belongs in
-`SCOPE.md` per CLAUDE.md rather than inline here.
-
-**8.0 was covering a comparison-window mismatch, not a model error, and removing it on
-2026-09-14 took the worst of the nine panels from 1.969 % to 0.595 %.** See
-`_settled_window` below. Measured after the fix:
-
-| panel | Fig. 9 | Fig. 10 |
-|---|---|---|
-| PCNG | -0.014 | **-0.307** |
-| PS3 | +0.035 | **-0.595** |
-| T41 | -0.110 | +0.410 |
-| T45 | -0.156 | +0.419 |
-| TORQ45 | +0.196 | ends before t = 4.0 |
-
-Nothing in the model changed."""
+"""Settled state against the figure, both figures. See SCOPE.md and `_settled_window`."""
 
 
 UNTRUSTED: set[tuple[int, str]] = set()
-"""Panels excluded from the comparison, with the evidence. **Currently none.**
-
-Both figures begin at the same 400 lbm/hr trim, so their t = 0 values must agree with each
-other regardless of any model. `(10, "torq45")` sat here from 2026-09-12 to 2026-09-14 on
-the evidence that it disagreed with Figure 9's by **5.10 %** while the other five panels
-agreed to 0.62 %, so "the reference data is wrong there, not the model".
-
-**That was our own page skew.** pdf p.46 is scanned at a slight rotation and every panel
-frame on it descends 11-14 px across the panel width; the digitizer mapped rows to values
-through the frame positions at the panel's *left* edge only, which laid a monotone ramp of
-up to 4.2 % of panel height onto every trace. TORQ45 has the smallest data excursion of the
-six panels relative to its axis, so it showed the artifact most. With the frames fitted
-along their length the two figures agree on TORQ45 to **0.93 %**, and the panel is back in
-the comparison.
-
-What remains true of it is the marker count -- 13 slots against 45 on every other panel --
-but that is the GE status-81 reference series, not the model trace this file compares
-against, and it is recorded in the CSV header rather than here.
-"""
+"""Panels excluded from the comparison, with the evidence. Currently none: a panel that
+disagrees between Figures 9 and 10 at their shared 400 lbm/hr trim is the place to look
+(#63)."""
 
 
 def read_reference(
@@ -151,16 +90,9 @@ def _settled_window(tb, vb):
     """The reference's own settled samples, and the time its record actually stops.
 
     The 4.6 upper bound is load-bearing: `fig09_t41_model.csv` and `fig09_torq45_model.csv`
-    each carry a spurious trailing sample at t ~ 4.9 (see their headers, and open question
-    #48). Widening it silently corrupts the comparison.
-
-    **The second return value is the fix of 2026-09-14.** Every one of these records stops
-    at about t = 4.47 s -- that is where Ballin's panel frame ends -- while `_run` goes to
-    5.0. Averaging our 4.0-5.0 against his 4.0-4.47 is only harmless on a channel that has
-    settled, and on Figure 10 **nothing has**: the chop is still falling at -1.92 %NG/s at
-    the last sample Ballin prints, and his own trace is falling at -2.09. So the extra 0.53
-    seconds were being charged to the model as a deviation. On PCNG that was -0.98 % of
-    which -0.31 is real; on Ps3 -1.97 % of which -0.59 is.
+    each carry a spurious trailing sample at t ~ 4.9 (open question #48). Callers average
+    ours only up to the returned stop time (about 4.47 s, where Ballin's frame ends), since
+    on Figure 10 nothing has settled by then (#68).
     """
     sel = (tb > 4.0) & (tb < 4.6)
     if not sel.any():
@@ -275,103 +207,15 @@ def test_step_up_stays_inside_the_compressor_map():
 
 
 def test_step_down_runs_off_the_bottom_of_the_maps():
-    """Figure 10 stays inside `f1`, and our speed at the end of Ballin's record is 0.18 %NG
-    below his.
+    """Figure 10's chop: our speed at Ballin's last printed sample is within the panel's read
+    error of his, and the run never leaves `f1`.
 
-    ## The history, because it is the point of this test
-
-    Four values of the NGc minimum have been on record, and the differences are entirely in
-    how the two pressure solves were converged:
-
-    | pressure solves | NGc bottoms at |
-    |---|---|
-    | inner `tol=1e-10` on the step, cap 40 -- invented, pre-2026-09-12 | 70.94 % |
-    | inner `tol=1e-3` on the **step** -- the printed number, wrong quantity | 74.64 % |
-    | inner on the **error**, Eq. 80 as printed | 69.92 % |
-    | inner on the error, **Eq. 80 solved** when its iteration fails | **73.77 %** |
-
-    Against Ballin's own **74.93 %**, which is itself a corrected number: pdf p.46 is
-    scanned at a slight rotation and every trace on it read low by up to 4.2 % of panel
-    height until 2026-09-14, putting his floor at 74.18 (open question #63). That made the
-    gap -1.16 %NG and "the largest single disagreement left on either transient figure".
-
-    ## Except that 0.98 of the 1.16 was a comparison-window mismatch -- 2026-09-14
-
-    **Neither trace has a floor.** `_run` integrates to 5.0 s; Ballin's PCNG record stops at
-    **t = 4.467 s**, where his panel frame ends. At that instant his trace is falling at
-    -2.09 %NG/s and ours at -1.92, and the fuel is cut to 125 lbm/hr, far below what
-    sustains the trim -- so the speed is still on its way down for both of us and 74.93 is
-    simply his last printed sample. `ngc.min()` over our longer run was being compared
-    against it, and our minimum occurs at **t = 4.998 s, the last frame of the run**.
-
-    Matched at his own last sample, ours reads **74.747** against his **74.931**:
-
-    | | %NGc |
-    |---|---|
-    | our minimum over 5.0 s, as compared until now | 73.765 (at t = 4.998) |
-    | ours at t = 4.467, Ballin's last sample | **74.747** |
-    | Ballin's last sample | **74.931** |
-    | the window mismatch | **-0.982 of the -1.166** |
-
-    The remaining **-0.184 %NG** is inside this panel's own read error, which `SCOPE.md`
-    measures at 0.59 % of a 40 %NG full scale, i.e. **0.236 %NG**. So the largest single
-    disagreement left on either transient is not one, and open question #47's residual on
-    this channel closes with it.
-
-    The same mismatch was biasing `test_settled_state_matches_the_figure` on both figures;
-    see `_settled_window`.
-
-    ## Where the GE reference sits, since it is on the same panel
-
-    Figure 10 prints two series and this file compares against the solid one -- Ballin's
-    own real-time model, which is what we are replicating. The `+` markers are the GE
-    reference standard data he was validating *against*, and at t = 4.50 s they read
-    **72.978 %NGc**. So his model ends **+1.95 %NG** above the hardware reference and ours
-    **+1.77**, both inside the "1 to 2 percent" NG overestimate he declares for these two
-    figures [pdf p.39]. Agreeing with GE more closely than Ballin does is not a result --
-    `validation/test_steady_sweeps.py` is explicit about that -- but it does say the gap
-    against his trace is small next to the gap his trace has with its own reference.
-
-    The second row looked like a triumph and was not: testing
-    the iterate step rather than the error under-converges the inner loop by a factor of
-    `rho/(1-rho)` ~ 8, and the lag damped the plunge into near-agreement. The third row is
-    what the inner loop honestly gives with Eq. 80 left as printed. The fourth is what both
-    solves converged gives, and it lands 0.09 %NG from Ballin.
-
-    So the deep plunge was **Eq. 80's fixed-point iteration**, which does not converge where
-    f9's elasticity is below -1, and not the compressor map. That matters because the third
-    row was attributed to `f1` at the time, and on that attribution the whole-curve ratchet
-    was raised from 8 to 14 %. It is at 5.
-
-    ## And the `f1` extrapolation was never real either
-
-    With `f1` interpolated at constant abscissa, this run clamped the 65 % speed line **389
-    times** -- every frame below 80 %NGc, asking it for pressure ratios up to 5.44 against
-    its own last knot at 3.753 -- and that was recorded as open question #58, "f1's 15-point
-    data hole".
-
-    Interpolating along Figure A1's own printed construction lines instead (see
-    `maps.SpeedMap`) takes that to **zero**. Each speed line ends at its own surge limit, so
-    blending the two lines knot by knot blends their limits too, and the blended line's
-    right edge runs 4.726 at 70 %NGc and 5.504 at 74 -- comfortably outside the chop's worst
-    query of 5.439. The model never leaves the compressor map. The extrapolation was an
-    artifact of the evaluation, not a property of the data.
-
-    What is left is `f8` and `f9`, both near the top of their own ranges, and the fuel-air
-    ratio falling to 0.00527 -- which is no longer an extrapolation of anything either,
-    since `f6` is the constant Figure A6 draws and a constant has no domain to leave.
-
-    The fuel-air ratio still falls to 0.00527. That is no longer an extrapolation of
-    anything: `f6` is loaded as the constant Figure A6 draws, and a constant has no domain
-    to leave. See `maps.f6`.
-
-    Figure 10's reference data was also thought to be the weaker of the two, and that was
-    ours as well: its `WFPH` settled 4.35 % from the value its caption states against 0.23 %
-    for Figure 9, and its `TORQ45` panel disagreed with Figure 9's by 5.10 % and was
-    excluded. Both were the page skew. The fuel panel now settles **0.87 % of panel height**
-    from the caption and TORQ45 agrees with Figure 9 to 0.93 %, so it is back in the
-    comparison. What remains true of that panel is the marker count, 13 against 45 -- but
-    those are the GE reference series, not the model trace this file compares against.
+    Compare at his last sample, never at our minimum: neither trace has settled when his
+    record stops (#68). The run's own minimum is a tripwire on the pressure solves: Eq. 80's
+    fixed-point iteration does not converge where f9's elasticity is below -1, and an
+    unconverged solve plunges NG too deep. Interpolating `f1` along Figure A1's construction
+    lines (`maps.SpeedMap`) blends the speed lines' surge limits too, so nothing clamps (#58).
+    `f6` is a constant (`maps.f6`) and cannot clamp.
     """
     maps.reset_clamps()
     tr = fuel_step(125.0, STEP_TIME[10])  # uncached: the clamps it counts are this run's
@@ -383,30 +227,24 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     gap = ours_at_end - vb[-1]
     assert abs(gap) < 0.24, (
         f"at Ballin's last sample (t = {tb[-1]:.3f} s) we read {ours_at_end:.3f} %NGc "
-        f"against his {vb[-1]:.3f}, a gap of {gap:+.3f} %NG. On record: -0.184, inside "
-        f"this panel's 0.236 %NG read error. Compare at his last sample, never our "
-        f"minimum -- neither trace has settled there."
+        f"against his {vb[-1]:.3f}, a gap of {gap:+.3f} %NG, outside this panel's read error"
     )
 
-    # The run's own minimum, which is simply its last frame: kept as a tripwire on the
-    # pressure solves. A minimum back near 70 % would mean one has stopped converging.
+    # The run's own minimum (its last frame): a minimum near 70 % means a pressure solve has
+    # stopped converging.
     assert 73.4 < ngc.min() < 74.2, (
-        f"NGc bottoms at {ngc.min():.2f} % over the full 5 s, against 73.77 on record. "
-        f"This is not a comparison against Ballin -- his record stops at 4.47 s -- it is "
-        f"a check that both pressure solves still converge."
+        f"NGc bottoms at {ngc.min():.2f} % over the full 5 s: check that both pressure "
+        f"solves still converge (not a comparison against Ballin)"
     )
     assert tr["far"].min() < 0.010, "the fuel-air ratio still falls below f6's plotted range"
     assert "f1@65" not in rep and "f1" not in rep, (
-        f"the chop is reading f1 outside its data again: {rep}. Under constant-k "
-        f"interpolation the blended line carries both speed lines' surge limits, so a "
-        f"query inside both is inside the blend and nothing should clamp."
+        f"the chop is reading f1 outside its data again: {rep}"
     )
-    assert "f6" not in rep, "f6 is a constant now and cannot be clamped -- see maps.f6"
+    assert "f6" not in rep, "f6 is a constant and cannot be clamped -- see maps.f6"
     maps.reset_clamps()
 
     # Neither trace has settled by the end of Ballin's record, so nothing measured there may
-    # be called a settled value -- every "settled" Figure 10 number before 2026-09-12 was a
-    # t = 4.0-4.6 s mean. Ballin's PCNG is still falling at -2.45 %NG/s there.
+    # be called a settled value.
     window = (tr["t"] >= 3.5) & (tr["t"] <= 4.5)
     slope = float(np.polyfit(tr["t"][window], ngc[window], 1)[0])
     assert slope < -1.0, (
@@ -416,33 +254,18 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
 
 
 def _t41_overshoot(t: np.ndarray, v: np.ndarray, t_step: float) -> float:
-    """Peak T41 above the settled value. Windowed at t < 4.6 -- see `late_them` above."""
+    """Peak T41 above the settled value. Windowed at t < 4.6 -- see `_settled_window`."""
     settled = v[(t > 4.0) & (t < 4.6)].mean()
     return v[(t > t_step) & (t < 4.6)].max() - settled
 
 
 def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
-    """The T41 overshoot against Figure 9, and a ratchet on it.
+    """The T41 overshoot against Figure 9, as a ratio to Ballin's, and a ratchet on it.
 
-    Two model changes moved this, both of them replacements of an invention by something
-    printed, and neither aimed at the figure:
-
-    * 2026-09-12, the pressure iterations were given the report's own 0.1 percent
-      convergence criterion [pdf p.37] in place of our invented 1e-10.
-    * 2026-09-12, the heat sink was rebuilt on Eqs. 48-49 -- integrating the station 4.1
-      METAL temperature -- instead of Eq. 50's collapsed lead-lag memory. The collapse is
-      only valid for constant coefficients, and Eqs. 51 and 53 make them functions of T41
-      and W41. See `realtime._heat_sink`.
-
-    The overshoot went 3.17x Ballin's without the heat sink, 1.67x with it and the old
-    realization, and is now BELOW his at **0.83x**. (3.41x and 0.87x were on record until
-    2026-09-13; both moved with that day's stopping-rule correction and neither was swept
-    up. Measured today with this file's own `_t41_overshoot` definition: ours 100.1 degR
-    against Ballin's 120.8 with the heat sink, 383.4 without.)
-
-    The band is a ratchet: leaving it in either
-    direction means re-measuring, and the lower bound exists so an improvement is noticed
-    rather than silently absorbed.
+    The heat sink integrates the station 4.1 metal temperature (Eqs. 48-49), not Eq. 50's
+    collapsed lead-lag, which is valid only for constant coefficients; Eqs. 51 and 53 make
+    them functions of T41 and W41 (see `realtime._heat_sink`). Leaving the band in either
+    direction means re-measuring; the lower bound makes an improvement visible.
     """
     tb, vb = _reference(9, "t41")
     late_them = float(np.median(vb[(tb > 3.5) & (tb < 4.5)]))
@@ -456,19 +279,13 @@ def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
     ratio = ours / theirs
     assert 0.6 < ratio < 1.2, (
         f"T41 overshoot is {ours:.0f} degR against Ballin's {theirs:.0f}, a ratio of "
-        f"{ratio:.2f}x. On record is 0.83x after the Eqs. 48-49 rebuild, down from 1.67x "
-        f"with the collapsed lead-lag and 3.17x with no heat sink at all. Outside this "
-        f"band, re-measure -- and if below, tighten."
+        f"{ratio:.2f}x. Outside this band, re-measure -- and if below, tighten."
     )
 
 
 def test_the_heat_sink_is_what_closed_it():
-    """Guard the attribution itself, not just the number.
-
-    The claim above is that Eqs. 48-53 are responsible. That is checkable directly by
-    running the same step both ways, and it is worth checking: if the heat sink were
-    silently disabled, `test_heat_sink_closes_most_of_the_t41_overshoot_gap` alone would
-    fail with no indication of why.
+    """The same step with and without Eqs. 48-53, so a silently disabled heat sink fails
+    here with its cause named.
     """
     bare = _run(775.0, STEP_TIME[9], False)
     sunk = _run(775.0, STEP_TIME[9], True)
