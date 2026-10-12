@@ -167,6 +167,9 @@ Two typesetting traps the OCR layer cannot show, both load-bearing:
 - `constant_sweep.py` audits the tests rather than a map: it moves each model constant by
   ±5 % in a scratch worktree and reports which ones no test notices. It reruns the whole
   suite once per constant, so it is a long job.
+- `model_digest.py` hashes every model output (tables, trims, linear models, transients,
+  closed loop). Run it before and after a refactor and `--compare` the two files to prove
+  that no number moved.
 
 ## Non-negotiables, and what actually enforces them
 
