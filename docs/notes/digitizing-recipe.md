@@ -86,10 +86,12 @@ out: an order that bought the interior with noise predicts the frame worse and l
 **7. The frame edges image as arcs — but fitting them as arcs is usually WORSE.** This trap
 used to read "the frame edges are arcs, so a homography is wrong too", inferred from the
 measured sagittae, which run 0.3 to 3.5 px on a printed straight line. Measured on 2026-09-18
-across all thirteen single-curve figures, that does not generalise: **ten of them predict
-their own printed frame values better under the straight model.** Three do better with arcs
-— A10 by 11×, A11 by 4.3×, C26 by 2.1× — and the tool now fits both and lets each figure
-choose, with arcs required to win by 10 % because straight is the incumbent.
+across all thirteen single-curve figures, that does not generalise: **eleven of them predict
+their own printed frame values better under the straight model.** Two do better with arcs
+— A10 by 11×, C26 by 1.2× — and the tool now fits both and lets each figure choose, with
+arcs required to win by 10 % because straight is the incumbent. (A11 was first measured as
+a third, by 4.3×: a minor tick had stood in for a major hidden under a marker in its
+straight trial. Fixed 2026-10-12.)
 
 Two lessons, and the second is the larger one. A measured physical effect is not by itself
 a reason to model it: the sagitta is real on every page and modelling it helps on three.
@@ -163,44 +165,48 @@ Each CSV carries a per-point 1 sigma in its own units, built by quadrature from 
 residual, the spread over defensible polynomial orders, the disagreement between the two
 ticked edges, and the glyph-centre robustness.
 
-**What that uncertainty costs the model, remeasured 2026-09-19.** Each map is shifted by
+**What that uncertainty costs the model, remeasured 2026-10-12.** Each map is shifted by
 exactly +1 sigma of its own per-point error, on one axis at a time, and all three trims plus
 both open-loop transients are resolved. Steady column is the worst shaft-power change over
 the three trims; transient is the largest change in any whole-curve panel rms, in percentage
-points of that panel's excursion:
+points of that panel's excursion. Every map that carries a per-point sigma is here; `f1`
+carries none:
 
 | map, +1 sigma | SHP, worst of 3 trims | worst transient panel |
 |---|---|---|
-| `f2` x | **0.256 %** | fig10 %NG **-0.227** |
+| `f7` x | **0.290 %** | fig9 t45 **+0.346** |
+| `f2` x | **0.240 %** | fig10 %NG **-0.221** |
 | `f8` y | **0.222 %** | fig9 torq45 +0.095 |
-| `f2` y | 0.177 % | fig10 %NG +0.129 |
+| `f2` y | 0.177 % | fig10 %NG +0.131 |
+| `f7` y | 0.154 % | fig9 %NG -0.110 |
 | `f8` x | 0.132 % | fig9 torq45 +0.095 |
-| `f3` x | 0.129 % | fig10 torq45 +0.038 |
+| `f3` x | 0.129 % | fig10 torq45 +0.039 |
 | `f6` y | 0.113 % | fig9 torq45 +0.053 |
 | `f10` x | 0.064 % | fig10 torq45 +0.019 |
 | `f9` y | 0.057 % | fig9 %NG -0.091 |
-| `f10` y, `f3` y | <= 0.03 % | <= 0.014 |
+| `f10` y, `f3` y | <= 0.028 % | <= 0.014 |
 | `f9` x, `f5` x/y | <= 0.014 % | <= 0.028 |
-| `f_hs` x/y | **0.000 %** | fig10 %NG +0.023 / -0.019 |
+| `f_hs` x/y | **0.000 %** | fig10 %NG +0.019 / -0.014 |
 | `f4` x/y, `f6` x | 0.000 % | <= 0.001 |
 
 Three things in that table are worth more than the numbers.
 
 **The ranking has changed, and the old table had the leader wrong.** It reported `f9` as the
-most expensive map, at +0.069 % on hover shaft power. `f9` is now eighth at 0.057 %, and
-`f2` leads at 0.256 %. That is not a regression: `f9` was re-digitized and its read error
+most expensive map, at +0.069 % on hover shaft power. `f9` is now tenth at 0.057 %, and
+`f7` leads at 0.290 % -- absent from the 2026-09-19 version of this table, which the sweep
+had skipped. That is not a regression: `f9` was re-digitized and its read error
 fell. The old numbers were measured on 2026-09-11 against maps that have since moved, and
 they sat in this file being quoted for eight days after they stopped being true.
 
 **`f_hs` costs exactly nothing at trim and is only visible in a transient.** It sets the
 station-4.1 heat-sink time constant [Eq. 52-53], which does no work at equilibrium, so a
-trim-only sensitivity table reports zero for it however wrong it is. It appears at 0.023
+trim-only sensitivity table reports zero for it however wrong it is. It appears at 0.019
 points of a Figure 10 panel. Any table like this one that stops at the trims will
 systematically understate every dynamic-only quantity -- which is why the transient column
 is here.
 
 **A perturbation that improves the report comparison is not a licence to apply it.** Shifting
-`f2` by +1 sigma in x moves Table B.1's rms by -0.067, i.e. better. That is a measurement of
+`f2` by +1 sigma in x moves Table B.1's rms by -0.063, i.e. better. That is a measurement of
 how close the calibration sits to the target, not an instruction: tuning a digitized map
 toward a printed table is the move CLAUDE.md forbids, and the sigma it would be tuned within
 is the reason the comparison has any headroom at all.

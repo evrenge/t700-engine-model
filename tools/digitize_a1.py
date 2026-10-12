@@ -31,13 +31,13 @@ own script. Four things make it different:
    value at both frame lines (0/20 in x, 2/12 in y), so a fit made on the interior ticks
    alone can be asked to predict four numbers it was never told. See `calibrate`.
 
-Run from the repo root; writes data/maps/f1_compressor_mass_flow.csv and the per-curve
-CSVs that `digitize.py verify` consumes. Inputs:
+Run from the repo root; writes data/maps/f1_compressor_mass_flow.csv, its beta-gridded
+derivative, and per-curve CSVs under validation/out (their consumer, `digitize.py verify`,
+no longer exists). Inputs:
 
     pdfimages -f 56 -l 56 -png docs/ballin-tm100991.pdf validation/out/digitize/a1redo/native
     pdftoppm -f 56 -l 56 -r 600 -png docs/ballin-tm100991.pdf validation/out/digitize/a1-600dpi
-    python3 tools/rectify_page.py rectify --page validation/out/digitize/a1-600dpi-056.png \
-        --out validation/out/digitize/a1r_600-056.png
+    rectify_page.rectify(<that render>, validation/out/digitize/a1r_600-056.png)   # no CLI
 
 All three are pulled automatically if missing -- see `native_bitmap` and `ensure_page` --
 so this script runs from a fresh clone with only the PDF and poppler present. Until
@@ -1386,7 +1386,7 @@ if "--raw-only" not in sys.argv:
     print(f"wrote {dense_out}  (fit rms {POOLED_RMS:.2f} px, polyline chord {chord:.2e} lbm/sec)")
 
 
-# per-curve two-column CSVs so `digitize.py verify` can be run on each speed line
+# per-curve two-column CSVs, written for `digitize.py verify`, which no longer exists
 for lbl in LABELS:
     p = f"validation/out/digitize/a1_curve{lbl:02d}.csv"
     with open(p, "w", newline="") as fh:

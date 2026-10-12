@@ -9,8 +9,8 @@ of the read error that figure already publishes.
     FRAME     order 1, four straight edges mapped by a homography  -- what the thirteen
               single-curve figures and A1 use
               order 2, four fitted arcs with a curvilinear blend   -- what A2, A7 and A9
-              use, and what `docs/notes/digitizing-recipe.md` trap 7 says is right:
-              "The frame edges are arcs, so a homography is wrong too."
+              use. Recipe trap 7 used to call it right; measured, eleven of the
+              thirteen single-curve figures prefer straight
 
     ANCHOR    soft, the printed frame value entered twice among the ticks -- the
               single-curve path
@@ -81,9 +81,10 @@ def plot_coords(ink, spec, C, order):
 def edge_positions(ink, fc, cfg, order, fine=True):
     """Where each printed tick sits along its edge, in the unit square.
 
-    `fine=True` uses the minor lattice where the axis's own held-out test prefers it, which
-    is what the tool now ships -- so the frame-model question is asked on the calibration
-    that is actually in use, not on the majors-only one it replaced.
+    `fine=True` uses the minor lattice on every edge where one resolves. That is not quite
+    what ships: `digitize_single_curve` sends five axes back to their majors (`pick_lattice`),
+    so these numbers describe a slightly different calibration. On 2026-09-19 it changed no
+    frame-model choice.
     """
     maj, _allt, _cor = majors_all_edges(ink, fc, cfg, verbose=False, order=order)
     if order == 1:
@@ -288,7 +289,7 @@ def verdict(keys):
     print("WHICH FRAME MODEL DOES THE FIGURE ITSELF PREFER?")
     print("Held-out frame-edge error: fit the interior majors alone, predict the printed")
     print("frame value. Lower is better. `sagitta` is the measured bow of each printed")
-    print("straight edge, in pixels -- the physical quantity trap 7 rests on.")
+    print("straight edge, in pixels -- the physical quantity trap 7 started from.")
     print("=" * 92)
     print(
         f"\n{'figure':>7} {'axis':>4} {'ord s/a':>9} {'straight':>12} {'arcs':>12} "

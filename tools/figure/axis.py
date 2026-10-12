@@ -366,11 +366,11 @@ def fit_soft_anchored(t, val, order, lo, hi):
 def pick_lattice(lo_maj, hi_maj, lo_fine, hi_fine, spec, label, verbose=True):
     """Majors alone or the full minor lattice? Let the figure's own held-out test say.
 
-    The fine lattice is five to twenty-five times the data, and on twenty of the twenty-six
-    axes here it predicts the printed frame value better -- A6's x by a factor of 44, C28's
-    y by 9.4, C24's x by 7.8. On six it predicts it WORSE, C27's y by a factor of five,
-    because more ticks also means more chances to mislabel one and those edges are the
-    dirtiest on the page.
+    The fine lattice is five to twenty-five times the data, and on twenty-one of the
+    twenty-six axes here it predicts the printed frame value better -- A6's x by a factor
+    of 44, C28's y by 9.4, C24's x by 7.8. On five it predicts it WORSE, C27's y by a factor
+    of five, because more ticks also means more chances to mislabel one and those edges are
+    the dirtiest on the page.
 
     So the choice is not made once for all thirteen figures, and it is not made by hand
     either. It is made by the same held-out frame test this project already uses to choose
@@ -390,9 +390,9 @@ def pick_lattice(lo_maj, hi_maj, lo_fine, hi_fine, spec, label, verbose=True):
     0.899, 0.910, 0.906, 0.925 per-mille for orders 1 to 4, so every order clears the guard
     and the frame test alone decides. That would be a real hole if the frame test were a fit
     statistic, but it is held out, so an order that bought the interior with noise predicts
-    the frame worse and loses. The six axes where the fine lattice does predict the frame
-    worse -- C24 y, C26 y, C27 y, A10 y, C29 y, A11 x -- are exactly the ones this function
-    then sends back to their majors.
+    the frame worse and loses. The five axes where the fine lattice does predict the frame
+    worse -- C24 y, C27 y, C29 y, A11 x, A11 y (2026-10-12; the set moves with each
+    figure's frame model) -- are exactly the ones this function sends back to their majors.
     """
     maj = calibrate(lo_maj, hi_maj, spec, label, verbose=False)
     fine = calibrate(lo_fine, hi_fine, spec, label, verbose=False)

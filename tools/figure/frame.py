@@ -19,9 +19,9 @@ different sets of figures behind them:
   corners. What `digitize_single_curve` used for thirteen figures, and `digitize_a1` for
   Figure A1.
 * **order 2** -- each edge an arc, plot coordinates the curvilinear blend between the four
-  arcs (`make_sv`). What `digitize_a7` established and A2 and A9 followed, and what
-  `docs/notes/digitizing-recipe.md` trap 7 says is the right one: *"The frame edges are
-  arcs, so a homography is wrong too -- it assumes four straight edges."*
+  arcs (`make_sv`). What `digitize_a7` established and A2 and A9 followed. Recipe trap 7
+  once called it the right one; measured, it is right for two of the thirteen single-curve
+  figures.
 
 Both stay reachable because choosing between them per figure is a measurement, not a
 refactor: it moves published numbers, so it is made deliberately, with the movement
@@ -271,7 +271,7 @@ def dist(edge, X, Y, vertical=True):
 def blocked_mask(fr, allt, framew=3.6, tickpad=4.5, tickext=5.0):
     """A `mask_fn` excluding frame lines and tick marks, SYMMETRICALLY about each edge.
 
-    Symmetry matters, and it is trap 9: the ticks all protrude inward, so masking only the
+    Symmetry matters, and it is trap 10: the ticks all protrude inward, so masking only the
     inward side strips ink from one half of a marker sitting on a frame line and pulls its
     fitted centre outward.
     """

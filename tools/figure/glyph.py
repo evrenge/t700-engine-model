@@ -24,8 +24,8 @@ recipe records as traps:
   off the data line. The cure is to optimise the **offset** from the current centre with
   an explicit 2 px simplex. `digitize_single_curve` always did; `digitize_native` made it
   optional and defaulted it off, and of its three callers only `digitize_a7` passed it.
-  A2 and A9 did not -- and those produce `f2` and `f9`, the two maps SCOPE.md's
-  sensitivity sweep puts at the top of the leverage table.
+  A2 and A9 did not -- and those produce `f2` and `f9`, two of the highest-leverage maps
+  per +1 % of their value.
 * **Trap 9, the seed guard.** `digitize_single_curve` raises if a fitted centre moves more
   than 10 px from its seed, which is what makes a bad seed loud instead of plausible.
   `digitize_native` had no such check.
@@ -40,7 +40,7 @@ Not unified, deliberately: unifying them would move published numbers, and that 
 separate decision from removing a duplicate implementation. Each is a caller's current
 value, carried over unchanged.
 
-    seglen     45.0 in the single-curve family, 42.0 in the native family
+    seglen     45.0 in the single-curve family, 42.0 in the native family, 32.0 in A9
     centre     Nelder-Mead tolerances: xatol 2e-3 / fatol 1e-6 / maxiter 400
                against 1e-4 / 1e-8 / 4000
     template   Powell tolerances: xtol 1e-3 / ftol 1e-5 / maxfev 1200

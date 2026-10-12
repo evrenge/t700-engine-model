@@ -545,8 +545,6 @@ def run(key):
     maj, allt = cal["maj"], cal["allt"]
     CX, CY = cal["CX"], cal["CY"]
     xs, ys = cfg["x"], cfg["y"]
-    (ub, xb), (ut, xt) = CX["edges"]
-    (vl, yl), (vr, yr) = CY["edges"]
     cx, cy = CX["c"], CY["c"]
 
     print("markers:")

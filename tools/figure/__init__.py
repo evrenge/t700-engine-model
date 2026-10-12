@@ -9,7 +9,8 @@ a sixth of the geometry alone. They had drifted, and the drift was not visible f
 one file:
 
 * the frame edges are fitted as **arcs** in one family and as **straight lines** in the
-  other, and `docs/notes/digitizing-recipe.md` trap 7 says the straight model is wrong;
+  other, and `docs/notes/digitizing-recipe.md` trap 7 then said the straight model was
+  wrong (measured since, eleven of thirteen single-curve figures prefer it);
 * the axis lattice is the full **minor** tick set in one family and the **interior
   majors** alone in the other, a factor of ten in the data the axis map is fitted on;
 * the Nelder-Mead guards that trap 8 and trap 9 were written for reached one family and
