@@ -1,33 +1,19 @@
 """T700 fuel control system constants.
 
-Two groups, and the second is the one that gets lost:
+Two groups:
 
-* **Table C.1** [TM-100991 pdf pp.83-84], 57 rows, printed across two pages
-  (AWFP..T17, then T45COR..ZLOLIM). Kept in the report's own alphabetical order so this
-  module can be checked line by line against the printed table.
-* **Sixteen constants that appear only inside block diagrams** and are in no table
-  anywhere in the report. They are just as load-bearing as the tabulated ones -- the
-  torque motor forward gain, the fuel transport delay, the UH-60A collective rigging --
-  and a transcription that reads only the tables loses every one of them silently.
+* Table C.1 [TM-100991 pdf pp.83-84], 57 rows over two pages, in the report's own
+  alphabetical order so this module checks line by line against the printed table.
+* Sixteen constants printed only inside block diagrams, in no table. A transcription that
+  reads only the tables loses them silently.
 
-All values read from page images at 300-600 dpi. Two OCR traps were caught and corrected
-against the image during extraction: the text layer's `CORR 2010` is really **20.0**, and
-`T10 0.050` is really **0.060**.
+Read from page images; the OCR layer gives `CORR 2010` for 20.0 and `T10 0.050` for 0.060.
 
-## A units warning from the report itself
+Table C.1 labels `CORR`, `CR`, `YHILIM` and `YLOLIM` "nondimensional". They are not: `CR`
+is ft*lbf and the two limits ft*lbf*sec (open question #11). Use the printed numbers.
 
-Table C.1 labels `CORR`, `CR`, `YHILIM` and `YLOLIM` "nondimensional". **They are not.**
-`CR` is ft*lbf and the two limits are ft*lbf*sec -- this is the report's own labelling
-error, established while closing open question #11. Use the printed numbers; ignore that
-units column for those four. Neither the Appendix C nomenclature nor the figures assign
-them units at all -- only Table C.1 does, and loosely.
-
-## Appendix C has no equations
-
-The fuel control is specified entirely as pictures: one table and thirty figures, of
-which twenty-two are block diagrams. Every constant below therefore cites a *figure*
-rather than an equation. See `docs/notes/inventory-appendix-c.md` for the traced signal
-paths.
+Appendix C has no equations, so every constant cites a figure; the traced signal paths
+are in `docs/notes/inventory-appendix-c.md`.
 """
 
 from __future__ import annotations
@@ -67,17 +53,14 @@ CNTL: Final = 0.025
 CORR: Final = 20.0
 """Threshold of the B4 relay after the engine-torque integrator. [Table C.1]  Fig. C3.
 
-Labelled "nondimensional" in Table C.1; it gates an integral of (TRQL - CR) dt, so the
-label is wrong. See the module docstring."""
+Labelled "nondimensional" but gates an integral of (TRQL - CR) dt; see the module docstring."""
 
 CR: Final = 20.0
 """Engine torque-level threshold for the nonlinear NP loop gain circuit, ft*lbf.
 [Table C.1; the Appendix C nomenclature, pdf p.77, names it]  Fig. C3.
 
-20 ft*lbf is about 79.6 hp at NP_des -- a sub-idle "engine is loaded" threshold. It looks
-absurd only if engine torque is misread as the rotor-hub figure in Table B.1, which is
-past an 81:1 gearbox. Shaft torque at the hover trim is 229 ft*lbf. That confusion was
-open question #11."""
+About 79.6 hp at NP_des, a sub-idle "engine is loaded" threshold. Engine shaft torque, not
+the rotor-hub torque of Table B.1 past the 81:1 gearbox (open question #11)."""
 
 CT2: Final = 0.088
 """ECU lag time constant, sec. [Table C.1]"""
@@ -112,10 +95,8 @@ DBIAS: Final = 3.25
 KNDRP: Final = 0.25
 """NG droop line slope, lbm*in^2/(lbf*hr*%). [Table C.1]
 
-Appears in three places: the main fuel demand [Fig. C9], the load demand schedule
-[Fig. C17] and the idle schedule [Fig. C20]. In the idle schedule it sets how far NG must
-droop below the idle reference before the floor engages -- WFIRF/KNDRP, about 8-11 points.
-See open question #10."""
+Used in the main fuel demand [Fig. C9], the load demand schedule [Fig. C17] and the idle
+schedule [Fig. C20] (open question #10)."""
 
 NGREF: Final = 101.0
 """NG droop line reference speed, % NG. [Table C.1]  Fig. C9."""
@@ -127,9 +108,7 @@ T8: Final = 0.40
 """ECU lag time constant, sec. [Table C.1]"""
 
 T10: Final = 0.060
-"""ECU lag time constant, sec. [Table C.1]
-
-The OCR text layer renders this `0.050`. It is 0.060; read from the page image."""
+"""ECU lag time constant, sec. [Table C.1]  The OCR layer reads `0.050`; the image says 0.060."""
 
 T11: Final = 0.87
 """ECU lead-lag time constant, sec. [Table C.1]"""
@@ -145,8 +124,7 @@ T45COR: Final = 11.0
 T45REF: Final = 2004.0
 """T4.5 limiting reference temperature, deg R. [Table C.1]  Fig. C1.
 
-The temperature the ECU limits against, racing the speed error through the maximum error
-selector."""
+Competes with the speed error through the maximum error selector."""
 
 TL1: Final = 0.010
 """Torque sensor first lag time constant, sec. [Table C.1]  Fig. C2."""
@@ -154,8 +132,8 @@ TL1: Final = 0.010
 TL2: Final = 0.010
 """Torque sensor second lag time constant, sec. [Table C.1]  Fig. C2.
 
-TORQ45 -> 1/(TL1*s+1) -> 1/(TL2*s+1) -> TRQL is unity DC gain end to end: there is no
-normalisation anywhere on that path. Established closing open question #11."""
+TORQ45 -> 1/(TL1*s+1) -> 1/(TL2*s+1) -> TRQL has unity DC gain: no normalisation on that
+path (open question #11)."""
 
 TLGE: Final = 0.077
 """ECU lead-lag time constant, sec. [Table C.1]"""
@@ -175,8 +153,7 @@ TMLVG: Final = 55.0
 WFMAX: Final = 785.0
 """Maximum metered fuel flow, lbm/hr. [Table C.1]  Fig. C19.
 
-Note the open-loop validation step in Fig. 9 [pdf p.45] runs 400 -> 775 lbm/hr, just
-under this ceiling."""
+The Fig. 9 open-loop step [pdf p.45] runs 400 -> 775 lbm/hr, just under this ceiling."""
 
 WFMIN: Final = 65.0
 """Minimum metered fuel flow, lbm/hr. [Table C.1]  Fig. C19."""
@@ -206,8 +183,7 @@ XLOLIM: Final = -0.0427
 YHILIM: Final = 40.0
 """Engine torque integrator upper limit. [Table C.1]  Fig. C3.
 
-Labelled "nondimensional"; it limits an integral of torque, so ft*lbf*sec. See the
-module docstring."""
+Labelled "nondimensional"; it limits an integral of torque, so ft*lbf*sec."""
 
 YLOLIM: Final = 0.0
 """Engine torque integrator lower limit. [Table C.1]  Fig. C3.  Units as YHILIM."""
@@ -241,19 +217,11 @@ ZLOLIM: Final = -1.0
 """ECU P+I integrator lower limit, nondimensional. [Table C.1]  Figs. C7, C8.
 
 Switched: -1.0 when engine 2 torque is below 180 ft*lbf, -0.3 above [Fig. C8]. With the
-one-engine implementation switch open, TRQL(engine 2) = 0, so this is the value in force
-and it matches the Table C.1 entry."""
+one-engine switch open TRQL(engine 2) = 0, so -1.0 is the value in force."""
 
 # ================================================== constants printed only on the figures
-# In no table anywhere in the report. **Sixteen** of them, and 57 + 16 = 73, which is the
-# total README and SCOPE carry. A transcription that reads only the tables loses every one
-# silently, so they are named here with their figure.
-#
-# This comment and the module docstring above both said "nineteen" until 2026-09-13, above
-# and below a list of sixteen. Nineteen *numbers* appear only on block diagrams, and
-# `tests/test_control_constants.py` says so and reconciles it -- three of them are not new
-# constants, they are values already in Table C.1 that the figures repeat. The count of new
-# constants is sixteen. Found by the 2026-09-13 accuracy audit.
+# Sixteen, in no table (57 + 16 = 73). Nineteen numbers appear only on block diagrams, but
+# three repeat Table C.1 values; `tests/test_control_constants.py` reconciles the count.
 
 LOAD_SHARE_LAG_GAIN: Final = 1.1
 """Numerator gain of the load-share lag 1.1/(CT7*s + 1). [Fig. C2, pdf p.85]"""
@@ -288,8 +256,7 @@ TM_CURRENT_BIAS: Final = -31.0
 COLLECTIVE_RIGGING_GAIN: Final = 0.914
 """UH-60A collective pitch to load demand spindle rigging gain, deg/%. [Fig. C13, pdf p.90]
 
-Aircraft-specific: this is the one place the UH-60A airframe reaches into the engine
-control, and it is the pilot's input path."""
+The one place the UH-60A airframe reaches into the engine control: the pilot's input."""
 
 COLLECTIVE_RIGGING_BIAS: Final = 5.34
 """UH-60A collective pitch to load demand spindle rigging bias, deg. [Fig. C13, pdf p.90]"""
@@ -305,13 +272,11 @@ The only pure transport delay in the model, and the fourth memory element."""
 ENGINE2_TORQUE_THRESHOLD: Final = 180.0
 """Engine-2 torque threshold in the P+I integrator limit logic, ft*lbf. [Fig. C8, pdf p.88]
 
-180 ft*lbf is about 716 hp at NP_des, between the 80 kt trim (552.6 hp) and hover
-(911.1 hp) -- a sensible "other engine at high power" discriminator."""
+About 716 hp at NP_des, between the 80 kt trim (552.6 hp) and hover (911.1 hp)."""
 
 ZLOLIM_HIGH_TORQUE: Final = -0.3
 """ECU P+I integrator lower limit above the 180 ft*lbf threshold. [Fig. C8, pdf p.88]"""
 
-# Two figure constants are unit conversions rather than model parameters, and live in
-# t700.units: the metering valve's 1/3600 lbm/hr -> lbm/sec [Fig. C19, pdf p.92], and the
-# NG sensor's 100/NGDES [Fig. C15, pdf p.91]. NGDES is not defined in Appendix C at all --
-# it is NG_DES = 44700.0 rpm in Table A.1, which was open question #9.
+# Two figure constants are unit conversions and live in t700.units: the metering valve's
+# 1/3600 lbm/hr -> lbm/sec [Fig. C19, pdf p.92] and the NG sensor's 100/NGDES [Fig. C15,
+# pdf p.91], NGDES being Table A.1's NG_DES (open question #9).

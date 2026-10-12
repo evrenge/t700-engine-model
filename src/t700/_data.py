@@ -1,21 +1,13 @@
 """Where `data/` is, resolved once, for both source trees and installed packages.
 
-`maps.py` and `appendix_b.py` each built their own path as
-`Path(__file__).parent.parent.parent / "data"`. That is the repository root's `data/`
-directory, which exists only in a source checkout: `pip install .` (non-editable) put
-`t700` in site-packages and the first call to `maps.f1()` raised `FileNotFoundError`.
-An editable install and pytest's `pythonpath = ["src"]` both leave the source tree on
-the path, which is why nothing here ever noticed.
+Two layouts, probed in this order:
 
-Two layouts are supported, and nothing else:
+  * source checkout -- `<repo>/src/t700/_data.py` next to `<repo>/data/`
+  * installed distribution -- `t700/data/` inside the package, which `pyproject.toml`
+    maps from the repository's `data/`
 
-  * **source checkout** -- `<repo>/src/t700/_data.py` next to `<repo>/data/`
-  * **installed distribution** -- `t700/data/` inside the package, which `pyproject.toml`
-    produces by mapping the repository's `data/` directory onto the `t700.data` package
-
-They are probed in that order, so a checkout always reads the checkout's data even if a
-copy is also installed -- otherwise a stale wheel could silently supply the maps while
-the digitizers rewrite the tree you are looking at.
+Checkout first, so a stale installed wheel never supplies the maps while the digitizers
+rewrite the tree. This is the one module allowed to know where data is.
 """
 
 from __future__ import annotations

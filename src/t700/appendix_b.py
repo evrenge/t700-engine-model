@@ -1,16 +1,8 @@
 """Appendix B's twelve linear models, as printed [pdf pp.67-76].
 
-Appendix B is Table B.1 plus twelve bare matrix figures -- **no eigenvalues, no time
-constants, no transfer functions and no mode descriptions appear anywhere in it**. It is
-the richest comparison surface in the report: 297 printed numbers against the 12 our
-eigenvalue check uses.
-
-These are **transcribed**, not digitized. Every value is a printed number read from the
-page image, so they carry no read error in the sense a plot digitization does -- only the
-report's own 4-significant-figure rounding, which matters in exactly one place (see
-`ill_conditioned`).
-
-## The layout
+Table B.1 plus twelve bare matrix figures, with no eigenvalues, time constants or mode
+descriptions. Transcribed from the page images, so the only error is the report's own
+4-significant-figure rounding, which matters in one place (`ill_conditioned`).
 
 ```
                           heat sink off        heat sink on
@@ -20,18 +12,14 @@ report's own 4-significant-figure rounding, which matters in exactly one place (
 
 Trim conditions are Table B.1's three, in order: hover, level 80 kt, descent 80 kt.
 
-## Two traps
+Two traps:
 
-**The 6-DOF matrices do not support an eigenvalue comparison.** Row 6 of `A` is row 6 of
-`F1^-1 F2`, a difference of terms of order 2e5 producing a result of order 1e3, so the
-printed four digits carry roughly +-50 absolute in `A(6,3)` and `A(6,4)`. Perturbing those
-two *within their printed rounding* moves the slow mode anywhere from -0.99 to +7.3 /sec.
-As transcribed, B8 is unstable at +3.07 /sec. That is lost precision, not a claim by the
-report, and `ill_conditioned` flags it.
-
-**The 3-DOF state ordering is inferred**, not printed -- `{NG, NP, T41}`, from three
-pieces of evidence set out in `inventory-appendix-b.md` 2.4. `states_are_printed` says so
-per figure. Anything depending on that ordering should say it is doing so.
+* The 6-DOF matrices do not support an eigenvalue comparison. Row 6 of `A` is row 6 of
+  `F1^-1 F2`, terms of order 2e5 cancelling to order 1e3, so the printed four digits carry
+  about +-50 in `A(6,3)` and `A(6,4)`; within that rounding the slow mode moves from -0.99
+  to +7.3 /sec (B8 as transcribed is unstable). Lost precision, not a claim by the report.
+* The 3-DOF state ordering `{NG, NP, T41}` is inferred, not printed
+  (`inventory-appendix-b.md` 2.4); `states_are_printed` says so per figure.
 """
 
 from __future__ import annotations

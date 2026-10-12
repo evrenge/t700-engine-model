@@ -1,14 +1,9 @@
 """Gas property evaluation. The single door.
 
-**No module outside this package may compute an enthalpy, a temperature from an
-enthalpy, or a critical velocity ratio.** That rule (CLAUDE.md) is what lets the backend
-be replaced without touching a line of component code, and it is enforced by
-`tests/test_architecture.py`.
-
-The current backend is `LinearFitThermo` -- Ballin's two-coefficient straight lines, in
-pure NumPy. A C++ lookup-table backend can be installed with `set_backend()` when
-profiling justifies it, though see `_linear.py`: there is nothing here to look up, so
-such a backend would buy speed and nothing else.
+No module outside this package may compute an enthalpy, a temperature from an enthalpy,
+or a critical velocity ratio (`tests/test_architecture.py`), so the backend can be
+replaced with `set_backend()` without touching component code. The current backend is
+`LinearFitThermo`, Ballin's straight-line fits.
 
     from t700 import thermo
     h = thermo.h41_from_t41(2100.0)
@@ -44,8 +39,7 @@ def backend() -> LinearFitThermo:
 def set_backend(new_backend) -> None:
     """Install a different property backend.
 
-    Exists so a compiled backend can be dropped in later. Changing it changes model
-    output, so a run that uses a non-default backend must say so in its results.
+    Changing it changes model output; a run on a non-default backend must say so.
     """
     global _backend
     _backend = new_backend
