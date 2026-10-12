@@ -1,25 +1,16 @@
 """Re-extract Figure A2 (`f2`, compressor temperature ratio) from TM-100991 pdf p.57.
 
-Why this figure was redone.  `f2` is one of the two highest-leverage maps in the engine:
-a sensitivity sweep of the trimmed model gives dSHP/df2 of -2.0 % to -7.7 % per +1 %, so
-a 0.2 % calibration error is worth up to 1.5 % of shaft power.  The 2026-09-10 extraction
-used a per-axis *linear* map on a perspective-rectified render, and A7 later showed that a
-linear axis map cannot fit these scans.
+The CSV is hand-maintained: this tool recomputes its rows and its calibration header and
+checks them, returning non-zero on any difference. Method as in `tools/digitize_a7.py`
+(see `docs/notes/digitizing-recipe.md`):
 
-Method, following `tools/digitize_a7.py`:
-
-1.  The SCAN, not a render.  `pdfimages -list` says p.57 is one 300 dpi 1-bit CCITT image,
-    so any higher-dpi render is an upsample.  Nothing is ever resampled.
-2.  Geometry carried as a map applied to the measured points.  The four frame edges are
-    fitted as *arcs*: they are printed straight and image with a -1.2 px (left) and
-    -1.4 px (right) sagitta, so a straight-edge model -- a homography included -- is wrong
-    by that much in mid-page.  Plot coordinates are the curvilinear blend between the arcs.
-3.  Axis order chosen by a held-out test.  A2 prints a value at all four frame edges
-    (0 / 20 in x, 1.1 / 3.0 in y).  Fit the interior ticks alone and predict the printed
-    edge; a second test that uses no printed edge at all -- fit the middle 64 % of the
-    lattice, predict the two ends -- has to agree.
-4.  Markers by a generative glyph model: two strokes plus the two joining half-segments,
-    all radiating from one point, supersampled, scored on ink AND background.
+1.  The native 300 dpi 1-bit scan, never resampled.
+2.  The four frame edges fitted as arcs (printed straight, imaged with a small sagitta);
+    plot coordinates are the curvilinear blend between them.
+3.  Axis order chosen by a held-out test. A2 prints a value at all four frame edges
+    (0 / 20 in x, 1.1 / 3.0 in y), so the interior ticks predict them; a tail test (fit
+    the middle 64 % of the lattice, predict the two ends) has to agree.
+4.  Markers by the generative glyph model, scored on ink AND background.
 
 Run from the repo root, with `tools/` on PYTHONPATH.  Writes overlays under
 validation/out/digitize/a2redo/ and prints the rows of
@@ -120,14 +111,9 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
         # `frame_mask` marks what to KEEP; `windows` takes what to EXCLUDE.
         {N - 1: lambda X, Y: ~frame_mask(X, Y)},
         mask_line=mask_line,
-        # Trap 8's guard, adopted 2026-09-16 after measuring it: an explicit 2 px simplex
-        # on the OFFSET, and a refusal of any centre more than 10 px from its seed. A2's
-        # own free check -- its markers sit at integer PS3/P2 and the tool is never told
-        # so -- cannot separate the two fits: worst residual 0.0224 -> 0.0218 at order 1
-        # and 0.0155 -> 0.0151 at the chosen order 3, sd 0.0060 -> 0.0062. A wash, which
-        # is the honest verdict. The reason to adopt it anyway is that the unguarded fit
-        # depends on SciPy's default simplex not walking off the page, and on this figure
-        # the markers run out to column 2256, where that first step is 113 px.
+        # Recipe traps 8-9: an explicit 2 px simplex on the offset, and no centre more than
+        # 10 px from its seed. The markers run out to column 2256, where SciPy's default
+        # first step would be 113 px.
         max_move=10.0,
     )
 
