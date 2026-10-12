@@ -68,9 +68,11 @@ from figure.axis import (
     point_sigma,
 )
 from figure.frame import (
+    along_segments,
     curve_component,
     fit_edges,
     frame_offsets,
+    ink_excesses,
     inside_frame,
     make_sv,
     print_segments,
@@ -281,26 +283,7 @@ def count_check(curve, C):
     segment in 10 px bins and look for an excess over the joining line's own baseline."""
     ys, xs = np.nonzero(curve)
     P = np.stack([xs, ys], 1).astype(float)
-    out = []
-    for i in range(N - 1):
-        a, b = C[i], C[i + 1]
-        d = b - a
-        L = float(np.hypot(*d))
-        d = d / L
-        t = (P - a) @ d
-        perp = (P - a) @ np.array([-d[1], d[0]])
-        tt = t[np.abs(perp) < 12]
-        nb = max(int(L // 10), 4)
-        h, e = np.histogram(tt, bins=nb, range=(0.0, L))
-        base = max(np.median(h[2:-2]) if nb > 6 else np.median(h), 1)
-        out.append(
-            [
-                round((e[k] + e[k + 1]) / 2, 1)
-                for k in range(nb)
-                if h[k] > 1.8 * base and 12 < (e[k] + e[k + 1]) / 2 < L - 12
-            ]
-        )
-    return out
+    return [ink_excesses(L, t, perp, 1.8, 12) for L, t, perp in along_segments(P, C)]
 
 
 # --------------------------------------------------------------------------- output

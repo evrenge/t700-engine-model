@@ -61,7 +61,7 @@ import numpy as np
 from scipy import ndimage
 
 from figure.axis import blend_value, calibrate_under
-from figure.frame import auto_frame_spec, blocked_mask
+from figure.frame import along_segments, auto_frame_spec, blocked_mask, ink_excesses
 from figure.frame import dist as _dist
 from figure.glyph import fit_glyphs, glyph_only_windows, windows
 from figure.provenance import edge_str
@@ -331,27 +331,11 @@ def segment_check(ink, fr, C):
     ys, xs = np.nonzero(ink & keep)
     P = np.stack([xs, ys], 1).astype(float)
     extras, sag = [], []
-    for i in range(len(C) - 1):
-        a, b = C[i], C[i + 1]
-        d = b - a
-        L = float(np.hypot(*d))
-        d = d / L
-        t = (P - a) @ d
-        perp = (P - a) @ np.array([-d[1], d[0]])
+    for L, t, perp in along_segments(P, C):
         sel = (np.abs(perp) < 6) & (t > 24) & (t < L - 24)
         if sel.sum() > 40:
             sag.append((L, float(np.abs(perp[sel]).mean()), float(perp[sel].std())))
-        tt = t[np.abs(perp) < 12]
-        nb = max(int(L // 10), 4)
-        h, e = np.histogram(tt, bins=nb, range=(0.0, L))
-        base = max(np.median(h[2:-2]) if nb > 6 else np.median(h), 1)
-        extras.append(
-            [
-                round((e[k] + e[k + 1]) / 2, 1)
-                for k in range(nb)
-                if h[k] > 1.9 * base and 14 < (e[k] + e[k + 1]) / 2 < L - 14
-            ]
-        )
+        extras.append(ink_excesses(L, t, perp, 1.9, 14))
     print(f"  interior ink excesses per segment: {extras}  (all empty => no missed marker)")
     if sag:
         print(

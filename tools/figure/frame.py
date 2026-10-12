@@ -473,6 +473,36 @@ def segment_lines(curve_pts, seeds, clear=24.0, band=4.5, extra=None):
     return np.array(lines)
 
 
+def along_segments(P, C):
+    """Each joining segment between consecutive centres `C`: its length, and every point of
+    `P` as `(along, across)` coordinates measured from the segment's start."""
+    for i in range(len(C) - 1):
+        a, b = C[i], C[i + 1]
+        d = b - a
+        L = float(np.hypot(*d))
+        d = d / L
+        yield L, (P - a) @ d, (P - a) @ np.array([-d[1], d[0]])
+
+
+def ink_excesses(L, t, perp, ratio, end):
+    """Interior ink excesses along one segment of `along_segments` -- a marker count that
+    shares nothing with the marker detector.
+
+    The ink within 12 px of the segment is binned along it in 10 px bins; a bin holding more
+    than `ratio` times the segment's own baseline, and more than `end` px from either end,
+    is an excess. An empty list on every segment says no marker was missed or invented.
+    """
+    tt = t[np.abs(perp) < 12]
+    nb = max(int(L // 10), 4)
+    h, e = np.histogram(tt, bins=nb, range=(0.0, L))
+    base = max(np.median(h[2:-2]) if nb > 6 else np.median(h), 1)
+    return [
+        round((e[k] + e[k + 1]) / 2, 1)
+        for k in range(nb)
+        if h[k] > ratio * base and end < (e[k] + e[k + 1]) / 2 < L - end
+    ]
+
+
 def print_segments(lines):
     """One line per joining segment from `segment_lines`: length, samples, rms, direction."""
     for i, ln in enumerate(lines):
