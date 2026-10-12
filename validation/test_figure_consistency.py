@@ -56,7 +56,7 @@ here: a literal copy goes stale silently when the digitizer changes."""
 
 def _pre_step(fig: int) -> dict[str, float]:
     """Both figures begin at the same 400 lbm/hr trim, so these are two reads of one state."""
-    t_step = WFPH_PRINTED[fig][2]
+    t_step = tfs.STEP_TIME[fig]
     out = {}
     for key in PRE_STEP_KEYS:
         t, v = read_reference(f"fig{fig:02d}_{key}_model.csv")
@@ -65,7 +65,7 @@ def _pre_step(fig: int) -> dict[str, float]:
 
 
 # The WFPH panel is the input, and the caption prints both of its levels.
-WFPH_PRINTED = {9: (400.0, 775.0, 0.539), 10: (400.0, 125.0, 0.545)}
+WFPH_PRINTED = {9: (400.0, 775.0), 10: (400.0, 125.0)}
 
 
 # --------------------------------------------------------------------- the reference itself
@@ -79,7 +79,8 @@ def test_the_figures_own_read_error_is_measured_not_estimated(fig: int):
     frame rows, so the error is a pixel offset. Quoted per value, one offset reads very
     differently on a wide WFPH axis and the narrow PCNG one.
     """
-    lo, hi, t_step = WFPH_PRINTED[fig]
+    lo, hi = WFPH_PRINTED[fig]
+    t_step = tfs.STEP_TIME[fig]
     span = PANEL_SPAN[fig]["wfph"]
     t, v = read_reference(f"fig{fig:02d}_wfph_model.csv")
     pre = v[t < t_step - 0.05].mean()
@@ -186,8 +187,8 @@ def _ballin_phase_plane(fig: int, t_step: float) -> tuple[np.ndarray, np.ndarray
 @pytest.mark.parametrize(
     "fig,wf_hi,t_step,grid",
     [
-        (9, 775.0, 0.539, (92.0, 94.0, 96.0, 98.0)),
-        (10, 125.0, 0.545, (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0)),
+        (9, 775.0, tfs.STEP_TIME[9], (92.0, 94.0, 96.0, 98.0)),
+        (10, 125.0, tfs.STEP_TIME[10], (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0)),
     ],
 )
 def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
@@ -224,8 +225,8 @@ def test_the_phase_plane_is_not_a_degenerate_comparison():
     model matching the two endpoint trims already reproduces the straight chord.
     """
     for fig, t_step, grid, straight in (
-        (9, 0.539, (92.0, 94.0, 96.0, 98.0), True),
-        (10, 0.545, (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0), False),
+        (9, tfs.STEP_TIME[9], (92.0, 94.0, 96.0, 98.0), True),
+        (10, tfs.STEP_TIME[10], (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0), False),
     ):
         bn, bp = _ballin_phase_plane(fig, t_step)
         lo, hi = min(grid), max(grid)
@@ -253,7 +254,9 @@ def test_the_phase_plane_is_not_a_degenerate_comparison():
             )
 
 
-@pytest.mark.parametrize("fig,wf_hi,t_step", [(9, 775.0, 0.539), (10, 125.0, 0.545)])
+@pytest.mark.parametrize(
+    "fig,wf_hi,t_step", [(9, 775.0, tfs.STEP_TIME[9]), (10, 125.0, tfs.STEP_TIME[10])]
+)
 def test_the_transient_sits_off_the_steady_locus_in_the_right_direction(fig, wf_hi, t_step):
     """An accel runs above the equilibrium Ps3 line, a chop below it: the sign of a physical
     effect, so a statement about the model rather than the digitizer.
@@ -285,7 +288,7 @@ def test_we_match_both_sides_of_the_figure_6_to_9_gap():
     assert r775.trustworthy
     f775 = frame(r775.state, wf_pps_from_pph(775.0), AMB)
     # from the sweep's own first rung: a cold 400 lbm/hr trim, which is what `fuel_step` solves
-    tr = tfs.fuel_step(775.0, 0.539, duration_s=40.0)
+    tr = tfs.fuel_step(775.0, tfs.STEP_TIME[9], duration_s=40.0)
 
     wf6, ng6 = read_reference("fig06_realtime.csv")
     wf7, shp7 = read_reference("fig07_realtime.csv")
