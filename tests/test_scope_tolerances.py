@@ -68,7 +68,7 @@ _TOLERANCE_HEADERS = {"tolerance", "bound", "steady state"}
 """The second header cell of each tolerance table in SCOPE.md, lowercased."""
 
 EXPECTED_TABLES = 3
-EXPECTED_ROWS = 37
+EXPECTED_ROWS = 40
 
 
 def _parse() -> tuple[list[tuple[str, str, str]], list[str], int]:

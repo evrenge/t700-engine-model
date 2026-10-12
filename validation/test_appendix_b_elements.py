@@ -517,16 +517,17 @@ def test_supplying_the_load_slope_closes_the_np_diagonal_circularly(trim_no: int
 # in any of them now fails a test instead of going unnoticed, and that the *shape* of each
 # block's disagreement is on the record where a single aggregate would have hidden it.
 
-THREE_DOF_B = (0.84, 1.02)
+THREE_DOF_B_GAS = (0.89, 0.99)
+THREE_DOF_B_T41 = (0.77, 0.93)
 """The 3-DOF fuel column against B7/B9/B11, nine numbers, ratio ours/printed.
 
-Measured 2026-10-12: 0.9761 / 0.9752 / **0.8719** at hover, 0.9900 / 1.0079 / 0.9785 at
-level, 1.0040 / 0.9393 / **0.8537** at descent, in state order NG, NP, T41. The T41 entries
-are low for a diagnosed reason, not scatter: b(T41) is a near-cancellation, and our
-heat-sink time constants are 14 % and 7.5 % short of the ones Appendix B was generated with
-(`test_heat_sink_taus.py`, open questions #31 and #73). The floor moved 0.86 -> 0.84 on
-2026-10-12 with that cause pinned; descent had sat at 0.8527-0.8608 over four digitizing
-changes."""
+Measured 2026-10-12: 0.9438 / 0.9418 / **0.8135** at hover, 0.9568 / 0.9743 / 0.9131 at
+level, 0.9653 / 0.9035 / **0.7882** at descent, in state order NG, NP, T41. Low for one
+diagnosed reason: Appendix B was generated with TC_T41 = 0.32, the report prints 0.29, and
+`b(T41)` is a near-cancellation that amplifies it (`test_heat_sink_taus.py`, open questions
+#31 and #73). With the recovered time constants the T41 row matches to 1.7 % at hover and
+descent. One band of 0.86-1.02 until 2026-10-12, when extraction began holding T41 fixed
+as pdf p.31 says and the column split by cause, as the 6-DOF one already had."""
 
 SIX_DOF_B_GAS = (0.93, 0.96)
 SIX_DOF_B_T41 = (0.87, 0.90)
@@ -588,9 +589,8 @@ def test_the_three_dof_fuel_column_against_b7_b9_b11(trim_no: int):
     for i, s in enumerate(ref.states):
         assert ref.b[i] != 0.0, f"B{ref.figure}: b({s}) is printed zero, which it was not"
         ratio = ours.b[i] / ref.b[i]
-        assert THREE_DOF_B[0] < ratio < THREE_DOF_B[1], (
-            f"{TRIM_NAME[trim_no]} b({s}) is {ratio:.4f} of printed"
-        )
+        lo, hi = THREE_DOF_B_T41 if s == "T41" else THREE_DOF_B_GAS
+        assert lo < ratio < hi, f"{TRIM_NAME[trim_no]} b({s}) is {ratio:.4f} of printed"
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
@@ -707,12 +707,16 @@ puts them among the best-agreeing elements in the whole comparison, better than 
 in the `f7` group and than most of the NG column. Worth having asserted for that reason
 rather than despite it: they are the elements a regression would be easiest to miss."""
 
-THREE_DOF_NG_COLUMN = (0.80, 1.12)
+THREE_DOF_NG_COLUMN = (0.76, 1.12)
 """The 3-DOF NG column against B7/B9/B11 -- the last block with no numeric comparison.
 
-Measured 0.9308 / 0.9901 / 0.8262 at hover, 1.0456 / 1.1005 / 1.0567 at level,
-1.0051 / 0.9657 / **0.7639** at descent, in row order NG, NP, T41. This is the `f1`
-derivative ambiguity of open question #43 in the same place it appears everywhere else.
+Measured 0.9255 / 0.9896 / 0.7885 at hover, 1.0447 / 1.0999 / 1.0162 at level,
+1.0084 / 0.9634 / **0.7356** at descent, in row order NG, NP, T41. This is the `f1`
+derivative ambiguity of open question #43 in the same place it appears everywhere else --
+and, in the T41 row, the report's TC_T41 inconsistency: with the time constants Appendix B
+was generated with, `A(T41,NG)` is 0.898 at hover and 1.006 at descent
+(`test_heat_sink_taus.py`). The floor moved 0.80 -> 0.76 on 2026-10-12, when extraction
+began holding T41 fixed as pdf p.31 says.
 
 **Descent `A(T41,NG)` is excluded from this band, and was being asserted twice.**
 `test_all_dof_models.py::test_the_descent_t41_ng_element_is_recorded_not_forgotten` is

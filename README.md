@@ -28,7 +28,7 @@ than quoting a stored number.
 |---|---|
 | **Table B.1, the printed engine state** | **rms 0.22 %** over 21 numbers — worst shaft power −0.81 % at descent |
 | **Table 1, printed eigenvalues** | all **27** modes across three model variants: rms 5.4 %, worst +14.9 % on the 5-DOF P45 mode at hover |
-| **Appendix B, 297 printed elements** | zero structure exact; **all 206 non-zero elements** carry a numeric per-element comparison. `A` rms 7.8 % over 158, `b` rms 5.5 % over 42 |
+| **Appendix B, 297 printed elements** | zero structure exact; **all 206 non-zero elements** carry a numeric per-element comparison. `A` rms 7.9 % over 158, `b` rms 6.7 % over 42 — the heat-sink rows carry the report's own TC_T41 inconsistency (open question #31) |
 | **Closed loop vs Table B.1** | **worst 0.25 %** over NG, NP, Wf, Ps3 and shaft power at three trims — **with fuel flow as an output**, averaged over the governor's own limit cycle |
 | Figure 6, NG vs fuel flow | mean 0.00 %NG, rms 0.23, worst −1.01 over all 29 printed points |
 | Figure 7, shaft power vs fuel flow | mean +0.18 %, rms 0.68 %, worst +2.15 over 14 of 15 |

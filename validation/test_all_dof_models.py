@@ -186,9 +186,12 @@ def test_two_dof_elements_against_b1_b3_b5(trim_no: int):
 
 
 THREE_DOF_T41_COLUMN = (0.88, 1.12)
-THREE_DOF_FEEDTHROUGH_TOL_PCT = 3.0
+THREE_DOF_FEEDTHROUGH_TOL_PCT = 7.0
 """3-DOF against B7/B9/B11: the T41 column of `A` as a ratio, the T41 feedthrough `d` as a
-deviation. Measured worst 1.083 (T41 row, level) and 2.3 %."""
+deviation. Measured worst 1.067 (T41 row, level) and 5.95 % (descent). The feedthrough was
+3 % until 2026-10-12, when extraction began holding T41 fixed as pdf p.31 says: `d` then
+carries the report's TC_T41 inconsistency in full (`test_heat_sink_taus.py`) instead of
+half-cancelling it against a T41 feedback Appendix B does not have."""
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])

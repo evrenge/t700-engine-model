@@ -239,7 +239,7 @@ distinction matters when a number from one is quoted as a result.
 
 ### Appendix B, element by element
 
-There is no single per-element tolerance. Nineteen distinct bounds exist across
+There is no single per-element tolerance. Twenty-two distinct bounds exist across
 `test_appendix_b_elements.py`, `test_all_dof_models.py` and `test_heat_sink_taus.py`, and
 they differ by two orders of magnitude because the printed elements do:
 
@@ -252,12 +252,15 @@ they differ by two orders of magnitude because the printed elements do:
 | P3 column outside that block, 5-DOF | +/-3.0 % | `test_appendix_b_elements.P3_COLUMN_TOL_PCT` |
 | T41 row | ratio 0.90-0.96, spread under 1.0 % | `test_appendix_b_elements.T41_ROW` and `test_appendix_b_elements.T41_ROW_SPREAD_PCT` |
 | 3-DOF T41 column | ratio 0.88-1.12 | `test_all_dof_models.THREE_DOF_T41_COLUMN` |
-| 3-DOF T41 feedthrough `d` | +/-3.0 % | `test_all_dof_models.THREE_DOF_FEEDTHROUGH_TOL_PCT` |
-| 3-DOF NG column, less descent `A(T41,NG)` | ratio 0.80-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
+| 3-DOF T41 feedthrough `d` | +/-7.0 % | `test_all_dof_models.THREE_DOF_FEEDTHROUGH_TOL_PCT` |
+| 3-DOF NG column, less descent `A(T41,NG)` | ratio 0.76-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
 | descent `A(T41,NG)`, 3-DOF | ratio 0.6-1.0 | `test_all_dof_models.DESCENT_T41_NG` |
-| 3-DOF `b` | ratio 0.84-1.02 | `test_appendix_b_elements.THREE_DOF_B` |
-| heat-sink lead and lag taus, ours over those B7/B9/B11 imply | ratio 0.84-0.88 and 0.91-0.95 | `test_heat_sink_taus.TAU1_RATIO` and `test_heat_sink_taus.TAU2_RATIO` |
-| 6-DOF T41 row with those taus | +/-2.0 % | `test_heat_sink_taus.SWAP_ROW_TOL_PCT` |
+| 3-DOF `b`, NG and NP | ratio 0.89-0.99 | `test_appendix_b_elements.THREE_DOF_B_GAS` |
+| 3-DOF `b`, T41 | ratio 0.77-0.93 | `test_appendix_b_elements.THREE_DOF_B_T41` |
+| heat-sink lead and lag taus, ours over those B7/B9/B11 imply | ratio 0.84-0.88 and 0.89-0.93 | `test_heat_sink_taus.TAU1_RATIO` and `test_heat_sink_taus.TAU2_RATIO` |
+| 6-DOF fuel column with those taus | +/-0.5 % | `test_heat_sink_taus.SIX_DOF_SWAP_TOL_PCT` |
+| 3-DOF T41 row with those taus, hover and descent | +/-2.0 % | `test_heat_sink_taus.THREE_DOF_SWAP_TOL_PCT` |
+| TC_T41 those taus imply, against the printed 0.29 | 0.315-0.325, and f_hs within +/-1.0 % of its plot | `test_heat_sink_taus.IMPLIED_TC_T41` and `test_heat_sink_taus.IMPLIED_F_HS_TOL_PCT` |
 | 6-DOF `b`, gas path | ratio 0.93-0.96 | `test_appendix_b_elements.SIX_DOF_B_GAS` |
 | 6-DOF `b`, T41 | ratio 0.87-0.9 | `test_appendix_b_elements.SIX_DOF_B_T41` |
 | rest of the 6-DOF `A` | ratio 0.8-1.26 | `test_appendix_b_elements.SIX_DOF_REST` |

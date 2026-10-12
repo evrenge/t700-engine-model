@@ -320,13 +320,21 @@ def _extract_heat_sink(dof, f_deriv, f_t41ns, z0, wf_pps, rel_step, taus, states
     Rearranged into `F1 zdot = F2 z + G1 Wf + G2 Wfdot`, `G2` comes out zero in every row
     but T41's -- which is what Appendix B prints [pdf p.33], and therefore a check on the
     derivation rather than an input to it.
+
+    `cx` is taken with the T41 state held at trim, so its T41 entry is zero: "During
+    derivative extraction, T41 was held fixed at the trim value and the change in T41 was
+    determined for each state perturbation" [pdf p.31]. In the 6-DOF that entry is zero
+    anyway. In the 3-DOF the settled pressures would carry 0.057-0.070 of it, and B7/B9/B11
+    are matched without it (`validation/test_heat_sink_taus.py`).
     """
     tau1, tau2 = taus
     m = len(z0) - 1
     n = m + 1
 
     Jx = _central_jacobian(lambda z: f_deriv(z, wf_pps), z0, m, rel_step)
-    cx = _central_jacobian(lambda z: np.array([f_t41ns(z, wf_pps)]), z0, 1, rel_step)[0]
+    cx = _central_jacobian(
+        lambda z: np.array([f_t41ns(np.append(z[:m], z0[m]), wf_pps)]), z0, 1, rel_step
+    )[0]
     hw = rel_step * max(abs(wf_pps), 1e-6)
     Jw = (f_deriv(z0, wf_pps + hw) - f_deriv(z0, wf_pps - hw)) / (2.0 * hw)
     cw = (f_t41ns(z0, wf_pps + hw) - f_t41ns(z0, wf_pps - hw)) / (2.0 * hw)
