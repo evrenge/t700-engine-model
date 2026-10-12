@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .frame import EDGE
+from .frame import EDGE, edge_spans
 from .frame import corners as frame_corners
 
 # --------------------------------------------------------------------------- the lattice
@@ -202,12 +202,7 @@ def majors_all_edges(ink, fc, cfg, verbose=True, order=None):
     """
     order = len(next(iter(fc.values()))) - 1 if order is None else order
     TL, TR, BR, BL = frame_corners(fc, order=order)
-    span = {
-        "left": (TL[1], BL[1]),
-        "right": (TR[1], BR[1]),
-        "top": (TL[0], TR[0]),
-        "bottom": (BL[0], BR[0]),
-    }
+    span = edge_spans((TL, TR, BR, BL))
     maj, allt = {}, {}
     for nm in ("left", "right", "top", "bottom"):
         along, sign = EDGE[nm]

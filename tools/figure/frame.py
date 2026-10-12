@@ -195,7 +195,23 @@ def corners(fc, order=1):
     )
 
 
+def edge_spans(corners4):
+    """Each edge's extent along itself, between its own two corners `(TL, TR, BR, BL)`: rows
+    for the left and right edges, columns for the top and bottom."""
+    TL, TR, BR, BL = corners4
+    return {
+        "left": (TL[1], BL[1]),
+        "right": (TR[1], BR[1]),
+        "top": (TL[0], TR[0]),
+        "bottom": (BL[0], BR[0]),
+    }
+
+
 # --------------------------------------------------------------------------- plot coords
+
+
+UNIT = ((0, 1), (1, 1), (1, 0), (0, 0))
+"""The unit square's corners in `(TL, TR, BR, BL)` order: u runs right, v runs up."""
 
 
 def homography(src, dst):
@@ -289,6 +305,34 @@ def blocked_mask(fr, allt, framew=3.6, tickpad=4.5, tickext=5.0):
         return m
 
     return mask_fn
+
+
+def frame_offsets(fc, X, Y):
+    """Each pixel's offset from the four fitted edges, measured across each one: x minus the
+    left or right edge's x at that row, y minus the top or bottom edge's y at that column.
+    Inside the frame `dL` and `dT` are positive, `dR` and `dB` negative."""
+    return (
+        X - np.polyval(fc["left"], Y),
+        X - np.polyval(fc["right"], Y),
+        Y - np.polyval(fc["top"], X),
+        Y - np.polyval(fc["bottom"], X),
+    )
+
+
+def inside_frame(offsets, margin):
+    """Inside the frame, or within `margin` px outside it, from `frame_offsets`."""
+    dL, dR, dT, dB = offsets
+    return (dL > -margin) & (dR < margin) & (dT > -margin) & (dB < margin)
+
+
+def plot_ink(ink, fc, band, margin):
+    """Ink inside the frame (to `margin` px beyond it) with the frame lines themselves,
+    everything within `band` px of a fitted edge, removed."""
+    Y, X = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]]
+    d = frame_offsets(fc, X, Y)
+    dL, dR, dT, dB = d
+    on_frame = (np.abs(dL) < band) | (np.abs(dR) < band) | (np.abs(dT) < band) | (np.abs(dB) < band)
+    return ink & inside_frame(d, margin) & ~on_frame
 
 
 # --------------------------------------------------------------------------- finding it
@@ -391,14 +435,7 @@ def curve_component(ink, fc, band=4.0, margin=30.0, close=0):
     "largest component" pick a fragment. Closing decides *membership* only; the returned
     mask is the original ink.
     """
-    Y, X = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]]
-    dL = X - np.polyval(fc["left"], Y)
-    dR = X - np.polyval(fc["right"], Y)
-    dT = Y - np.polyval(fc["top"], X)
-    dB = Y - np.polyval(fc["bottom"], X)
-    inside = (dL > -margin) & (dR < margin) & (dT > -margin) & (dB < margin)
-    on_frame = (np.abs(dL) < band) | (np.abs(dR) < band) | (np.abs(dT) < band) | (np.abs(dB) < band)
-    m = ink & inside & ~on_frame
+    m = plot_ink(ink, fc, band, margin)
     g = ndimage.binary_closing(m, np.ones((close, close))) if close else m
     lab, n = ndimage.label(g, structure=np.ones((3, 3)))
     sz = ndimage.sum(g, lab, range(1, n + 1))
@@ -475,3 +512,28 @@ def edge_at(fc, to_sv):
         return to_sv(cs, np.polyval(fc[nm], cs))[0]
 
     return at
+
+
+def unit_square(fc, order):
+    """`(to_uv, to_px, tick_u)` under one frame model: pixels to the unit square, back, and
+    `tick_u(name, positions)` for ticks along one edge, as the along-edge coordinate.
+
+    Order 1 maps the four straight edges by the homography between their corners; order 2
+    is `make_sv`'s curvilinear blend between the four arcs. Written four times until
+    2026-10-12 -- in `axis.axis_values`, `calibrate_under` and twice in `compare_models`.
+    """
+    if order == 1:
+        # four straight edges map by the homography, as everywhere else in the package;
+        # `make_sv` on straight edges differs from it by up to 1.1e-3 of the unit square
+        cs = corners(fc, order=1)
+        H, Hinv = homography(cs, UNIT), homography(UNIT, cs)
+
+        def to_uv(px, py):
+            return apply_h(H, px, py)
+
+        def to_px(u, v):
+            return apply_h(Hinv, u, v)
+
+        return to_uv, to_px, edge_at_straight(edge_uv(as_lines(fc), H))
+    to_uv, to_px = make_sv(fc)
+    return to_uv, to_px, edge_at(fc, to_uv)

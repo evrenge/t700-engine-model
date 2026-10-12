@@ -80,7 +80,6 @@ from scipy import ndimage
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from figure.axis import blend_value, calibrate_under
-from figure.frame import apply_h as _apply
 from figure.frame import auto_frame_spec
 from figure.raster import native_bitmap
 
@@ -312,7 +311,7 @@ def main(argv=None) -> int:
     # whichever lattice predicts the printed frame value it was never shown.
     cal = calibrate_under(ink, auto_frame_spec(PAGE), CFG, 1)
     TL, TR, _BR, BL = cal["corners"]
-    H, CX, CY = cal["H"], cal["CX"], cal["CY"]
+    to_uv, CX, CY = cal["to_uv"], cal["CX"], cal["CY"]
 
     # a straight pixel map, used only to turn a declared seed into a column and a row
     lef, rig = float(np.ravel(TL[0])[0]), float(np.ravel(TR[0])[0])
@@ -334,14 +333,14 @@ def main(argv=None) -> int:
     cols = np.arange(int(lef) + 2, int(rig) - 1)
     _tgrid = np.linspace(0.0, 1.0, 2001)
     _vgrid = np.asarray([blend_value(CY["edgec"], t, 0.5) for t in _tgrid], float)
-    _uu, _ = _apply(H, cols.astype(float), np.full(cols.size, (top + bot) / 2.0))
+    _uu, _ = to_uv(cols.astype(float), np.full(cols.size, (top + bot) / 2.0))
 
     def column_for(x, v):
         across = float(np.interp(v, _vgrid, _tgrid))
         return int(cols[int(np.argmin(np.abs(blend_value(CX["edgec"], _uu, across) - x)))])
 
     def wfpac_of(col, row):
-        u, v = _apply(H, [float(col)], [float(row)])
+        u, v = to_uv([float(col)], [float(row)])
         return float(blend_value(CY["edgec"], v[0], u[0]))
 
     seeds = {k: list(BUNDLE[k]) for k in T2_OF}
@@ -370,7 +369,7 @@ def main(argv=None) -> int:
             rs = clean_runs(c)
             if not rs:
                 continue
-            uc, vc = _apply(H, [float(c)], [float(sum(rs[0]) / 2.0)])
+            uc, vc = to_uv([float(c)], [float(sum(rs[0]) / 2.0)])
             t = float(blend_value(CX["edgec"], uc[0], vc[0])) - x0
             t = 0.0 if x1 == x0 else t / (x1 - x0)
             want = v0 + max(0.0, min(1.0, t)) * (v1 - v0)
@@ -409,7 +408,7 @@ def main(argv=None) -> int:
                     f"({miss:.3f} away) with the next at {cands[1][1]:.3f} -- ambiguous. "
                     f"The seed is wrong or the figure has been re-rendered."
                 )
-            u, vpt = _apply(H, [float(c)], [centre])
+            u, vpt = to_uv([float(c)], [centre])
             pts.append((float(blend_value(CX["edgec"], u[0], vpt[0])), got, float(c), centre))
         pts = sorted(pts)
         # replace each interior vertex by the intersection of its two fitted segments
@@ -425,7 +424,7 @@ def main(argv=None) -> int:
             if not (pts[i][2] - 30.0 <= cx_i <= pts[i][2] + 30.0):
                 continue
             cy_i = f0[0] * cx_i + f0[1]
-            u, vpt = _apply(H, [cx_i], [cy_i])
+            u, vpt = to_uv([cx_i], [cy_i])
             out[i] = (
                 float(blend_value(CX["edgec"], u[0], vpt[0])),
                 wfpac_of(cx_i, cy_i),

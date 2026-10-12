@@ -42,7 +42,6 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from figure.axis import blend_value, calibrate_under
-from figure.frame import apply_h as _apply
 from figure.frame import auto_frame_spec
 from figure.frame import dist as _dist
 from figure.raster import native_bitmap
@@ -182,7 +181,7 @@ def main(argv=None):
     # shown. This figure shares its calibration with `digitize_single_curve` and had been
     # left behind on the majors when that path moved.
     cal = calibrate_under(ink, auto_frame_spec(cfg["page"]), cfg, 1)
-    fr, H, CX, CY = cal["fr"], cal["H"], cal["CX"], cal["CY"]
+    fr, to_uv, CX, CY = cal["fr"], cal["to_uv"], cal["CX"], cal["CY"]
 
     # ---- trace, then sample at the knot abscissae ---------------------------------
     ncur = len(cfg["curves"])
@@ -194,7 +193,7 @@ def main(argv=None):
 
     us, vs = [], []
     for c, r in ok:
-        uu, vv = zip(*(_apply(H, [c], [y]) for y in r), strict=True)
+        uu, vv = zip(*(to_uv([c], [y]) for y in r), strict=True)
         us.append(float(uu[0][0]))
         vs.append([float(q[0]) for q in vv])
     us = np.array(us)

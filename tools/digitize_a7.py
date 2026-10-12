@@ -61,7 +61,16 @@ from scipy import ndimage
 
 from figure.axis import blend_axis, choose, fit_anchored, parity, poly_se, tail_cv
 from figure.axis import loo as _loo
-from figure.frame import corner_arc, curve_component, edge_at, fit_edges, make_sv, segment_lines
+from figure.frame import (
+    corner_arc,
+    curve_component,
+    edge_at,
+    fit_edges,
+    frame_offsets,
+    inside_frame,
+    make_sv,
+    segment_lines,
+)
 from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
 from figure.provenance import check_against_csv
 from figure.raster import native_bitmap
@@ -225,11 +234,9 @@ def cores(ink, fc, k=6, margin=8.0, minsize=30):
     (markers 1 and 6 sit on it), so a core's seed is centroided over its non-frame ink.
     """
     Y, X = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]]
-    dL = X - np.polyval(fc["left"], Y)
-    dR = X - np.polyval(fc["right"], Y)
-    dT = Y - np.polyval(fc["top"], X)
-    dB = Y - np.polyval(fc["bottom"], X)
-    inside = (dL > -margin) & (dR < margin) & (dT > -margin) & (dB < margin)
+    d = frame_offsets(fc, X, Y)
+    dL, dR, dT, dB = d
+    inside = inside_frame(d, margin)
     off_frame = (np.abs(dL) > 4.5) & (np.abs(dR) > 4.5) & (np.abs(dT) > 4.5) & (np.abs(dB) > 4.5)
     op = ndimage.binary_opening(ink & inside, np.ones((k, k)))
     lab, n = ndimage.label(op, structure=np.ones((3, 3)))

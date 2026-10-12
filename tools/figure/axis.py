@@ -285,8 +285,7 @@ def calibrate_under(ink, fspec, cfg, forder, verbose=True):
 
     It was written three times until 2026-10-12: here, and inline in those two tools.
     """
-    from .frame import apply_h as _apply
-    from .frame import as_lines, edge_at, edge_uv, fit_edges, homography, make_sv
+    from .frame import as_lines, edge_spans, fit_edges, unit_square
     from .frame import corners as frame_corners
     from .ticks import coarse_lattice, fine_lattice_all, majors_all_edges
 
@@ -294,33 +293,14 @@ def calibrate_under(ink, fspec, cfg, forder, verbose=True):
         print("frame lines:")
     fc, frdiag = fit_edges(ink, fspec, order=forder, verbose=verbose)
     TL, TR, BR, BL = frame_corners(fc, order=forder)
-    span = {
-        "left": (TL[1], BL[1]),
-        "right": (TR[1], BR[1]),
-        "top": (TL[0], TR[0]),
-        "bottom": (BL[0], BR[0]),
-    }
+    span = edge_spans((TL, TR, BR, BL))
     fr = as_lines(fc, span)
     if verbose:
         print(
             f"  corners TL({TL[0]:.3f},{TL[1]:.3f}) TR({TR[0]:.3f},{TR[1]:.3f}) "
             f"BR({BR[0]:.3f},{BR[1]:.3f}) BL({BL[0]:.3f},{BL[1]:.3f})"
         )
-    H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
-    if forder == 1:
-        to_uv = lambda px, py: _apply(H, px, py)  # noqa: E731
-        to_px = lambda u, v: _apply(  # noqa: E731
-            homography([(0, 1), (1, 1), (1, 0), (0, 0)], [TL, TR, BR, BL]), u, v
-        )
-        edge_coord = edge_uv(fr, H)
-
-        def tick_u(nm, pos):
-            q = edge_coord(nm, list(np.atleast_1d(pos)))
-            return q[1] if nm in ("left", "right") else q[0]
-    else:
-        sv, px_of = make_sv(fc)
-        to_uv, to_px = sv, px_of
-        tick_u = edge_at(fc, sv)
+    to_uv, to_px, tick_u = unit_square(fc, forder)
 
     if verbose:
         print("ticks:")
@@ -354,7 +334,6 @@ def calibrate_under(ink, fspec, cfg, forder, verbose=True):
         frdiag=frdiag,
         fr=fr,
         corners=(TL, TR, BR, BL),
-        H=H,
         to_uv=to_uv,
         to_px=to_px,
         allt=allt,
@@ -377,18 +356,10 @@ def axis_values(ink, spec, tickspec, C, frame_order, x_order, y_order, blend=Tru
     geometry models, or two anchoring rules, is answered by running both and measuring the
     difference, not by argument.
     """
-    from .frame import apply_h, corners, fit_edges, homography, make_sv
+    from .frame import fit_edges, unit_square
 
     fc, _ = fit_edges(ink, spec, order=frame_order, verbose=False)
-    if frame_order == 1:
-        # four straight edges map by the homography, as everywhere else in the package;
-        # `make_sv` on straight edges differs from it by up to 1.1e-3 of the unit square
-        H = homography(corners(fc, order=1), [(0, 1), (1, 1), (1, 0), (0, 0)])
-
-        def to_sv(x, y):
-            return apply_h(H, x, y)
-    else:
-        to_sv, _ = make_sv(fc)
+    to_sv, _, _ = unit_square(fc, frame_order)
     P = tickspec(fc, to_sv)
     s, v = to_sv(C[:, 0], C[:, 1])
     out = []

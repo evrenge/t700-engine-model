@@ -73,7 +73,8 @@ from pathlib import Path
 import numpy as np
 from scipy import ndimage
 
-from figure.frame import make_sv
+from figure.axis import blend_value
+from figure.frame import make_sv, plot_ink
 from figure.provenance import header, parse_calibration
 from figure.raster import native_bitmap
 
@@ -118,9 +119,7 @@ def axis_value(spec, t, other):
     kind, polys = spec
     if kind == "pooled":
         return np.polyval(polys[0], t)
-    lo = np.polyval(polys[0], t)
-    hi = np.polyval(polys[1], t)
-    return (1.0 - other) * lo + other * hi
+    return blend_value(polys, t, other)
 
 
 def col_trace(mask, x0, x1, y0, tol=90.0):
@@ -151,18 +150,6 @@ def col_trace(mask, x0, x1, y0, tol=90.0):
             slope = np.polyfit(rec[:, 0], rec[:, 1], 1)[0]
         y = cen[j] + slope * step
     return np.array(out)
-
-
-def curve_mask(ink, frame, band=5.0, margin=25.0):
-    """Ink inside the frame with the frame lines themselves removed."""
-    Y, X = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]]
-    dL = X - np.polyval(frame["left"], Y)
-    dR = X - np.polyval(frame["right"], Y)
-    dT = Y - np.polyval(frame["top"], X)
-    dB = Y - np.polyval(frame["bottom"], X)
-    inside = (dL > -margin) & (dR < margin) & (dT > -margin) & (dB < margin)
-    on_frame = (np.abs(dL) < band) | (np.abs(dR) < band) | (np.abs(dT) < band) | (np.abs(dB) < band)
-    return ink & inside & ~on_frame
 
 
 def run_one(tag, path, yunit, clear=17.0):
@@ -203,7 +190,7 @@ def run_one(tag, path, yunit, clear=17.0):
         float,
     )
 
-    m = curve_mask(ink, frame)
+    m = plot_ink(ink, frame, 5.0, 25.0)
     lab, _ = ndimage.label(m, structure=np.ones((3, 3)))
     sizes = ndimage.sum(m, lab, range(1, int(lab.max()) + 1))
     # Look near EVERY marker and keep the biggest component any of them lands on. Seeding

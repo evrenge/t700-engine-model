@@ -42,32 +42,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from digitize_single_curve import FIGS, run  # noqa: E402
 from figure.axis import blend_value, fit_anchored, soft_anchor  # noqa: E402
-from figure.frame import (  # noqa: E402  # noqa: E402  # noqa: E402
-    apply_h,
-    as_lines,
-    corners,
-    edge_at,
-    edge_at_straight,
-    edge_uv,
-    fit_edges,
-    homography,
-    make_sv,
-)
+from figure.frame import edge_spans, fit_edges, unit_square  # noqa: E402
 from figure.ticks import coarse_lattice, fine_lattice_all, majors_all_edges  # noqa: E402
-
-UNIT = (0, 1), (1, 1), (1, 0), (0, 0)
 
 
 def plot_coords(ink, spec, C, order):
     """Marker centres in the unit square, under a frame model of the given order."""
     fc, _ = fit_edges(ink, spec, order=order, verbose=False)
-    if order == 1:
-        H = homography(corners(fc, order=1), UNIT)
-        u, v = apply_h(H, C[:, 0], C[:, 1])
-        return fc, u, v
-    to_sv, _ = make_sv(fc)
-    s, v = to_sv(C[:, 0], C[:, 1])
-    return fc, s, v
+    to_uv, _, _ = unit_square(fc, order)
+    u, v = to_uv(C[:, 0], C[:, 1])
+    return fc, u, v
 
 
 def edge_positions(ink, fc, cfg, order):
@@ -79,21 +63,10 @@ def edge_positions(ink, fc, cfg, order):
     frame-model choice.
     """
     maj, _allt, cor = majors_all_edges(ink, fc, cfg, verbose=False, order=order)
-    if order == 1:
-        uv_of = edge_uv(as_lines(fc), homography(corners(fc, order=1), UNIT))
-        at = edge_at_straight(uv_of)
-    else:
-        to_sv, _ = make_sv(fc)
-        at = edge_at(fc, to_sv)
-
-    TL, TR, BR, BL = cor
-    span = {
-        "left": (TL[1], BL[1]),
-        "right": (TR[1], BR[1]),
-        "top": (TL[0], TR[0]),
-        "bottom": (BL[0], BR[0]),
-    }
-    return fine_lattice_all(ink, fc, cfg, at, span, coarse_lattice(maj, cfg, at), verbose=False)
+    _, _, at = unit_square(fc, order)
+    return fine_lattice_all(
+        ink, fc, cfg, at, edge_spans(cor), coarse_lattice(maj, cfg, at), verbose=False
+    )
 
 
 def axis_polys(P, spec, order, anchor):
