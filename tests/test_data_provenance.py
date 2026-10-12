@@ -1,13 +1,8 @@
 """Every file in data/ must say where its numbers came from.
 
-CLAUDE.md's provenance rule is the one that cannot be fully mechanised -- a machine
-cannot tell a cited constant from a plausible one. But it *can* check that the citation
-exists, is well formed, and points at a real page of the report. That is worth having:
-the failure mode this catches is a CSV that arrives with no header during a long session
-and is indistinguishable from a good one six weeks later.
-
-What it cannot check is whether the values are right. That is what the verify overlays
-are for.
+A machine cannot tell a cited value from a plausible one, but it can check that the
+citation exists, is well formed and points at a real page of the report. Whether the values
+are right is for the verify overlays.
 """
 
 from __future__ import annotations
@@ -22,9 +17,8 @@ DATA = Path(__file__).resolve().parent.parent / "data"
 PDF_PAGES = 104  # docs/ballin-tm100991.pdf
 
 REQUIRED = ("# source:", "# quantity:", "# method:")
-"""Fields every data file must carry. Axis documentation is checked separately, by
-column name, because a 2-D map documents three or more columns and cannot use a fixed
-`# x:` / `# y:` pair."""
+"""Fields every data file must carry. Axes are checked by column name instead, since a 2-D
+map has three or more columns."""
 
 
 def data_files() -> list[Path]:
@@ -67,12 +61,7 @@ def test_method_is_declared_and_honest(path: Path):
 
 @pytest.mark.parametrize("path", data_files(), ids=lambda p: p.name)
 def test_every_column_is_documented(path: Path):
-    """Each column name must appear in the header comments.
-
-    This replaces a fixed `# x:` / `# y:` check, which quietly assumed every data file is
-    a 2-column curve. `f1` is a 2-D map with five columns and documents each by name --
-    that is better provenance, not worse, and the test now says so.
-    """
+    """Each column name must appear in the header comments."""
     head = "\n".join(header_of(path))
     with path.open() as fh:
         reader = csv.reader(ln for ln in fh if not ln.startswith("#"))
@@ -107,16 +96,9 @@ def _is_number(v: str) -> bool:
 def test_values_are_finite_numbers(path: Path):
     """Numeric columns hold finite numbers, and no column mixes numbers with text.
 
-    Originally this required *every* column to be numeric, which assumed every data file
-    is a curve or a map. `data/linear/` is neither: Appendix B's matrices are stored long,
-    `matrix,row,col,value`, where three columns are labels (`A`, `NG`, `P41`) and one is
-    the number. Requiring those to parse as floats tested the schema, not the data.
-
-    So the rule is now per column rather than per cell, and it is **stronger** than what
-    it replaces: a column must be entirely numeric or entirely non-numeric. A *mixed*
-    column -- a stray `N/A`, a truncated write, a header row duplicated into the body --
-    is the failure this is really guarding against, and the old form reported it as an
-    unhandled ValueError rather than as a finding.
+    Per column: `data/linear/` stores Appendix B's matrices long, `matrix,row,col,value`,
+    with three label columns. A mixed column (a stray `N/A`, a truncated write, a header row
+    duplicated into the body) is the failure guarded against.
     """
     with path.open() as fh:
         rows = list(csv.DictReader(ln for ln in fh if not ln.startswith("#")))

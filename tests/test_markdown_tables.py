@@ -1,21 +1,9 @@
 """Every markdown table in the repository's own documents must actually render.
 
-A table needs a `|---|---|` separator row directly under its header. Without one, GitHub
-and every other CommonMark renderer shows the raw pipes as a paragraph -- the content is
-still *there*, so nothing fails, no link breaks, and the document reads fine in an editor.
-It is invisible until someone opens the published page.
-
-That is what happened on 2026-09-14. `SCOPE.md` was rewritten by a script that lifted two
-tolerance tables out of the old file with
-
-    [ln for ln in block.splitlines() if ln.startswith("| ") and "---" not in ln]
-
--- which drops the separator along with the rules it was meant to exclude -- and emitted
-them without putting it back. Both tables shipped unrendered, and
-`tests/test_scope_tolerances.py` did not notice because it parses rows, not layout.
-
-Cell counts are checked too: a row with more cells than its header silently loses the
-overflow in some renderers and shifts every column in others.
+A table needs a `|---|---|` separator row directly under its header; without one, CommonMark
+renderers show the raw pipes as a paragraph, and the document still reads fine in an editor.
+A row with more cells than its header loses the overflow in some renderers and shifts every
+column in others.
 """
 
 from __future__ import annotations

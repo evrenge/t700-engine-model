@@ -1,44 +1,9 @@
 """Every tolerance named in `SCOPE.md` must equal the value the code actually asserts.
 
-CLAUDE.md lists "never silently widen a tolerance" as enforced by "tolerances live in
-`SCOPE.md`, never inline in a test file". That was not a mechanism and the description was
-not even accurate: every tolerance *is* a literal beside its assertion, and `SCOPE.md`
-narrates it. Nothing read `SCOPE.md`, so the two could drift -- and had. On 2026-09-14 the
-docs-and-ledger audit found `SCOPE.md` advertising the discrete-map bound as "+/-5 %
-(hover, level), +/-25 % (descent)" against a shipped `{1: 8.0, 2: 15.0, 3: 7.0}`: hover and
-level **widened** 5 -> 8 and 5 -> 15 with the document still quoting 5, and the loose trim
-moved from descent to level, inverting SCOPE's stated rationale as well.
-
-This file is that mechanism. It parses the tolerance table out of `SCOPE.md`, resolves each
-`` `module.SYMBOL` `` reference, and requires the numbers the document prints to be exactly
-the numbers the symbol holds. Widening is still allowed -- this project has widened a bound
-deliberately and recorded why -- but it can no longer happen in only one of the two places.
-
-It deliberately does **not** try to check the prose ("measured 0.62 % worst"), which goes
-stale constantly and cannot be parsed reliably. Only the Tolerance column is enforced.
-
-## Three holes closed on 2026-09-19
-
-The first version resolved `_REF.search(basis)` -- the FIRST symbol a row names -- and
-checked only that every value the symbol holds is printed in the document. That left three
-ways for a bound to escape:
-
-* **A row naming two symbols only had one checked.** Figure 6's row names both an rms and a
-  worst bound, and `FIG6_WORST_PCT_NG` was never resolved. It was also written without its
-  module prefix, so it could not have matched anyway. Every fully-qualified reference in a
-  row is resolved now, and the document spells both out.
-* **A number printed in the document that no symbol holds was invisible.** Widening the code
-  was caught; inventing a tighter number in the document was not. Both directions are
-  checked now, which is what makes the row a statement about the code rather than beside it.
-* **The headline tolerance table named no symbols at all**, so the four bounds a reader most
-  likely takes as "our declared accuracy" -- NG, gas path, fuel flow, torque -- were
-  enforced by nothing. They carry references now and are checked like the rest.
-
-## The fourth, closed 2026-10-12
-
-A row naming *no* symbol was dropped silently: seven Appendix B rows named a test function,
-and SCOPE.md advertised +/-99.5 % against an asserted 0.2 % with the suite green. Rows are
-now read per tolerance table, and a row in one that names no symbol fails.
+Parses each tolerance table of `SCOPE.md`, resolves every `` `module.SYMBOL` `` a row names,
+and requires the Tolerance column to print exactly the numbers those symbols hold, in both
+directions. Widening is allowed; doing it in only one of the two places is not. A row that
+names no symbol fails. The prose ("measured ... worst") is deliberately not checked.
 """
 
 from __future__ import annotations
@@ -57,11 +22,8 @@ _REF = re.compile(r"`(test_[a-z0-9_]+)\.([A-Z][A-Z0-9_]*)`")
 _NUM = re.compile(r"(?<![\d+/.])-?\d+(?:\.\d+)?")
 """A number, with its sign when it has one.
 
-The minus is taken only where it cannot be something else: the lookbehind rejects it after
-a digit or a dot (`ratio 0.90-0.96` is a range, not a negative) and after `+` or `/`
-(`+/-2.5` is a magnitude). Without that, the parser read `-56 to -50 %` as `{50, 56}` and
-a symbol holding `(-56.0, -50.0)` failed against a document that printed it correctly --
-which is this test wrong about the code rather than the code wrong about the document."""
+The lookbehind rejects a minus after a digit or dot (`0.90-0.96` is a range) and after `+`
+or `/` (`+/-2.5` is a magnitude), so `-56 to -50 %` reads as `{-56, -50}`."""
 
 
 _TOLERANCE_HEADERS = {"tolerance", "bound", "steady state"}
@@ -100,12 +62,8 @@ def _parse() -> tuple[list[tuple[str, str, str]], list[str], int]:
 
 
 def _load(module: str):
-    """Import the validation module by its real name.
-
-    Not `spec_from_file_location` under an alias: these modules define dataclasses, and
-    `dataclasses` resolves annotations through `sys.modules[cls.__module__]`, which an
-    unregistered alias is not in.
-    """
+    """Import the validation module by its real name, not under a `spec_from_file_location`
+    alias: dataclasses resolve annotations through `sys.modules[cls.__module__]`."""
     path = ROOT / "validation" / f"{module}.py"
     if not path.exists():
         pytest.fail(f"SCOPE.md names `{module}` and validation/{module}.py does not exist")
@@ -156,15 +114,11 @@ def test_every_named_tolerance_matches_the_code(row: tuple[str, str, str]):
 
     missing = have - printed
     assert not missing, (
-        f"{comparison}: {', '.join(named)} holds {sorted(have)} and SCOPE.md's Tolerance "
-        f"column prints {sorted(printed)}. The values {sorted(missing)} appear in the code "
-        f"and not in the document. Update SCOPE.md in the same commit -- a tolerance that "
-        f"moves in one place only is exactly what this test exists to stop."
+        f"{comparison}: {', '.join(named)} holds {sorted(have)}, SCOPE.md prints "
+        f"{sorted(printed)}; {sorted(missing)} missing there. Update SCOPE.md in the same commit."
     )
     unbacked = printed - have
     assert not unbacked, (
-        f"{comparison}: SCOPE.md's Tolerance column prints {sorted(unbacked)}, which none "
-        f"of {', '.join(named)} holds. A number in the document that no code asserts is a "
-        f"tolerance the reader will believe and the suite will not enforce. Either name the "
-        f"symbol that holds it or take the number out of the column."
+        f"{comparison}: SCOPE.md prints {sorted(unbacked)}, which none of {', '.join(named)} "
+        f"holds; name the symbol that holds it or take the number out."
     )

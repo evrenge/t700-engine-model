@@ -1,21 +1,9 @@
-"""Structural checks on the generated site, for the defects that shipped on 2026-09-14.
+"""Static checks on `site/index.html`, built by `tools/build_site.py` from `site/template.html`.
 
-`site/index.html` is built by `tools/build_site.py` from `site/template.html`. Neither has a
-runtime here -- there is no browser in the test environment -- so these are static checks,
-and they are deliberately written against two specific mistakes rather than as a general
-HTML validator.
-
-**The page was not a document.** The template began life as an Artifact, which is wrapped in
-`<!doctype html><head>...</head><body>` by the host at publish time. Served raw from GitHub
-Pages it had no doctype, no `<html>`, no `<head>` and no `<body>`, so every browser rendered
-it in quirks mode.
-
-**The theme toggle could not move the figures.** Each figure is a `<picture>` with a
-`<source media="(prefers-color-scheme: dark)">`. A `<picture>` resolves its `<source>` before
-the `<img>` and keeps that choice, so the toggle's `img.src = ...` changed nothing visible
-while the source still matched: on a dark-preferring machine the page chrome went light and
-all twelve figures stayed dark. The fix drives `source.media` instead, and this file checks
-that the script still does.
+There is no browser here, so these target specific defects rather than validate HTML: the
+page must be a complete document (no doctype means quirks mode), and the theme toggle must
+drive each `<picture>`'s dark `<source media>`, because a `<picture>` keeps the `<source>`
+it resolved and `img.src = ...` changes nothing visible.
 """
 
 from __future__ import annotations
@@ -89,23 +77,16 @@ def test_no_asset_is_referenced_that_is_not_committed():
 
 
 def test_the_build_is_current():
-    """`index.html` is exactly what `build_site.py` makes from the tree as it stands.
-
-    This compared file mtimes until 2026-10-12. Git does not keep mtimes, so on a fresh
-    clone it passed unconditionally -- and it passed while the build refused to run at all.
-    """
+    """`index.html` is exactly what `build_site.py` makes from the tree as it stands (by
+    content: git does not keep mtimes)."""
     tool = SITE.parent / "tools" / "build_site.py"
     run = subprocess.run([sys.executable, str(tool), "--check"], capture_output=True, text=True)
     assert run.returncode == 0, run.stdout + run.stderr
 
 
-# ------------------------------------------------------- navigation, added 2026-09-14
-#
-# The page carried nine sections and a table of contents listing eight: section 9, "What is
-# still open", was reachable only by scrolling. Found while repairing a different link --
-# an `href="#open"` written into the template against an id that does not exist, which
-# rendered as a link that silently goes nowhere. Both are the same class of defect and
-# neither shows up in a rendered page without clicking, so they are checked here.
+# ------------------------------------------------------------------------------ navigation
+# A link to a missing id, or a section missing from the table of contents, shows only by
+# clicking.
 
 _ANCHOR = re.compile(r'href="#([a-z0-9-]+)"')
 _ID = re.compile(r'\bid="([a-z0-9-]+)"')

@@ -1,6 +1,7 @@
-"""The digitizing library's guards against silent wrong answers (review 2026-09-19, #10-#19).
+"""The digitizing library's guards against silent wrong answers.
 
-Each case is one the library used to accept and carry on from with a wrong number.
+Each case would otherwise be accepted and carried on from with a wrong number; see
+`docs/notes/review-2026-09-19.md`, #10-#19.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ def test_parse_poly_refuses_a_foreign_variable():
         466.717,
     ]
     with pytest.raises(ValueError, match="'u'"):
-        provenance.parse_poly("+0.5503129 u +0.29944711", "y")  # was [0.84976]
+        provenance.parse_poly("+0.5503129 u +0.29944711", "y")
 
 
 def test_the_frame_is_read_from_its_own_lines_whatever_the_header_order(tmp_path):
@@ -50,9 +51,9 @@ def test_edge_str_refuses_an_intercept_slope_pair():
 
 
 def test_a_hand_maintained_header_is_held_to_its_tools_calibration(tmp_path):
-    """f2 and f9 publish the calibration their tools check (2026-10-12). The check passes on
-    the tool's own lines and fails on a changed coefficient, or on a stale line that the
-    parser would read before the right one."""
+    """f2 and f9 publish the calibration their tools check. The check passes on the tool's
+    own lines and fails on a changed coefficient, or on a stale line that the parser would
+    read before the right one."""
     fc = {
         "left": np.array([8.9e-07, -0.00094, 590.344]),
         "right": np.array([1.1e-06, -0.0024, 2256.353]),
@@ -97,9 +98,8 @@ def test_robust_keep_refuses_a_trace_that_is_not_one_line():
 
 
 def test_a_minor_tick_cannot_stand_in_for_a_hidden_major():
-    """Slots every 100 px. The 300 px major is hidden; a minor sits 20 px from its slot
-    (0.2 of the step, inside the old 0.25 window). The 500 px major is inside a 129 px run
-    of merged ink, as on C25's right edge."""
+    """Slots every 100 px. The 300 px major is hidden; a minor sits 20 px (0.2 step) from its
+    slot. The 500 px major is inside a 129 px run of merged ink, as on C25's right edge."""
     t0, t1, frac = 0.0, 600.0, [1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6]
     cands = [(100.0, 9.0, 4), (200.0, 9.0, 4), (320.0, 5.0, 4), (400.0, 9.0, 4), (495.0, 15.0, 129)]
     out, _ = ticks.pick_majors(cands, t0, t1, frac, "test", max_missing=2, verbose=False)

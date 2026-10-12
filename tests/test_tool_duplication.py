@@ -1,45 +1,14 @@
 """No function body may appear twice in `tools/`, `validation/`, `tests/` or `src/`, whether
 in two files or in one.
 
-## Why this is a test and not a note
+Copied digitizers let a fix made for one figure miss the others (`docs/notes/digitizing-recipe.md`
+traps 7 and 8). So: one implementation per concept, in `tools/figure/`, and a second copy is a
+test failure.
 
-Every digitizer in this repository grew out of the one before it, by copying. That is how
-five separate implementations of one pipeline came to exist, and the cost was not the
-duplication itself -- it was that **an improvement made for one figure did not reach the
-others**, and nothing said so. Three examples, all found on 2026-09-16 and all recorded in
-`docs/notes/digitizing-recipe.md` as traps the project had already learned:
-
-* trap 7, the frame edges are arcs and a homography is wrong: fixed for A2, A7 and A9,
-  never propagated to the thirteen figures of the single-curve path;
-* trap 8, Nelder-Mead's default simplex walks a marker off the page: fixed in one copy of
-  `fit_glyphs`, left optional and defaulted off in the other, so `f2` and `f9` -- the two
-  highest-leverage maps in the engine -- were fitted without it;
-* the anchoring rule of the axis map, which `digitize_a7` argued out in its docstring and
-  `digitize_fig678` rediscovered independently, while the thirteen-figure path kept the
-  weaker form.
-
-None of those was a bug anyone could see in one file. They were only visible by reading two
-files side by side and noticing they disagreed, which is exactly what nobody does. So the
-rule is mechanised: one implementation per concept, in `tools/figure/`, and a second copy
-of anything is a test failure.
-
-## What it actually compares
-
-The AST of each function body, with the docstring and the `-> type` annotations stripped
-and local names normalised, so a copy that drifted in its prose, gained an annotation or
-renamed a loop variable still matches. `v` against `vv` in three copies of `paired` is
-precisely the difference that hid the third copy from a first, name-sensitive version of
-this check; a return annotation on one of two `_rungs` hid them from the second.
-
-## What it misses
-
-**A copy that was edited.** Two functions that do the same thing by different code are
-invisible here, and that is the dangerous case, because it is what "improved in one place"
-produces: the copies stop being identical the moment one of them is fixed. This test
-catches the copy *before* it diverges, which is the only moment it is cheap. After that it
-takes a reader.
-
-It also says nothing about whether the one surviving implementation is right.
+Compared is the AST of each function body with the docstring and `-> type` annotations
+stripped and local names normalised, so a copy that renamed a loop variable or gained an
+annotation still matches. Missed: a copy that has already been edited. This catches a copy
+before it diverges, the only moment it is cheap.
 """
 
 from __future__ import annotations
@@ -56,13 +25,11 @@ FOLDERS = ("tools", "validation", "tests", "src")
 
 MIN_STATEMENTS = 3
 """Below this, two functions coinciding is a coincidence rather than a copy. Counted with
-the `def` itself, so 3 is a two-line body: at 4, a two-line helper had been copied into
-three tools unseen."""
+the `def` itself, so 3 is a two-line body."""
 
 ALLOWED: dict[str, str] = {}
-"""Deliberate duplicates, keyed `path:function` so that one entry excuses one copy and not
-every function of that name, each with the reason it cannot be shared. Empty, and the bar
-for adding an entry is that sharing the code would couple two things that should not be."""
+"""Deliberate duplicates, keyed `path:function` so one entry excuses one copy, each with the
+reason it cannot be shared: sharing would couple two things that should not be."""
 
 
 def _locals_of(fn: ast.FunctionDef) -> set[str]:
@@ -140,14 +107,12 @@ def test_no_function_body_appears_twice_in_the_project():
     assert not dups, (
         "the same function body appears more than once:\n  "
         + "\n  ".join("  ==  ".join(places) for places in dups)
-        + "\nKeep one and import it; under tools/, it belongs in tools/figure/. A second copy "
-        "is how an improvement made in one place fails to reach the others."
+        + "\nKeep one and import it; under tools/, it belongs in tools/figure/."
     )
 
 
 FINGERPRINT_DECOYS = [
-    # the same body, spelled with different local names in two notional files, must still
-    # collide -- that is the case a name-sensitive fingerprint missed
+    # the same body with different local names must still collide
     (
         "def f(pos, vals):\n"
         "    out = []\n"
@@ -167,8 +132,7 @@ FINGERPRINT_DECOYS = [
         "def g(x):\n    y = x - 1\n    z = y / 2\n    return z\n",
         False,
     ),
-    # the blind spot that hid the two `_rungs` in `validation/`: a `-> type` annotation on
-    # one of two copies made them look different again
+    # a `-> type` annotation on one of two copies must not hide them
     (
         "def f(x) -> float:\n    y = x + 1\n    return y\n",
         "def g(x):\n    y = x + 1\n    return y\n",

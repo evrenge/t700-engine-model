@@ -1,20 +1,9 @@
 """The core must produce bit-identical output for identical input.
 
-Not "close". Identical. A real-time engine model that drifts between runs cannot be
-regression-tested against digitized reference traces at all, because every deviation
-becomes ambiguous: the model, or the machine?
-
-`test_architecture.py` enforces this structurally by banning clocks and RNGs. This file
-checks it behaviourally.
-
-**It did not grow as the model did.** Until 2026-09-13 it exercised `thermo` (two calls)
-and `units` (a round trip) and nothing else -- no `engine.frame`, no `realtime.step` or
-`run`, no `trim.solve`, no `control.loop`. Those are the only places where the things that
-could actually break determinism live: `maps._clamps`, the cached table loaders,
-`thermo.set_backend`, and the carried state of the opened iterations. CLAUDE.md lists
-determinism as `live` and names this file as half the mechanism, so for the stateful half
-of the model that claim was resting on the import ban alone. Found by the 2026-09-13
-code-quality audit.
+Not "close": if the model drifts between runs, every deviation from a reference trace is
+ambiguous. `test_architecture.py` enforces this structurally (no clocks, no RNG); this file
+checks it behaviourally, through the stateful parts where it could break: `maps._clamps`,
+the cached table loaders and the carried state of the iterations.
 """
 
 from __future__ import annotations
@@ -35,11 +24,8 @@ from t700.units import wf_pps_from_pph
 
 
 def test_scalar_and_array_paths_agree_exactly():
-    """A scalar call and an array call must give the same bits, not merely close values.
-
-    They diverge the moment someone writes a fast path, and a silent scalar/array
-    mismatch would show up much later as an unreproducible validation failure.
-    """
+    """A scalar call and an array call must give the same bits, not merely close values;
+    a fast path would split them."""
     values = [600.0, 1234.5, 2100.0]
     scalar = np.array([thermo.h41_from_t41(v) for v in values])
     array = thermo.h41_from_t41(np.array(values))
@@ -72,12 +58,8 @@ def _figure_9_trace():
 
 
 def test_a_real_time_run_is_bit_identical_across_an_intervening_clamp_count():
-    """`maps._clamps` is the one mutable module global CLAUDE.md sanctions in the core.
-
-    The guarantee that makes it acceptable is that no model output can depend on it.
-    `tests/test_maps.py` checks that for a trim; this checks it for a whole transient,
-    which is where the counter is actually hammered.
-    """
+    """No model output may depend on `maps._clamps`, the sanctioned mutable global.
+    `tests/test_maps.py` checks a trim; this checks a whole transient."""
     a = _figure_9_trace()
     maps.reset_clamps()
     for _ in range(500):
@@ -108,9 +90,8 @@ def _closed_loop():
 
 
 def test_the_closed_loop_is_bit_identical_to_itself():
-    """The control carries 22 continuous states and 4 memory elements, and three of the
-    blocks are path-dependent (backlash). If anything in the core reads a clock, a run
-    this long is where it shows."""
+    """The control carries continuous states, memory elements and path-dependent (backlash)
+    blocks; a run this long is where a clock read would show."""
     assert _closed_loop() == _closed_loop(), "the closed loop is not reproducible"
 
 
@@ -127,10 +108,8 @@ def _digest() -> str:
 
 
 def test_output_is_bit_identical_across_processes():
-    """Every test above runs both trials in one process, where `hash()` and set order are
-    fixed. A planted `hash()`-dependent factor gave three different NG values in three
-    processes with this file green (audit, 2026-09-19). Two fresh interpreters with
-    different hash seeds must match this one."""
+    """The tests above run both trials in one process, where `hash()` and set order are
+    fixed. Two fresh interpreters with different hash seeds must match this one."""
     root = Path(__file__).resolve().parent.parent
     code = "import test_determinism as t; print(t._digest())"
     digests = {"this process": _digest()}

@@ -1,19 +1,9 @@
 """The open-questions ledger must be structurally sound and must count itself correctly.
 
-`docs/notes/open-questions.md` decides what this project believes is known. It has two
-conventions and both were violated inside 48 hours of being restated in its own header:
-
-* **Five columns, one row per question.** Row 58's 2026-09-14 closure was written into the
-  *Question* column instead of the Status column, giving that row six cells. Markdown
-  renders it without complaint.
-* **The first word of the Status cell is the verdict.** Rows 57 and 58 carried "open" as
-  their first word with "CLOSED" a thousand characters later. Appending a closure note
-  without changing the leading word is the recurring failure, and it makes the ledger
-  under-report its own progress -- which is how the header's tally came to be wrong by
-  three closed, three open and one whole row.
-
-The header's tally line was maintained by hand and drifted. It is checked here instead.
-Found by the 2026-09-14 docs-and-ledger audit.
+`docs/notes/open-questions.md` has two conventions: five columns, one row per question; and
+the first word of the Status cell is the verdict. Appending a closure note without changing
+that word is the recurring failure, and makes the ledger under-report its own progress. The
+header's tally is derived here rather than trusted.
 """
 
 from __future__ import annotations
@@ -52,8 +42,8 @@ def verdict_of(status: str) -> str:
 def test_no_row_contradicts_its_own_verdict():
     """A cell whose verdict word is `open` must not announce a closure further in.
 
-    This is the specific defect rows 57 and 58 carried. A closed row may of course quote
-    the word "open" while narrating its own history, so only the open direction is checked.
+    A closed row may quote the word "open" while narrating its history, so only the open
+    direction is checked.
     """
     offenders = []
     for n, c in rows():
@@ -78,13 +68,8 @@ def test_row_numbers_are_unique():
 
 
 def test_the_header_tally_matches_the_rows():
-    """The header states three counts. They are derived here, not trusted -- which needs
-    every Status cell to open with its verdict, so that is asserted first.
-
-    Until 2026-09-14 the header said "56 logged -- 40 closed, 5 partly closed, 11 open"
-    against an actual 56 / 37 / 5 / 14, and named row 57 as closed when its verdict word
-    said open and row 58 as the next piece of work when it had shipped.
-    """
+    """The header's counts are derived here, not trusted. That needs every Status cell to
+    open with its verdict, so that is asserted first."""
     bad = [(n, verdict_of(c[5])) for n, c in rows() if verdict_of(c[5]).startswith("UNRECOG")]
     assert not bad, (
         f"the first word of the Status cell is the verdict, and these do not have one: {bad}"
@@ -107,14 +92,7 @@ def test_the_header_tally_matches_the_rows():
 
 
 def test_every_closed_row_says_what_was_decided():
-    """A verdict word is not an answer. `closed` alone tells a reader nothing.
-
-    The records behind these rows were a separate 26,000-word file for half a day. It was
-    folded back in on 2026-09-14: a finished project needs the decision, not the
-    investigation that reached it, and the investigation is in git history. What this
-    checks is that the fold left every closed row self-contained -- eleven of the
-    forty-nine had a bare `**closed**` as their entire status, and eight more stated a
-    verdict without a finding; all nineteen were written from the record before it went.
+    """A verdict word is not an answer: a closed row states what was decided.
 
     Eight words is deliberately low. Row 28's whole answer is "moot: `R` is never
     applied" and it is complete; the bar is a finding, not a length.
@@ -127,6 +105,6 @@ def test_every_closed_row_says_what_was_decided():
         if words < 8:
             thin.append((n, words))
     assert not thin, (
-        f"closed rows stating a verdict but not a finding (row, words): {thin}. "
-        f"Say what was decided; the record behind it is no longer in the tree."
+        f"closed rows stating a verdict but not a finding (row, words): {thin}; say what "
+        f"was decided."
     )
