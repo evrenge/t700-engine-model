@@ -1,35 +1,19 @@
 """Engine, ECU and HMU closed on one another -- the whole propulsion system.
 
-Up to here the engine has been driven by a prescribed fuel flow: every result in Phases
-0-4 answers "given this Wf, what does the engine do". Closing the loop makes Wf an
-**output**, computed by the control from what the engine is doing, and that is a
-qualitatively harder thing to get right -- a sign error that merely shifted a number
-open-loop will now run away.
-
-## What reads what, and when
+Closing the loop makes Wf an output, computed by the control from what the engine does.
 
     engine state (previous frame)
         |-> ECU  [Figs. C1-C8]  reads NP, TORQ45, T45, W45, P45   -> SPDG
         |-> HMU  [Figs. C9-C22] reads NG, PS3, T2, and SPDG       -> WF
         |-> engine [Eqs. 69-80] reads WF                          -> next state
 
-Both controls read the engine's **previous** frame, which is what a real-time
-implementation does and is the same one-frame opening that Eq. 74 applies inside the
-engine. It is not an approximation introduced here: the report's own structure is a frame
-of sensors, a frame of control, and a frame of engine.
+Both controls read the engine's previous frame, as a real-time implementation does; it is
+the same one-frame opening Eq. 74 applies inside the engine.
 
-## Why this is the only quantitative check Phase 5 gets
-
-The report's closed-loop figures -- 11 through 15 -- all need the Gen Hel UH-60A
-blade-element simulation, which this report consumes and does not contain. So there is no
-published closed-loop trace to overlay.
-
-What there is, is Table B.1 [pdf p.67]: the complete engine state at three trims, printed
-as numbers, including the power turbine speed and the shaft torque. Hold the load at the
-printed torque and set the speed reference, and the loop has to settle at the printed
-state **with fuel flow as an output**. Nothing in Appendix C knows about Table B.1 and
-nothing in Table B.1 knows about Appendix C, so that is a real cross-check and not a
-restatement. `validation/test_closed_loop.py` is where it is made.
+The report's closed-loop figures (11-15) need the Gen Hel UH-60A simulation, which it does
+not contain. The check is Table B.1 [pdf p.67] instead: hold the load at the printed torque
+and the loop must settle at the printed state with fuel flow as an output
+(`validation/test_closed_loop.py`).
 """
 
 from __future__ import annotations
@@ -55,18 +39,15 @@ class Pilot:
     pcprf_pct: float = 100.0
     """Reference power turbine speed, percent of design, as set by the cockpit control.
 
-    The governor drives sensed NP to this, so it -- not `NP_DES` -- is what sets the
-    trimmed power turbine speed. Table B.1's 20895 rpm against a design 20900 corresponds
-    to 99.976 %, and that is a prediction of the closed loop rather than an input to it."""
+    The governor drives sensed NP to this, so it, not `NP_DES`, sets the trimmed NP."""
 
 
 @dataclass(frozen=True)
 class LoopState:
     """Engine, ECU and HMU states, plus the three engine outputs the ECU senses.
 
-    Those three are carried rather than recomputed because the controls read the previous
-    frame; keeping them in the state makes the one-frame delay explicit instead of an
-    accident of evaluation order.
+    Carried rather than recomputed because the controls read the previous frame; this
+    makes the one-frame delay explicit rather than an accident of evaluation order.
     """
 
     engine: realtime.RTState
@@ -113,9 +94,8 @@ def seed(
 ) -> LoopState:
     """Start the loop from a converged open-loop trim, with both controls consistent.
 
-    The engine side is `realtime.from_trim`. The control side is `ecu.seed` and
-    `hmu.seed`, which are our own defaults -- the report states no initial condition for
-    any of the 22 block diagrams (open question #55).
+    `ecu.seed` and `hmu.seed` are our own defaults: the report states no initial condition
+    for the block diagrams (open question #55).
     """
     frame = trim_result.frame
     st = realtime.from_trim(trim_result)
@@ -123,9 +103,7 @@ def seed(
     h_in = _hmu_inputs(st, pilot, ambient, hmu_mod.SPDG_NULL)
     return LoopState(
         engine=st,
-        # Both halves seeded to hold the SAME torque-motor demand. They disagreed until
-        # 2026-09-13 -- the HMU held SPDG_NULL while the ECU delivered 0 on frame 1 -- and
-        # the half-volt step that produced cost +31.8 % on fuel flow. See `ecu.seed`.
+        # Both halves seeded to hold the same torque-motor demand; see `ecu.seed`.
         ecu=ecu_mod.seed(e_in, spdg=hmu_mod.SPDG_NULL),
         hmu=hmu_mod.seed(h_in),
         t45_degR=frame.t45_degR,
@@ -145,14 +123,10 @@ def step(
 ) -> tuple[LoopState, ecu_mod.ECUOutputs, hmu_mod.HMUOutputs, realtime.FrameOut]:
     """One frame of the whole propulsion system: ECU, then HMU, then engine.
 
-    `load` is the shaft torque the airframe demands, in ft*lbf: either a constant or a
-    **callable of NP**. Make it a callable whenever the result matters. A constant means
-    `dQreq/dNP = 0`, and a free turbine against a speed-independent load has no
-    aerodynamic damping at all -- the governor is then the only thing holding NP, which is
-    not the system the report models. Appendix B says so: its NP diagonal carries a ~52 %
-    residual against ours precisely because `dQreq/dNP` is a Gen Hel quantity we do not
-    have, and open question #6 recovers it as roughly 1.78 / 1.45 / 1.18 times
-    `|dQ_PT/dNP|` at the three trims -- positive, because rotor torque rises with speed.
+    `load` is the shaft torque the airframe demands, ft*lbf: a constant or a callable of
+    NP. Make it a callable whenever the result matters. A constant means `dQreq/dNP = 0`:
+    no aerodynamic damping, so the governor alone holds NP, which is not the system the
+    report models (Appendix B's NP diagonal; open question #6).
     """
     e_in = _ecu_inputs(state.engine, state.t45_degR, state.w45_pps, state.q_pt_ftlbf, pilot)
     ecu_state, ecu_out = ecu_mod.step(state.ecu, e_in, dt)

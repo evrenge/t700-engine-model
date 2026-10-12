@@ -1,61 +1,32 @@
 """The T700 hydromechanical control unit -- Appendix C, Figures C9 through C22.
 
-The HMU is the primary fuel control loop. It governs gas generator speed on a **droop
-line**, applies the idle, acceleration and deceleration cam limits, and meters fuel. The
-ECU only *trims* it, through the torque motor signal `SPDG`; with that trim held at its
-null the HMU runs alone, which is how this module is exercised before the ECU exists.
-
-## The droop line, and why almost everything is a subtraction
+The HMU is the primary fuel control loop: it governs gas generator speed on a droop line,
+applies the idle, acceleration and deceleration limits, and meters fuel. The ECU only trims
+it, through the torque motor signal `SPDG`; held at `SPDG_NULL` the HMU runs alone.
 
 [Fig. C9, pdf p.89]
 
     WFPDM = WFPTP + KNDRP*(NGREF - PCNGHL) - WFPRF - max(DWFPL + TMRU, 0)
 
-`WFPTP` is the topping line, a function of T2 alone: the ceiling. Everything else takes
-fuel *away* from it. The power-available spindle schedule `F_HM2` falls from 10.4 at
-PAS = 28 deg to -0.1 at 120 deg, so more spindle means less subtraction and more fuel;
-the load-demand path works the same way. Reading a summing junction backwards here
-inverts the whole control, which is why the signs in `docs/notes/inventory-appendix-c.md`
-were read at 600 dpi and are quoted against each relation below.
-
-Note the units: everything on the droop line is a **fuel flow parameter**, Wf/Ps3, not a
-fuel flow. It becomes one only at the metering valve, `WFMV = HMUSEL * PS3L`.
-
-## Limit arbitration is a fixed cascade, not a min-max soup
+`WFPTP`, the topping line, is the ceiling; everything else subtracts from it. Reading a
+summing junction backwards inverts the whole control, so the signs are read at 600 dpi and
+recorded in `docs/notes/inventory-appendix-c.md`. Everything on the droop line is a fuel
+flow parameter, Wf/Ps3, which becomes a fuel flow only at the metering valve,
+`WFMV = HMUSEL * PS3L`.
 
 [Fig. C18, pdf p.92]
 
     HMUSEL = MAX( MIN( MAX(WFPDM, WFIDM), WFPAC ), WFPDC )
 
-Idle floor first, then the acceleration ceiling, then the deceleration floor. The order is
-drawn, not inferred, and it matters: the deceleration floor outranks the acceleration
-ceiling.
+Idle floor, then acceleration ceiling, then deceleration floor. The order is drawn, and the
+deceleration floor outranks the acceleration ceiling.
 
-## What this module does not do
-
-The report's real-time implementation eliminated **fuel control below flight-idle power**
-[pdf p.38], so the idle floor `WFIDM` is inactive in every condition the engine model is
-valid over. It is implemented as printed anyway; see open question #10.
-
-**Why it is inactive is not what this docstring said until 2026-09-14.** The claim was that
-the floor "only outbids the governor once sensed NG has drooped roughly 8 to 11 percentage
-points below the idle reference", which is `WFIRF/KNDRP` -- the droop at which `WFIDM`
-turns *positive*. But the floor is compared against `WFPDM`, not against zero, and both
-carry the **same gain `KNDRP` on sensed NG**, so `WFPDM - WFIDM` does not depend on NG at
-all: it is -2.4914 at 40 %NG and at 100 %NG alike. Drooping never brings the floor into
-play. What decides whether it outbids the governor is T2, PAS and the collective; NG
-decides only whether the Fig. C18 cascade then lets the result through -- the acceleration
-ceiling cuts the window off below and the deceleration floor outranks it above.
-`tests/test_hmu.py::test_the_droop_line_and_the_idle_floor_are_parallel_in_ng` pins the
-structure and the window either side of it.
-
-There is no ECU here. `SPDG` is an input, and `SPDG_NULL` is the value at which the torque
-motor sits still.
-
-## Integration
-
-Fixed-step explicit Euler on the lags, matching the report's real-time formulation and
-CLAUDE.md's architecture constraint. Every state is named for the block that owns it.
+The real-time model eliminated fuel control below flight idle [pdf p.38], so the idle floor
+`WFIDM` is implemented as printed but inactive wherever the engine model is valid (open
+question #10). Drooping NG never brings it into play: `WFPDM` and `WFIDM` carry the same
+gain `KNDRP` on sensed NG, so their difference does not depend on NG; T2, PAS and the
+collective decide it
+(`tests/test_hmu.py::test_the_droop_line_and_the_idle_floor_are_parallel_in_ng`).
 """
 
 from __future__ import annotations
@@ -70,29 +41,20 @@ from t700.control._blocks import backlash, clamp, deadband, delay, integrator, l
 from t700.units import wf_pps_from_pph
 
 SPDG_NULL: float = -c.TM_INPUT_BIAS - c.TM_CURRENT_BIAS / c.TM_FORWARD_GAIN
-"""The ECU trim signal at which the torque motor sits still. **Not 0.44.**
+"""The ECU trim signal at which the torque motor sits still. Not 0.44.
 
-[Fig. C10, pdf p.89] The first summing junction forms `SPDG - 0.44`, and it is tempting to
-call that the null. It is not: the forward path is `e * (0.04s+1)/(0.2s+1) * 564.0 - 31.0`,
-so at `e = 0` it delivers **-31.0**, far outside the +/-2.0 deadband, and the integrator
-ramps to its lower limit. The signal actually sits still where the forward path is zero:
+[Fig. C10, pdf p.89] The first summing junction forms `SPDG - 0.44`, but the forward path
+`e * (0.04s+1)/(0.2s+1) * 564.0 - 31.0` gives -31.0 at `e = 0`, far outside the +/-2.0
+deadband. It is zero at
 
     SPDG = 0.44 + 31.0/564.0 = 0.49496
 
-which is derived from three printed constants and nothing else. That it lands within
-0.01 of 0.5 is a small check on all three.
-
-The deadband is what makes a null exist at all rather than a single exact value -- any
-SPDG in [0.44 + 29/564, 0.44 + 33/564] = [0.4914, 0.4985] leaves a motor at rest at rest.
-This constant is the centre of that band."""
+the centre of the deadband's band of rest, [0.44 + 29/564, 0.44 + 33/564]."""
 
 
 @dataclass(frozen=True)
 class HMUState:
-    """Every continuous state and memory element in Figures C9-C22.
-
-    Named for the block that owns it, so each can be traced back to a figure.
-    """
+    """Every continuous state and memory element in Figures C9-C22, named for its block."""
 
     tm_leadlag: float = 0.0
     """Torque motor forward-path lead-lag [Fig. C10]."""
@@ -126,10 +88,9 @@ class HMUInputs:
     pas_deg: float
     """Power available spindle angle -- the cockpit power lever."""
     xcpc_pct: float
-    """Helicopter collective pitch position, **percent of maximum** [nomenclature,
-    pdf p.81, read off the raster]. Not inches -- at 0.914 deg per unit the rigging only
-    reaches the load demand spindle's printed 0-100 deg range if this is a percentage,
-    and `F_HM3`/`F_HM4` are drawn over 0-100 deg."""
+    """Helicopter collective pitch position, percent of maximum [nomenclature, pdf p.81,
+    read off the raster]. Not inches: only a percentage, at 0.914 deg per unit, spans the
+    0-100 deg over which `F_HM3`/`F_HM4` are drawn."""
     spdg: float = SPDG_NULL
 
 
@@ -213,27 +174,16 @@ def _demands(pcnghl: float, t2_degR: float, pas_deg: float, dwfpl: float, tmru: 
 def seed(u: HMUInputs) -> HMUState:
     """A state consistent with holding `u` -- the HMU's analogue of `realtime.from_trim`.
 
-    **The report does not say how the control initializes** (the same gap as open question
-    #23 for the engine's opened iteration), and starting from zeros is not neutral here.
-    Two blocks make that bite:
-
-    * the torque motor's forward path is a **lead**-lag, so a state starting at zero sees
-      a step and kicks; and
-    * the integrator behind it sits in a **deadband**, which has a continuum of equilibria
-      rather than one. A startup kick therefore leaves a permanent offset in `TMRU` --
-      small, but it never washes out, because nothing pulls the integrator back once the
-      current re-enters the band.
-
-    So the sensible default is the one that makes a held input sit still: every lag at its
-    input, the lead-lag at the value that makes its own derivative zero, the hysteresis
-    memories at their inputs, and the integrator wherever the forward path is already
-    inside the deadband -- which for `SPDG_NULL` is zero.
+    The report does not say how the control initializes (open question #55), and zeros are
+    not neutral: the torque motor's lead-lag kicks on a step, and the integrator behind it
+    sits in a deadband with a continuum of equilibria, so a startup kick leaves a permanent
+    `TMRU` offset. Hence every lag and hysteresis memory at its input, the lead-lag at zero
+    derivative, and the integrator at zero, inside the deadband for `SPDG_NULL`.
     """
     pcng = u.ng_rpm * 100.0 / engine_c.NG_DES
     xldsa = c.COLLECTIVE_RIGGING_GAIN * u.xcpc_pct + c.COLLECTIVE_RIGGING_BIAS
     dwfp = _load_demand(xldsa)
-    # the metering valve has to be seeded too, or the loop starts with a fuel-flow step
-    # from zero -- which is a slam acceleration the control never commanded
+    # seed the metering valve too, or the loop starts with an uncommanded fuel-flow step
     tmru = 0.0  # the integrator is seeded at zero, and TMRU = TMLG * it
     hmusel = _demands(pcng, u.t2_degR, u.pas_deg, dwfp, tmru).hmusel
     wfmv = clamp(hmusel * u.ps3_psia, c.WFMIN, c.WFMAX)
@@ -267,8 +217,8 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
     xldsh = backlash(state.xldsh, xldsa, c.XLDHYS)
 
     # --- C-38, Fig. C17: load demand spindle input schedule ------------------------
-    # Fed XLDSH here, though Figs. C26/C27 label their x axes XLDSA -- see the
-    # inventory's ambiguity 5. The figure wins: the wire carries XLDSH.
+    # Fed XLDSH, as the Fig. C17 wire carries, though Figs. C26/C27 label their x axes
+    # XLDSA (open question #12; the inventory's ambiguity 5).
     dwfp = _load_demand(xldsh)
 
     # --- C-33, Fig. C12: load demand dynamics --------------------------------------

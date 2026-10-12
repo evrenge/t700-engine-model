@@ -1,18 +1,9 @@
 """Appendix C's eight scheduling functions, loaded from `data/schedules/`.
 
-The fuel control has no equations in the report -- it is one constants table and thirty
-figures, of which eight are function plots. These are those eight. Seven are 1-D; `F_HM7`
-is the only 2-D one, and it was the hardest thing in Phase 1 (open question #50).
-
-They are the same *kind* of object as the engine's `f1`-`f10`: a printed plot, digitized,
-linear between knots, clamped outside. So they reuse `maps.Curve`, `maps.SpeedMap` and the
-loaders unchanged, including the clamp counting -- a schedule driven off the end of its
-printed range is exactly as interesting as a compressor map driven off the end of its, and
-`maps.clamp_report()` reports both.
-
-Naming follows the report: `F_HM1` is the HMU's topping line, `F_EC1` the ECU's
-thermocouple time constant. `docs/notes/inventory-appendix-c.md` traces which block
-consumes each one.
+Seven are 1-D; `F_HM7` is the only 2-D one (open question #50). Like the engine's
+`f1`-`f10` they are digitized plots, linear between knots and clamped outside, so they
+reuse the `maps` loaders, clamp counting included. `docs/notes/inventory-appendix-c.md`
+traces which block consumes each one.
 """
 
 from __future__ import annotations
@@ -38,9 +29,8 @@ def f_hm1() -> maps.Curve:
 def f_hm2() -> maps.Curve:
     """WFPRF = F_HM2(PAS) -- power-available spindle input schedule.
 
-    [pdf p.96, Fig. C25] Consumed by Fig. C16, p.91. Falls monotonically from 10.4 at
-    PAS = 28 deg to -0.1 at 120 deg: it is *subtracted* from the topping line, so more
-    power-available spindle means less subtraction and more fuel.
+    [pdf p.96, Fig. C25] Consumed by Fig. C16, p.91. Falls monotonically and is subtracted
+    from the topping line, so more power-available spindle means more fuel.
     """
     return maps.load_curve("fhm2_power_available.csv", "F_HM2", directory=_SCHEDULES)
 
@@ -87,13 +77,10 @@ def f_hm6() -> maps.Curve:
 def f_hm7() -> maps.SpeedMap:
     """WFPAC = F_HM7(PCNGHL, T2) -- HMU acceleration fuel limit. The only 2-D schedule.
 
-    [pdf p.101, Fig. C30] Consumed by Fig. C21, p.93. Seven curves in T2, and they
-    **cross**: after the bundle at PCNGHL 85-95 the order top to bottom is 4, 3, 5, 6, 7.
-    That is why it needed its own digitizer (`tools/digitize_c30.py`, open question #50)
-    and why rank in y is not identity here.
+    [pdf p.101, Fig. C30] Consumed by Fig. C21, p.93. Seven curves in T2 that cross near
+    PCNGHL 85-95, so rank in y is not identity (`tools/digitize_c30.py`, open question #50).
 
-    Argument order follows `SpeedMap`: the swept variable first, the curve parameter
-    second, so this is called `f_hm7()(pcnghl_pct, t2_degR)`.
+    Called `f_hm7()(pcnghl_pct, t2_degR)`: swept variable first, as in `SpeedMap`.
     """
     return maps.load_speed_map(
         "fhm7_accel_limit.csv",
@@ -109,8 +96,8 @@ def f_hm7() -> maps.SpeedMap:
 def f_ec1() -> maps.SpeedMap:
     """TAU45 = F_EC1(W45R, T45L) -- ECU thermocouple sensor time constant, sec.
 
-    [pdf p.94, Fig. C23] Consumed by Fig. C5, p.87. Belongs to the ECU, not the HMU; it
-    is here because it is one of the eight and the loader is the same.
+    [pdf p.94, Fig. C23] Consumed by Fig. C5, p.87. Belongs to the ECU; here because the
+    loader is the same.
     """
     return maps.load_speed_map(
         "fec1_thermocouple_tau.csv",
