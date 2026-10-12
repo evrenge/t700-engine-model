@@ -45,10 +45,11 @@ IMPLIED_F_HS_TOL_PCT = 1.0
 0.3201 / 0.3188 against the printed 0.29; f_hs within 0.12 / 0.16 / 0.37 % of the plot."""
 
 THREE_DOF_SWAP_TOL_PCT = 2.0
-"""The 3-DOF T41 row -- `A(T41,T41)`, `b(T41)`, `d` -- with those taus, hover and descent, on
-the tangent. Measured worst 1.7 % (4.0 % at hover with the shipped +-2 % step, whose secant
-through the settled pressures moves `b(T41)`). Level is not asserted: A(T41,T41) 1.07 and
-b(T41) 1.15 there, open under #73."""
+SHIPPED_THREE_DOF_SWAP_TOL_PCT = 8.0
+"""The 3-DOF T41 row -- `A(T41,T41)`, `b(T41)`, `d` -- with those taus. On the tangent, hover
+and descent: measured worst 1.7 %; level sits 0.07 %NGc above f1's 89 % line and a tangent
+takes one side of it (1.07 and 1.15 there). At the shipped +-2 % step, which straddles that
+line as B9 does, all three trims: measured worst 6.5 % (level `b(T41)`)."""
 
 
 def _parts(m):
@@ -121,11 +122,11 @@ def test_those_time_constants_reproduce_the_six_dof_fuel_column(trim_no: int, mo
         assert abs(dev) < SIX_DOF_SWAP_TOL_PCT, f"{TRIM[trim_no]} {name} {dev:+.2f} %"
 
 
-@pytest.mark.parametrize("trim_no", [1, 3])
-def test_those_time_constants_reproduce_the_three_dof_t41_row(trim_no: int, monkeypatch):
+def _three_dof_t41_row_devs(trim_no, rel_step, monkeypatch):
     taus = _recovered(trim_no)
     monkeypatch.setattr(linear, "_heat_sink_taus", lambda _f: taus)
     wf = wf_pps_from_pph(WF_PPH[trim_no])
+    kw = {} if rel_step is None else {"rel_step": rel_step}
     ours = linear.extract(
         trim.solve(wf, NP_RPM, AMB),
         wf,
@@ -133,14 +134,27 @@ def test_those_time_constants_reproduce_the_three_dof_t41_row(trim_no: int, monk
         AMB,
         j_load=c.J_LOAD_UH60A,
         dq_req_dnp=DQ_REQ_DNP[trim_no],
-        rel_step=1e-5,
+        **kw,
     )
     printed = ab.load(FIG[(DOF.THREE, trim_no)])
     t = printed.states.index("T41")
-    for name, o, p in (
-        ("A(T41,T41)", ours.A[t, t], printed.A[t, t]),
-        ("b(T41)", ours.b[t], printed.b[t]),
-        ("d(T41)", ours.d[t], printed.d[t]),
-    ):
-        dev = (o / p - 1.0) * 100.0
+    return [
+        (name, (o / p - 1.0) * 100.0)
+        for name, o, p in (
+            ("A(T41,T41)", ours.A[t, t], printed.A[t, t]),
+            ("b(T41)", ours.b[t], printed.b[t]),
+            ("d(T41)", ours.d[t], printed.d[t]),
+        )
+    ]
+
+
+@pytest.mark.parametrize("trim_no", [1, 3])
+def test_those_time_constants_reproduce_the_three_dof_t41_row(trim_no: int, monkeypatch):
+    for name, dev in _three_dof_t41_row_devs(trim_no, 1e-5, monkeypatch):
         assert abs(dev) < THREE_DOF_SWAP_TOL_PCT, f"{TRIM[trim_no]} {name} {dev:+.2f} %"
+
+
+@pytest.mark.parametrize("trim_no", [1, 2, 3])
+def test_at_the_reports_step_level_agrees_like_the_others(trim_no: int, monkeypatch):
+    for name, dev in _three_dof_t41_row_devs(trim_no, None, monkeypatch):
+        assert abs(dev) < SHIPPED_THREE_DOF_SWAP_TOL_PCT, f"{TRIM[trim_no]} {name} {dev:+.2f} %"

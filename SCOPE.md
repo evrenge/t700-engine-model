@@ -239,7 +239,7 @@ distinction matters when a number from one is quoted as a result.
 
 ### Appendix B, element by element
 
-There is no single per-element tolerance. Twenty-three distinct bounds exist across
+There is no single per-element tolerance. Twenty-four distinct bounds exist across
 `test_appendix_b_elements.py`, `test_all_dof_models.py` and `test_heat_sink_taus.py`, and
 they differ by two orders of magnitude because the printed elements do:
 
@@ -260,6 +260,7 @@ they differ by two orders of magnitude because the printed elements do:
 | heat-sink lead and lag taus, ours over those B7/B9/B11 imply | ratio 0.84-0.88 and 0.89-0.93 | `test_heat_sink_taus.TAU1_RATIO` and `test_heat_sink_taus.TAU2_RATIO` |
 | 6-DOF fuel column with those taus | +/-0.5 % | `test_heat_sink_taus.SIX_DOF_SWAP_TOL_PCT` |
 | 3-DOF T41 row with those taus, hover and descent | +/-2.0 % | `test_heat_sink_taus.THREE_DOF_SWAP_TOL_PCT` |
+| 3-DOF T41 row with those taus at the report's step, all three trims | +/-8.0 % | `test_heat_sink_taus.SHIPPED_THREE_DOF_SWAP_TOL_PCT` |
 | TC_T41 those taus imply, against the printed 0.29 | 0.315-0.325, and f_hs within +/-1.0 % of its plot | `test_heat_sink_taus.IMPLIED_TC_T41` and `test_heat_sink_taus.IMPLIED_F_HS_TOL_PCT` |
 | 6-DOF `b`, gas path | ratio 0.93-0.96 | `test_appendix_b_elements.SIX_DOF_B_GAS` |
 | 6-DOF `b`, T41 | ratio 0.93-0.97 | `test_appendix_b_elements.SIX_DOF_B_T41` |

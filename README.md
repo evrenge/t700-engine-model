@@ -36,7 +36,7 @@ than quoting a stored number.
 | Figures 9 and 10, fuel transients | whole-curve rms **0.62–3.80 %** of each panel's excursion, mean 1.64 % over ten panels |
 | The report's own claim about Figure 6 | reproduced: we overestimate fuel by **+6.17 %** in the 81–86 %NG band it names, against its own line's +5.82 % and its printed "as much as five percent" |
 | Frame cost | **31 µs** at a held trim, against the report's 10 ms budget |
-| Tests | 1203 passing, 3 skipped, lint and formatting clean; the suite runs in 40 s |
+| Tests | `pytest` inside the `t700-dev` container runs them all; `ruff` keeps lint and formatting clean |
 
 ## What is in here
 
