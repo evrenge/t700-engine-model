@@ -3,8 +3,8 @@
 Same method as `tools/digitize_a7.py`, generalised. Every figure here plots one curve or
 one marker series per panel, which is what lets the markers be found without reading
 anything off the page; the two Appendix C figures whose curves must be told apart live in
-`digitize_multi_curve.py` and `digitize_c30.py`, and both import their frame location,
-tick lattice and axis calibration from here unchanged.
+`digitize_multi_curve.py` and `digitize_c30.py`, and both take their frame location,
+tick lattice and axis calibration from `figure.axis.calibrate_under`, as this tool does.
 
     A3,  pdf p.58 -> f3    seal-pressurization bleed      data/maps/f3_seal_bleed_fraction.csv
     A4,  pdf p.59 -> f4    PT-balance bleed               data/maps/f4_pt_balance_bleed_fraction.csv
@@ -61,26 +61,14 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
-from figure.axis import blend_value, pick_lattice
-from figure.frame import apply_h as _apply
-from figure.frame import (
-    as_lines,
-    auto_frame_spec,
-    blocked_mask,
-    edge_at,
-    edge_uv,
-    fit_edges,
-    homography,
-    make_sv,
-)
-from figure.frame import corners as frame_corners
+from figure.axis import blend_value, calibrate_under
+from figure.frame import auto_frame_spec, blocked_mask
 from figure.frame import dist as _dist
 from figure.glyph import fit_glyphs, glyph_only_windows, windows
 from figure.provenance import edge_str
 from figure.provenance import poly_str as _poly_str
 from figure.raster import native_bitmap
-from figure.ticks import fine_lattice_all, major_step, major_values, majors_all_edges
-from figure.ticks import paired as _paired
+from figure.ticks import major_step, major_values
 
 FRAME_MARGIN = 0.90
 """Arcs replace straight edges only if they predict the printed frames 10 % better."""
@@ -411,99 +399,6 @@ def overlay(ink, to_px, corners4, C, cx, cy, cfg, tag):
 # --------------------------------------------------------------------------- driver
 
 
-def _calibrate_under(ink, fspec, cfg, forder, verbose=True):
-    """Everything from the frame lines to the two axis maps, under one frame model.
-
-    `forder` 1 is four straight edges mapped by a homography; 2 is four fitted arcs and the
-    curvilinear blend between them. `run` calls this twice and keeps the model the figure's
-    own held-out frame test prefers, so the returned `score` -- the summed held-out frame
-    error of both axes, in per-mille of their ranges -- is what that choice is made on.
-    """
-    if verbose:
-        print("frame lines:")
-    fc, frdiag = fit_edges(ink, fspec, order=forder, verbose=verbose)
-    TL, TR, BR, BL = frame_corners(fc, order=forder)
-    span = {
-        "left": (TL[1], BL[1]),
-        "right": (TR[1], BR[1]),
-        "top": (TL[0], TR[0]),
-        "bottom": (BL[0], BR[0]),
-    }
-    fr = as_lines(fc, span)
-    if verbose:
-        print(
-            f"  corners TL({TL[0]:.3f},{TL[1]:.3f}) TR({TR[0]:.3f},{TR[1]:.3f}) "
-            f"BR({BR[0]:.3f},{BR[1]:.3f}) BL({BL[0]:.3f},{BL[1]:.3f})"
-        )
-    H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
-    if forder == 1:
-        to_uv = lambda px, py: _apply(H, px, py)  # noqa: E731
-        to_px = lambda u, v: _apply(  # noqa: E731
-            homography([(0, 1), (1, 1), (1, 0), (0, 0)], [TL, TR, BR, BL]), u, v
-        )
-        edge_coord = edge_uv(fr, H)
-
-        def tick_u(nm, pos):
-            q = edge_coord(nm, list(np.atleast_1d(pos)))
-            return q[1] if nm in ("left", "right") else q[0]
-    else:
-        sv, px_of = make_sv(fc)
-        to_uv, to_px = sv, px_of
-        tick_u = edge_at(fc, sv)
-
-    if verbose:
-        print("ticks:")
-    maj, allt, _ = majors_all_edges(ink, fc, cfg, verbose=verbose, order=forder)
-    xs, ys = cfg["x"], cfg["y"]
-    xv, yv = major_values(xs), major_values(ys)
-    coarse_of = {}
-    for nm, vals, desc in (
-        ("bottom", xv, False),
-        ("top", xv, False),
-        ("left", yv, True),
-        ("right", yv, True),
-    ):
-        pos, val = _paired(maj, nm, vals, desc)
-        coarse_of[nm] = (np.asarray(tick_u(nm, pos), float), val)
-
-    # ---- the MINOR lattice, which until 2026-09-16 this path printed and ignored.
-    # The axis map was fitted on the interior majors alone, four to thirty-four per axis,
-    # while the page prints five, ten or twenty times as many ticks. A7 calibrates on the
-    # fine lattice and says what it buys: enough data "to fit and *test* an order-5 axis
-    # map instead of guessing between order 2 and order 4 on twelve ticks". Nothing about
-    # these thirteen pages made them different; the machinery simply never reached them.
-    if verbose:
-        print("fine lattice:")
-    fine = fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of, verbose)
-
-    if verbose:
-        print("calibration:")
-    CX = pick_lattice(
-        coarse_of["bottom"], coarse_of["top"], fine["bottom"], fine["top"], xs, "x", verbose
-    )
-    CY = pick_lattice(
-        coarse_of["left"], coarse_of["right"], fine["left"], fine["right"], ys, "y", verbose
-    )
-    score = sum(
-        CA["errs"][CA["order"]] / (ax["hi"] - ax["lo"]) * 1000 for CA, ax in ((CX, xs), (CY, ys))
-    )
-    return dict(
-        fc=fc,
-        frdiag=frdiag,
-        fr=fr,
-        corners=(TL, TR, BR, BL),
-        H=H,
-        to_uv=to_uv,
-        to_px=to_px,
-        maj=maj,
-        allt=allt,
-        CX=CX,
-        CY=CY,
-        forder=forder,
-        score=float(score),
-    )
-
-
 def run(key):
     cfg = FIGS[key]
     print(f"\n================ {cfg['fig']}  (pdf p.{cfg['page']})")
@@ -522,7 +417,7 @@ def run(key):
     #
     # It has to be asked on the FINE lattice to get the right answer. On the majors alone
     # A8 preferred arcs by 17.7x; with ten times the ticks it prefers straight by 7.9x.
-    trials = {fo: _calibrate_under(ink, fspec, cfg, fo, verbose=False) for fo in (1, 2)}
+    trials = {fo: calibrate_under(ink, fspec, cfg, fo, verbose=False) for fo in (1, 2)}
     # Straight is the incumbent, so arcs have to win by a MARGIN, not a hair. Without one,
     # C27 switches on 1.537 against 1.525 per-mille -- eight parts in a thousand, which is
     # a coin flip, and a coin flip should not move a published number. The four figures
@@ -534,7 +429,7 @@ def run(key):
         f"(summed held-out frame error over both axes; arcs must win by "
         f"{(1 - FRAME_MARGIN) * 100:.0f} %)"
     )
-    cal = _calibrate_under(ink, fspec, cfg, forder, verbose=True)
+    cal = calibrate_under(ink, fspec, cfg, forder, verbose=True)
     fc, frdiag, fr = cal["fc"], cal["frdiag"], cal["fr"]
     TL, TR, BR, BL = cal["corners"]
     to_uv, to_px = cal["to_uv"], cal["to_px"]

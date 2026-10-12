@@ -24,8 +24,9 @@ the assignment is rejected unless every column yields exactly the expected numbe
 points.
 
 Everything upstream of the markers -- the frame location, the tick lattice, the held-out
-frame calibration and the axis polynomials -- is imported from `digitize_single_curve` unchanged,
-so these two figures are calibrated exactly as the other thirteen are.
+frame calibration and the axis polynomials -- is `figure.axis.calibrate_under`, the path
+`digitize_single_curve` uses, so these two figures are calibrated exactly as the other
+thirteen are.
 
     python3 tools/digitize_multi_curve.py c23
 """
@@ -40,14 +41,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from figure.axis import blend_value, pick_lattice
+from figure.axis import blend_value, calibrate_under
 from figure.frame import apply_h as _apply
-from figure.frame import as_lines, auto_frame_spec, edge_at_straight, edge_uv, fit_edges, homography
-from figure.frame import corner_line as corner
+from figure.frame import auto_frame_spec
 from figure.frame import dist as _dist
 from figure.raster import native_bitmap
-from figure.ticks import fine_lattice_all, major_values, majors_all_edges
-from figure.ticks import paired as _paired
 
 FIGS = {
     "c23": dict(
@@ -176,53 +174,15 @@ def main(argv=None):
     cfg = FIGS[a.key]
 
     ink = native_bitmap(cfg["page"])
-    fc, _ = fit_edges(ink, auto_frame_spec(cfg["page"]), order=1)
-    fr = as_lines(fc)
     print(f"\n================ {cfg['fig']} {cfg['func']} (pdf p.{cfg['page']})")
-    maj, allt, corners = majors_all_edges(ink, fc, cfg)
-
     # ---- calibration, exactly as the single-curve tool does it --------------------
-    TL = corner(fr["top"], fr["left"])
-    TR = corner(fr["top"], fr["right"])
-    BL = corner(fr["bottom"], fr["left"])
-    BR = corner(fr["bottom"], fr["right"])
-    H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
-    uv_of = edge_uv(fr, H)
-
-    xv, yv = major_values(cfg["x"]), major_values(cfg["y"])
-
-    tick_u = edge_at_straight(uv_of)
-
-    coarse_of = {}
-    for nm, vals, desc in (
-        ("bottom", xv, False),
-        ("top", xv, False),
-        ("left", yv, True),
-        ("right", yv, True),
-    ):
-        pos, val = _paired(maj, nm, vals, desc)
-        coarse_of[nm] = (np.asarray(tick_u(nm, pos), float), val)
-
     # The MINOR lattice, on the same terms as the thirteen single-curve figures: the step
     # measured from the ticks, each tick labelled through a fit made on the majors alone,
     # and the axis keeping whichever lattice predicts the printed frame value it was never
     # shown. This figure shares its calibration with `digitize_single_curve` and had been
     # left behind on the majors when that path moved.
-    print("fine lattice:")
-    span = {
-        "left": (TL[1], BL[1]),
-        "right": (TR[1], BR[1]),
-        "top": (TL[0], TR[0]),
-        "bottom": (BL[0], BR[0]),
-    }
-    fine = fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of)
-    print("calibration:")
-    CX = pick_lattice(
-        coarse_of["bottom"], coarse_of["top"], fine["bottom"], fine["top"], cfg["x"], "x"
-    )
-    CY = pick_lattice(
-        coarse_of["left"], coarse_of["right"], fine["left"], fine["right"], cfg["y"], "y"
-    )
+    cal = calibrate_under(ink, auto_frame_spec(cfg["page"]), cfg, 1)
+    fr, H, CX, CY = cal["fr"], cal["H"], cal["CX"], cal["CY"]
 
     # ---- trace, then sample at the knot abscissae ---------------------------------
     ncur = len(cfg["curves"])
