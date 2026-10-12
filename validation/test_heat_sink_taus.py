@@ -24,11 +24,12 @@ import pytest
 from scipy.optimize import brentq
 
 from t700 import appendix_b as ab
+from t700 import constants as c
 from t700 import linear, maps, trim
 from t700.engine import frame
 from t700.linear import DOF
 from t700.units import wf_pps_from_pph
-from test_all_dof_models import AMB, FIG, NP_RPM, TRIM, WF_PPH, _model
+from test_all_dof_models import AMB, DQ_REQ_DNP, FIG, NP_RPM, TRIM, WF_PPH, _model
 
 TAU1_RATIO = (0.84, 0.88)
 TAU2_RATIO = (0.89, 0.93)
@@ -44,9 +45,10 @@ IMPLIED_F_HS_TOL_PCT = 1.0
 0.3201 / 0.3188 against the printed 0.29; f_hs within 0.12 / 0.16 / 0.37 % of the plot."""
 
 THREE_DOF_SWAP_TOL_PCT = 2.0
-"""The 3-DOF T41 row -- `A(T41,T41)`, `b(T41)`, `d` -- with those taus, hover and descent.
-Measured worst 1.7 %. Level is not asserted: A(T41,T41) 1.07 and b(T41) 1.15 there, open
-under #73."""
+"""The 3-DOF T41 row -- `A(T41,T41)`, `b(T41)`, `d` -- with those taus, hover and descent, on
+the tangent. Measured worst 1.7 % (4.0 % at hover with the shipped +-2 % step, whose secant
+through the settled pressures moves `b(T41)`). Level is not asserted: A(T41,T41) 1.07 and
+b(T41) 1.15 there, open under #73."""
 
 
 def _parts(m):
@@ -123,7 +125,17 @@ def test_those_time_constants_reproduce_the_six_dof_fuel_column(trim_no: int, mo
 def test_those_time_constants_reproduce_the_three_dof_t41_row(trim_no: int, monkeypatch):
     taus = _recovered(trim_no)
     monkeypatch.setattr(linear, "_heat_sink_taus", lambda _f: taus)
-    ours, printed = _model(DOF.THREE, trim_no), ab.load(FIG[(DOF.THREE, trim_no)])
+    wf = wf_pps_from_pph(WF_PPH[trim_no])
+    ours = linear.extract(
+        trim.solve(wf, NP_RPM, AMB),
+        wf,
+        DOF.THREE,
+        AMB,
+        j_load=c.J_LOAD_UH60A,
+        dq_req_dnp=DQ_REQ_DNP[trim_no],
+        rel_step=1e-5,
+    )
+    printed = ab.load(FIG[(DOF.THREE, trim_no)])
     t = printed.states.index("T41")
     for name, o, p in (
         ("A(T41,T41)", ours.A[t, t], printed.A[t, t]),

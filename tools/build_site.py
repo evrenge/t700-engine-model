@@ -64,12 +64,6 @@ OPEN_SUMMARY = {
         "input, the lead&ndash;lag where its own derivative is zero. In closed loop the "
         "governor absorbs the choice; open loop it matters in full.",
     ),
-    56: (
-        "Which perturbation step the Jacobian should use",
-        "The report prints &plusmn;2 % of equilibrium, which is an <em>amplitude</em> "
-        "matched to real helicopter excursions, not a step chosen to approximate a "
-        "derivative. We use 10<sup>&minus;5</sup>. Against Table&nbsp;1 neither wins.",
-    ),
     59: (
         "Integrator anti-windup",
         "Figures C3, C7 and C10 all draw an unlimited <code>1/s</code> followed by a "
@@ -192,6 +186,7 @@ SCH_WHAT = {
 
 D = json.loads((ASSETS / "report.json").read_text())
 _B1W = max(D["table_b1"]["rows"], key=lambda r: abs(r["dev_pct"]))
+_EIGW = D["eigenvalues"]["notes"]["table_1_worst_row"]
 
 # ---------------------------------------------------------------- headline table
 head = [
@@ -210,7 +205,9 @@ head = [
         D["eigenvalues"]["notes"]["table_1_stats"],
         "rms",
         "%",
-        "worst +14.9 % on the 5-DOF P45 mode at hover",
+        f"worst {'&minus;' if _EIGW['dev_pct'] < 0 else '+'}{abs(_EIGW['dev_pct']):.1f} % on "
+        f"the {_EIGW['model'].replace('dof', '-DOF').upper()} {_EIGW['mode']} mode at "
+        f"{_EIGW['trim']}",
     ),
     (
         "Appendix B, matrix A",

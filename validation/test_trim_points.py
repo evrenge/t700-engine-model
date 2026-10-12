@@ -162,10 +162,11 @@ def test_more_fuel_buys_more_speed_and_power():
 # --------------------------------------------------------------------------- dynamics
 
 
-EIGENVALUE_TOL_PCT = 30.0
-"""Ours. **A characterization, not an accuracy claim** -- a regression detector set well
-above the measurement, which is currently 14.87 % worst on the NG mode. Loose because that
-mode carries the #31/#43 interpolation residual; see `docs/notes/derivative-ambiguity.md`.
+EIGENVALUE_TOL_PCT = 8.0
+"""Ours. **A characterization, not an accuracy claim** -- a regression detector set above
+the measurement: 4.70 % worst over all 27 printed modes (the 2-DOF NG mode at hover) since
+the report's +-2 % extraction step was adopted on 2026-10-12, when this tightened 30 -> 8.
+On the tangent the worst was 14.87 %, carrying the #31/#43 knot residual.
 
 Ballin calls a 4 % eigenvalue mismatch "good agreement" for his own comparison [pdf p.29].
 Ours is not that, and quoting this bound as though it were an accuracy standard would be
@@ -238,7 +239,8 @@ def test_jacobian_eigenvalues_against_table_1():
     # quantity we do not have, and is the same row Appendix B flags as not independently
     # reproducible.
     printed = [-2.66, -51.6, -3060.0, -4900.0]
-    on_record = [-10.5, 3.0, -14.9, -0.6]  # only NG and P3 go through f1; only they move
+    # the report's +-2 % step [pdf p.28]; on the tangent these were -10.7, +3.1, -14.9, -0.6
+    on_record = [1.2, 0.2, 3.5, 2.2]
 
     assert ours.size == len(printed), f"expected 4 comparable modes, got {ours}"
     for got, want, expected in zip(ours, printed, on_record, strict=True):

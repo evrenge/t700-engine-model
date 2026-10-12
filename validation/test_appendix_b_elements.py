@@ -49,6 +49,11 @@ WF_PPH = {1: 476.3, 2: 349.3, 3: 267.7}
 TRIM_NAME = {1: "hover", 2: "level 80 kt", 3: "descent 80 kt"}
 S = ("NG", "NP", "P3", "P41", "P45")
 
+TANGENT_STEP = 1e-5
+"""For the mechanism tests: knot proximity in `f1` and `f7` (#43) is a statement about local
+slopes. The shipped extraction uses the report's +-2 % (pdf p.28, #56), which averages
+across those knots and removes most of what these tests describe."""
+
 F7_DRIVEN = {("NG", "P45"), ("P45", "P41"), ("P45", "P45"), ("NG", "P41")}
 """The four elements `f7`'s interpolated slope controls. Characterized, not asserted tight."""
 
@@ -57,11 +62,12 @@ NG_COLUMN = {("NG", "NG"), ("P3", "NG"), ("P45", "NG")}
 the `f7` group's monotone one -- a different cause, not yet localized."""
 
 
-def _pair(trim_no: int, j_load: float = 0.0):
+def _pair(trim_no: int, j_load: float = 0.0, rel_step: float | None = None):
     wf = wf_pps_from_pph(WF_PPH[trim_no])
     r = trim.solve(wf, NP_RPM, AMB)
     assert r.trustworthy, f"trim {trim_no} is not on data"
-    return extract(r, wf, DOF.FIVE, AMB, j_load=j_load), ab.find(5, trim_no)
+    kw = {} if rel_step is None else {"rel_step": rel_step}
+    return extract(r, wf, DOF.FIVE, AMB, j_load=j_load, **kw), ab.find(5, trim_no)
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
@@ -80,13 +86,15 @@ def test_the_zero_structure_matches_exactly(trim_no: int):
     assert ref.b[2] == 0.0 and ours.b[2] == 0.0, "fuel does not enter the P3 volume directly"
 
 
-PRESSURE_BLOCK_TOL_PCT = 1.5
-"""The 5-DOF P3/P41 block, per element. Measured worst 0.72 %."""
+PRESSURE_BLOCK_TOL_PCT = 3.0
+"""The 5-DOF P3/P41 block, per element. Measured worst 2.65 % at the report's +-2 % step,
+0.72 % on the tangent: Eq. 18's square root makes the secant visibly non-tangent here, and
+B2/B4/B6 sit with the tangent (#56). 1.5 until 2026-10-12."""
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
 def test_the_pressure_block_agrees_closely(trim_no: int):
-    """The P3 and P41 volume equations are right to under 1 % at every trim.
+    """The P3 and P41 volume equations are right to under 3 % at every trim, 1 % as tangents.
 
     These six derivatives are the core of the volume dynamics and involve no turbine map
     slope, which is why they are the tightest thing in the comparison -- and why the
@@ -120,9 +128,14 @@ def test_the_fuel_column_is_essentially_exact(trim_no: int):
         assert abs(dev) < FUEL_COLUMN_TOL_PCT, f"trim {trim_no} b({s}): {dev:+.3f} %"
 
 
+NP_ROW_TOL_PCT = 17.0
+"""The 5-DOF NP row with the derived inertia. Measured worst 15.7 % (hover d(NP)/d(NG)) at the
+report's +-2 % step; 12 until 2026-10-12, on the tangent."""
+
+
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
 def test_load_inertia_recovers_the_np_row(trim_no: int):
-    """Supplying the derived `j_load` takes the NP row from ~900 % error to within 12 %.
+    """Supplying the derived `j_load` takes the NP row from ~900 % error to within 16 %.
 
     The elements that remain off are the ones carrying their own model error on top of the
     inertia; `b(NP)`, which carries none, lands inside 0.2 %.
@@ -142,7 +155,7 @@ def test_load_inertia_recovers_the_np_row(trim_no: int):
     for s in ("NG", "P3", "P41", "P45"):
         j = S.index(s)
         dev = (fixed.A[1, j] - ref.A[1, j]) / abs(ref.A[1, j]) * 100.0
-        assert abs(dev) < 12.0, f"trim {trim_no} d(NP)/d({s}): {dev:+.1f} %"
+        assert abs(dev) < NP_ROW_TOL_PCT, f"trim {trim_no} d(NP)/d({s}): {dev:+.1f} %"
 
 
 def test_the_inertia_ratio_is_the_same_at_all_three_trims():
@@ -180,8 +193,9 @@ def test_the_np_diagonal_still_needs_the_load_torque_slope():
     )
 
 
-F7_GROUP_TOL_PCT = {1: 26.0, 2: 16.0, 3: 9.0}
-"""Per trim, the four `f7`-driven elements of the 5-DOF `A`."""
+F7_GROUP_TOL_PCT = {1: 8.0, 2: 12.0, 3: 5.0}
+"""Per trim, the four `f7`-driven elements of the 5-DOF `A`. Measured worst 6.3 / 9.8 /
+3.4 % at the report's +-2 % step; 26 / 16 / 9 until 2026-10-12, sized for the tangent."""
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
@@ -205,11 +219,13 @@ def test_the_f7_error_shrinks_monotonically_with_power():
 
     `d(NG)/d(P45)` runs -24.3 %, -14.5 %, -7.3 % from hover to descent. A wrong equation
     would not order itself by where the operating point sits on one table's segments; a
-    wrong interpolated derivative does exactly that.
+    wrong interpolated derivative does exactly that. Measured on the tangent: at the report's
+    +-2 % step the group falls to +0.0 / -6.3 / +5.1 / +3.4 % at hover and the ordering goes,
+    because the secant averages the knot -- the same mechanism, seen from the other side.
     """
     devs = []
     for trim_no in (1, 2, 3):
-        ours, ref = _pair(trim_no)
+        ours, ref = _pair(trim_no, rel_step=TANGENT_STEP)
         i, j = S.index("NG"), S.index("P45")
         devs.append(abs((ours.A[i, j] - ref.A[i, j]) / ref.A[i, j] * 100.0))
     assert devs[0] > devs[1] > devs[2], f"the power ordering is gone: {devs}"
@@ -247,8 +263,8 @@ def _knot_distance_f1(trim_no: int) -> float:
     return min(frac, 1.0 - frac)
 
 
-def _err(trim_no: int, si: str, sj: str) -> float:
-    ours, ref = _pair(trim_no)
+def _err(trim_no: int, si: str, sj: str, rel_step: float | None = None) -> float:
+    ours, ref = _pair(trim_no, rel_step=rel_step)
     i, j = S.index(si), S.index(sj)
     return abs((ours.A[i, j] - ref.A[i, j]) / ref.A[i, j] * 100.0)
 
@@ -266,8 +282,8 @@ def test_hover_is_the_double_case_that_pins_the_mechanism():
     assert _knot_distance_f7(1) < 0.05, "hover no longer sits on an f7 knot"
     assert _knot_distance_f1(1) > 0.30, "hover no longer sits mid-segment on f1"
 
-    f7_here = _err(1, "NG", "P45")
-    f7_elsewhere = max(_err(2, "NG", "P45"), _err(3, "NG", "P45"))
+    f7_here = _err(1, "NG", "P45", TANGENT_STEP)
+    f7_elsewhere = max(_err(2, "NG", "P45", TANGENT_STEP), _err(3, "NG", "P45", TANGENT_STEP))
     assert f7_here > f7_elsewhere, "hover should hold the worst f7-driven error"
 
     # **The NG-column half of this inverted on 2026-09-13** and the assertions below are
@@ -281,9 +297,9 @@ def test_hover_is_the_double_case_that_pins_the_mechanism():
     # f7 mechanism, and the NG column is pinned by
     # `test_the_ng_column_error_is_redistributed_not_removed` instead. Open question #43.
     for si, sj in NG_COLUMN:
-        assert _err(1, si, sj) < 5.0, (
-            f"hover d({si})/d({sj}) is {_err(1, si, sj):.1f} %; it was under 1 % under "
-            f"constant-x f1 and is about 2.5 % now"
+        assert _err(1, si, sj, TANGENT_STEP) < 5.0, (
+            f"hover d({si})/d({sj}) is {_err(1, si, sj, TANGENT_STEP):.1f} %; it was under "
+            f"1 % under constant-x f1 and is about 2.5 % now"
         )
 
 
@@ -312,7 +328,7 @@ def test_the_ng_column_error_is_redistributed_not_removed():
     d = {t: _knot_distance_f1(t) for t in (1, 2, 3)}
     assert d[1] > d[3] > d[2], f"knot distances changed: {d}"
     for si, sj in NG_COLUMN:
-        e = {t: _err(t, si, sj) for t in (1, 2, 3)}
+        e = {t: _err(t, si, sj, TANGENT_STEP) for t in (1, 2, 3)}
         # Level is the worst on every element of the column; descent and hover trade
         # places between elements (descent 0.6 % against hover 2.5 % on d(P3)/d(NG),
         # 2.9 against 2.5 on d(NG)/d(NG)), so only the level statement is asserted.
@@ -340,12 +356,13 @@ HS_FIG = {
 }
 
 
-def _hs_pair(dof: DOF, trim_no: int):
+def _hs_pair(dof: DOF, trim_no: int, rel_step: float | None = None):
     """Heat-sink models are compared with the load inertia supplied: Appendix B's
     matrices carry the UH-60A drivetrain, not the bare power turbine."""
     wf = wf_pps_from_pph(WF_PPH[trim_no])
     r = trim.solve(wf, NP_RPM, AMB)
-    return extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A), ab.load(HS_FIG[(dof, trim_no)])
+    kw = {} if rel_step is None else {"rel_step": rel_step}
+    return extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A, **kw), ab.load(HS_FIG[(dof, trim_no)])
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
@@ -423,9 +440,11 @@ def test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio(trim_no: int):
     faults compose exactly where they should, and nowhere else.
 
     If this tightens, `f_hs` or `TC_T41` has moved; re-measure and tighten rather than
-    widening.
+    widening. Measured on the tangent. At the report's +-2 % step the row reads 1.00-1.02:
+    Eq. 18's secant inflates its P3 and P41 columns by about 7 %, offsetting the deficit, so
+    the fuel column (`test_heat_sink_taus.py`) is the clean evidence for the cause.
     """
-    ours, ref = _hs_pair(DOF.SIX, trim_no)
+    ours, ref = _hs_pair(DOF.SIX, trim_no, TANGENT_STEP)
     t41 = ours.states.index("T41")
     ng = ours.states.index("NG")
     ratios = [
@@ -518,11 +537,12 @@ def test_supplying_the_load_slope_closes_the_np_diagonal_circularly(trim_no: int
 # block's disagreement is on the record where a single aggregate would have hidden it.
 
 THREE_DOF_B_GAS = (0.89, 0.99)
-THREE_DOF_B_T41 = (0.77, 0.93)
+THREE_DOF_B_T41 = (0.74, 0.88)
 """The 3-DOF fuel column against B7/B9/B11, nine numbers, ratio ours/printed.
 
-Measured 2026-10-12: 0.9438 / 0.9418 / **0.8135** at hover, 0.9568 / 0.9743 / 0.9131 at
-level, 0.9653 / 0.9035 / **0.7882** at descent, in state order NG, NP, T41. Low for one
+Measured 2026-10-12 at the report's +-2 % step: 0.9452 / 0.9447 / **0.8574** at hover,
+0.9568 / 0.9743 / 0.8331 at level, 0.9553 / 0.9167 / **0.7570** at descent, in state order
+NG, NP, T41 (T41 0.77-0.93 on the tangent, earlier the same day). Low for one
 diagnosed reason: Appendix B was generated with TC_T41 = 0.32, the report prints 0.29, and
 `b(T41)` is a near-cancellation that amplifies it (`test_heat_sink_taus.py`, open questions
 #31 and #73). With the recovered time constants the T41 row matches to 1.7 % at hover and
@@ -530,7 +550,7 @@ descent. One band of 0.86-1.02 until 2026-10-12, when extraction began holding T
 as pdf p.31 says and the column split by cause, as the 6-DOF one already had."""
 
 SIX_DOF_B_GAS = (0.93, 0.96)
-SIX_DOF_B_T41 = (0.87, 0.90)
+SIX_DOF_B_T41 = (0.93, 0.97)
 """The 6-DOF fuel column against B8/B10/B12, fifteen non-zero numbers.
 
 `b(P3)` is printed as an exact zero at all three trims and we reproduce that, so the
@@ -553,11 +573,15 @@ power at every entry -- the same sign and a comparable size to the T41 row's kno
 lead-lag deficit (`test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio`, open question
 #31), and `d(T41)` sits at 0.951 / 0.944 / 0.942 in the same band as the gas-path entries.
 That is three independent blocks of the heat-sink model low by one ratio, which is what
-says #31's two time constants are the cause rather than the structure."""
+says #31's two time constants are the cause rather than the structure. (The table is on the
+tangent. At the report's +-2 % step, 2026-10-12, the gas path reads 0.936-0.955 and T41
+0.942-0.963; with the time constants Appendix B was generated with, TC_T41 = 0.32, the column
+matches to 0.4 % -- `test_heat_sink_taus.py`. T41 was 0.87-0.90 until then.)"""
 
-SIX_DOF_PRESSURE = (0.99, 1.01)
-"""Rows P3 and P41 against columns P3 and P41 in B8/B10/B12: twelve numbers, 0.9950 to
-1.0013. As tight as the 5-DOF pressure block, which is the point -- promoting T41 to a
+SIX_DOF_PRESSURE = (1.00, 1.02)
+"""Rows P3 and P41 against columns P3 and P41 in B8/B10/B12: twelve numbers, 1.0088 to
+1.0156 at the report's +-2 % step (0.9950 to 1.0013 on the tangent; 0.99-1.01 until
+2026-10-12). As tight as the 5-DOF pressure block, which is the point -- promoting T41 to a
 state does not disturb the volume dynamics."""
 
 SIX_DOF_REST = (0.80, 1.26)
@@ -697,7 +721,7 @@ def test_the_six_dof_p45_p3_element_is_a_cancellation_and_is_excluded_for_that_r
         )
 
 
-P3_COLUMN_TOL_PCT = 3.0
+P3_COLUMN_TOL_PCT = 8.0
 """`A(NG,P3)` and `A(P45,P3)` in the 5-DOF -- six numbers, and nothing asserted them.
 
 They are the two elements of the P3 column that sit outside the pressure block, and they
@@ -705,7 +729,10 @@ were missed because that block's test walks a hand-written list of five pairs. M
 +1.370 / +1.824, +0.701 / +2.191, +2.491 / +0.427 % at hover / level / descent -- which
 puts them among the best-agreeing elements in the whole comparison, better than everything
 in the `f7` group and than most of the NG column. Worth having asserted for that reason
-rather than despite it: they are the elements a regression would be easiest to miss."""
+rather than despite it: they are the elements a regression would be easiest to miss.
+Those are tangent values. At the report's +-2 % step they read 4.2 / 5.6 / 3.6 % on
+d(NG)/d(P3) and 7.2 / 5.7 / 7.6 % on d(P45)/d(P3) -- the same Eq. 18 secant as the pressure
+block; 3.0 until 2026-10-12."""
 
 THREE_DOF_NG_COLUMN = (0.76, 1.12)
 """The 3-DOF NG column against B7/B9/B11 -- the last block with no numeric comparison.

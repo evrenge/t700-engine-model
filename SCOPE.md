@@ -227,7 +227,7 @@ not.
 | Figures 9/10 read error | +/-0.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS` -- see the section above, and note the currency. **Tightened 1.6 -> 0.6 on 2026-09-14**, never widened: 1.6 was covering an uncorrected page skew … |
 | HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. What it tests is that Appendix C and Table B.1 -- digitized … |
 | **Closed loop vs Table B.1** | **+/-0.5 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`. Measured worst **0.245 %**, descent fuel flow, as a **mean over the limit cycle** -- the loop settles to a cycle, not a point (#61), and the terminal sample … |
-| **Table 1 eigenvalues** | **+/-30 %** | `test_trim_points.EIGENVALUE_TOL_PCT`. **A characterization, not an accuracy claim** — a regression detector set well above the measurement, currently **14.87 %** worst on the NG mode. It is loose because that mode carries the #31/#43 interpolation residual. Ballin calls a 4 % mismatch "good agreement" for his own comparison [pdf p.29]; ours is not that, and this row exists so the difference is visible rather than implied. **Undocumented until 2026-09-19**, while its own docstring claimed SCOPE.md declared it — the loosest bound in the project, on the one surface that is a restatement of another |
+| **Table 1 eigenvalues** | **+/-8 %** | `test_trim_points.EIGENVALUE_TOL_PCT`. **A characterization, not an accuracy claim** — a regression detector set above the measurement, currently **4.70 %** worst over all 27 printed modes (rms 1.75 %) with the report's ±2 % extraction step [pdf p.28], adopted 2026-10-12, when this tightened 30 -> 8. On the tangent step used before, the worst was 14.87 %, carrying the #31/#43 knot residual. Ballin calls a 4 % mismatch "good agreement" for his own comparison [pdf p.29]; ours is not that, and this row exists so the difference is visible rather than implied. **Undocumented until 2026-09-19**, while its own docstring claimed SCOPE.md declared it — the loosest bound in the project, on the one surface that is a restatement of another |
 | Fuel overestimate, 81-86 %NG, vs the report's own claim | +/-8 % | `test_ge_reference.FUEL_OVERESTIMATE_CEILING_PCT`. The report's sharpest printed steady-state claim about itself — "overestimate fuel consumption by as much as five percent" [pdf p.39] — and nothing checked it until 2026-09-14. A ceiling above a measured 6.31 %, against Ballin's own 5.99 %; ours exceeds his claim, which is the finding. Documented here 2026-09-19 |
 | Discrete real-time map vs Table 1 col. 4 | +/-8 % (hover), +/-15 % (level), +/-7 % (descent) | `test_discrete_map.DISCRETE_TOL_PCT`. The loose one carries the #31/#43 interpolation residual, which the continuous model has too and which this comparison is not measuring. **It was descent and is … |
 
@@ -239,7 +239,7 @@ distinction matters when a number from one is quoted as a result.
 
 ### Appendix B, element by element
 
-There is no single per-element tolerance. Twenty-two distinct bounds exist across
+There is no single per-element tolerance. Twenty-three distinct bounds exist across
 `test_appendix_b_elements.py`, `test_all_dof_models.py` and `test_heat_sink_taus.py`, and
 they differ by two orders of magnitude because the printed elements do:
 
@@ -247,25 +247,26 @@ they differ by two orders of magnitude because the printed elements do:
 |---|---|---|
 | `b`, the fuel column, 5-DOF | +/-0.2 % | `test_appendix_b_elements.FUEL_COLUMN_TOL_PCT` |
 | 6-DOF T41 column | +/-1.0 % | `test_appendix_b_elements.SIX_DOF_T41_COLUMN_TOL_PCT` |
-| P3 / P41 pressure block, 5-DOF | +/-1.5 % | `test_appendix_b_elements.PRESSURE_BLOCK_TOL_PCT` |
-| P3 / P41 pressure block, 6-DOF | ratio 0.99-1.01 | `test_appendix_b_elements.SIX_DOF_PRESSURE` |
-| P3 column outside that block, 5-DOF | +/-3.0 % | `test_appendix_b_elements.P3_COLUMN_TOL_PCT` |
+| P3 / P41 pressure block, 5-DOF | +/-3.0 % | `test_appendix_b_elements.PRESSURE_BLOCK_TOL_PCT` |
+| P3 / P41 pressure block, 6-DOF | ratio 1.00-1.02 | `test_appendix_b_elements.SIX_DOF_PRESSURE` |
+| P3 column outside that block, 5-DOF | +/-8.0 % | `test_appendix_b_elements.P3_COLUMN_TOL_PCT` |
 | T41 row | ratio 0.90-0.96, spread under 1.0 % | `test_appendix_b_elements.T41_ROW` and `test_appendix_b_elements.T41_ROW_SPREAD_PCT` |
 | 3-DOF T41 column | ratio 0.88-1.12 | `test_all_dof_models.THREE_DOF_T41_COLUMN` |
 | 3-DOF T41 feedthrough `d` | +/-7.0 % | `test_all_dof_models.THREE_DOF_FEEDTHROUGH_TOL_PCT` |
 | 3-DOF NG column, less descent `A(T41,NG)` | ratio 0.76-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
 | descent `A(T41,NG)`, 3-DOF | ratio 0.6-1.0 | `test_all_dof_models.DESCENT_T41_NG` |
 | 3-DOF `b`, NG and NP | ratio 0.89-0.99 | `test_appendix_b_elements.THREE_DOF_B_GAS` |
-| 3-DOF `b`, T41 | ratio 0.77-0.93 | `test_appendix_b_elements.THREE_DOF_B_T41` |
+| 3-DOF `b`, T41 | ratio 0.74-0.88 | `test_appendix_b_elements.THREE_DOF_B_T41` |
 | heat-sink lead and lag taus, ours over those B7/B9/B11 imply | ratio 0.84-0.88 and 0.89-0.93 | `test_heat_sink_taus.TAU1_RATIO` and `test_heat_sink_taus.TAU2_RATIO` |
 | 6-DOF fuel column with those taus | +/-0.5 % | `test_heat_sink_taus.SIX_DOF_SWAP_TOL_PCT` |
 | 3-DOF T41 row with those taus, hover and descent | +/-2.0 % | `test_heat_sink_taus.THREE_DOF_SWAP_TOL_PCT` |
 | TC_T41 those taus imply, against the printed 0.29 | 0.315-0.325, and f_hs within +/-1.0 % of its plot | `test_heat_sink_taus.IMPLIED_TC_T41` and `test_heat_sink_taus.IMPLIED_F_HS_TOL_PCT` |
 | 6-DOF `b`, gas path | ratio 0.93-0.96 | `test_appendix_b_elements.SIX_DOF_B_GAS` |
-| 6-DOF `b`, T41 | ratio 0.87-0.9 | `test_appendix_b_elements.SIX_DOF_B_T41` |
+| 6-DOF `b`, T41 | ratio 0.93-0.97 | `test_appendix_b_elements.SIX_DOF_B_T41` |
 | rest of the 6-DOF `A` | ratio 0.8-1.26 | `test_appendix_b_elements.SIX_DOF_REST` |
 | `A(NP,NP)` without dQreq/dNP | -56 to -50 % | `test_appendix_b_elements.NP_DIAGONAL_RESIDUAL_PCT` |
-| f7 group, by trim | +/-26 / 16 / 9 % | `test_appendix_b_elements.F7_GROUP_TOL_PCT` |
+| f7 group, by trim | +/-8 / 12 / 5 % | `test_appendix_b_elements.F7_GROUP_TOL_PCT` |
+| 5-DOF NP row, with the derived load inertia | +/-17.0 % | `test_appendix_b_elements.NP_ROW_TOL_PCT` |
 | 2-DOF elements | ratio 0.70-1.20 `A`, +/-6.0 % `b` | `test_all_dof_models.TWO_DOF_A` and `test_all_dof_models.TWO_DOF_B_TOL_PCT` |
 
 

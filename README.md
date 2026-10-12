@@ -27,8 +27,8 @@ than quoting a stored number.
 | | |
 |---|---|
 | **Table B.1, the printed engine state** | **rms 0.22 %** over 21 numbers — worst shaft power −0.81 % at descent |
-| **Table 1, printed eigenvalues** | all **27** modes across three model variants: rms 5.4 %, worst +14.9 % on the 5-DOF P45 mode at hover |
-| **Appendix B, 297 printed elements** | zero structure exact; **all 206 non-zero elements** carry a numeric per-element comparison. `A` rms 7.9 % over 158, `b` rms 6.7 % over 42 — the heat-sink rows carry the report's own TC_T41 inconsistency (open question #31) |
+| **Table 1, printed eigenvalues** | all **27** modes across three model variants: **rms 1.8 %**, worst −4.7 % on the 2-DOF NG mode at hover, with the report's own ±2 % extraction step |
+| **Appendix B, 297 printed elements** | zero structure exact; **all 206 non-zero elements** carry a numeric per-element comparison. `A` rms 6.3 % over 158, `b` rms 6.4 % over 42 — the heat-sink rows carry the report's own TC_T41 inconsistency (open question #31) |
 | **Closed loop vs Table B.1** | **worst 0.25 %** over NG, NP, Wf, Ps3 and shaft power at three trims — **with fuel flow as an output**, averaged over the governor's own limit cycle |
 | Figure 6, NG vs fuel flow | mean 0.00 %NG, rms 0.23, worst −1.01 over all 29 printed points |
 | Figure 7, shaft power vs fuel flow | mean +0.18 %, rms 0.68 %, worst +2.15 over 14 of 15 |
@@ -36,7 +36,7 @@ than quoting a stored number.
 | Figures 9 and 10, fuel transients | whole-curve rms **0.62–3.80 %** of each panel's excursion, mean 1.64 % over ten panels |
 | The report's own claim about Figure 6 | reproduced: we overestimate fuel by **+6.17 %** in the 81–86 %NG band it names, against its own line's +5.82 % and its printed "as much as five percent" |
 | Frame cost | **31 µs** at a held trim, against the report's 10 ms budget |
-| Tests | 1194 passing, 3 skipped, lint and formatting clean; the suite runs in 40 s |
+| Tests | 1203 passing, 3 skipped, lint and formatting clean; the suite runs in 40 s |
 
 ## What is in here
 

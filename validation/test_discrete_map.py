@@ -5,7 +5,7 @@
 Table 1 [pdf p.31] prints two eigenvalue columns that ought to describe the same system:
 column 4, a 2-DOF model, and column 5, an order-reduced 5-DOF. Ballin's differ -- -2.69
 against -2.81 at hover, -2.23 against -2.16 at level, -1.82 against -1.83 at descent.
-**Ours are identical**, to 5.0e-8 at the shipped `rel_step = 1e-5`. That was described
+**Ours are identical**, to 5.0e-8 at `rel_step = 1e-5`. That was described
 here as "the floor a central-difference Jacobian reaches", and it is not a floor -- it is
 the agreement at one step. Sweeping the step over twelve values from 1e-3 to 1e-9, the
 minimum is **8.0e-9 at rel = 3e-7**, six times smaller, with truncation error dominating
@@ -88,6 +88,11 @@ redistributed that residual: the three trims read about +6 / +14 / +6 % where th
 is the loose one. The worst case improved from 21.8 % to about 14 %, and the ambiguity moved
 rather than closing. Open question #43."""
 
+
+TANGENT = 1e-5
+"""The continuous models here are tangents: the limit the discrete map converges to, and
+the Jacobian the Schur-complement identity is about. The shipped extraction uses the
+report's +-2 % (pdf p.28), a secant, which is neither."""
 
 STATE_NAMES = ("NG", "NP", "P3", "P41", "P45", "WA31")
 """Order of the six states of the frame map, for participation factors."""
@@ -252,7 +257,9 @@ def discrete_ng_mode(case: int, dt: float = FRAME_S, tol: float | None = None) -
 def continuous_ng_mode(case: int) -> float:
     wf = wf_pps_from_pph(WF_PPH[case])
     r = trim.solve(wf, NP_RPM, AMB)
-    m = extract(r, wf, dof=DOF.TWO, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[case])
+    m = extract(
+        r, wf, dof=DOF.TWO, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[case], rel_step=TANGENT
+    )
     return float(np.sort(np.real(m.comparable_eigenvalues))[-1])
 
 
@@ -265,7 +272,7 @@ def test_the_two_continuous_models_are_identical_because_they_must_be():
     for case in (1, 2, 3):
         wf = wf_pps_from_pph(WF_PPH[case])
         r = trim.solve(wf, NP_RPM, AMB)
-        kw = dict(j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[case])
+        kw = dict(j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[case], rel_step=TANGENT)
         two = np.sort(np.real(extract(r, wf, dof=DOF.TWO, **kw).comparable_eigenvalues))
         red = np.sort(np.real(extract(r, wf, dof=DOF.REDUCED_FIVE, **kw).comparable_eigenvalues))
         assert np.allclose(two, red, atol=1e-6), (case, two, red)

@@ -241,23 +241,17 @@ def _quasi_steady_deriv(
 
 
 def _central_jacobian(f, x0: np.ndarray, n_out: int, rel: float) -> np.ndarray:
-    """Central differences. `rel=1e-5` is inside the plateau where the 5-DOF eigenvalues
-    are converged to 5 significant figures over rel = 1e-4 .. 1e-8, measured, not assumed.
+    """Central differences at `rel` of each equilibrium value.
 
-    **This is not the report's step, and the difference is not small.** [pdf p.28] prints
-    "a perturbation step-size of plus or minus two percent of equilibruim [*sic*]
-    conditions ... considered to be adequate based on the rotor speed deviations
-    experienced by current-generation helicopters" -- an *amplitude*, chosen to match the
-    excursions the linear model has to represent, rather than a step chosen to approximate
-    a derivative. At ±2 % a central difference is a finite secant over a strongly nonlinear
-    range, and on the 5-DOF spectrum it moves the worst mode +21.6 % at hover, +2.6 % at
-    level and +22.7 % at descent against `rel=1e-5`; the 2-DOF NG mode goes -2.444 ->
-    -2.952 at hover.
-
-    Neither reading wins against Table 1's printed -2.69 at hover -- 1e-5 reads -9.1 %,
-    ±2 % reads +9.7 % -- so the comparison cannot settle it. `SCOPE.md` claimed we used
-    the report's ±2 % until 2026-09-13; we do not, and open question #56 records the
-    choice rather than hiding it behind a default argument.
+    `extract` passes the report's own step by default: "a perturbation step-size of plus or
+    minus two percent of equilibruim [*sic*] conditions" [pdf p.28] -- an amplitude, so a
+    finite secant rather than a derivative. Adopted 2026-10-12 (open question #56) after
+    measuring it against everything Table 1 and Appendix B print: Table 1 rms 5.41 -> 1.75 %
+    over all 27 modes, Appendix B `A` 7.93 -> 6.26 %, the hover `f7` group 24 % -> 6 %.
+    The cost is in the pressure equations, where Eq. 18's square root makes the secant
+    visibly non-tangent and B2/B4/B6 sit with the tangent (2.7 % against 0.7 %). Until then
+    this used `rel=1e-5`, inside the plateau where the 5-DOF eigenvalues are converged to 5
+    significant figures over rel = 1e-4 .. 1e-8; the tests about local slopes still do.
     """
     A = np.zeros((n_out, len(x0)))
     for i in range(len(x0)):
@@ -366,7 +360,7 @@ def extract(
     ambient: Ambient = STANDARD_DAY,
     j_load: float = 0.0,
     dq_req_dnp: float = 0.0,
-    rel_step: float = 1e-5,
+    rel_step: float = 0.02,  # [pdf p.28] "plus or minus two percent of equilibrium"
 ) -> LinearModel:
     """Extract one of the five linear models about a converged trim.
 
