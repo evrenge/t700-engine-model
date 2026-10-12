@@ -1,19 +1,16 @@
 """Assemble `site/index.html` from the template, `report.json` and the open-questions ledger.
 
-The site is a **generated artifact**. Edit `site/template.html` and rerun:
+The site is a generated artifact. Edit `site/template.html` and rerun:
 
     PYTHONPATH=src python validation/report.py   # figures + report.json
     python tools/build_site.py                   # index.html
     python tools/build_site.py --check           # is the committed index.html current?
 
 Every number in the page comes out of `site/assets/report.json`, which `validation/report.py`
-recomputes from the model. Nothing is typed into the template that a run could contradict.
-
-The open-questions section is the one place with curated prose rather than generated text --
-a ledger cell runs to two thousand words and truncating it produces something worse than
-useless. What is *not* curated is which rows appear and what verdict each carries: those are
-read from `docs/notes/open-questions.md` and checked against the summaries below, so the page
-cannot quietly disagree with the ledger about what is still open.
+recomputes from the model. The open-question summaries are curated prose (a ledger cell is
+far too long to show), but which rows appear and their verdicts are read from
+`docs/notes/open-questions.md` and checked against `OPEN_SUMMARY`, so the page cannot
+disagree with the ledger about what is still open.
 """
 
 from __future__ import annotations
@@ -356,10 +353,7 @@ oq_rows = "".join(
     for n in sorted(OPEN_SUMMARY)
 )
 
-# The internal spread was three hardcoded percentages in the template until 2026-09-14,
-# when `report.py::internal_spread` was written to compute them and found the printed claim
-# seven times the measured value -- stale since the digitizer corrections of that morning.
-# Anything the page asserts about a measurement comes out of report.json; this is one more.
+# computed by `report.py::internal_spread`, never typed into the template
 _SP = D["internal_spread"]
 spread_rows = "".join(
     f'<tr><th scope="row">{r["trim"]}</th>'

@@ -1,27 +1,14 @@
 #!/usr/bin/env bash
 # Rerun every digitizer and prove the committed data is what they produce today.
 #
-# A digitized CSV is only as trustworthy as its generator. If a tool has been improved
-# since its output was written, the file is stale and every downstream number inherits it.
-# This reruns all of them and leaves `git status` as the verdict: clean means current.
+# The verdict is `git status data/`: clean means current. A clean data/ after a crash only
+# means nothing wrote to it, so the interpreter is checked up front and a failed tool
+# poisons the verdict. Read the VERDICT line, not the exit code.
 #
 #   bash tools/reproduce_all.sh              # from inside the t700-dev container
 #   distrobox enter t700-dev -- bash tools/reproduce_all.sh
 #
-# Needs poppler (pdftoppm, pdfimages) and takes a few minutes. It pulls the page rasters it
-# needs from the PDF itself -- until 2026-09-13 digitize_a1 did not, and its one input was
-# a gitignored intermediate that no tool in this list produced, so the gate could not be
-# run from a fresh clone at all.
-#
-# ## Why this script checks its own interpreter before doing anything
-#
-# It used to run `python3` and compute its verdict from `git status data/` alone. Run from
-# the Bazzite host, which has no NumPy, every digitizer crashed on import -- and `data/`
-# was then clean *because nothing had written to it*, so a total failure to execute
-# reported as "every data file reproduces byte for byte." A gate that cannot fail is not a
-# gate, and CLAUDE.md lists this script as one of only two `live` mechanisms behind the
-# rule that generated files are never hand-edited. Both holes are closed below: the
-# interpreter is checked up front, and a failed tool now poisons the verdict.
+# Needs poppler; the tools raster the pages they need from the PDF, so a fresh clone runs it.
 set -u
 cd "$(dirname "$0")/.."
 
@@ -33,10 +20,8 @@ if ! python3 -c 'import numpy' 2>/dev/null; then
     exit 2
 fi
 
-# poppler is the prerequisite a Python dependency list cannot express: every digitizer
-# shells out to pdftoppm or pdfimages to raster the source scan. Checked here for the same
-# reason NumPy is -- without it the tools fail one by one with a FileNotFoundError naming
-# a binary, which reads as a broken digitizer rather than a missing package.
+# poppler is the prerequisite a Python dependency list cannot express; without it each tool
+# fails with a FileNotFoundError that reads as a broken digitizer, not a missing package.
 for bin in pdftoppm pdfimages; do
     if ! command -v "$bin" >/dev/null 2>&1; then
         echo "$bin is not on PATH. The digitizers raster the source scan with poppler:"
@@ -54,13 +39,9 @@ if [ -n "$(git status --porcelain data/)" ]; then
 fi
 
 failed=0
-# Every tool that writes a committed file under data/. `digitize_multi_curve` was missing
-# from this list until 2026-09-12, which left the seven Appendix C schedules under
-# data/schedules/ with no reproducibility check at all; tests/test_reproducibility_gate.py
-# now fails if a data-writing tool is absent here. The shared machinery lives in
-# `tools/figure/`, which writes nothing and is correctly not listed.
-# Entries are "<tool> [args]". `digitize_multi_curve` takes the figure key as an argument
-# and only c23 has committed output -- c30 is open question #50 and the tool refuses it.
+# Every tool that writes a committed file under data/; tests/test_reproducibility_gate.py
+# fails if one is missing. Entries are "<tool> [args]": `digitize_multi_curve` refuses c30
+# (open question #50), so only c23 has committed output.
 for entry in "digitize_a1" "digitize_a2" "digitize_single_curve" "digitize_a7" "digitize_a9" \
              "digitize_multi_curve c23" "digitize_c30" "digitize_fig678" \
              "digitize_fig910"; do
