@@ -56,6 +56,8 @@ Two further findings, both measured below:
 
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 import pytest
 
@@ -138,6 +140,7 @@ def mode_of(A: np.ndarray, state: str, dt: float = FRAME_S) -> complex:
     return complex(lam[int(np.argmax(P[STATE_NAMES.index(state)]))])
 
 
+@functools.cache
 def _frame_jacobian(
     case: int, dt: float = FRAME_S, tol: float | None = None, lag_whole_flow: bool = True
 ) -> np.ndarray:

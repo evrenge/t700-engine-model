@@ -28,6 +28,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import test_fuel_step as tfs
 from t700 import constants as c
 from t700 import maps, realtime, trim
 from t700.engine import Ambient, frame
@@ -87,19 +88,10 @@ def _ballin(fig: int, key: str):
 
 
 def _run(fig: int, heat_sink: bool):
-    r0 = trim.solve(WF0, c.NP_DES, AMB)
-    hi = wf_pps_from_pph(STEPS[fig])
-    st = realtime.from_trim(r0)
-    tr = realtime.run(
-        st,
-        lambda t: WF0 if t < STEP_TIME[fig] else hi,
-        AMB,
-        duration_s=5.0,
-        dt=0.007,
-        q_req_ftlbf=r0.frame.q_pt_ftlbf,
-        integrate_np=False,
-        heat_sink=heat_sink,
-    )
+    return _panels(tfs._run(STEPS[fig], STEP_TIME[fig], heat_sink))
+
+
+def _panels(tr):
     t = np.asarray(tr["t"])
     return t, {
         "pcng": 100.0 * np.asarray(tr["ng"]) / c.NG_DES,
@@ -365,21 +357,8 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
         f"0.77, and that crossing is the whole of open question #45's mechanism"
     )
 
-    r0 = trim.solve(WF0, c.NP_DES, AMB)
-
     def settle(tol: float) -> tuple[float, float]:
-        st = realtime.from_trim(r0)
-        tr = realtime.run(
-            st,
-            lambda t: WF0 if t < CHOP_STEP else wf_pps_from_pph(125.0),
-            AMB,
-            duration_s=120.0,
-            dt=0.007,
-            q_req_ftlbf=r0.frame.q_pt_ftlbf,
-            integrate_np=False,
-            heat_sink=True,
-            tol=tol,
-        )
+        tr = tfs.fuel_step(125.0, CHOP_STEP, duration_s=120.0, tol=tol)
         t = np.asarray(tr["t"])
         late = t > 110.0
         ng = 100.0 * float(np.median(np.asarray(tr["ng"])[late])) / c.NG_DES
@@ -430,18 +409,8 @@ def test_the_sub_idle_root_no_longer_depends_on_the_pass_count():
             return original(*a[:6], k.get("tol", realtime.TOL_PRESSURE), cap)
 
         realtime._p45_loop = capped
-        try:
-            st = realtime.from_trim(r0)
-            tr = realtime.run(
-                st,
-                lambda t: wf_pps_from_pph(125.0),
-                AMB,
-                duration_s=40.0,
-                dt=0.007,
-                q_req_ftlbf=r0.frame.q_pt_ftlbf,
-                integrate_np=False,
-                heat_sink=True,
-            )
+        try:  # held at its own trim: a step from 125 to 125 lbm/hr
+            tr = tfs.fuel_step(125.0, 0.0, duration_s=40.0, wf0_pph=125.0)
         finally:
             realtime._p45_loop = original
         t = np.asarray(tr["t"])
@@ -488,8 +457,6 @@ def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
     -1 crossing at ~0.77, so the printed iteration converges on its own in 2.0 passes and
     the fallback never fires. Below about 160 lbm/hr it fires every frame.
     """
-    r0 = trim.solve(WF0, c.NP_DES, AMB)
-
     # The differential trims come by CONTINUATION, and that is not a convenience.
     # `TrimResult` documents `trustworthy` as the thing a caller must check, and
     # `test_trim_points.py::test_a_solution_off_the_compressor_map_is_not_reported_as_good`
@@ -517,17 +484,7 @@ def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
             f"NGc={sub.frame.ngc_pct:.4g} %. Continuation is supposed to prevent this."
         )
         differential = 100.0 * sub.state.ng_rpm / c.NG_DES
-        st = realtime.from_trim(r0)
-        tr = realtime.run(
-            st,
-            lambda t, g=pph: WF0 if t < CHOP_STEP else wf_pps_from_pph(g),
-            AMB,
-            duration_s=60.0,
-            dt=0.007,
-            q_req_ftlbf=r0.frame.q_pt_ftlbf,
-            integrate_np=False,
-            heat_sink=True,
-        )
+        tr = tfs.fuel_step(pph, CHOP_STEP, duration_s=60.0)
         t = np.asarray(tr["t"])
         late = (100.0 * np.asarray(tr["ng"]) / c.NG_DES)[t > 55.0]
         assert late.max() - late.min() < 0.01, (
@@ -592,20 +549,8 @@ def test_ps3_leverage_on_the_speed_derivative_is_what_it_was_measured_to_be():
 
     This test pins the leverage itself, so the argument stays measured.
     """
-    wf0 = wf_pps_from_pph(400.0)
-    r0 = trim.solve(wf0, c.NP_DES, AMB)
-    f0 = r0.frame
-    st = realtime.from_trim(r0)
-    tr = realtime.run(
-        st,
-        lambda t: wf0 if t < CHOP_STEP else wf_pps_from_pph(125.0),
-        AMB,
-        duration_s=5.0,
-        dt=0.007,
-        q_req_ftlbf=f0.q_pt_ftlbf,
-        integrate_np=False,
-        heat_sink=True,
-    )
+    f0 = trim.solve(WF0, c.NP_DES, AMB).frame
+    tr = tfs._run(125.0, CHOP_STEP, True)  # Figure 10's chop
     from t700.engine import State
 
     pcng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
@@ -711,7 +656,8 @@ def test_the_control_volumes_cannot_be_constrained_by_any_transient_panel():
         try:
             setattr(c, name, original * 2.0)
             for fig in STEPS:
-                _t, ours = _run(fig, True)
+                # uncached: these runs must see the patched constant
+                _t, ours = _panels(tfs.fuel_step(STEPS[fig], STEP_TIME[fig]))
                 for key in PANELS:
                     assert np.array_equal(base[fig][key], ours[key]), (
                         f"doubling {name} moved fig {fig} {key}. That is a real change in "

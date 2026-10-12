@@ -37,6 +37,7 @@ step [pdf pp.45-46].
 from __future__ import annotations
 
 import csv
+import functools
 from pathlib import Path
 
 import numpy as np
@@ -167,8 +168,22 @@ def _settled_window(tb, vb):
     return vb[sel], float(tb[sel].max())
 
 
-def _run(fig: int, wf_hi: float, t_step: float, heat_sink: bool = True):
-    wf0 = wf_pps_from_pph(400.0)
+def fuel_step(
+    wf_hi: float,
+    t_step: float,
+    heat_sink: bool = True,
+    duration_s: float = 5.0,
+    wf0_pph: float = 400.0,
+    **kw,
+) -> dict[str, np.ndarray]:
+    """Figures 9 and 10's experiment: a fuel step from a trim, NP integration suppressed.
+
+    From the `wf0_pph` trim at NP_des to `wf_hi` lbm/hr at `t_step` seconds, on the
+    report's 7 ms frame; a hold is a step to the same flow. `kw` goes to `realtime.run`
+    (`tol`, for one). Uncached, so use it where a run's side effects are measured -- clamp
+    counts -- or a constant or function is patched around it; `_run` is the cached one.
+    """
+    wf0 = wf_pps_from_pph(wf0_pph)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
     hi = wf_pps_from_pph(wf_hi)
     st = realtime.from_trim(r0)
@@ -176,12 +191,26 @@ def _run(fig: int, wf_hi: float, t_step: float, heat_sink: bool = True):
         st,
         lambda t: wf0 if t < t_step else hi,
         AMB,
-        duration_s=5.0,
+        duration_s=duration_s,
         dt=0.007,
         q_req_ftlbf=r0.frame.q_pt_ftlbf,
         integrate_np=False,
         heat_sink=heat_sink,
+        **kw,
     )
+
+
+@functools.cache
+def _run(wf_hi: float, t_step: float, heat_sink: bool) -> dict[str, np.ndarray]:
+    """`fuel_step` from 400 lbm/hr over 5 s, run once and shared by every comparison.
+
+    The arrays are read-only, so no caller can alter what another reads. Pass `heat_sink`
+    positionally: the cache is keyed on the call's spelling.
+    """
+    tr = fuel_step(wf_hi, t_step, heat_sink)
+    for v in tr.values():
+        v.flags.writeable = False
+    return tr
 
 
 @pytest.mark.parametrize("fig,wf_hi,t_step", STEPS, ids=lambda v: str(v))
@@ -194,7 +223,7 @@ def test_initial_state_matches_the_figure(fig: int, wf_hi: float, t_step: float,
     if not path.exists():
         pytest.skip(f"{path.name} not digitized")
     tb, vb = _reference(fig, key)
-    tr = _run(fig, wf_hi, t_step)
+    tr = _run(wf_hi, t_step, True)
     ours = PANELS[key](tr)
 
     pre_us = ours[tr["t"] < t_step - 0.05]
@@ -217,7 +246,7 @@ def test_settled_state_matches_the_figure(fig: int, wf_hi: float, t_step: float,
     if not path.exists():
         pytest.skip(f"{path.name} not digitized")
     tb, vb = _reference(fig, key)
-    tr = _run(fig, wf_hi, t_step)
+    tr = _run(wf_hi, t_step, True)
     ours = PANELS[key](tr)
 
     late_them, t_last = _settled_window(tb, vb)
@@ -234,7 +263,7 @@ def test_settled_state_matches_the_figure(fig: int, wf_hi: float, t_step: float,
 def test_step_up_stays_inside_the_compressor_map():
     """Figure 9 keeps the engine on data, which is why it agrees to a few percent."""
     maps.reset_clamps()
-    tr = _run(9, 775.0, STEP_TIME[9])
+    tr = fuel_step(775.0, STEP_TIME[9])  # uncached: the clamps it counts are this run's
     ngc = 100.0 * tr["ng"] / c.NG_DES
     assert ngc.min() > 88.0, "the step up should not approach the map's lower edge"
     assert ngc.max() < 101.0
@@ -345,7 +374,7 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     those are the GE reference series, not the model trace this file compares against.
     """
     maps.reset_clamps()
-    tr = _run(10, 125.0, STEP_TIME[10])
+    tr = fuel_step(125.0, STEP_TIME[10])  # uncached: the clamps it counts are this run's
     ngc = 100.0 * tr["ng"] / c.NG_DES
     rep = maps.clamp_report()
 
@@ -419,7 +448,7 @@ def test_heat_sink_closes_most_of_the_t41_overshoot_gap():
     late_them = float(np.median(vb[(tb > 3.5) & (tb < 4.5)]))
     theirs = float(vb.max()) - late_them
 
-    tr = _run(9, 775.0, STEP_TIME[9])
+    tr = _run(775.0, STEP_TIME[9], True)
     ours_trace = PANELS["t41"](tr)
     late_us = float(np.median(ours_trace[tr["t"] > 4.0]))
     ours = float(ours_trace.max()) - late_us
@@ -441,8 +470,8 @@ def test_the_heat_sink_is_what_closed_it():
     silently disabled, `test_heat_sink_closes_most_of_the_t41_overshoot_gap` alone would
     fail with no indication of why.
     """
-    bare = _run(9, 775.0, STEP_TIME[9], heat_sink=False)
-    sunk = _run(9, 775.0, STEP_TIME[9], heat_sink=True)
+    bare = _run(775.0, STEP_TIME[9], False)
+    sunk = _run(775.0, STEP_TIME[9], True)
     off = _t41_overshoot(bare["t"], bare["t41"], STEP_TIME[9])
     on = _t41_overshoot(sunk["t"], sunk["t41"], STEP_TIME[9])
     assert on < 0.6 * off, (

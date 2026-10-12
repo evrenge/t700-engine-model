@@ -29,8 +29,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import test_fuel_step as tfs
 from t700 import constants as c
-from t700 import realtime, trim
+from t700 import trim
 from t700.engine import Ambient, frame
 from t700.units import shp_from_torque, wf_pps_from_pph
 from test_fuel_step import read_reference
@@ -100,24 +101,6 @@ def _pre_step(fig: int) -> dict[str, float]:
 
 # The WFPH panel is the input, and the caption prints both of its levels.
 WFPH_PRINTED = {9: (400.0, 775.0, 0.539), 10: (400.0, 125.0, 0.545)}
-
-
-def _run(wf_hi_pph: float, t_step: float, duration_s: float = 5.0):
-    """Figures 9 and 10: a step from the 400 lbm/hr trim, NP integration suppressed."""
-    wf0 = wf_pps_from_pph(400.0)
-    r0 = trim.solve(wf0, c.NP_DES, AMB)
-    hi = wf_pps_from_pph(wf_hi_pph)
-    st = realtime.from_trim(r0)
-    return realtime.run(
-        st,
-        lambda t: wf0 if t < t_step else hi,
-        AMB,
-        duration_s=duration_s,
-        dt=0.007,
-        q_req_ftlbf=r0.frame.q_pt_ftlbf,
-        integrate_np=False,
-        heat_sink=True,
-    )
 
 
 # --------------------------------------------------------------------- the reference itself
@@ -274,6 +257,19 @@ def test_figures_9_and_10_are_sea_level_standard():
 # --------------------------------------------------------------------- transient vs steady
 
 
+def _ballin_phase_plane(fig: int, t_step: float) -> tuple[np.ndarray, np.ndarray]:
+    """Ballin's Ps3 against his NG after the step, NG ascending (Figure 10's falls, so it
+    is reversed for interpolation)."""
+    tb_n, vb_n = read_reference(f"fig{fig:02d}_pcng_model.csv")
+    tb_p, vb_p = read_reference(f"fig{fig:02d}_ps3_model.csv")
+    mb = tb_n > t_step
+    bn = vb_n[mb]
+    bp = np.interp(tb_n[mb], tb_p, vb_p)
+    if fig == 10:
+        bn, bp = bn[::-1], bp[::-1]
+    return bn, bp
+
+
 @pytest.mark.parametrize(
     "fig,wf_hi,t_step,grid",
     [
@@ -310,18 +306,15 @@ def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
     shrinks. (Both were re-measured after the 2026-09-13 trace-alignment fix, which moved
     Figure 9 from an apparent 0.59 % to a true 1.42 %.)
     """
-    tb_n, vb_n = read_reference(f"fig{fig:02d}_pcng_model.csv")
-    tb_p, vb_p = read_reference(f"fig{fig:02d}_ps3_model.csv")
-    tr = _run(wf_hi, t_step)
+    bn, bp = _ballin_phase_plane(fig, t_step)
+    tr = tfs._run(wf_hi, t_step, True)
     our_n = 100.0 * tr["ng"] / c.NG_DES
     our_p = c.K_PS3 * tr["p3"]
 
-    mb, mo = tb_n > t_step, tr["t"] > t_step
-    bn = vb_n[mb]
-    bp = np.interp(tb_n[mb], tb_p, vb_p)
+    mo = tr["t"] > t_step
     on, op = our_n[mo], our_p[mo]
     if fig == 10:  # NG falls, so reverse for interpolation
-        bn, bp, on, op = bn[::-1], bp[::-1], on[::-1], op[::-1]
+        on, op = on[::-1], op[::-1]
 
     for n in grid:
         b = float(np.interp(n, bn, bp))
@@ -345,13 +338,7 @@ def test_the_phase_plane_is_not_a_degenerate_comparison():
         (9, 0.539, (92.0, 94.0, 96.0, 98.0), True),
         (10, 0.545, (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0), False),
     ):
-        tb_n, vb_n = read_reference(f"fig{fig:02d}_pcng_model.csv")
-        tb_p, vb_p = read_reference(f"fig{fig:02d}_ps3_model.csv")
-        mb = tb_n > t_step
-        bn = vb_n[mb]
-        bp = np.interp(tb_n[mb], tb_p, vb_p)
-        if fig == 10:
-            bn, bp = bn[::-1], bp[::-1]
+        bn, bp = _ballin_phase_plane(fig, t_step)
         lo, hi = min(grid), max(grid)
         p_lo, p_hi = float(np.interp(lo, bn, bp)), float(np.interp(hi, bn, bp))
         chord = max(
@@ -386,7 +373,7 @@ def test_the_transient_sits_off_the_steady_locus_in_the_right_direction(fig, wf_
     model rather than about the digitizer.
     """
     ng8, ps8 = read_reference("fig08_realtime.csv")
-    tr = _run(wf_hi, t_step)
+    tr = tfs._run(wf_hi, t_step, True)
     our_n = 100.0 * tr["ng"] / c.NG_DES
     our_p = c.K_PS3 * tr["p3"]
 
@@ -425,22 +412,11 @@ def test_we_match_both_sides_of_the_figure_6_to_9_gap():
     climbing, which is what the explanation always claimed and could not previously show.
     """
     t_end = 4.46  # where Ballin's Figure 9 record stops
-    sweep = trim.sweep(np.arange(400.0, 776.0, 25.0), c.NP_DES, AMB)
-    r0, r775 = sweep[0], sweep[-1]
+    r775 = trim.sweep(np.arange(400.0, 776.0, 25.0), c.NP_DES, AMB)[-1]
     assert r775.trustworthy
-    wf0, hi = wf_pps_from_pph(400.0), wf_pps_from_pph(775.0)
-    f775 = frame(r775.state, hi, AMB)
-    st = realtime.from_trim(r0)
-    tr = realtime.run(
-        st,
-        lambda t: wf0 if t < 0.539 else hi,
-        AMB,
-        duration_s=40.0,
-        dt=0.007,
-        q_req_ftlbf=r0.frame.q_pt_ftlbf,
-        integrate_np=False,
-        heat_sink=True,
-    )
+    f775 = frame(r775.state, wf_pps_from_pph(775.0), AMB)
+    # from the sweep's own first rung: a cold 400 lbm/hr trim, which is what `fuel_step` solves
+    tr = tfs.fuel_step(775.0, 0.539, duration_s=40.0)
 
     wf6, ng6 = read_reference("fig06_realtime.csv")
     wf7, shp7 = read_reference("fig07_realtime.csv")

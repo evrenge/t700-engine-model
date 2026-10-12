@@ -65,7 +65,7 @@ is automatically our error -- it does not turn the gap into a credential.
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -137,6 +137,20 @@ def _ladder(fuel_flows, np_rpm: float = NP_RPM):
     return out
 
 
+def _ps3_at_ng(ng_pct: np.ndarray, rungs: int, np_rpm: float):
+    """Our Ps3 at the given %NG, read off an `rungs`-point ladder over 150-800 lb/hr.
+
+    Returns `(mask, values)`: Figure 8 carries no fuel flow, so the comparison is made in NG
+    and only where the ladder spans it.
+    """
+    pts = list(_ladder(np.linspace(150, 800, rungs), np_rpm).values())
+    ng = np.array([p["ng_pct"] for p in pts])
+    ps = np.array([p["ps3"] for p in pts])
+    o = np.argsort(ng)
+    m = (ng_pct >= ng[o].min()) & (ng_pct <= ng[o].max())
+    return m, np.interp(ng_pct[m], ng[o], ps[o])
+
+
 def test_figure_8_ps3_against_ng_tracks_across_the_range():
     """The strongest independent check here: no fuel flow appears in it.
 
@@ -145,13 +159,9 @@ def test_figure_8_ps3_against_ng_tracks_across_the_range():
     error. 24 points, worst 1.6 %.
     """
     x, y = read_reference("fig08_realtime.csv", "ng_pct", "ps3_psia")
-    got = _ladder(np.linspace(150, 800, 60))
-    ng = np.array([v["ng_pct"] for v in got.values()])
-    ps = np.array([v["ps3"] for v in got.values()])
-    o = np.argsort(ng)
-    inside = (x >= ng[o].min()) & (x <= ng[o].max())
+    inside, ours = _ps3_at_ng(x, 60, NP_RPM)
     assert inside.sum() >= 20, "the sweep no longer spans Figure 8"
-    dev = (np.interp(x[inside], ng[o], ps[o]) - y[inside]) / y[inside] * 100.0
+    dev = (ours - y[inside]) / y[inside] * 100.0
     assert np.abs(dev).max() < 3.0, f"worst Ps3 deviation {np.abs(dev).max():.1f} %"
     assert abs(dev.mean()) < 1.0, f"mean Ps3 deviation {dev.mean():+.2f} %"
 
@@ -334,12 +344,7 @@ nothing."""
 def _curve(fig: int, xs: np.ndarray):
     """Our model sampled at the given abscissae; returns (mask, values)."""
     if fig == 8:
-        pts = list(_ladder(np.linspace(150, 800, 80), NP_GE_RPM).values())
-        ng = np.array([p["ng_pct"] for p in pts])
-        ps = np.array([p["ps3"] for p in pts])
-        o = np.argsort(ng)
-        m = (xs >= ng[o].min()) & (xs <= ng[o].max())
-        return m, np.interp(xs[m], ng[o], ps[o])
+        return _ps3_at_ng(xs, 80, NP_GE_RPM)
     key = "ng_pct" if fig == 6 else "shp"
     ours = _ladder(xs, NP_GE_RPM)
     got = [ours.get(float(v), {}).get(key) for v in xs]
@@ -471,8 +476,10 @@ The ceiling is 8 % against a measured peak of 6.17 %, and against Ballin's own 5
 """
 
 
+@cache
 def _fig6_series():
-    """Fuel flow as a function of NG for all three Figure 6 series, plus ours."""
+    """Fuel flow as a function of NG for all three Figure 6 series, plus ours. Cached: the
+    three tests that read it only read it."""
     out = {}
     for key in ("realtime", "ge_status81", "ge_unbalanced"):
         wf, ng = read_reference(f"fig06_{key}.csv", "wf_pph", "ng_pct")

@@ -290,7 +290,7 @@ def transients() -> dict:
 
     out = {}
     for no, wf_hi in ((9, 775.0), (10, 125.0)):
-        tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
+        tr = tfs._run(wf_hi, tfs.STEP_TIME[no], True)
         t = tr["t"]
         fig, axes = plt.subplots(2, 3, figsize=fs(16.5, 8.2))
         panels = {}
@@ -751,7 +751,7 @@ def phase_plane() -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=fs(13.5, 5.4))
     for ax, (no, wf_hi) in zip(axes, ((9, 775.0), (10, 125.0)), strict=True):
-        tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
+        tr = tfs._run(wf_hi, tfs.STEP_TIME[no], True)
         ng = 100.0 * tr["ng"] / c.NG_DES
         ps3 = c.K_PS3 * tr["p3"]
         tb, vb = read_reference(f"fig{no:02d}_pcng_model.csv", "t_s", "value")
@@ -860,13 +860,11 @@ def _render(data: dict) -> None:
 
 def sheet_engine_steady() -> dict:
     """The equilibrium operating line, station by station, over the whole trim range."""
-    import test_steady_sweeps as tss
-
+    # Each rung is solved cold. A continuation ladder used to be built first and its rungs
+    # re-solved cold anyway; it chose the same 170 points the cold solves accept, so it is gone.
     pph = np.arange(130.0, 812.0, 4.0)
-    grid = tss._ladder(pph)
-    ks = np.array(sorted(grid))
     rows = []
-    for k in ks:
+    for k in pph:
         wf = wf_pps_from_pph(float(k))
         r = trim.solve(wf, c.NP_DES, AMB, guess=None)
         if not r.trustworthy:
@@ -952,27 +950,14 @@ def sheet_engine_steady() -> dict:
 
 def sheet_open_loop() -> dict:
     """A family of fuel steps from the same trim, both heat-sink configurations."""
-    from t700 import realtime
+    import test_fuel_step as tfs
 
-    wf0 = wf_pps_from_pph(400.0)
-    r0 = trim.solve(wf0, c.NP_DES, AMB)
     steps = [(125.0, "#9c5bd0"), (250.0, GE), (550.0, OURS), (775.0, BALLIN)]
 
     fig, axes = plt.subplots(1, 4, figsize=fs(17.0, 4.3))
     out = {}
     for pph, col in steps:
-        st = realtime.from_trim(r0)
-        hi = wf_pps_from_pph(pph)
-        tr = realtime.run(
-            st,
-            lambda t, v=hi: wf0 if t < 0.5 else v,
-            AMB,
-            duration_s=5.0,
-            dt=0.007,
-            q_req_ftlbf=r0.frame.q_pt_ftlbf,
-            integrate_np=False,
-            heat_sink=True,
-        )
+        tr = tfs._run(pph, 0.5, True)
         t = tr["t"]
         lab = f"400 -> {pph:.0f}"
         for ax, key, fn in (
@@ -1014,24 +999,18 @@ def sheet_closed_loop() -> dict:
     from t700.control import loop
 
     name, wf, _ng, _ps3, q, ratio, _shp = tcl.TRIMS[0]
-    wf_pps = wf_pps_from_pph(wf)
-    r = trim.solve(wf_pps, c.NP_DES, AMB)
-    slope = abs(tcl._dqpt_dnp(r, wf_pps)) * ratio
-    base = dict(pas_deg=100.0, pcprf_pct=tcl.NP_TRIM_RPM * 100.0 / c.NP_DES)
 
-    def run(n, xcpc_of, load_of, ref_of=None):
-        s, rec = None, {k: [] for k in ("t", "np", "ng", "wf", "t41", "spdg", "lim")}
-        for i in range(n):
-            pilot = loop.Pilot(
+    def run(n, xcpc_of, load_scale_of=None, ref_of=None):
+        rec = {k: [] for k in ("t", "np", "ng", "wf", "t41", "spdg", "lim")}
+
+        def pilot_of(i):
+            return loop.Pilot(
                 xcpc_pct=xcpc_of(i),
                 pas_deg=100.0,
-                pcprf_pct=(ref_of(i) if ref_of else base["pcprf_pct"]),
+                pcprf_pct=(ref_of(i) if ref_of else tcl.PCPRF_PCT),
             )
-            if s is None:
-                s = loop.seed(r, pilot, AMB)
-            s, e, h, fr = loop.step(
-                s, pilot, AMB, dt=tcl.DT, load=load_of(i), j_load=c.J_LOAD_UH60A, heat_sink=True
-            )
+
+        for i, s, e, h, fr in tcl.closed_loop(wf, q, ratio, n, pilot_of, load_scale_of):
             rec["t"].append(i * tcl.DT)
             rec["np"].append(s.engine.np_rpm)
             rec["ng"].append(100.0 * s.engine.ng_rpm / c.NG_DES)
@@ -1043,31 +1022,14 @@ def sheet_closed_loop() -> dict:
 
     xc = tcl.XCPC_PCT[name]
     cases = [
-        (
-            "15 % load step",
-            run(
-                2600,
-                lambda i: xc,
-                lambda i: (
-                    lambda v, s=1.15 if i >= 1400 else 1.0: q * s + slope * (v - tcl.NP_TRIM_RPM)
-                ),
-            ),
-        ),
-        (
-            "collective 52.75 -> 70 %",
-            run(
-                1800,
-                lambda i: 70.0 if i >= 600 else xc,
-                lambda i: lambda v: q + slope * (v - tcl.NP_TRIM_RPM),
-            ),
-        ),
+        ("15 % load step", run(2600, lambda i: xc, lambda i: 1.15 if i >= 1400 else 1.0)),
+        ("collective 52.75 -> 70 %", run(1800, lambda i: 70.0 if i >= 600 else xc)),
         (
             "speed reference 100 -> 102 %",
             run(
                 2600,
                 lambda i: xc,
-                lambda i: lambda v: q + slope * (v - tcl.NP_TRIM_RPM),
-                lambda i: base["pcprf_pct"] * (1.02 if i >= 1200 else 1.0),
+                ref_of=lambda i: tcl.PCPRF_PCT * (1.02 if i >= 1200 else 1.0),
             ),
         ),
     ]

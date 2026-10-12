@@ -26,13 +26,18 @@ def _seed(wf_pph: float, lag_whole_flow: bool = True):
     return st, wf, r.frame.q_pt_ftlbf
 
 
-@pytest.mark.parametrize("wf_pph", [case.wf_pph for case in CASES])
+@pytest.mark.parametrize("wf_pph", [case.wf_pph for case in CASES] + [400.0])
 def test_every_published_trim_is_a_fixed_point(wf_pph: float):
     """The strongest available check that the two formulations agree.
 
     `trim.solve` finds the equilibrium of the differential model (Eqs. 42-45); the
     real-time frame solves the same physics with the pressures made algebraic
     (Eqs. 74-80). If the algebraic reduction were wrong, a trimmed engine would drift.
+
+    400 lbm/hr is Figures 9 and 10's starting trim. Its stillness over the half second
+    before their step, heat sink off, is the one bound the deleted
+    `test_fuel_step_moves_the_engine_the_right_way` held that nothing else did; its NG and
+    T41 rise claims are `test_fuel_step`'s Figure 9 initial and settled comparisons.
     """
     st, wf, qreq = _seed(wf_pph)
     tr = realtime.run(st, lambda t: wf, AMB, duration_s=2.0, q_req_ftlbf=qreq)
@@ -42,6 +47,9 @@ def test_every_published_trim_is_a_fixed_point(wf_pph: float):
     # and NG to a millionth of an rpm over every frame of the first second
     first_s = tr["t"] < 1.0 + realtime.FRAME_ENGINE_S
     assert np.abs(tr["ng"][first_s] - tr["ng"][0]).max() < 1e-6
+    # and still, peak to peak, over the half second a fuel step waits for
+    pre = tr["ng"][tr["t"] < 0.5]
+    assert pre.max() - pre.min() < 1e-6, "the engine must be still before the step"
 
 
 def test_both_readings_of_eq_74_converge_to_the_same_limit():
@@ -154,22 +162,6 @@ def test_a_trimmed_engine_sits_still_in_both_readings_of_eq_74():
             f"lag_whole_flow={lag}: T41ns spans {spread:.1f} degR at a fixed fuel flow, "
             f"so the carried quantity does not match what the branch expects"
         )
-
-
-def test_fuel_step_moves_the_engine_the_right_way():
-    st, wf0, qreq = _seed(400.0)
-    tr = realtime.run(
-        st,
-        lambda t: wf0 if t < 0.5 else wf_pps_from_pph(775.0),
-        AMB,
-        duration_s=3.0,
-        q_req_ftlbf=qreq,
-        integrate_np=False,
-    )
-    assert tr["ng"][-1] > tr["ng"][0], "more fuel must raise gas generator speed"
-    assert tr["t41"].max() > tr["t41"][0], "and raise turbine inlet temperature"
-    pre = tr["ng"][tr["t"] < 0.5]
-    assert pre.max() - pre.min() < 1e-6, "the engine must be still before the step"
 
 
 def test_transient_excursions_outside_the_maps_are_counted():

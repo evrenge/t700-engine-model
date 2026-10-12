@@ -40,6 +40,8 @@ to +1.62.
 
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 import pytest
 
@@ -60,6 +62,9 @@ inertia; everything is inside 0.05 % of its final value by 20 s."""
 
 NP_TRIM_RPM = 20895.0
 """Table B.1's power turbine speed, printed at all three trims [pdf p.67]."""
+
+PCPRF_PCT = NP_TRIM_RPM * 100.0 / engine_c.NP_DES
+"""The cockpit speed reference that holds NP at `NP_TRIM_RPM`, percent of NP_des."""
 
 CLOSED_LOOP_TOL_PCT = 0.5
 """Ours, declared in `SCOPE.md`. This is the Phase 5 gate.
@@ -147,35 +152,72 @@ def mean_over_cycle(values) -> float:
     return float(np.mean(np.asarray(values)[-CYCLE_FRAMES:]))
 
 
-def settle(wf_pph, q_shaft, ratio, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, name=None):
+def closed_loop(wf_pph, q_shaft, ratio, n, pilot_of, load_scale_of=None):
+    """Close the loop from the open-loop trim at `wf_pph` and step it `n` frames.
+
+    The one runner for every closed-loop scenario here and in `report.py`. The load is
+    `q_shaft * load_scale_of(i) + slope * (NP - NP_TRIM_RPM)`, `slope` being the trim's own
+    `|dQ_PT/dNP|` times `ratio` (open question #6); `pilot_of(i)` is the pilot on frame `i`,
+    and the loop is seeded with frame 0's. Yields `(i, state, ecu_out, hmu_out, frame_out)`
+    after each frame, so each caller records what it needs.
+    """
+    wf = wf_pps_from_pph(wf_pph)
+    r = trim.solve(wf, engine_c.NP_DES, AMB)
+    slope = abs(_dqpt_dnp(r, wf)) * ratio
+    s = None
+    for i in range(n):
+        pilot = pilot_of(i)
+        if s is None:
+            s = loop.seed(r, pilot, AMB)
+        k = 1.0 if load_scale_of is None else load_scale_of(i)
+        s, ecu_o, hmu_o, fr = loop.step(
+            s,
+            pilot,
+            AMB,
+            dt=DT,
+            load=lambda v, k=k: q_shaft * k + slope * (v - NP_TRIM_RPM),
+            j_load=engine_c.J_LOAD_UH60A,
+            heat_sink=True,
+        )
+        yield i, s, ecu_o, hmu_o, fr
+
+
+def _settle_run(wf_pph, q_shaft, ratio, xcpc_pct, pcprf_pct, n):
+    """One held-pilot run: the final `(state, ecu_out, hmu_out, frame_out)` and the history
+    of the five quantities Table B.1 prints."""
+    pilot = loop.Pilot(xcpc_pct=xcpc_pct, pas_deg=100.0, pcprf_pct=pcprf_pct)
+    hist: dict[str, list[float]] = {k: [] for k in ("NG", "NP", "Wf", "Ps3", "shp")}
+    for out in closed_loop(wf_pph, q_shaft, ratio, n, lambda _i: pilot):
+        _i, st, _e, h, fr = out
+        hist["NG"].append(st.engine.ng_rpm)
+        hist["NP"].append(st.engine.np_rpm)
+        hist["Wf"].append(h.wf_pph)
+        hist["Ps3"].append(engine_c.K_PS3 * st.engine.p3_psia)
+        hist["shp"].append(shp_from_torque(fr.q_pt_ftlbf, st.engine.np_rpm))
+    return out[1:], hist
+
+
+_settled = functools.cache(_settle_run)
+"""`_settle_run`, run once per pilot and shared. Nothing that reads it mutates it."""
+
+
+def settle(
+    wf_pph, q_shaft, ratio, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, name=None, fresh=False
+):
     """Close the loop from the open-loop trim and run it to steady state.
 
     `xcpc_pct` defaults to the collective that trim actually needs -- see `XCPC_PCT`.
 
     Returns the FINAL state. Use `settle_cycle` where a number is being compared against
     the report: the final state is one phase of a limit cycle (see `CYCLE_FRAMES`).
+
+    Cached per pilot; `fresh=True` runs it anew, for a caller that counts the run's clamps
+    or patches a constant around it.
     """
     if xcpc_pct is None:
         xcpc_pct = XCPC_PCT[name] if name in XCPC_PCT else 52.75
-    wf = wf_pps_from_pph(wf_pph)
-    r = trim.solve(wf, engine_c.NP_DES, AMB)
-    slope = abs(_dqpt_dnp(r, wf)) * ratio
-
-    def load(np_rpm: float) -> float:
-        return q_shaft + slope * (np_rpm - NP_TRIM_RPM)
-
-    pilot = loop.Pilot(
-        xcpc_pct=xcpc_pct,
-        pas_deg=100.0,
-        pcprf_pct=pcprf if pcprf is not None else NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
-    )
-    s = loop.seed(r, pilot, AMB)
-    ecu_o = hmu_o = fr = None
-    for _ in range(n):
-        s, ecu_o, hmu_o, fr = loop.step(
-            s, pilot, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A, heat_sink=True
-        )
-    return s, ecu_o, hmu_o, fr
+    run = _settle_run if fresh else _settled
+    return run(wf_pph, q_shaft, ratio, xcpc_pct, PCPRF_PCT if pcprf is None else pcprf, n)[0]
 
 
 def settle_cycle(wf_pph, q_shaft, ratio, name=None, n=SETTLE_FRAMES):
@@ -184,32 +226,7 @@ def settle_cycle(wf_pph, q_shaft, ratio, name=None, n=SETTLE_FRAMES):
     Also returns the peak-to-peak of each, so a caller can say how much of a deviation is
     the cycle and how much is the model.
     """
-    xcpc = XCPC_PCT.get(name, 52.75)
-    wf = wf_pps_from_pph(wf_pph)
-    r = trim.solve(wf, engine_c.NP_DES, AMB)
-    slope = abs(_dqpt_dnp(r, wf)) * ratio
-    pilot = loop.Pilot(
-        xcpc_pct=xcpc,
-        pas_deg=100.0,
-        pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
-    )
-    st = loop.seed(r, pilot, AMB)
-    hist: dict[str, list[float]] = {k: [] for k in ("NG", "NP", "Wf", "Ps3", "shp")}
-    for _ in range(n):
-        st, _e, h, fr = loop.step(
-            st,
-            pilot,
-            AMB,
-            dt=DT,
-            load=lambda v: q_shaft + slope * (v - NP_TRIM_RPM),
-            j_load=engine_c.J_LOAD_UH60A,
-            heat_sink=True,
-        )
-        hist["NG"].append(st.engine.ng_rpm)
-        hist["NP"].append(st.engine.np_rpm)
-        hist["Wf"].append(h.wf_pph)
-        hist["Ps3"].append(engine_c.K_PS3 * st.engine.p3_psia)
-        hist["shp"].append(shp_from_torque(fr.q_pt_ftlbf, st.engine.np_rpm))
+    _final, hist = _settled(wf_pph, q_shaft, ratio, XCPC_PCT.get(name, 52.75), PCPRF_PCT, n)
     mean = {k: mean_over_cycle(v) for k, v in hist.items()}
     ptp = {k: float(np.ptp(np.asarray(v)[-CYCLE_FRAMES:])) for k, v in hist.items()}
     return mean, ptp
@@ -301,30 +318,17 @@ def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope()
     So the envelope excursion is a property of the open-loop test, not of the model.
     """
     _name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
-    wf_pps = wf_pps_from_pph(wf)
-    r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
-    slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
-
-    def load(np_rpm: float) -> float:
-        return q + slope * (np_rpm - NP_TRIM_RPM)
-
-    cruise = loop.Pilot(
-        xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES
-    )
-    s = loop.seed(r, cruise, AMB)
-    for _ in range(300):
-        s, _e, _h, _fr = loop.step(
-            s, cruise, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A, heat_sink=True
-        )
-
-    slam = loop.Pilot(xcpc_pct=95.0, pas_deg=120.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES)
-    maps.reset_clamps()
+    cruise = loop.Pilot(xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=PCPRF_PCT)
+    slam = loop.Pilot(xcpc_pct=95.0, pas_deg=120.0, pcprf_pct=PCPRF_PCT)
     limits = {}
-    for _ in range(1200):
-        s, _e, h, _fr = loop.step(
-            s, slam, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A, heat_sink=True
-        )
-        limits[h.limit] = limits.get(h.limit, 0) + 1
+    # 300 frames at cruise, then the slam; clamps are counted from the slam on
+    for i, _s, _e, h, _fr in closed_loop(
+        wf, q, ratio, 300 + 1200, lambda i: cruise if i < 300 else slam
+    ):
+        if i == 299:
+            maps.reset_clamps()
+        elif i >= 300:
+            limits[h.limit] = limits.get(h.limit, 0) + 1
 
     report = {k: v for k, v in maps.clamp_report().items() if v}
     escaped = {k: v for k, v in report.items() if k.startswith(("f1", "f7", "f9"))}
@@ -353,7 +357,7 @@ def test_the_closed_loop_stays_inside_its_digitized_data(name, wf, ng, ps3, q, r
     top of the power range cannot avoid it. See `trim.TrimResult.extrapolated_tables`.
     """
     maps.reset_clamps()
-    settle(wf, q, ratio, name=name)
+    settle(wf, q, ratio, name=name, fresh=True)  # the clamps counted are this run's
     report = maps.clamp_report()
     maps.reset_clamps()
 
@@ -440,32 +444,22 @@ def test_a_load_step_response_pins_the_torque_motor_linkage():
     step and asserts the recovery as well.
     """
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
-    xcpc = XCPC_PCT[name]
-    wf_pps = wf_pps_from_pph(wf)
-    r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
-    slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
-    pilot = loop.Pilot(
-        xcpc_pct=xcpc, pas_deg=100.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES
-    )
-    s = loop.seed(r, pilot, AMB)
+    pilot = loop.Pilot(xcpc_pct=XCPC_PCT[name], pas_deg=100.0, pcprf_pct=PCPRF_PCT)
     # The dip and the peak are read over the 1200 frames after the step that NP_DIP_RPM and
     # WF_PEAK_PPH were measured on; the recovery, 3000 frames after it.
     step_at, window_end, n = 1400, 2600, 1400 + 3000
     np_min, wf_max = 1e9, 0.0
     np_before = None
-    for i in range(n):
-        if i == step_at:
+    for i, s, _e, h, _fr in closed_loop(
+        wf,
+        q,
+        ratio,
+        n,
+        lambda i: pilot,
+        lambda i: (1.0 + LOAD_STEP_PCT / 100.0) if i >= step_at else 1.0,
+    ):
+        if i == step_at - 1:
             np_before = s.engine.np_rpm
-        load_q = q * (1.0 + LOAD_STEP_PCT / 100.0) if i >= step_at else q
-        s, _e, h, _fr = loop.step(
-            s,
-            pilot,
-            AMB,
-            dt=DT,
-            load=lambda v, lq=load_q: lq + slope * (v - NP_TRIM_RPM),
-            j_load=engine_c.J_LOAD_UH60A,
-            heat_sink=True,
-        )
         if step_at <= i < window_end:
             np_min = min(np_min, s.engine.np_rpm)
             wf_max = max(wf_max, h.wf_pph)
@@ -489,27 +483,16 @@ def test_a_collective_slam_pins_the_collective_lag():
     10-90 % rise time is the observable: 147 ms as shipped, 175 ms at 2x.
     """
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
-    wf_pps = wf_pps_from_pph(wf)
-    r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
-    slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
-    s, out, at, n = None, [], 600, 1800
-    for i in range(n):
-        pilot = loop.Pilot(
-            xcpc_pct=85.0 if i >= at else XCPC_PCT[name],
-            pas_deg=100.0,
-            pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
-        )
-        if s is None:
-            s = loop.seed(r, pilot, AMB)
-        s, _e, h, _fr = loop.step(
-            s,
-            pilot,
-            AMB,
-            dt=DT,
-            load=lambda v: q + slope * (v - NP_TRIM_RPM),
-            j_load=engine_c.J_LOAD_UH60A,
-            heat_sink=True,
-        )
+    out, at, n = [], 600, 1800
+    for _i, _s, _e, h, _fr in closed_loop(
+        wf,
+        q,
+        ratio,
+        n,
+        lambda i: loop.Pilot(
+            xcpc_pct=85.0 if i >= at else XCPC_PCT[name], pas_deg=100.0, pcprf_pct=PCPRF_PCT
+        ),
+    ):
         out.append(h.wf_pph)
     post = np.asarray(out[at:])
     lo, hi = post[0], post.max()
@@ -546,7 +529,7 @@ def test_the_t45_harness_lag_is_invisible_to_the_closed_loop():
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
 
     def settled():
-        st, _e, h, fr = settle(wf, q, ratio, name=name)
+        st, _e, h, fr = settle(wf, q, ratio, name=name, fresh=True)  # under a patched TLGE
         return (st.engine.ng_rpm, st.engine.np_rpm, h.wf_pph, fr.t45_degR)
 
     before = settled()
@@ -603,27 +586,18 @@ def test_a_gentle_collective_slam_pins_the_load_demand_feedforward():
     """`F_HM4` moves the transient only while the Figure C18 cascade stays on the droop
     branch, so the test asserts that it does before asserting anything else."""
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
-    wf_pps = wf_pps_from_pph(wf)
-    r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
-    slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
-    s, wf_hist, np_hist, limits, at, n = None, [], [], set(), 600, 1800
-    for i in range(n):
-        pilot = loop.Pilot(
+    wf_hist, np_hist, limits, at, n = [], [], set(), 600, 1800
+    for _i, s, _e, h, _fr in closed_loop(
+        wf,
+        q,
+        ratio,
+        n,
+        lambda i: loop.Pilot(
             xcpc_pct=GENTLE_SLAM_TO_PCT if i >= at else XCPC_PCT[name],
             pas_deg=100.0,
-            pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
-        )
-        if s is None:
-            s = loop.seed(r, pilot, AMB)
-        s, _e, h, _fr = loop.step(
-            s,
-            pilot,
-            AMB,
-            dt=DT,
-            load=lambda v: q + slope * (v - NP_TRIM_RPM),
-            j_load=engine_c.J_LOAD_UH60A,
-            heat_sink=True,
-        )
+            pcprf_pct=PCPRF_PCT,
+        ),
+    ):
         wf_hist.append(h.wf_pph)
         np_hist.append(s.engine.np_rpm)
         limits.add(h.limit)
