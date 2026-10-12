@@ -29,6 +29,7 @@ from t700.units import wf_pps_from_pph
 # DQ_REQ_DNP is needed only for the NP mode. TABLE_1_2DOF is Table 1 column 4 [pdf p.31] --
 # Ballin's separately coded quasi-steady program.
 from test_all_dof_models import DQ_REQ_DNP, TABLE_1_2DOF, WF_PPH
+from test_all_dof_models import participation as participation_factors
 
 AMB = Ambient(14.696, 518.67)
 NP_RPM = 20895.0
@@ -60,15 +61,14 @@ def participation(A: np.ndarray, dt: float) -> tuple[np.ndarray, np.ndarray]:
     `P = |V * inv(V).T|`, column-normalised: the standard participation factor, invariant to
     the units of the states (rpm, psia and lbm/s here).
     """
-    z, V = np.linalg.eig(A)
+    z, P = participation_factors(A)
     with np.errstate(divide="ignore", invalid="ignore"):
         lam = np.where(
             (np.abs(z.imag) < 1e-12) & (z.real <= 0.0),
             np.nan,
             np.log(z.astype(complex)) / dt,
         )
-    P = np.abs(V * np.linalg.inv(V).T)
-    return lam, P / P.sum(axis=0, keepdims=True)
+    return lam, P
 
 
 def mode_of(A: np.ndarray, state: str, dt: float = FRAME_S) -> complex:

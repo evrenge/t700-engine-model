@@ -24,7 +24,7 @@ from t700 import trim
 from t700.engine import Ambient
 from t700.linear import DOF, extract
 from t700.units import wf_pps_from_pph
-from test_trim_points import CASES
+from test_trim_points import CASES, EIGENVALUE_TOL_PCT
 
 AMB = Ambient(14.696, 518.67)
 NP_RPM = 20895.0
@@ -52,6 +52,16 @@ TABLE_1_2DOF = {1: -2.69, 2: -2.23, 3: -1.82}
 TABLE_1_RED5 = {1: -2.81, 2: -2.16, 3: -1.83}
 """Table 1 column 5 -- the order-reduced 5-DOF, which is not in Appendix B."""
 
+TABLE_1 = {
+    t: {
+        DOF.FIVE: TABLE_1_5DOF[t],
+        DOF.TWO: {"NG": TABLE_1_2DOF[t], "NP": TABLE_1_5DOF[t]["NP"]},
+        DOF.REDUCED_FIVE: {"NG": TABLE_1_RED5[t], "NP": TABLE_1_5DOF[t]["NP"]},
+    }
+    for t in (1, 2, 3)
+}
+"""All 27 printed modes [pdf p.31], by trim and model. Each column prints the same NP mode."""
+
 FIG = {
     (DOF.TWO, 1): 1,
     (DOF.TWO, 2): 3,
@@ -66,6 +76,27 @@ FIG = {
     (DOF.SIX, 2): 10,
     (DOF.SIX, 3): 12,
 }
+
+
+def participation(A: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """`(eigenvalues, P)`: `P[k, i]` is state k's participation in mode i, `|V * inv(V).T|`
+    column-normalised, so it does not depend on the states' units."""
+    z, V = np.linalg.eig(A)
+    P = np.abs(V * np.linalg.inv(V).T)
+    return z, P / P.sum(axis=0, keepdims=True)
+
+
+def modes_by_state(m) -> dict[str, float]:
+    """Each mode of `m`, named by the state that dominates it: by physics, never by position
+    in a sorted spectrum (see `test_linear.py::test_sorting_would_mispair_the_slow_modes`).
+    NP is `A[1,1]` exactly: its column is zero off the diagonal."""
+    z, P = participation(m.A)
+    k_np = m.states.index("NP")
+    picks = {s: int(np.argmax(P[k])) for k, s in enumerate(m.states) if k != k_np}
+    assert len(set(picks.values())) == len(picks), f"two states claim one mode: {picks}"
+    out = {s: float(np.real(z[i])) for s, i in picks.items()}
+    out["NP"] = float(m.A[k_np, k_np])
+    return out
 
 
 def _model(dof: DOF, trim_no: int):
@@ -196,3 +227,14 @@ def test_the_descent_t41_ng_element_is_recorded_not_forgotten():
     )
     # The other two trims, imprecise but present, are bounded tighter by
     # `test_appendix_b_elements.py::test_the_three_dof_ng_column_against_b7_b9_b11`.
+
+
+@pytest.mark.parametrize("t", [1, 2, 3])
+@pytest.mark.parametrize("dof", [DOF.FIVE, DOF.TWO, DOF.REDUCED_FIVE], ids=str)
+def test_every_printed_table_1_mode(dof, t):
+    """All 27 modes of Table 1 [pdf p.31] within `EIGENVALUE_TOL_PCT` (SCOPE.md), paired by
+    dominant state. The 9 NP modes are circular: `DQ_REQ_DNP` comes from Appendix B."""
+    ours = modes_by_state(_model(dof, t))
+    dev = {k: 100.0 * (abs(ours[k]) - abs(v)) / abs(v) for k, v in TABLE_1[t][dof].items()}
+    bad = {k: round(d, 2) for k, d in dev.items() if abs(d) >= EIGENVALUE_TOL_PCT}
+    assert not bad, f"{dof} trim {t}: {bad} % against Table 1"

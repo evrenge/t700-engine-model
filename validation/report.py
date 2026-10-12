@@ -35,14 +35,12 @@ from t700 import appendix_b as ab  # noqa: E402
 from t700 import constants as c  # noqa: E402
 from t700 import trim  # noqa: E402
 from t700.engine import Ambient, frame  # noqa: E402
-from t700.linear import DOF, extract  # noqa: E402
+from t700.linear import DOF  # noqa: E402
 from t700.units import shp_from_torque, wf_pps_from_pph  # noqa: E402
 from test_all_dof_models import (  # noqa: E402
-    DQ_REQ_DNP,
-    TABLE_1_2DOF,
-    TABLE_1_5DOF,
-    TABLE_1_RED5,
-    WF_PPH,
+    TABLE_1,
+    _model,
+    modes_by_state,
 )
 from test_fuel_step import read_reference  # noqa: E402
 from test_trim_points import CASES  # noqa: E402
@@ -88,15 +86,6 @@ def save(fig, stem: str) -> None:
 TRIMS = tuple(case.name for case in CASES)
 # WF_PPH and DQ_REQ_DNP are imported from `test_all_dof_models`.
 
-TABLE_1 = {
-    t: {
-        "5dof": TABLE_1_5DOF[t],
-        "2dof": {"NG": TABLE_1_2DOF[t], "NP": TABLE_1_5DOF[t]["NP"]},
-        "red5": {"NG": TABLE_1_RED5[t], "NP": TABLE_1_5DOF[t]["NP"]},
-    }
-    for t in (1, 2, 3)
-}
-"""[TM-100991 pdf p.31], by trim and column. Each column prints the same NP mode."""
 
 STATE_B1 = {
     # [TM-100991 pdf p.67, Table B.1]
@@ -426,13 +415,10 @@ def internal_spread(b1: dict) -> dict:
 # =================================================== Table 1 and every other eigenvalue
 
 DOF_FIGS = {2: DOF.TWO, 3: DOF.THREE, 5: DOF.FIVE, 6: DOF.SIX}
-MODE_ORDER = ("NG", "NP", "P3", "P41", "P45")
 
 
 def _our_eigs(dof: DOF, t: int):
-    wf = wf_pps_from_pph(WF_PPH[t])
-    r = trim.solve(wf, c.NP_DES, AMB)
-    m = extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[t])
+    m = _model(dof, t)  # Table B.1's 20895 rpm [pdf p.67], as the tests use
     return np.linalg.eigvals(m.A), m
 
 
@@ -452,23 +438,19 @@ def eigenvalues() -> dict:
     """
     out = {"table_1": [], "against_printed_matrices": [], "notes": {}}
 
-    for dofno, col in ((5, "5dof"), (2, "2dof"), (None, "red5")):
-        dof = DOF_FIGS.get(dofno, DOF.REDUCED_FIVE)
+    for dof, col in ((DOF.FIVE, "5dof"), (DOF.TWO, "2dof"), (DOF.REDUCED_FIVE, "red5")):
         for t in (1, 2, 3):
-            ev = _sorted_real(_our_eigs(dof, t)[0])
-            printed = TABLE_1[t][col]
-            pv = _sorted_real(np.array(list(printed.values())))
-            names = [k for k, _ in sorted(printed.items(), key=lambda kv: -kv[1])]
-            for i, nm in enumerate(names):
-                ours_v = float(ev[i])
+            ours = modes_by_state(_model(dof, t))  # paired by dominant state, as the tests do
+            printed = TABLE_1[t][dof]
+            for nm, pv in sorted(printed.items(), key=lambda kv: -kv[1]):
                 out["table_1"].append(
                     {
                         "model": col,
                         "trim": TRIMS[t - 1],
                         "mode": nm,
-                        "printed": float(pv[i]),
-                        "ours": ours_v,
-                        "dev_pct": float(100.0 * (ours_v - pv[i]) / abs(pv[i])),
+                        "printed": float(pv),
+                        "ours": ours[nm],
+                        "dev_pct": float(100.0 * (abs(ours[nm]) - abs(pv)) / abs(pv)),
                     }
                 )
 
@@ -592,9 +574,7 @@ def appendix_b() -> dict:
     a_dev, b_dev = [], []
     for dofno, dof in DOF_FIGS.items():
         for t in (1, 2, 3):
-            wf = wf_pps_from_pph(WF_PPH[t])
-            r = trim.solve(wf, c.NP_DES, AMB)
-            m = extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[t])
+            m = _model(dof, t)  # Table B.1's 20895 rpm [pdf p.67]
             ref = ab.find(dofno, t)
             n = len(ref.states)
             for i in range(n):

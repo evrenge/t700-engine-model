@@ -35,9 +35,8 @@ is the meaningful bound; the worst is one marker on a steep stretch of the curve
 abscissa error rather than a speed disagreement."""
 
 NP_RPM = c.NP_DES
-"""Open question #35: the sweeps' power turbine speed is not printed. NP_des is the
-reading the report's own text points at; NG is decoupled from NP at steady state, so the
-choice cannot explain any deviation below."""
+"""NP_des, Table A.1 [pdf p.55]. Figures 6-8 run at design speed (#35, read off Figure 7
+itself), Ballin's curves and the GE models' alike."""
 
 
 @lru_cache(maxsize=2)
@@ -200,17 +199,13 @@ def test_which_tables_are_extrapolated_at_which_trims():
 
 # ------------------------------------------------- against the two GE models, same figures
 
-NP_GE_RPM = 20895.0
-"""The speed the GE comparison trims at: Table B.1's [pdf p.67]. The sweeps against Ballin
-above use `NP_RPM`, NP_des (#35); which one this comparison should use is not decided."""
-
 
 def _curve(fig: int, xs: np.ndarray):
     """Our model sampled at the given abscissae; returns (mask, values)."""
     if fig == 8:
-        return _ps3_at_ng(xs, 80, NP_GE_RPM)
+        return _ps3_at_ng(xs, 80, NP_RPM)
     key = "ng_pct" if fig == 6 else "shp"
-    ours = _ladder(xs, NP_GE_RPM)
+    ours = _ladder(xs, NP_RPM)
     got = [ours.get(float(v), {}).get(key) for v in xs]
     m = np.array([v is not None for v in got])
     return m, np.array([v for v in got if v is not None])
