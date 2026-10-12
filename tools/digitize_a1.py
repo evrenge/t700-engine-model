@@ -299,8 +299,7 @@ def to_data(px, py):
     construction, so (px,py) -> (u,v) is exact; (u,v) is the same square the native
     homography maps onto, which is what lets the markers be measured on the render and
     calibrated on the scan.  `bridge_check` below measures the error of that step."""
-    u = (np.asarray(px, float) - RFRAME[0]) / (RFRAME[2] - RFRAME[0])
-    v = (RFRAME[3] - np.asarray(py, float)) / (RFRAME[3] - RFRAME[1])
+    u, v = to_uv_rect(px, py)
     return float(blend(CXE, u, v)), float(blend(CYE, v, u))
 
 

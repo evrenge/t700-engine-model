@@ -123,8 +123,6 @@ head = [
         "Table B.1, the printed engine state",
         "21 numbers",
         D["table_b1"],
-        "rms",
-        "%",
         f"worst {_B1W['quantity']} {'&minus;' if _B1W['dev_pct'] < 0 else '+'}"
         f"{abs(_B1W['dev_pct']):.2f} % at {_B1W['trim'].split()[0]}",
     ),
@@ -132,8 +130,6 @@ head = [
         "Table 1, printed eigenvalues",
         "27 modes",
         D["eigenvalues"]["notes"]["table_1_stats"],
-        "rms",
-        "%",
         f"worst {'&minus;' if _EIGW['dev_pct'] < 0 else '+'}{abs(_EIGW['dev_pct']):.1f} % on "
         f"the {_EIGW['model'].replace('dof', '-DOF').upper()} {_EIGW['mode']} mode at "
         f"{_EIGW['trim']}",
@@ -142,24 +138,18 @@ head = [
         "Appendix B, matrix A",
         "158 non-zero",
         D["appendix_b"]["A"],
-        "rms",
-        "%",
         "every one of the 206 non-zero elements is compared",
     ),
     (
         "Appendix B, fuel column b",
         "42 non-zero",
         D["appendix_b"]["b"],
-        "rms",
-        "%",
         "the 6-DOF half carries the heat sink's deficit",
     ),
     (
         "Closed loop against Table B.1",
         "15 numbers",
         D["closed_loop"],
-        "rms",
-        "%",
         "fuel flow is an <em>output</em> here, not an input",
     ),
 ]
@@ -169,7 +159,7 @@ rows = "".join(
     f'<td class="mono">{num(s["mean"])}</td>'
     f'<td class="mono strong">{num(s["worst"])}</td>'
     f'<td class="note">{note}</td></tr>'
-    for n, c, s, _k, _u, note in head
+    for n, c, s, note in head
 )
 
 # ---------------------------------------------------------------- Table B.1 rows
