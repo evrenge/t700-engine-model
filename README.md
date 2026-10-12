@@ -102,10 +102,10 @@ Gen Hel UH-60A blade-element simulation, which this report consumes and does not
 Table 3 was produced with functions from a different engine and is evidence of method, never
 pass/fail; and nothing above 100 %NG is claimed, because Ballin claims nothing there either.
 
-Seven questions remain open and four are partly closed, out of 66 logged in
-`docs/notes/open-questions.md`, each row stating what was asked and what was decided.
-Every open one is a place where the report is silent and a
-choice was made, not a place where something is unexplained.
+`docs/notes/open-questions.md` logs every question the report leaves open, each row stating
+what was asked and what was decided; its tally is checked by a test. Two rows remain open:
+#60, a deliberate departure on record, and #74, an inconsistency inside Figure A1 that only
+Ballin's original table could settle.
 
 How those numbers were reached — what was wrong, how it was found, and what each
 correction moved — is in git history rather than in the tree. `git log -p` over

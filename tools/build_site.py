@@ -35,9 +35,10 @@ _SPLIT = re.compile(r"(?<!\\)\|")
 OPEN_SUMMARY = {
     60: (
         "<code>f1</code> on a beta grid, not the printed table",
-        "A deliberate departure. It removes a manufactured extrapolation entirely and "
-        "halves the worst Table&nbsp;1 speed mode, at a cost of 0.2018&nbsp;&rarr;&nbsp;"
-        "0.2439 % on Table B.1&rsquo;s rms.",
+        "A deliberate departure, kept on purpose; it removes a manufactured extrapolation "
+        "entirely. Against Ballin&rsquo;s printed table it scores better on Table&nbsp;B.1 "
+        "(rms 0.222 against 0.236 %) and the closed loop, worse on Table&nbsp;1 (1.75 against "
+        "1.72 %), Appendix&nbsp;B and Figure&nbsp;8.",
     ),
     74: (
         "Figure&nbsp;A1&rsquo;s speed lines do not form a smooth family",
