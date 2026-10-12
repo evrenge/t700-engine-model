@@ -52,18 +52,6 @@ OPEN_SUMMARY = {
         "residual sits at the reference figures&rsquo; own read error &mdash; the last "
         "number quoted against it turned out to be a comparison-window artefact of ours.",
     ),
-    54: (
-        "Hysteresis: whole band or half band?",
-        "Three control blocks carry backlash and each names a constant; none of the three "
-        "figures says which convention. Taken as the total band. Bounded rather than "
-        "guessed: the other reading moves the settled state at most 0.09 % on speed.",
-    ),
-    55: (
-        "How the fuel control initializes",
-        "The report never says. A default is chosen and documented &mdash; every lag at its "
-        "input, the lead&ndash;lag where its own derivative is zero. In closed loop the "
-        "governor absorbs the choice; open loop it matters in full.",
-    ),
     59: (
         "Integrator anti-windup",
         "Figures C3, C7 and C10 all draw an unlimited <code>1/s</code> followed by a "
@@ -81,29 +69,6 @@ OPEN_SUMMARY = {
         "Figure A6 draws a curve with a visible slope. Measured, that slope is the "
         "page&rsquo;s own skew &mdash; the thirteen glyphs sit on a horizontal line to well "
         "inside the ink width. Our reading, not the report&rsquo;s.",
-    ),
-    65: (
-        "Appendix C constants nothing could observe",
-        "Nine control constants could be moved, some by a factor of ten, with the whole "
-        "suite green &mdash; every steady test either solves for a free input or lets the "
-        "governor trim the error away. All nine are now pinned; 25 of Table C.1&rsquo;s 57 "
-        "rows remain unobservable, most for reasons the report itself creates.",
-    ),
-    69: (
-        "The descent shaft-power residual lost its shelter",
-        "Our shaft power sits 0.900 % from Table&nbsp;B.1 at the descent trim, while "
-        "Table&nbsp;B.1 and Figure&nbsp;7 now differ from each other by only 0.734 % there. "
-        "The 2026-09-14 digitizer corrections removed a disagreement that had been assumed "
-        "to be the report&rsquo;s, and this residual had been quoted as sheltering inside "
-        "it. Nothing is tuned; what the row asks for is how much of the 0.900 % is the "
-        "sparse interpolation on Figure&nbsp;7 rather than the model.",
-    ),
-    73: (
-        "Descent <code>A(T41,NG)</code> depends on how <code>f1</code> is read",
-        "One 3-DOF Appendix&nbsp;B element moves from 0.88 to 0.70&ndash;0.76 of its printed "
-        "value across four treatments of the compressor map, while the trim state moves "
-        "under 0.06&nbsp;%. A derivative across speed lines, not along one; which reading "
-        "is right is not settled.",
     ),
     74: (
         "Figure&nbsp;A1&rsquo;s speed lines do not form a smooth family",
