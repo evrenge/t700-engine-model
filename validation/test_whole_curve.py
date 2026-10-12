@@ -23,7 +23,6 @@ about 0.6 % of RMS on the worst panel, which is small against the errors themsel
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 import numpy as np
@@ -33,7 +32,7 @@ from t700 import constants as c
 from t700 import maps, realtime, trim
 from t700.engine import Ambient, frame
 from t700.units import wf_pps_from_pph
-from test_fuel_step import STEP_TIME
+from test_fuel_step import STEP_TIME, read_reference
 
 REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
@@ -84,11 +83,7 @@ def _ballin(fig: int, key: str):
     path = REF / f"fig{fig:02d}_{key}_model.csv"
     if not path.exists():
         return None, None
-    rows = list(csv.DictReader(ln for ln in path.open() if not ln.startswith("#")))
-    t = np.array([float(r["t_s"]) for r in rows])
-    v = np.array([float(r["value"]) for r in rows])
-    o = np.argsort(t)
-    return _split_strays(t[o], v[o])
+    return _split_strays(*read_reference(path, "t_s", "value"))
 
 
 def _run(fig: int, heat_sink: bool):

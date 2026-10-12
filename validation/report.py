@@ -29,7 +29,6 @@ Matplotlib lives here and nowhere near `src/t700/`, per CLAUDE.md.
 
 from __future__ import annotations
 
-import csv
 import json
 import sys
 from pathlib import Path
@@ -52,6 +51,16 @@ from t700 import trim  # noqa: E402
 from t700.engine import Ambient, frame  # noqa: E402
 from t700.linear import DOF, extract  # noqa: E402
 from t700.units import shp_from_torque, wf_pps_from_pph  # noqa: E402
+from test_all_dof_models import (  # noqa: E402
+    DQ_REQ_DNP,
+    TABLE_1_2DOF,
+    TABLE_1_5DOF,
+    TABLE_1_RED5,
+    WF_PPH,
+)
+from test_fuel_step import read_reference  # noqa: E402
+from test_trim_points import CASES  # noqa: E402
+from test_trim_points import STATE_B1 as B1_STATE  # noqa: E402
 
 OUT = HERE.parent / "site" / "assets"
 REF = HERE.parent / "data" / "reference"
@@ -93,42 +102,24 @@ def save(fig, stem: str) -> None:
     plt.close(fig)
 
 
-TRIMS = ("hover", "level 80 kt", "descent 80 kt")
-WF_PPH = {1: 476.3, 2: 349.3, 3: 267.7}
-DQ_REQ_DNP = {1: 0.019471, 2: 0.015869, 3: 0.012950}
-"""Recovered from Appendix B's own NP diagonal -- open question #6. Gen Hel's, not ours."""
+# Table B.1 and Table 1 are transcribed once, in `test_trim_points` and `test_all_dof_models`.
+TRIMS = tuple(case.name for case in CASES)
+# WF_PPH and DQ_REQ_DNP are imported from `test_all_dof_models`.
 
 TABLE_1 = {
-    # [TM-100991 pdf p.31] read cell by cell from the page image; see
-    # docs/notes/body-realtime.md 5.5. Blank cells are blank in the original.
-    1: {
-        "5dof": {"NG": -2.66, "NP": -0.565, "P3": -51.6, "P41": -4900.0, "P45": -3060.0},
-        "2dof": {"NG": -2.69, "NP": -0.565},
-        "red5": {"NG": -2.81, "NP": -0.565},
-    },
-    2: {
-        "5dof": {"NG": -2.08, "NP": -0.446, "P3": -52.2, "P41": -4640.0, "P45": -4040.0},
-        "2dof": {"NG": -2.23, "NP": -0.446},
-        "red5": {"NG": -2.16, "NP": -0.446},
-    },
-    3: {
-        "5dof": {"NG": -1.75, "NP": -0.357, "P3": -52.6, "P41": -4430.0, "P45": -4530.0},
-        "2dof": {"NG": -1.82, "NP": -0.357},
-        "red5": {"NG": -1.83, "NP": -0.357},
-    },
+    t: {
+        "5dof": TABLE_1_5DOF[t],
+        "2dof": {"NG": TABLE_1_2DOF[t], "NP": TABLE_1_5DOF[t]["NP"]},
+        "red5": {"NG": TABLE_1_RED5[t], "NP": TABLE_1_5DOF[t]["NP"]},
+    }
+    for t in (1, 2, 3)
 }
+"""[TM-100991 pdf p.31], by trim and column. Each column prints the same NP mode."""
 
 STATE_B1 = {
     # [TM-100991 pdf p.67, Table B.1]
-    "hover": dict(
-        wf=476.3, ng=41638.0, ps3=176.34, p41=174.28, t41=2292.0, p45=37.42, t45=1632.0, shp=911.1
-    ),
-    "level 80 kt": dict(
-        wf=349.3, ng=39768.0, ps3=142.13, p41=140.26, t41=2102.0, p45=30.66, t45=1501.0, shp=552.6
-    ),
-    "descent 80 kt": dict(
-        wf=267.7, ng=38072.0, ps3=114.27, p41=112.77, t41=1982.0, p45=25.54, t45=1424.0, shp=302.6
-    ),
+    case.name: dict(wf=case.wf_pph, ng=case.ng_rpm, **B1_STATE[case.name], shp=case.shp)
+    for case in CASES
 }
 
 
@@ -139,14 +130,6 @@ def _style(ax, xlabel="", ylabel="", title=""):
     if title:
         ax.set_title(title, fontfamily=[plotstyle.SANS_CONDENSED, plotstyle.SANS])
     plotstyle.mono_ticks(ax, THEME)
-
-
-def _csv(path: Path, xc: str, yc: str):
-    rows = list(csv.DictReader(ln for ln in path.open() if not ln.startswith("#")))
-    x = np.array([float(r[xc]) for r in rows])
-    y = np.array([float(r[yc]) for r in rows])
-    o = np.argsort(x)
-    return x[o], y[o]
 
 
 def _stats(dev: np.ndarray) -> dict:
@@ -211,9 +194,9 @@ def steady_sweeps() -> dict:
     fig, axes = plt.subplots(1, 3, figsize=fs(16.5, 4.8))
 
     for ax, (no, spec) in zip(axes, sorted(FIG678.items()), strict=True):
-        rt = _csv(REF / f"{spec['file']}_realtime.csv", spec["xc"], spec["yc"])
-        s81 = _csv(REF / f"{spec['file']}_ge_status81.csv", spec["xc"], spec["yc"])
-        unb = _csv(REF / f"{spec['file']}_ge_unbalanced.csv", spec["xc"], spec["yc"])
+        rt = read_reference(f"{spec['file']}_realtime.csv", spec["xc"], spec["yc"])
+        s81 = read_reference(f"{spec['file']}_ge_status81.csv", spec["xc"], spec["yc"])
+        unb = read_reference(f"{spec['file']}_ge_unbalanced.csv", spec["xc"], spec["yc"])
 
         # A dense ladder for the drawn curve, and the *reference's own abscissae* for the
         # score -- trimmed at each one and dropped where the solve will not go, which is
@@ -317,10 +300,10 @@ def transients() -> dict:
             gp = REF / f"fig{no:02d}_{key}_reference.csv"
             label, unit = PANEL_LABEL[key]
             if mp.exists():
-                tb, vb = _csv(mp, "t_s", "value")
+                tb, vb = read_reference(mp, "t_s", "value")
                 ax.plot(tb, vb, "-", color=BALLIN, lw=1.6, zorder=3, label="Ballin real-time")
             if gp.exists():
-                tg, vg = _csv(gp, "t_s", "value")
+                tg, vg = read_reference(gp, "t_s", "value")
                 ax.plot(tg, vg, "+", color=GE, ms=5, mew=1.2, zorder=2, label="GE reference")
             if key == "wfph":
                 ax.plot(
@@ -436,8 +419,8 @@ def internal_spread(b1: dict) -> dict:
     the figure. A row where `ours_pct` is the smaller of the two is a row where chasing
     the residual further is chasing noise in the source.
     """
-    fig6 = _csv(REF / "fig06_realtime.csv", "wf_pph", "ng_pct")
-    fig7 = _csv(REF / "fig07_realtime.csv", "wf_pph", "shp")
+    fig6 = read_reference("fig06_realtime.csv", "wf_pph", "ng_pct")
+    fig7 = read_reference("fig07_realtime.csv", "wf_pph", "shp")
     ours = {(r["trim"], r["quantity"]): r["dev_pct"] for r in b1["rows"]}
 
     rows = []
@@ -771,10 +754,10 @@ def phase_plane() -> None:
         tr = tfs._run(no, wf_hi, tfs.STEP_TIME[no])
         ng = 100.0 * tr["ng"] / c.NG_DES
         ps3 = c.K_PS3 * tr["p3"]
-        tb, vb = _csv(REF / f"fig{no:02d}_pcng_model.csv", "t_s", "value")
-        tp, vp = _csv(REF / f"fig{no:02d}_ps3_model.csv", "t_s", "value")
+        tb, vb = read_reference(f"fig{no:02d}_pcng_model.csv", "t_s", "value")
+        tp, vp = read_reference(f"fig{no:02d}_ps3_model.csv", "t_s", "value")
         bal_ps3 = np.interp(tb, tp, vp)
-        eq = _csv(REF / "fig08_realtime.csv", "ng_pct", "ps3_psia")
+        eq = read_reference("fig08_realtime.csv", "ng_pct", "ps3_psia")
         ax.plot(
             eq[0], eq[1], "--", color=MUTED, lw=1.2, zorder=2, label="Figure 8 equilibrium locus"
         )

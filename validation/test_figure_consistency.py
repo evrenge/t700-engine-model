@@ -24,7 +24,6 @@ for the measured read error of Figures 9-10.
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +33,7 @@ from t700 import constants as c
 from t700 import realtime, trim
 from t700.engine import Ambient, frame
 from t700.units import shp_from_torque, wf_pps_from_pph
+from test_fuel_step import read_reference
 
 REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
@@ -93,23 +93,13 @@ def _pre_step(fig: int) -> dict[str, float]:
     t_step = WFPH_PRINTED[fig][2]
     out = {}
     for key in PRE_STEP_KEYS:
-        t, v = _trace(f"fig{fig:02d}_{key}_model.csv")
+        t, v = read_reference(f"fig{fig:02d}_{key}_model.csv")
         out[key] = float(v[t < t_step - 0.05].mean())
     return out
 
 
 # The WFPH panel is the input, and the caption prints both of its levels.
 WFPH_PRINTED = {9: (400.0, 775.0, 0.539), 10: (400.0, 125.0, 0.545)}
-
-
-def _trace(name: str) -> tuple[np.ndarray, np.ndarray]:
-    path = REF / name
-    rows = list(csv.DictReader(ln for ln in path.open() if not ln.startswith("#")))
-    x_key, y_key = list(rows[0])[:2]
-    x = np.array([float(r[x_key]) for r in rows])
-    y = np.array([float(r[y_key]) for r in rows])
-    o = np.argsort(x)
-    return x[o], y[o]
 
 
 def _run(wf_hi_pph: float, t_step: float, duration_s: float = 5.0):
@@ -152,7 +142,7 @@ def test_the_figures_own_read_error_is_measured_not_estimated(fig: int):
     """
     lo, hi, t_step = WFPH_PRINTED[fig]
     span = PANEL_SPAN[fig]["wfph"]
-    t, v = _trace(f"fig{fig:02d}_wfph_model.csv")
+    t, v = read_reference(f"fig{fig:02d}_wfph_model.csv")
     pre = v[t < t_step - 0.05].mean()
     post = v[t > t_step + 0.35].mean()
     for got, want, lbl in ((pre, lo, "pre-step"), (post, hi, "post-step")):
@@ -217,8 +207,8 @@ def test_ballins_own_cross_reference_between_figures_9_and_6_holds():
     ng9_b, ng9_g = _pre_step(9)["pcng"], 89.759  # Ballin's line, GE '+' markers
     gap_transient = 100.0 * (ng9_b / ng9_g - 1.0)
 
-    wf_b, nb = _trace("fig06_realtime.csv")
-    wf_g, ng = _trace("fig06_ge_status81.csv")
+    wf_b, nb = read_reference("fig06_realtime.csv")
+    wf_g, ng = read_reference("fig06_ge_status81.csv")
     b = float(np.interp(400.0, wf_b, nb))
     g = float(np.interp(400.0, wf_g, ng))
     gap_steady = 100.0 * (b / g - 1.0)
@@ -320,8 +310,8 @@ def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
     shrinks. (Both were re-measured after the 2026-09-13 trace-alignment fix, which moved
     Figure 9 from an apparent 0.59 % to a true 1.42 %.)
     """
-    tb_n, vb_n = _trace(f"fig{fig:02d}_pcng_model.csv")
-    tb_p, vb_p = _trace(f"fig{fig:02d}_ps3_model.csv")
+    tb_n, vb_n = read_reference(f"fig{fig:02d}_pcng_model.csv")
+    tb_p, vb_p = read_reference(f"fig{fig:02d}_ps3_model.csv")
     tr = _run(wf_hi, t_step)
     our_n = 100.0 * tr["ng"] / c.NG_DES
     our_p = c.K_PS3 * tr["p3"]
@@ -355,8 +345,8 @@ def test_the_phase_plane_is_not_a_degenerate_comparison():
         (9, 0.539, (92.0, 94.0, 96.0, 98.0), True),
         (10, 0.545, (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0), False),
     ):
-        tb_n, vb_n = _trace(f"fig{fig:02d}_pcng_model.csv")
-        tb_p, vb_p = _trace(f"fig{fig:02d}_ps3_model.csv")
+        tb_n, vb_n = read_reference(f"fig{fig:02d}_pcng_model.csv")
+        tb_p, vb_p = read_reference(f"fig{fig:02d}_ps3_model.csv")
         mb = tb_n > t_step
         bn = vb_n[mb]
         bp = np.interp(tb_n[mb], tb_p, vb_p)
@@ -395,7 +385,7 @@ def test_the_transient_sits_off_the_steady_locus_in_the_right_direction(fig, wf_
     asserts the sign of a physical effect, not a magnitude, so it is a statement about the
     model rather than about the digitizer.
     """
-    ng8, ps8 = _trace("fig08_realtime.csv")
+    ng8, ps8 = read_reference("fig08_realtime.csv")
     tr = _run(wf_hi, t_step)
     our_n = 100.0 * tr["ng"] / c.NG_DES
     our_p = c.K_PS3 * tr["p3"]
@@ -452,27 +442,29 @@ def test_we_match_both_sides_of_the_figure_6_to_9_gap():
         heat_sink=True,
     )
 
-    wf6, ng6 = _trace("fig06_realtime.csv")
-    wf7, shp7 = _trace("fig07_realtime.csv")
-    ng8, ps8 = _trace("fig08_realtime.csv")
+    wf6, ng6 = read_reference("fig06_realtime.csv")
+    wf7, shp7 = read_reference("fig07_realtime.csv")
+    ng8, ps8 = read_reference("fig08_realtime.csv")
     ng_f6 = float(np.interp(775.0, wf6, ng6))
 
     cases = {
         "NG": (
             ng_f6,
-            _trace("fig09_pcng_model.csv")[1][-1],
+            read_reference("fig09_pcng_model.csv")[1][-1],
             100.0 * r775.state.ng_rpm / c.NG_DES,
             float(np.interp(t_end, tr["t"], 100.0 * tr["ng"] / c.NG_DES)),
         ),
         "Ps3": (
             float(np.interp(ng_f6, ng8, ps8)),
-            float(np.interp(t_end, *_trace("fig09_ps3_model.csv"))),
+            float(np.interp(t_end, *read_reference("fig09_ps3_model.csv"))),
             f775.ps3_psia,
             float(np.interp(t_end, tr["t"], c.K_PS3 * tr["p3"])),
         ),
         "shp": (
             float(np.interp(775.0, wf7, shp7)),
-            shp_from_torque(float(np.interp(t_end, *_trace("fig09_torq45_model.csv"))), c.NP_DES),
+            shp_from_torque(
+                float(np.interp(t_end, *read_reference("fig09_torq45_model.csv"))), c.NP_DES
+            ),
             shp_from_torque(f775.q_pt_ftlbf, c.NP_DES),
             shp_from_torque(float(np.interp(t_end, tr["t"], tr["q_pt"])), c.NP_DES),
         ),

@@ -219,8 +219,11 @@ def test_jacobian_eigenvalues_against_table_1():
 
     # Table 1, trim 1, with the NP row excluded -- it is built from dQreq/dNP, a Gen Hel
     # quantity we do not have, and is the same row Appendix B flags as not independently
-    # reproducible.
-    printed = [-2.66, -51.6, -3060.0, -4900.0]
+    # reproducible. Imported here rather than at the top: `test_all_dof_models` takes
+    # Table B.1 from this file, so a module-level import would be circular.
+    from test_all_dof_models import TABLE_1_5DOF
+
+    printed = [TABLE_1_5DOF[1][k] for k in ("NG", "P3", "P45", "P41")]
     # the report's +-2 % step [pdf p.28]; on the tangent these were -10.7, +3.1, -14.9, -0.6
     on_record = [1.2, 0.2, 3.5, 2.2]
 

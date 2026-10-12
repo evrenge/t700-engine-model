@@ -48,6 +48,7 @@ from t700 import maps, trim
 from t700.control import loop
 from t700.engine import Ambient, State, frame
 from t700.units import shp_from_torque, wf_pps_from_pph
+from test_trim_points import CASES, STATE_B1
 
 AMB = Ambient(14.696, 518.67)
 DT = 0.007
@@ -76,11 +77,11 @@ is -0.900 % out open-loop. The governor converts that error rather than adding t
 closed loop, descent shp is -0.019 % and the fuel flow carries it instead, because fuel is
 an output here and the loop trims it until the torque matches."""
 
-# name, Wf lbm/hr, NG rpm, Ps3 psia, shaft torque ft*lbf, dQreq/dNP ratio (#6), shp
+# name, Wf lbm/hr, NG rpm, Ps3 psia, shaft torque ft*lbf, dQreq/dNP ratio (#6), shp --
+# Table B.1 from `test_trim_points`, the ratio from open question #6
 TRIMS = [
-    ("hover", 476.3, 41638.0, 176.34, 229.0, 1.78, 911.1),
-    ("level 80 kt", 349.3, 39768.0, 142.13, 138.9, 1.45, 552.6),
-    ("descent 80 kt", 267.7, 38072.0, 114.27, 76.06, 1.18, 302.6),
+    (b.name, b.wf_pph, b.ng_rpm, STATE_B1[b.name]["ps3"], b.q_shaft_ftlbf, ratio, b.shp)
+    for b, ratio in zip(CASES, (1.78, 1.45, 1.18), strict=True)
 ]
 
 XCPC_PCT = {"hover": 52.75, "level 80 kt": 35.87, "descent 80 kt": 23.01}

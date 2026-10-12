@@ -65,14 +65,12 @@ from t700.engine import Ambient
 from t700.linear import DOF, extract
 from t700.units import wf_pps_from_pph
 
+# DQ_REQ_DNP is needed only for the NP mode. TABLE_1_2DOF is Table 1 column 4 [pdf p.31] --
+# Ballin's separately coded quasi-steady program.
+from test_all_dof_models import DQ_REQ_DNP, TABLE_1_2DOF, WF_PPH
+
 AMB = Ambient(14.696, 518.67)
 NP_RPM = 20895.0
-WF_PPH = {1: 476.3, 2: 349.3, 3: 267.7}
-DQ_REQ_DNP = {1: 0.019471, 2: 0.015869, 3: 0.012950}
-"""Recovered from Appendix B; see `test_all_dof_models`. Needed only for the NP mode."""
-
-TABLE_1_2DOF = {1: -2.69, 2: -2.23, 3: -1.82}
-"""Table 1 column 4 [pdf p.31] -- Ballin's separately coded quasi-steady program."""
 
 FRAME_S = 0.007
 """The report's engine frame [pdf p.47]."""

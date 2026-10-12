@@ -124,13 +124,26 @@ against, and it is recorded in the CSV header rather than here.
 """
 
 
-def _reference(fig: int, key: str) -> tuple[np.ndarray, np.ndarray]:
-    path = REF / f"fig{fig:02d}_{key}_model.csv"
+def read_reference(
+    name: str | Path, xc: str | None = None, yc: str | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Two columns of a digitized CSV under `data/reference/`, sorted by the first.
+
+    `xc` and `yc` name the columns and default to the file's first two. The one reader for
+    the reference data: every file that compares against a figure reads it through this.
+    """
+    path = REF / name
     rows = list(csv.DictReader(ln for ln in path.open() if not ln.startswith("#")))
-    t = np.array([float(r["t_s"]) for r in rows])
-    v = np.array([float(r["value"]) for r in rows])
-    o = np.argsort(t)
-    return t[o], v[o]
+    if xc is None:
+        xc, yc = list(rows[0])[:2]
+    x = np.array([float(r[xc]) for r in rows])
+    y = np.array([float(r[yc]) for r in rows])
+    o = np.argsort(x)
+    return x[o], y[o]
+
+
+def _reference(fig: int, key: str) -> tuple[np.ndarray, np.ndarray]:
+    return read_reference(f"fig{fig:02d}_{key}_model.csv", "t_s", "value")
 
 
 def _settled_window(tb, vb):

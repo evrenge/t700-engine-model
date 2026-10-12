@@ -65,7 +65,6 @@ is automatically our error -- it does not turn the gap into a credential.
 
 from __future__ import annotations
 
-import csv
 from functools import lru_cache
 from pathlib import Path
 
@@ -76,6 +75,8 @@ from t700 import constants as c
 from t700 import trim
 from t700.engine import Ambient, frame
 from t700.units import shp_from_torque, wf_pps_from_pph
+from test_fuel_step import read_reference
+from test_trim_points import CASES
 
 REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
@@ -97,14 +98,6 @@ NP_RPM = c.NP_DES
 reading the report's own text points at, and NG is decoupled from NP at steady state --
 sweeping 16000-22000 rpm moves the NG-vs-Wf curve by under 0.01 %NG -- so the choice
 cannot explain any deviation below."""
-
-
-def _reference(name: str, xc: str, yc: str):
-    rows = list(csv.DictReader(ln for ln in (REF / name).open() if not ln.startswith("#")))
-    x = np.array([float(r[xc]) for r in rows])
-    y = np.array([float(r[yc]) for r in rows])
-    o = np.argsort(x)
-    return x[o], y[o]
 
 
 @lru_cache(maxsize=2)
@@ -151,7 +144,7 @@ def test_figure_8_ps3_against_ng_tracks_across_the_range():
     schedules without the combustor, so it cannot be rescued by a compensating fuel-path
     error. 24 points, worst 1.6 %.
     """
-    x, y = _reference("fig08_realtime.csv", "ng_pct", "ps3_psia")
+    x, y = read_reference("fig08_realtime.csv", "ng_pct", "ps3_psia")
     got = _ladder(np.linspace(150, 800, 60))
     ng = np.array([v["ng_pct"] for v in got.values()])
     ps = np.array([v["ps3"] for v in got.values()])
@@ -174,7 +167,7 @@ def test_figure_7_shaft_power_tracks_except_at_the_lowest_power():
     docstring used to quote, so it no longer covers the residual (#46; SCOPE.md, "Which
     source wins", and `report.py::internal_spread`, which computes it).
     """
-    x, y = _reference("fig07_realtime.csv", "wf_pph", "shp")
+    x, y = read_reference("fig07_realtime.csv", "wf_pph", "shp")
     got = _ladder(x)
     dev = np.array(
         [(got[k]["shp"] - v) / abs(v) * 100.0 for k, v in zip(x, y, strict=True) if k in got]
@@ -218,7 +211,7 @@ def test_we_now_track_figure_6_across_its_whole_range():
     99.98 %NG**, inside the map. We reach it at 99.97. One unreachable point is still
     tolerated, because the boundary is real even though this figure no longer crosses it.
     """
-    x, y = _reference("fig06_realtime.csv", "wf_pph", "ng_pct")
+    x, y = read_reference("fig06_realtime.csv", "wf_pph", "ng_pct")
     got = _ladder(x)
     missing = [v for v in x if v not in got]
     assert len(missing) <= 1, f"more of Figure 6 is now unreachable: {missing}"
@@ -240,7 +233,7 @@ def test_we_now_track_figure_6_across_its_whole_range():
     assert abs(dev.mean()) < 0.2, f"mean offset {dev.mean():+.3f} %NG"
 
 
-@pytest.mark.parametrize("pph,ng_b1", [(267.7, 38072.0), (349.3, 39768.0), (476.3, 41638.0)])
+@pytest.mark.parametrize("pph,ng_b1", sorted((case.wf_pph, case.ng_rpm) for case in CASES))
 def test_the_sweep_still_passes_through_table_b1(pph: float, ng_b1: float):
     """The sweep and the trim tests must agree where they overlap.
 
@@ -364,8 +357,8 @@ SPEC = {
 def _spreads(fig: int, series: str):
     """(Ballin - GE, ours - GE) on GE's own abscissae, in %NG or per cent."""
     stem, xc, yc, mode = SPEC[fig]
-    bx, by = _reference(f"{stem}_realtime.csv", xc, yc)
-    gx, gy = _reference(f"{stem}_{series}.csv", xc, yc)
+    bx, by = read_reference(f"{stem}_realtime.csv", xc, yc)
+    gx, gy = read_reference(f"{stem}_{series}.csv", xc, yc)
     inb = (gx >= bx.min()) & (gx <= bx.max())
     bal = np.interp(gx[inb], bx, by)
     m, ov = _curve(fig, gx[inb])
@@ -444,8 +437,8 @@ def test_the_two_ge_models_disagree_with_each_other_substantially():
     """
     for fig in (6, 7, 8):
         stem, xc, yc, mode = SPEC[fig]
-        sx, sy = _reference(f"{stem}_ge_status81.csv", xc, yc)
-        ux, uy = _reference(f"{stem}_ge_unbalanced.csv", xc, yc)
+        sx, sy = read_reference(f"{stem}_ge_status81.csv", xc, yc)
+        ux, uy = read_reference(f"{stem}_ge_unbalanced.csv", xc, yc)
         inb = (ux >= sx.min()) & (ux <= sx.max())
         if inb.sum() < 3:
             continue
@@ -482,7 +475,7 @@ def _fig6_series():
     """Fuel flow as a function of NG for all three Figure 6 series, plus ours."""
     out = {}
     for key in ("realtime", "ge_status81", "ge_unbalanced"):
-        wf, ng = _reference(f"fig06_{key}.csv", "wf_pph", "ng_pct")
+        wf, ng = read_reference(f"fig06_{key}.csv", "wf_pph", "ng_pct")
         o = np.argsort(ng)
         out[key] = (ng[o], wf[o])
     grid = np.arange(125.0, 851.0, 2.5)

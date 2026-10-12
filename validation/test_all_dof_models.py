@@ -34,13 +34,34 @@ from t700 import trim
 from t700.engine import Ambient
 from t700.linear import DOF, extract
 from t700.units import wf_pps_from_pph
+from test_trim_points import CASES
 
 AMB = Ambient(14.696, 518.67)
 NP_RPM = 20895.0
-WF_PPH = {1: 476.3, 2: 349.3, 3: 267.7}
-TRIM = {1: "hover", 2: "level 80 kt", 3: "descent 80 kt"}
+WF_PPH = {n: case.wf_pph for n, case in enumerate(CASES, start=1)}
+"""Table B.1's fuel flows by trim number, from `test_trim_points.CASES`."""
+TRIM = {n: case.name for n, case in enumerate(CASES, start=1)}
 DQ_REQ_DNP = {1: 0.019471, 2: 0.015869, 3: 0.012950}
+"""dQreq/dNP, ft*lbf per rpm, recovered from Appendix B's NP diagonal (open question #6).
+Gen Hel's, not ours.
 
+**Recovered from the elements it then corrects.** Supplying it is completing the load
+specification, as `j_load` was -- Q_req is an input [Eq. 47] and holding it constant
+asserts that the rotor does not resist a speed change, which is false. But it is not
+independent evidence of agreement, and
+`test_appendix_b_elements.test_supplying_the_load_slope_closes_the_np_diagonal_circularly`
+says so rather than claiming a win.
+"""
+
+TABLE_1_5DOF = {
+    # [TM-100991 pdf p.31] read cell by cell from the page image; see
+    # docs/notes/body-realtime.md 5.5. Blank cells are blank in the original.
+    1: {"NG": -2.66, "NP": -0.565, "P3": -51.6, "P41": -4900.0, "P45": -3060.0},
+    2: {"NG": -2.08, "NP": -0.446, "P3": -52.2, "P41": -4640.0, "P45": -4040.0},
+    3: {"NG": -1.75, "NP": -0.357, "P3": -52.6, "P41": -4430.0, "P45": -4530.0},
+}
+"""Table 1 column 3 [pdf p.31], the 5-DOF, every mode. Columns 4 and 5 print the same NP
+mode, so only their NG modes are kept below."""
 TABLE_1_2DOF = {1: -2.69, 2: -2.23, 3: -1.82}
 """Table 1 column 4 [pdf p.31], the NG mode. The NP mode is the Gen Hel one."""
 TABLE_1_RED5 = {1: -2.81, 2: -2.16, 3: -1.83}

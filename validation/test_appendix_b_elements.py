@@ -42,11 +42,11 @@ from t700 import maps, trim
 from t700.engine import Ambient
 from t700.linear import DOF, extract
 from t700.units import wf_pps_from_pph
+from test_all_dof_models import DQ_REQ_DNP, WF_PPH
+from test_all_dof_models import TRIM as TRIM_NAME
 
 AMB = Ambient(14.696, 518.67)
 NP_RPM = 20895.0
-WF_PPH = {1: 476.3, 2: 349.3, 3: 267.7}
-TRIM_NAME = {1: "hover", 2: "level 80 kt", 3: "descent 80 kt"}
 S = ("NG", "NP", "P3", "P41", "P45")
 
 TANGENT_STEP = 1e-5
@@ -440,15 +440,8 @@ def test_the_t41_row_ng_element_carries_the_f1_error_on_top(trim_no: int):
 
 
 # --------------------------------------------------- the load-torque slope, and its limits
-
-DQ_REQ_DNP = {1: 0.019471, 2: 0.015869, 3: 0.012950}
-"""dQreq/dNP, ft*lbf per rpm, recovered from Appendix B's NP diagonal (open question #6).
-
-**Recovered from the elements it then corrects.** Supplying it is completing the load
-specification, as `j_load` was -- Q_req is an input [Eq. 47] and holding it constant
-asserts that the rotor does not resist a speed change, which is false. But it is not
-independent evidence of agreement, and the test below says so rather than claiming a win.
-"""
+# `DQ_REQ_DNP` is `test_all_dof_models.DQ_REQ_DNP`, recovered from the elements it then
+# corrects; the test below says so rather than claiming a win.
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])

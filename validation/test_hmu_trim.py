@@ -37,6 +37,7 @@ from __future__ import annotations
 import pytest
 
 from t700.control import hmu, schedules
+from test_trim_points import CASES, STATE_B1
 
 DT = 0.007
 """The report's engine frame [pdf p.47]."""
@@ -51,12 +52,8 @@ choice, held the same across all three so the comparison is between trims rather
 against an absolute. Moving it slides all three collectives together; see
 `test_the_result_does_not_depend_on_the_unprinted_power_lever`."""
 
-# Table B.1 [pdf p.67]: name, NG rpm, Ps3 psia, Wf lbm/hr
-TRIMS = [
-    ("hover", 41638.0, 176.34, 476.3),
-    ("level 80 kt", 39768.0, 142.13, 349.3),
-    ("descent 80 kt", 38072.0, 114.27, 267.7),
-]
+# Table B.1 [pdf p.67], from `test_trim_points`: name, NG rpm, Ps3 psia, Wf lbm/hr
+TRIMS = [(case.name, case.ng_rpm, STATE_B1[case.name]["ps3"], case.wf_pph) for case in CASES]
 
 COLLECTIVE_RANGE_PCT = (5.0, 95.0)
 """The band a commanded collective must fall inside to be believable. Ours, not the

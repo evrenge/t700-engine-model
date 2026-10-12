@@ -14,6 +14,7 @@ from t700 import constants as c
 from t700 import maps, realtime, trim
 from t700.engine import Ambient
 from t700.units import wf_pps_from_pph
+from test_trim_points import CASES
 
 AMB = Ambient(14.696, 518.67)
 
@@ -25,7 +26,7 @@ def _seed(wf_pph: float, lag_whole_flow: bool = True):
     return st, wf, r.frame.q_pt_ftlbf
 
 
-@pytest.mark.parametrize("wf_pph", [476.3, 349.3, 267.7])
+@pytest.mark.parametrize("wf_pph", [case.wf_pph for case in CASES])
 def test_every_published_trim_is_a_fixed_point(wf_pph: float):
     """The strongest available check that the two formulations agree.
 
