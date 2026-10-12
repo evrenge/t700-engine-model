@@ -46,7 +46,7 @@
             "type": "command",
             "statusMessage": "fast tests",
             "timeout": 120,
-            "command": "jq -r '.tool_response.filePath // .tool_input.file_path // empty' | { read -r f || exit 0; case \"$f\" in */t700/*.py|*/tests/*.py) ;; *) exit 0;; esac; PT=$(command -v pytest || echo \"$HOME/.local/bin/pytest\"); [ -x \"$PT\" ] || exit 0; \"$PT\" tests -q -x --no-header; } 2>&1 || true"
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path // empty' | { read -r f || exit 0; case \"$f\" in */t700/*.py|*/tests/*.py) ;; *) exit 0;; esac; out=$(distrobox enter t700-dev -- bash -c 'cd \"$1\" && python3 -m pytest tests -q -x --no-header' _ \"${CLAUDE_PROJECT_DIR:-$HOME/Downloads/t700}\" 2>&1) && exit 0; printf '%s\\n' \"$out\" | tail -25 >&2; exit 2; }"
           }
         ]
       }
