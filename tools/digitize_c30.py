@@ -1,70 +1,31 @@
 #!/usr/bin/env python3
-"""Figure C30 -- `F_HM7`, the HMU maximum fuel-parameter limit during acceleration.
+"""Figure C30 (pdf p.101) -- `F_HM7`, the HMU maximum fuel-parameter limit during acceleration.
 
-The last of Appendix C's eight scheduling functions, and the only one that needed its own
-tool. Open question #50.
+The one Appendix C scheduling function with its own tool (open question #50).
+`digitize_multi_curve` identifies a curve by rank in y, but C30's seven curves cross: they
+converge into a bundle around PCNGHL 85-95 and come out reordered (4, 3, then 5, 6, 7, with
+1 and 2 already descending). Reading the digits and tracing through the crossings both
+fail; the record is in #50.
 
-## Why `digitize_multi_curve` cannot do this one
+What works: the curves are exact polylines between their markers (on curve 4 a straight
+line between markers predicts the ink at PCNGHL 99-103 to 0.02 WFPAC), so the job is to find
+each curve's vertices. `FAN` and `BUNDLE` declare, per curve, the columns where it is
+identifiable and a seed for its value. The tool then measures: at each declared column it
+takes the ink run nearest the seed and reports its centre through the calibrated axes. The
+seeds only name which run; a seed that does not name one run unambiguously fails loudly.
 
-That tool identifies a curve by its marker's **rank in y** within a column, which works
-whenever the curves are ordered by the parameter and never cross. C30's seven curves
-cross, twice: they converge into a bundle around PCNGHL 85-95 and come out reordered --
-after it the order top to bottom is 4, 3, then 5, 6, 7, with 1 and 2 already descending.
-Rank is not identity there, and the tool says so and refuses the figure.
+Where the seeds come from [pdf p.101]:
 
-## What this tool does instead
+* PCNGHL 55-82: the fan is open and ordered by T2, so rank is identity -- checked at
+  PCNGHL 68.1, where the seven glyphs share one abscissa and their WFPAC values are exactly
+  monotone in T2. Columns 61-63 each resolve seven clean runs: no inversion at the left end.
+* The bundle and the drops: the printed digits, read off the 300 dpi raster at 600 %.
+  Curve 1's "1" at (87.2, 3.41) and (94.5, 0.99); curve 2's "2" at (90.4, 3.54), (92.5,
+  3.02) and (96.7, 1.99); curve 3's "3" at (94.7, 3.69); curve 4's "4" flat at 3.78 across
+  92.5, 94.8 and 96.8; the three surviving curves labelled 5, 6, 7 top to bottom at 103.8.
 
-**It does not read the digits, and it does not trace through the crossings.** Both were
-tried and both fail; the record is in open question #50. Template matching on the printed
-digits is too weak because the curve runs through every glyph as a bar that correlates
-about equally with all seven templates (30 of 97 glyphs confident), and stripping the bar
-off first destroys the glyph, because any annulus wide enough to fit the local curve
-direction also reaches the neighbouring curves. A column tracer with one-to-one
-curve-to-run assignment follows the geometry well -- it reproduces the fan to the
-digitized markers -- but at a crossing the minimum-displacement assignment is not
-necessarily the true one, so the labels scramble.
-
-What works is the observation that makes both unnecessary: **the curves are exact
-polylines between their markers.** Measured on curve 4, whose flat section and descent are
-unambiguous: a straight line from (96.76, 3.78) to (104, 1.97) predicts 3.22 / 2.72 /
-2.47 / 2.22 at PCNGHL 99 / 101 / 102 / 103, against ink measured at 3.21-3.24 / 2.70-2.73
-/ 2.45-2.49 / 2.20-2.23. So the figure is fully described by its vertices, and the job is
-to find each curve's vertices rather than to follow its line.
-
-`KNOTS` below declares, for each curve, the columns at which it is identifiable and a
-**seed** for where it sits. The seed is the human-read part -- rank in y where the fan is
-open and monotone in T2, the printed digit where it is not. The tool then **measures** the
-value: at each declared column it takes the ink run nearest the seed and reports that
-run's centre through the calibrated axes. So every number in the output is a measurement
-of the scan, the seeds only say which run to measure, and a mis-seeded knot fails loudly
-rather than silently shifting a curve.
-
-## How the identity was established, knot by knot
-
-* **PCNGHL 55-82**: the fan is open and ordered by T2, so rank is identity. Verified
-  independently rather than assumed -- the seven glyphs at PCNGHL 68.1 all sit at one
-  abscissa and their WFPAC values order 7:4.03 > 6:3.89 > 5:3.73 > 4:3.51 > 3:3.39 >
-  2:3.22 > 1:3.01, exactly monotone in T2.
-* **The bundle and the drops**: from the printed digits, read off the 300 dpi raster at
-  600 % magnification. Curve 1's "1" at (87.2, 3.41) and (94.5, 0.99); curve 2's "2" at
-  (90.4, 3.54), (92.5, 3.02) and (96.7, 1.99); curve 3's "3" at (94.7, 3.69); curve 4's
-  "4" flat at 3.78 across (92.5), (94.8) and (96.8); and the terminal group, where the
-  three surviving curves are labelled 5, 6, 7 top to bottom at PCNGHL 103.8.
-* **There is no inversion at the left-hand end.** The curves start at PCNGHL 54 and curve
-  1 is the lowest throughout; columns 61, 62 and 63 each resolve seven clean runs and are
-  monotone in T2.
-
-## What the output is checked against
-
-Every segment between consecutive knots is sampled and required to lie on ink. Over 185
-segments the mean coverage is **0.9850**, and the two weakest curves are 5 (T2 = 519.0,
-0.970 mean, 0.64 worst) and 7 (T2 = 590.0, 0.959 mean, 0.48 worst). That is the acceptance
-test, and `main` fails below the 0.98 floor.
-
-(This said "mean coverage 0.9965, every curve between 0.990 and 1.000, worst single
-segment 0.83" until 2026-09-13 -- flattering, on the figure this project calls its hardest
-extraction. The CSV header the tool emits, and README, both carried the correct 0.9850;
-only the docstring was wrong. Found by the 2026-09-13 accuracy audit.)
+Check: every segment between consecutive knots is sampled and must lie on ink; `main`
+fails below `COVERAGE_FLOOR`.
 
     python3 tools/digitize_c30.py
 """
@@ -142,10 +103,7 @@ BUNDLE = {
         (91.5, 2.155),
         (92.0, 2.030),
         (93.0, 1.663),
-        # 1.419 until 2026-09-18, a hand reading that the fine-lattice recalibration
-        # left 0.07 stale, so it stopped clearly naming one run rather than the next.
-        # The run it selects is unchanged and is confirmed by a criterion this check
-        # does not use: 1.488 against a 1.486 midpoint of its two neighbours.
+        # confirmed independently: 1.488 against a 1.486 midpoint of its two neighbours
         (93.5, 1.488),
         (94.0, 1.179),
         (94.5, 0.986),
@@ -252,7 +210,7 @@ BUNDLE = {
         (100.0, 3.41),
         (101.0, 3.39),
         (102.0, 3.23),
-        # 2.94 until 2026-09-18, the same staleness; 3.005 against a 3.023 midpoint.
+        # confirmed independently: 3.005 against a 3.023 midpoint of its two neighbours
         (103.0, 3.005),
         (103.8, 2.71),
     ],
@@ -271,21 +229,9 @@ run unambiguously, even when its own value is imprecise."""
 COVERAGE_FLOOR = 0.98
 """Mean fraction of segment samples that must lie within 6 px of ink.
 
-Measured 0.9850 when this floor was set, 0.9881 under the majors-only calibration, and
-**0.9800 since 2026-09-18** -- which is exactly the floor, with nothing to spare.
-
-That is a tension worth stating rather than passing. Moving this figure onto the printed
-minor lattice improved the thing the lattice is for, by a lot: the y axis map's held-out
-frame error went 3.127 -> 0.690 per-mille, the x axis 2.723 -> 1.838. But this check, which
-is independent of the axis map's own test, went the other way. It asks whether straight
-segments between consecutive knots lie on the printed ink, and the premise of the whole
-figure is that the curves ARE exact polylines between their markers -- so a map that makes
-them less straight in data space is, on that reading, a worse map.
-
-Both readings were measured on the same run, and the frame test is the stronger evidence:
-it is held out, it is the criterion used everywhere else here, and 4.5x is a great deal
-larger than 0.8 %. But an independent check sitting exactly on its floor is one bad
-scan-read away from failing, and if it ever does, this is the first place to look."""
+The fine-lattice calibration, which several-fold improves the held-out frame error, puts
+the measured coverage exactly on this floor (0.9800). The frame test is the stronger
+evidence, but if this check ever fails, look here first."""
 
 
 def plot_mask(ink, box):
@@ -304,9 +250,7 @@ def runs_in_column(work, col, top, bot):
 def main(argv=None) -> int:
     ink = native_bitmap(PAGE)
     print(f"\n================ {CFG['fig']} {CFG['func']} (pdf p.{PAGE})")
-    # The MINOR lattice, on the same terms as every other figure: the step measured from
-    # the ticks, each labelled through a fit made on the majors alone, and the axis keeping
-    # whichever lattice predicts the printed frame value it was never shown.
+    # the single-curve calibration path, with straight frame edges
     cal = calibrate_under(ink, auto_frame_spec(PAGE), CFG, 1)
     TL, TR, _BR, BL = cal["corners"]
     to_uv, CX, CY = cal["to_uv"], cal["CX"], cal["CY"]
@@ -320,14 +264,10 @@ def main(argv=None) -> int:
     work = plot_mask(ink, (to_col(51.0), to_col(82.0), to_row(1.7), to_row(0.2)))
     lo_r, hi_r = int(top) + 12, int(bot) - 12
 
-    # Column index <-> PCNGHL, through the calibrated axis rather than the raw frame.
-    # The x map's blend coordinate is the normalized height, and the bottom and top scales
-    # disagree by 0.179 PCNGHL -- 4.96 columns here -- so a table built once down the
-    # middle of the plot looks for a seed near either edge five columns from where it was
-    # declared. Every caller knows the WFPAC it wants, and the homography has already
-    # normalized the vertical coordinate, so the blend weight comes from inverting the y
-    # calibration and never needs a row: `to_row` would have to guess one, and on a frame
-    # this tilted its guess is wrong by the full tilt at the right-hand end.
+    # Column index <-> PCNGHL, through the calibrated axis. The bottom and top x scales
+    # disagree by about five columns, so the blend weight comes from the wanted WFPAC
+    # (inverting the y calibration), never from a row: on this tilted frame a row guessed by
+    # `to_row` is wrong by the full tilt at the right-hand end.
     cols = np.arange(int(lef) + 2, int(rig) - 1)
     _tgrid = np.linspace(0.0, 1.0, 2001)
     _vgrid = np.asarray([blend_value(CY["edgec"], t, 0.5) for t in _tgrid], float)
@@ -395,10 +335,9 @@ def main(argv=None) -> int:
             centre, got = cands[0]
             miss = abs(got - v)
             worst_seed = max(worst_seed, miss)
-            # The test is not "is the seed accurate" -- a seed read off a plot by eye is
-            # not -- but "does it name one run and not another". On a steep segment a
-            # 4 px column offset moves WFPAC by 0.07, so a fixed tolerance would reject a
-            # perfectly good seed; what must hold is that the runner-up is clearly worse.
+            # The test is whether the seed names one run, not whether it is accurate: on a
+            # steep segment a 4 px column offset moves WFPAC by 0.07, so instead the
+            # runner-up must be clearly worse.
             runner_up = abs(cands[1][1] - v) if len(cands) > 1 else float("inf")
             if miss > SEED_TOL_WFPAC and runner_up - miss < SEED_MARGIN_WFPAC:
                 raise AssertionError(
