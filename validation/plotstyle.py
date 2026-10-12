@@ -1,26 +1,9 @@
-"""Matplotlib styled to match the report page, so the figures belong to the document.
+"""Matplotlib styled to match the site page, for the figures `validation/report.py` writes.
 
-`validation/report.py` writes the figures that `site/index.html` embeds. Before this module
-they were Matplotlib's defaults on a white ground -- DejaVu Sans, a blue-orange-green cycle
-that happened to match the page's accents only because the page was built around them, and
-a fixed light background that glared inside a dark-themed page.
-
-Three things it fixes.
-
-**One palette, named once.** The page defines its colours as CSS custom properties; the same
-values live here, so `--ours` is one hex in both places and a series keeps its colour from a
-table cell to a plot mark.
-
-**The page's own typefaces.** IBM Plex Sans Condensed for titles, Plex Sans for labels, Plex
-Mono for tick numbers -- the superfamily the page is set in, which Fedora packages and the
-`Containerfile` installs. If they are missing Matplotlib falls back to DejaVu silently;
-`available()` reports that rather than raising, because a missing font is not a reason to
-stop a validation run.
-
-**Two themes.** Every figure is rendered twice, light and dark, and the page picks with a
-`<picture>` media query. The dark variant is not an inversion: the grounds come from the
-page's dark tokens and the three series colours are lifted for contrast on them, exactly as
-the CSS does.
+The colours are the page's CSS custom properties (`--ours` is one hex in both places), the
+faces are the page's IBM Plex family, and every figure is rendered twice, light and dark, for
+a `<picture>` media query. The dark theme is the page's dark tokens, not an inversion.
+Missing fonts fall back to DejaVu silently; `available()` reports it rather than raising.
 """
 
 from __future__ import annotations
@@ -32,16 +15,13 @@ import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 
 FIG_SCALE = 0.74
-"""Every figure is drawn this much smaller in inches, at a correspondingly higher dpi.
-
-The pixel count barely moves -- what changes is how large the *content* is relative to the
-frame. A 16.5-inch-wide figure displayed in a 1124 px column renders its 8 pt tick labels at
-about 7.6 CSS px, which is why the figures read sharply in a new tab and softly in the page.
-At 0.74 the same labels land near 10 px and the 0.8 pt grid lines survive the downscale."""
+"""Every figure is drawn this much smaller in inches, at a correspondingly higher dpi, so the
+content is larger relative to the frame: at 0.74, 8 pt tick labels land near 10 CSS px in the
+page's ~1124 px column and the 0.8 pt grid lines survive the downscale."""
 
 DPI = 190
-"""Chosen with `FIG_SCALE` so an asset is about twice its displayed width: a 16.5 in sheet
-becomes 12.2 in at 190 dpi, or 2320 px against the page's ~1124 px column."""
+"""Chosen with `FIG_SCALE` so an asset is about twice its displayed width (16.5 in sheet ->
+12.2 in at 190 dpi = 2320 px)."""
 
 SANS = "IBM Plex Sans"
 SANS_CONDENSED = "IBM Plex Sans Condensed"
@@ -66,9 +46,8 @@ class Theme:
 
 LIGHT = Theme(
     name="light",
-    # `ground` is the page's `--surface`, one step off `--ground`, so a figure lifts very
-    # slightly rather than sitting in a white card punched into the page. Both themes do the
-    # same thing. Keep these in step with `--plot-mat` in site/template.html.
+    # `ground` is the page's `--surface`, one step off `--ground`, in both themes. Keep these
+    # in step with `--plot-mat` in site/template.html.
     ground="#f7f8fa",
     ink="#14171c",
     muted="#4d5563",
@@ -159,8 +138,8 @@ def rc(theme: Theme) -> dict:
 def title(fig, text: str) -> None:
     """A figure title set like the page's section headings: condensed, left, flush.
 
-    The ink is whatever `rc_context` is currently in, read back out of rcParams, so a caller
-    inside `plotstyle.context(...)` gets its theme's.
+    The ink is read back out of rcParams, so a caller inside `plotstyle.context(...)` gets its
+    theme's.
     """
     fig.suptitle(
         text,

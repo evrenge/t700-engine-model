@@ -1,30 +1,16 @@
 """Every comparison this project can make against the report, as tables and overlay plots.
 
-The question it answers: **what is the complete list of things the report prints, and
-where do we stand against each one?** It recomputes every headline number rather than
-quoting one, writes `site/assets/*.png` for the overlays in both themes, and dumps
-`report.json` so the numbers can be checked against `README.md` and `SCOPE.md`
-mechanically instead of by reading.
+Recomputes every headline number, writes the site figures `site/assets/*.png` in both themes
+and dumps `site/assets/report.json`. This is the only figure pipeline. Model runs are
+imported from the test modules that own them, so the report measures the same runs the suite
+does; the statistics are computed here, independently of the tests' own assertions.
 
-This is the only figure pipeline. `plot_validation.py` was a second one -- seven sheets,
-five of them strict subsets of these, with its own hardcoded copy of `plotstyle`'s palette
-and a character-identical copy of `test_whole_curve._split_strays` -- and it was deleted on
-2026-09-14. Its two sheets that framed something new are absorbed: Table B.1's trims are
-drawn onto the Figures 6-7 overlays, and `internal_spread` computes what its `residuals`
-sheet drew.
-
-Model runs are imported from the test modules that own them, so the report measures the
-same runs the suite does. The statistics are computed here, independently of the tests'
-own assertions -- an audit that shares its arithmetic with the thing it audits is not one.
-
-Four comparison surfaces exist in the report and all four are covered:
+The four comparison surfaces the report prints:
 
     Table B.1   pdf p.67   21 printed numbers, the engine state at three trims
     Table 1     pdf p.31   27 printed eigenvalues, three model variants
     Appendix B  pp.68-76   297 printed matrix elements over twelve figures
-    Figures 6-10           five reproducible result figures, ~8,100 digitized points
-
-Matplotlib lives here and nowhere near `src/t700/`, per CLAUDE.md.
+    Figures 6-10           five reproducible result figures, digitized
 """
 
 from __future__ import annotations
@@ -67,12 +53,8 @@ REF = HERE.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
 
 THEME = plotstyle.LIGHT
-"""The theme the next figure is drawn in. Rebound by `use_theme`.
-
-Every sheet draws through the colour names below, and `main` renders the whole set once per
-theme so the page can hand a reader the variant their system asks for. The cost is that each
-sheet's model runs happen twice; this is a build step and not on any hot path, and splitting
-a dozen sheets into compute and draw halves for the sake of it would double the file."""
+"""The theme the next figure is drawn in. Rebound by `use_theme`; `main` renders every sheet
+once per theme, so each sheet's model runs happen twice."""
 
 OURS = THEME.ours
 BALLIN = THEME.ballin
@@ -198,11 +180,9 @@ def steady_sweeps() -> dict:
         s81 = read_reference(f"{spec['file']}_ge_status81.csv", spec["xc"], spec["yc"])
         unb = read_reference(f"{spec['file']}_ge_unbalanced.csv", spec["xc"], spec["yc"])
 
-        # A dense ladder for the drawn curve, and the *reference's own abscissae* for the
-        # score -- trimmed at each one and dropped where the solve will not go, which is
-        # what `test_steady_sweeps` does. Interpolating a dense curve instead silently
-        # extrapolates past the end of the compressor map and scores a point that is not
-        # reachable: Figure 6's last marker is 100.31 %NG against `f1`'s 100 % top line.
+        # A dense ladder for the drawn curve; the score trims at the reference's own abscissae,
+        # as `test_steady_sweeps` does. Interpolating the dense curve would extrapolate past
+        # `f1`'s 100 % top line (Figure 6's last marker is 100.31 %NG).
         dense = np.arange(130.0, 815.0, 5.0)
         grid = tss._ladder(dense)
         gx = np.array(sorted(grid))
@@ -232,10 +212,8 @@ def steady_sweeps() -> dict:
             label="Ballin real-time",
         )
         ax.plot(ours_x, ours_y, "-", color=OURS, lw=2.2, zorder=3, label="our model")
-        # Table B.1's three trims, on the same axes. They are printed *numbers* against a
-        # digitized plot, so where the diamond misses the circle the report disagrees with
-        # itself and no model can sit on both -- see `internal_spread` and SCOPE.md, "Which
-        # source wins". Figure 8 carries no fuel flow, so its abscissa is NG instead.
+        # Table B.1's three trims on the same axes: where the diamond misses the circle the
+        # report disagrees with itself (see `internal_spread`). Figure 8's abscissa is NG.
         b1x, b1y = _b1_markers(no)
         ax.plot(
             b1x,
@@ -283,8 +261,8 @@ PANEL_LABEL = {
 def transients() -> dict:
     """Overlay all six panels of each transient figure, and score the five comparable ones.
 
-    The sixth, `WFPH`, is the input: its two levels are printed in the caption, so drawing
-    it is what shows the step our model was given is the step Ballin's was.
+    The sixth, `WFPH`, is the input (both levels are printed in the caption); drawing it shows
+    our step is Ballin's.
     """
     import test_fuel_step as tfs
 
@@ -363,12 +341,9 @@ def whole_curve() -> dict:
 
 
 NP_TRIM_RPM = 20895.0
-"""Table B.1's power turbine speed at all three trims [pdf p.67].
-
-**Not `NP_DES`, which is 20900.** The five rpm between them is 0.024 %, which is nothing on
-a speed and not quite nothing on a shaft power computed from it, and `validation/
-test_trim_points.py` has always used the printed value. This file used `NP_DES` for a few
-hours on 2026-09-14 and the Table B.1 rms read 0.2527 % instead of 0.2521."""
+"""Table B.1's power turbine speed at all three trims [pdf p.67]. Not `NP_DES` (20900): the
+0.024 % between them shows in a shaft power computed from it, and `test_trim_points.py` uses
+the printed value."""
 
 
 def table_b1() -> dict:
@@ -405,19 +380,12 @@ def table_b1() -> dict:
 
 
 def internal_spread(b1: dict) -> dict:
-    """How far the report disagrees with *itself*, against how far we sit from it.
+    """How far the report disagrees with *itself*, against how far we sit from it (#46, #69).
 
-    Table B.1 prints numbers; Figures 6 and 7 print the same three operating points as
-    plotted markers. They do not agree, and the gap widens as power falls -- SCOPE.md's
-    "Which source wins" rule and open question #46 both turn on it, and the practical
-    consequence is a discipline: **do not tune the model below the report's own internal
-    spread.** That made this a governing number stated in prose and computed nowhere, so
-    it is computed here, from the same digitized figures every other comparison uses.
-
-    Ours is the deviation from Table B.1, which carries no digitizing error of ours at
-    all; theirs is Table B.1 against the figure, which carries only theirs and ours of
-    the figure. A row where `ours_pct` is the smaller of the two is a row where chasing
-    the residual further is chasing noise in the source.
+    `theirs_pct` is Table B.1 against Figure 6/7 at the same fuel flow; `ours_pct` is our
+    deviation from Table B.1. Where ours is the smaller, chasing the residual further is
+    chasing noise in the source: do not tune below the report's own spread (see SCOPE.md,
+    "Which source wins").
     """
     fig6 = read_reference("fig06_realtime.csv", "wf_pph", "ng_pct")
     fig7 = read_reference("fig07_realtime.csv", "wf_pph", "shp")
@@ -430,13 +398,9 @@ def internal_spread(b1: dict) -> dict:
             ("NG", b1_ng_pct, fig6, "%NG"),
             ("SHP", p["shp"], fig7, "%"),
         ):
-            # The figures are sampled at their own abscissae -- 15 markers across Figure 7's
-            # whole range -- so a trim's fuel flow almost never lands on one and the value
-            # is interpolated. That interpolation is itself a source of error and it is
-            # reported rather than buried: `nearest_marker_pph` is how far the trim sits
-            # from the closest printed marker, and on Figure 7's steep low-power end the
-            # curve climbs ~3 shp per lbm/hr, so 5 lbm/hr of it is 1.6 % of hover power.
-            # Read a row whose `nearest_marker_pph` is large as the weaker of the two.
+            # The figure value is interpolated between printed markers; `nearest_marker_pph`
+            # reports how far, since on Figure 7's steep low-power end 5 lbm/hr is ~1.6 % of
+            # hover power. Read a row with a large one as the weaker.
             fig = float(np.interp(p["wf"], curve[0], curve[1]))
             near = float(np.min(np.abs(curve[0] - p["wf"])))
             theirs = printed - fig if unit == "%NG" else 100.0 * (printed - fig) / abs(printed)
@@ -480,19 +444,11 @@ def _sorted_real(ev):
 def eigenvalues() -> dict:
     """Every model variant against Table 1, and against Ballin's own printed matrices.
 
-    Two references exist and they are not the same thing.
-
-    **Table 1 [pdf p.31]** prints 27 eigenvalues, for the 5-DOF, the 2-DOF and the
-    order-reduced 5-DOF. It prints none for the 3-DOF or the 6-DOF.
-
-    **The Appendix B matrices themselves** imply a spectrum for all twelve figures, so the
-    3-DOF and 6-DOF *can* be compared by eigenvalue even though the report tabulates
-    none -- with one caution that is not optional. `SCOPE.md` and `t700.appendix_b` both
-    record that the 6-DOF matrices are ill-conditioned as printed: row 6 differences terms
-    of order 2e5 to give order 1e3, so four printed digits carry about +/-50 there, and
-    B8 comes out **unstable at +3.07 /sec**. That is lost precision in the printing, not a
-    claim by the report. It is reported here because hiding it would be worse, and it is
-    labelled at every point it appears.
+    Table 1 [pdf p.31] prints 27 eigenvalues (5-DOF, 2-DOF, reduced 5-DOF) and none for the
+    3- or 6-DOF; those two are compared with the spectra of the Appendix B matrices. The 6-DOF
+    matrices are ill-conditioned as printed (row 6 differences terms of order 2e5 to give 1e3,
+    so four digits carry about +/-50) and B8 comes out unstable: lost precision in the
+    printing, labelled wherever it appears (see `t700.appendix_b`).
     """
     out = {"table_1": [], "against_printed_matrices": [], "notes": {}}
 
@@ -788,9 +744,8 @@ def table_b1_plot(b1: dict, cl: dict) -> None:
         zorder=3,
         label="open loop, Wf prescribed",
     )
-    # the closed loop reports NG / NP / Wf / Ps3 / shp; the open-loop rows are uppercased
-    # station names. Only the three that exist on both sides can be overlaid -- Wf is the
-    # open loop's *input*, and NP is held there.
+    # Only quantities on both sides can be overlaid: Wf is the open loop's input and NP is
+    # held there.
     cl_map = {(r["trim"], r["quantity"].upper()): r["dev_pct"] for r in cl["rows"]}
     xs = [i for i, r in enumerate(rows) if (r["trim"], r["quantity"]) in cl_map]
     ax.plot(
@@ -852,16 +807,13 @@ def _render(data: dict) -> None:
 
 # ============================================ the model's own behaviour, with no reference
 #
-# Nothing below is a comparison. These are the engine and its control as this replication
-# runs them, across the range the report declares the model valid over -- which is what a
-# reader needs in order to judge whether the agreements above are agreements about
-# something physical. `SCOPE.md` records the ceiling: NG is claimed to 100 % and no further.
+# Nothing below is a comparison: the engine and its control as this replication runs them,
+# across the range the report declares the model valid over (NG to 100 %, see SCOPE.md).
 
 
 def sheet_engine_steady() -> dict:
     """The equilibrium operating line, station by station, over the whole trim range."""
-    # Each rung is solved cold. A continuation ladder used to be built first and its rungs
-    # re-solved cold anyway; it chose the same 170 points the cold solves accept, so it is gone.
+    # Each rung is solved cold.
     pph = np.arange(130.0, 812.0, 4.0)
     rows = []
     for k in pph:
@@ -914,9 +866,8 @@ def sheet_engine_steady() -> dict:
         ("specific fuel consumption, above 50 hp", "lbm/hr per hp", [("SFC", "sfc", BALLIN)]),
         ("customer + cooling bleed", "% of inlet flow", [("bleed", "bleed", GE)]),
     ]
-    # SFC is Wf/SHP and shaft power crosses zero near the bottom of the range -- it reaches
-    # -17 hp at 68 %NG, which is the free turbine absorbing rather than delivering. Plotting
-    # the quotient through that is meaningless, so the panel starts where there is power.
+    # SFC = Wf/SHP is meaningless where shaft power crosses zero near the bottom of the range
+    # (the free turbine absorbing), so that panel starts above 50 hp.
     usable = g["shp"] > 50.0
     for ax, (title, unit, series) in zip(axes.ravel(), panels, strict=True):
         for label, key, col in series:
@@ -1206,11 +1157,8 @@ MAP_FILE = {
 def _short_axis(text: str) -> str:
     """A printed axis title reduced to its symbol and unit, for a small-multiple panel.
 
-    The provenance headers carry the full printed title plus whatever caveat the digitizer
-    needed to record -- `f9`'s runs to 240 characters warning that the facing figure uses a
-    different pressure ratio. Set whole on a 3x4 sheet they overrun their panels and collide
-    with the neighbours. The symbol is the first token; the unit is the last comma-separated
-    clause when it is short and is not the word "nondimensional", which says nothing.
+    Header titles carry digitizer caveats too long for a 3x4 sheet. The symbol is the first
+    token; the unit is the last comma-separated clause when short and not "nondimensional".
     """
     head = text.split(" -- ")[0].split(" (")[0].strip()
     symbol = head.split(" ")[0].rstrip(",")
@@ -1225,10 +1173,8 @@ def _short_axis(text: str) -> str:
 def _axis_labels(fname: str, directory: str = "maps") -> tuple[str, str]:
     """The printed axis titles, read out of the data file's own provenance header.
 
-    Not hardcoded here. An earlier draft of this sheet typed them from memory and put
-    "NGc, %" on `f4` and `f5`, whose abscissa is corrected mass flow -- a caption wrong in a
-    way no test can see. The digitizers already record what the page prints; use that, and
-    reduce it to what fits with `_short_axis`.
+    Never hardcode them: a typed caption can be wrong in a way no test sees, and the
+    digitizers already record what the page prints.
     """
     path = HERE.parent / "data" / directory / fname
     x = y = ""
@@ -1340,9 +1286,7 @@ def sheet_engine_maps() -> dict:
 def main() -> int:
     """Every sheet, once per theme. The numbers are identical, so only the first set keeps.
 
-    `plotstyle.available()` is reported rather than enforced: without IBM Plex installed
-    Matplotlib falls back to DejaVu and the figures are still correct, just not typeset like
-    the page they sit in.
+    Missing IBM Plex is reported, not enforced: the DejaVu fallback figures are still correct.
     """
     OUT.mkdir(parents=True, exist_ok=True)
     if not plotstyle.available():
