@@ -10,7 +10,7 @@ checks it behaviourally.
 **It did not grow as the model did.** Until 2026-09-13 it exercised `thermo` (two calls)
 and `units` (a round trip) and nothing else -- no `engine.frame`, no `realtime.step` or
 `run`, no `trim.solve`, no `control.loop`. Those are the only places where the things that
-could actually break determinism live: `maps._clamps`, the `_cached` table loaders,
+could actually break determinism live: `maps._clamps`, the cached table loaders,
 `thermo.set_backend`, and the carried state of the opened iterations. CLAUDE.md lists
 determinism as `live` and names this file as half the mechanism, so for the stateful half
 of the model that claim was resting on the import ban alone. Found by the 2026-09-13
@@ -30,7 +30,7 @@ import numpy as np
 from t700 import constants as c
 from t700 import maps, realtime, thermo, trim
 from t700.control import loop
-from t700.engine import Ambient, frame
+from t700.engine import Ambient
 from t700.units import wf_pps_from_pph
 
 
@@ -59,14 +59,13 @@ WF0 = wf_pps_from_pph(400.0)
 
 def _figure_9_trace():
     r = trim.solve(WF0, c.NP_DES, AMB)
-    f = frame(r.state, WF0, AMB)
-    st = realtime.from_trim(r, f.wa31_pps, f)
+    st = realtime.from_trim(r)
     return realtime.run(
         st,
         lambda t: WF0 if t < 0.5 else wf_pps_from_pph(775.0),
         AMB,
         duration_s=1.0,
-        q_req_ftlbf=f.q_pt_ftlbf,
+        q_req_ftlbf=r.frame.q_pt_ftlbf,
         integrate_np=False,
         heat_sink=True,
     )
@@ -99,12 +98,11 @@ def test_a_trim_is_bit_identical_across_an_intervening_solve():
 
 def _closed_loop():
     r = trim.solve(WF0, c.NP_DES, AMB)
-    f = frame(r.state, WF0, AMB)
     pilot = loop.Pilot(xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=100.0)
-    s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+    s = loop.seed(r, pilot, AMB)
     out = []
     for _ in range(400):
-        s, _e, h, fr = loop.step(s, pilot, AMB, dt=0.007, load=f.q_pt_ftlbf, heat_sink=True)
+        s, _e, h, fr = loop.step(s, pilot, AMB, dt=0.007, load=r.frame.q_pt_ftlbf, heat_sink=True)
         out.append((s.engine.ng_rpm, s.engine.np_rpm, h.wf_pph, fr.t41_degR))
     return out
 

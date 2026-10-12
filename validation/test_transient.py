@@ -12,7 +12,7 @@ import pytest
 
 from t700 import constants as c
 from t700 import maps, realtime, trim
-from t700.engine import Ambient, frame
+from t700.engine import Ambient
 from t700.units import wf_pps_from_pph
 
 AMB = Ambient(14.696, 518.67)
@@ -21,9 +21,8 @@ AMB = Ambient(14.696, 518.67)
 def _seed(wf_pph: float, lag_whole_flow: bool = True):
     wf = wf_pps_from_pph(wf_pph)
     r = trim.solve(wf, 20895.0, AMB)
-    f = frame(r.state, wf, AMB)
-    st = realtime.from_trim(r, f.wa31_pps, f, lag_whole_flow=lag_whole_flow)
-    return st, wf, f.q_pt_ftlbf
+    st = realtime.from_trim(r, lag_whole_flow=lag_whole_flow)
+    return st, wf, r.frame.q_pt_ftlbf
 
 
 @pytest.mark.parametrize("wf_pph", [476.3, 349.3, 267.7])
@@ -221,16 +220,15 @@ def test_the_two_to_one_multirate_costs_little_but_is_the_reports():
     """
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
-    f0 = frame(r0.state, wf0, AMB)
 
     def go(multirate: bool, integrate_np: bool):
-        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        st = realtime.from_trim(r0)
         return realtime.run(
             st,
             lambda t: wf0 if t < 0.5 else wf_pps_from_pph(775.0),
             AMB,
             duration_s=2.0,
-            q_req_ftlbf=f0.q_pt_ftlbf,
+            q_req_ftlbf=r0.frame.q_pt_ftlbf,
             heat_sink=True,
             integrate_np=integrate_np,
             multirate=multirate,

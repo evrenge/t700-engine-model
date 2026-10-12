@@ -66,11 +66,19 @@ from typing import Final
 import numpy as np
 
 from t700 import constants as c
-from t700 import corrections, maps, thermo
-from t700.engine import STANDARD_DAY, Ambient, Frame
-from t700.units import BTU_TO_FTLBF, RAD_PER_SEC_TO_RPM, RPM_TO_RAD_PER_SEC
-
-_TORQUE_SCALE = BTU_TO_FTLBF * RAD_PER_SEC_TO_RPM
+from t700 import maps
+from t700.engine import (
+    STANDARD_DAY,
+    Ambient,
+    combustor,
+    compressor,
+    gg_turbine_and_station45,
+    heat_sink_taus,
+    power_turbine,
+    shaft_change,
+    station41,
+    torques,
+)
 
 FRAME_ENGINE_S = 0.007
 """Engine update interval [pdf p.47]: "updated twice for each rotor routine cycle, or once
@@ -211,12 +219,12 @@ class Exit(StrEnum):
     it fills."""
 
 
-def _contraction_error(step: float, prev_step: float, value: float) -> tuple[float, float]:
+def _contraction_error(step: float, prev_step: float, value: float) -> float:
     """A-posteriori error estimate for a linearly convergent fixed-point iteration.
 
     For `x_(k+1) = g(x_k)` with `|g'| = rho < 1` near the fixed point, the standard bound
     is `|x_k - x*| <= rho/(1-rho) * |x_k - x_(k-1)|`, with rho estimated by the ratio of
-    consecutive steps. Returns `(estimated_error, rho)`.
+    consecutive steps. Returns the estimated error.
 
     The report describes exactly this situation -- "the iteration converges linearly"
     [pdf p.37] -- so the estimate is the one the report's own sentence licenses. It needs
@@ -246,13 +254,13 @@ def _contraction_error(step: float, prev_step: float, value: float) -> tuple[flo
     stop a published trim being a fixed point.
     """
     if step <= _CONVERGED_STEP * abs(value):
-        return 0.0, 0.0
+        return 0.0
     if prev_step <= 0.0:
-        return float("inf"), 0.0
+        return float("inf")
     rho = step / prev_step
     if rho >= 1.0:
-        return float("inf"), rho
-    return rho / (1.0 - rho) * step, rho
+        return float("inf")
+    return rho / (1.0 - rho) * step
 
 
 def _stalled(first_step: float, last_step: float) -> bool:
@@ -378,8 +386,8 @@ def _inner_pressure_loop(
         p3, p41 = p3_new, p41_new
         if it == 1:
             first3, first41 = step3, step41
-        err3, _ = _contraction_error(step3, prev3, p3)
-        err41, _ = _contraction_error(step41, prev41, p41)
+        err3 = _contraction_error(step3, prev3, p3)
+        err41 = _contraction_error(step41, prev41, p41)
         if err3 < tol * p3 and err41 < tol * p41:
             exit_ = Exit.CONVERGED
             break
@@ -480,7 +488,7 @@ def _p45_loop(
         p45_new = numerator / float(f9(ps9 / p45))
         step = abs(p45_new - p45)
         p45 = p45_new
-        err, _ = _contraction_error(step, prev, p45)
+        err = _contraction_error(step, prev, p45)
         if err < tol * p45:
             return float(p45), it, Exit.CONVERGED
         prev = step
@@ -612,8 +620,7 @@ def _heat_sink(
       `tau_b > 0`. The heat sink attenuates fast excursions in T41 and passes slow ones,
       which is the "response is significantly slowed" of [pdf p.33].
     """
-    tau_a = c.TC_T41 * t41_prev_degR**0.5 / w41_prev_pps**0.8  # (51)
-    tau_b = float(maps.f_hs()(ngc_pct)) / w41_prev_pps  # (52), (53)
+    tau_a, tau_b = heat_sink_taus(t41_prev_degR, w41_prev_pps, ngc_pct)  # (51)-(53)
     tm = tm_degR if tm_degR > 0.0 else t41_ns_degR  # unseeded: start at equilibrium
     t41 = t41_ns_degR - (tau_b / tau_a) * (t41_ns_degR - tm)  # (48) with (49)
     tm_next = tm + dt * (t41_ns_degR - tm) / tau_a  # (48)
@@ -647,27 +654,8 @@ def step(
             is multirate 2:1 -- NP at 14 ms against the engine's 7 -- so `run` advances NP
             on alternate frames with `dt_np = FRAME_NP_S`. See `FRAME_NP_S`.
     """
-    p2 = ambient.p_amb_psia
-    t2 = ambient.t_amb_degR
-    h2 = thermo.h2_from_t2(t2)  # (3)
-    theta2 = corrections.theta2(t2)  # (5)
-    ngc = corrections.corrected_speed(st.ng_rpm, theta2)  # (6)
-    ngc_pct = 100.0 * ngc / c.NG_DES
-    delta2 = corrections.delta2(p2)  # (8)
-
     # --- the compressor, evaluated ONCE on the frame's entering pressure ---------------
-    ps3 = c.K_PS3 * st.p3_psia  # (4)
-    pr = ps3 / p2
-    wa2c = float(maps.f1()(pr, ngc_pct))  # (7)
-    wa2 = corrections.physical_flow(wa2c, theta2, delta2)  # (9)
-    t3 = t2 * float(maps.f2()(pr))  # (10)
-    h3 = thermo.h3_from_t3(t3)  # (11)
-
-    b1 = float(maps.f3()(ngc_pct))  # (12)
-    b2 = float(maps.f4()(wa2c))  # (13)
-    b3 = float(maps.f5()(wa2c))  # (14)
-    wa3_bl = wa2 * (b3 + c.K_B3)  # (16)
-    wa3 = wa2 - wa2 * (b1 + b2)  # (15), (17)
+    cp = compressor(st.ng_rpm, st.p3_psia, ambient)  # (1)-(17)
 
     # --- Eq. 74, the opened iteration -------------------------------------------------
     # The guard is a SILENT SUBSTITUTION, like Eq. 18's in `engine.frame`: a non-positive
@@ -676,58 +664,47 @@ def step(
     # like it -- it is a guard against a state that cannot occur rather than a modelling
     # choice, and `wa31_substituted` is what keeps that claim checkable. Measured: it
     # never fires over either published transient or any trim from 100 to 800 lbm/hr.
-    wa31 = st.wa31_carry_pps if lag_whole_flow else (wa3 - st.wa31_carry_pps)
+    wa31 = st.wa31_carry_pps if lag_whole_flow else (cp.wa3 - st.wa31_carry_pps)
     wa31_substituted = wa31 <= 0.0
     if wa31_substituted:
-        wa31 = max(wa3 - wa3_bl, 1e-6)
+        wa31 = max(cp.wa3 - cp.wa3_bl, 1e-6)
 
     # --- combustor, once per frame ----------------------------------------------------
     far = wf_pps / wa31  # (19)
-    eta_b = float(maps.f6()(far))  # (20)
-    h41_ns = (h3 + eta_b * far * c.HVF) / (1.0 + far)  # (21)
-    t41_ns = thermo.t41_from_h41(h41_ns)  # (22)
+    _, _, t41_ns = combustor(far, cp.h3)  # (20)-(22)
     if heat_sink:
         t41, hs_tm = _heat_sink(
-            t41_ns, st.hs_tm_degR, st.t41_carry_degR, st.w41_carry_pps, ngc_pct, dt
+            t41_ns, st.hs_tm_degR, st.t41_carry_degR, st.w41_carry_pps, cp.ngc_pct, dt
         )  # (48)-(53)
     else:
         t41, hs_tm = t41_ns, st.hs_tm_degR  # (23), no heat-sink representation
-    h41 = thermo.h41_from_t41(t41)  # (24)
-    theta41 = thermo.theta41_from_t41(t41)  # (25)
+    h41, theta41 = station41(t41)  # (24), (25)
 
     # --- the two pressure solves ------------------------------------------------------
     p3, p41, inner_iters, inner_exit = _inner_pressure_loop(
-        st.p3_psia, st.p41_psia, t3, theta41, wa31, wf_pps, tol=tol
+        st.p3_psia, st.p41_psia, cp.t3, theta41, wa31, wf_pps, tol=tol
     )
-    w41 = c.K_WGT * p41 / sqrt(theta41)  # (28)
 
-    ps9 = p2  # (37)
-    p49 = ps9 * float(maps.f10()(ngc_pct))  # (38)
+    ps9 = ambient.p_amb_psia  # (37)
+    p49 = ps9 * float(maps.f10()(cp.ngc_pct))  # (38)
 
-    dh_gt = theta41 * float(maps.f7()(st.p45_psia / p41))  # (26)
-    h44 = h41 - dh_gt  # (27)
-    h45 = thermo.h45_from_h44(h44)  # (29)
-    t45 = thermo.t45_from_h45(h45)  # (30)
-    theta45 = thermo.theta45_from_t45(t45)  # (31)
+    dh_gt, _, w41, _, t45, theta45 = gg_turbine_and_station45(
+        h41, theta41, p41, st.p45_psia
+    )  # (26)-(31)
 
-    p45, p45_iters, p45_exit = _p45_loop(st.p45_psia, w41, b3, wa2, theta45, ps9, tol=tol)
+    p45, p45_iters, p45_exit = _p45_loop(st.p45_psia, w41, cp.b3, cp.wa2, theta45, ps9, tol=tol)
 
-    dh_pt = theta45 * float(maps.f8()(p49 / p45))  # (32)
-    w45 = float(maps.f9()(ps9 / p45)) * p45 / sqrt(theta45)  # (33), (34)
+    dh_pt, _, w45 = power_turbine(theta45, p45, p49, ps9)  # (32)-(34)
 
     # --- torques and the two surviving integrations -----------------------------------
-    q_c = _TORQUE_SCALE / st.ng_rpm * (wa2 * (c.K_QC_1 * h3 - h2) + wa3 * c.K_QC_2 * h3)  # (39)
-    q_gt = _TORQUE_SCALE / st.ng_rpm * w41 * dh_gt  # (40)
-    q_pt = _TORQUE_SCALE / st.np_rpm * w45 * dh_pt - c.K_DAMP * RPM_TO_RAD_PER_SEC * (
-        st.np_rpm - c.NP_DES
-    )  # (41)
+    q_c, q_gt, q_pt = torques(st.ng_rpm, st.np_rpm, cp, w41, dh_gt, w45, dh_pt)  # (39)-(41)
 
-    ng = st.ng_rpm + dt * RAD_PER_SEC_TO_RPM * (q_gt - q_c) / c.J_GT  # (45)
+    ng = st.ng_rpm + shaft_change(q_gt, q_c, c.J_GT, dt)  # (45)
     np_ = st.np_rpm
     if integrate_np:
-        np_ = st.np_rpm + (dt if dt_np is None else dt_np) * RAD_PER_SEC_TO_RPM * (
-            q_pt - q_req_ftlbf
-        ) / (c.J_PT + j_load)  # (46), (47)
+        np_ = st.np_rpm + shaft_change(
+            q_pt, q_req_ftlbf, c.J_PT + j_load, dt if dt_np is None else dt_np
+        )  # (46), (47)
 
     # The carried scalar is a DIFFERENT quantity in the two readings, and getting that
     # wrong is what invalidated open question #22's first verdict: this line read
@@ -735,7 +712,7 @@ def step(
     # computed `WA31(n) = WA3(n) - WA31(n-1)` -- an involution whose only fixed point is
     # WA3/2, which oscillates instead of converging and made the printed reading look
     # divergent. Eq. 74 lags the **bleed**: `WA31(n) = WA3(n) - WA3_bl(n-1)`.
-    carry = (wa3 - wa3_bl) if lag_whole_flow else wa3_bl
+    carry = (cp.wa3 - cp.wa3_bl) if lag_whole_flow else cp.wa3_bl
     nxt = RTState(ng, np_, p3, p41, p45, float(carry), hs_tm, t41, float(w41))
     out = FrameOut(
         inner_iters=inner_iters,
@@ -747,16 +724,14 @@ def step(
         t41_ns_degR=t41_ns,
         t45_degR=t45,
         q_pt_ftlbf=q_pt,
-        wa2_pps=wa2,
+        wa2_pps=cp.wa2,
         w45_pps=w45,
         far=far,
     )
     return nxt, out
 
 
-def from_trim(
-    result, wa31_pps: float, frame: Frame | None = None, lag_whole_flow: bool = True
-) -> RTState:
+def from_trim(result, lag_whole_flow: bool = True) -> RTState:
     """Seed a real-time state from a converged trim.
 
     The carried mass flow is initialized to its equilibrium value. The report never says
@@ -768,27 +743,17 @@ def from_trim(
     reading carries WA3_bl. Seeding the wrong one puts a trimmed engine off equilibrium on
     frame one.
 
-    Pass `frame` -- the `engine.frame` evaluated at the same trim -- to seed the
-    heat-sink carries as well. Required for `heat_sink=True` runs; harmless otherwise.
+    The heat-sink carries are seeded too, from the trim's own frame (`result.frame`);
+    harmless when `heat_sink=False`.
     The seed follows the same principle: at equilibrium Eq. 48's right-hand side is zero,
     so the metal sits at the gas temperature and T41 = T41_ns by Eq. 49. One line, and it
     needs no coefficients at all -- which is itself a small argument for this realization
     over the lead-lag memory it replaced, whose seed had to be computed from `tau_a` and
     `tau_b`.
     """
-    s = result.state
-    carry = wa31_pps
-    if not lag_whole_flow:
-        if frame is None:
-            raise ValueError(
-                "the printed reading of Eq. 74 carries WA3_bl, so `frame` is required to "
-                "seed it; pass engine.frame() evaluated at the same trim"
-            )
-        carry = frame.wa3_bl_pps
-    if frame is None:
-        return RTState(s.ng_rpm, s.np_rpm, s.p3_psia, s.p41_psia, s.p45_psia, carry)
-
-    t41 = frame.t41_ns_degR
+    s, f = result.state, result.frame
+    carry = f.wa31_pps if lag_whole_flow else f.wa3_bl_pps
+    t41 = f.t41_ns_degR
     return RTState(
         s.ng_rpm,
         s.np_rpm,
@@ -798,7 +763,7 @@ def from_trim(
         carry,
         t41,  # metal temperature: at equilibrium it sits at the gas temperature (48)
         t41,
-        frame.w41_pps,
+        f.w41_pps,
     )
 
 

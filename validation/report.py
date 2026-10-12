@@ -973,13 +973,12 @@ def sheet_open_loop() -> dict:
 
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
-    f0 = frame(r0.state, wf0, AMB)
     steps = [(125.0, "#9c5bd0"), (250.0, GE), (550.0, OURS), (775.0, BALLIN)]
 
     fig, axes = plt.subplots(1, 4, figsize=fs(17.0, 4.3))
     out = {}
     for pph, col in steps:
-        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        st = realtime.from_trim(r0)
         hi = wf_pps_from_pph(pph)
         tr = realtime.run(
             st,
@@ -987,7 +986,7 @@ def sheet_open_loop() -> dict:
             AMB,
             duration_s=5.0,
             dt=0.007,
-            q_req_ftlbf=f0.q_pt_ftlbf,
+            q_req_ftlbf=r0.frame.q_pt_ftlbf,
             integrate_np=False,
             heat_sink=True,
         )
@@ -1034,7 +1033,6 @@ def sheet_closed_loop() -> dict:
     name, wf, _ng, _ps3, q, ratio, _shp = tcl.TRIMS[0]
     wf_pps = wf_pps_from_pph(wf)
     r = trim.solve(wf_pps, c.NP_DES, AMB)
-    f = frame(r.state, wf_pps, AMB)
     slope = abs(tcl._dqpt_dnp(r, wf_pps)) * ratio
     base = dict(pas_deg=100.0, pcprf_pct=tcl.NP_TRIM_RPM * 100.0 / c.NP_DES)
 
@@ -1047,7 +1045,7 @@ def sheet_closed_loop() -> dict:
                 pcprf_pct=(ref_of(i) if ref_of else base["pcprf_pct"]),
             )
             if s is None:
-                s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+                s = loop.seed(r, pilot, AMB)
             s, e, h, fr = loop.step(
                 s, pilot, AMB, dt=tcl.DT, load=load_of(i), j_load=c.J_LOAD_UH60A, heat_sink=True
             )

@@ -61,7 +61,7 @@ import pytest
 
 from t700 import constants as c
 from t700 import realtime, trim
-from t700.engine import Ambient, frame
+from t700.engine import Ambient
 from t700.linear import DOF, extract
 from t700.units import wf_pps_from_pph
 
@@ -151,9 +151,8 @@ def _frame_jacobian(
     """
     wf = wf_pps_from_pph(WF_PPH[case])
     r = trim.solve(wf, NP_RPM, AMB)
-    f = frame(r.state, wf, AMB)
-    st0 = realtime.from_trim(r, f.wa31_pps, f, lag_whole_flow=lag_whole_flow)
-    q0, np0 = f.q_pt_ftlbf, r.state.np_rpm
+    st0 = realtime.from_trim(r, lag_whole_flow=lag_whole_flow)
+    q0, np0 = r.frame.q_pt_ftlbf, r.state.np_rpm
     kw = dict(
         ambient=AMB,
         dt=dt,

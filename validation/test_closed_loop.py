@@ -158,7 +158,6 @@ def settle(wf_pph, q_shaft, ratio, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, n
         xcpc_pct = XCPC_PCT[name] if name in XCPC_PCT else 52.75
     wf = wf_pps_from_pph(wf_pph)
     r = trim.solve(wf, engine_c.NP_DES, AMB)
-    f = frame(r.state, wf, AMB)
     slope = abs(_dqpt_dnp(r, wf)) * ratio
 
     def load(np_rpm: float) -> float:
@@ -169,7 +168,7 @@ def settle(wf_pph, q_shaft, ratio, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, n
         pas_deg=100.0,
         pcprf_pct=pcprf if pcprf is not None else NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
     )
-    s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+    s = loop.seed(r, pilot, AMB)
     ecu_o = hmu_o = fr = None
     for _ in range(n):
         s, ecu_o, hmu_o, fr = loop.step(
@@ -187,14 +186,13 @@ def settle_cycle(wf_pph, q_shaft, ratio, name=None, n=SETTLE_FRAMES):
     xcpc = XCPC_PCT.get(name, 52.75)
     wf = wf_pps_from_pph(wf_pph)
     r = trim.solve(wf, engine_c.NP_DES, AMB)
-    f = frame(r.state, wf, AMB)
     slope = abs(_dqpt_dnp(r, wf)) * ratio
     pilot = loop.Pilot(
         xcpc_pct=xcpc,
         pas_deg=100.0,
         pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
     )
-    st = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+    st = loop.seed(r, pilot, AMB)
     hist: dict[str, list[float]] = {k: [] for k in ("NG", "NP", "Wf", "Ps3", "shp")}
     for _ in range(n):
         st, _e, h, fr = loop.step(
@@ -304,7 +302,6 @@ def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope()
     _name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
     wf_pps = wf_pps_from_pph(wf)
     r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
-    f = frame(r.state, wf_pps, AMB)
     slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
 
     def load(np_rpm: float) -> float:
@@ -313,7 +310,7 @@ def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope()
     cruise = loop.Pilot(
         xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES
     )
-    s = loop.seed(r, f.wa31_pps, f, cruise, AMB)
+    s = loop.seed(r, cruise, AMB)
     for _ in range(300):
         s, _e, _h, _fr = loop.step(
             s, cruise, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A, heat_sink=True
@@ -445,12 +442,11 @@ def test_a_load_step_response_pins_the_torque_motor_linkage():
     xcpc = XCPC_PCT[name]
     wf_pps = wf_pps_from_pph(wf)
     r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
-    f = frame(r.state, wf_pps, AMB)
     slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
     pilot = loop.Pilot(
         xcpc_pct=xcpc, pas_deg=100.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES
     )
-    s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+    s = loop.seed(r, pilot, AMB)
     # The dip and the peak are read over the 1200 frames after the step that NP_DIP_RPM and
     # WF_PEAK_PPH were measured on; the recovery, 3000 frames after it.
     step_at, window_end, n = 1400, 2600, 1400 + 3000
@@ -494,7 +490,6 @@ def test_a_collective_slam_pins_the_collective_lag():
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
     wf_pps = wf_pps_from_pph(wf)
     r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
-    f = frame(r.state, wf_pps, AMB)
     slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
     s, out, at, n = None, [], 600, 1800
     for i in range(n):
@@ -504,7 +499,7 @@ def test_a_collective_slam_pins_the_collective_lag():
             pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
         )
         if s is None:
-            s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+            s = loop.seed(r, pilot, AMB)
         s, _e, h, _fr = loop.step(
             s,
             pilot,
@@ -609,7 +604,6 @@ def test_a_gentle_collective_slam_pins_the_load_demand_feedforward():
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
     wf_pps = wf_pps_from_pph(wf)
     r = trim.solve(wf_pps, engine_c.NP_DES, AMB)
-    f = frame(r.state, wf_pps, AMB)
     slope = abs(_dqpt_dnp(r, wf_pps)) * ratio
     s, wf_hist, np_hist, limits, at, n = None, [], [], set(), 600, 1800
     for i in range(n):
@@ -619,7 +613,7 @@ def test_a_gentle_collective_slam_pins_the_load_demand_feedforward():
             pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES,
         )
         if s is None:
-            s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+            s = loop.seed(r, pilot, AMB)
         s, _e, h, _fr = loop.step(
             s,
             pilot,

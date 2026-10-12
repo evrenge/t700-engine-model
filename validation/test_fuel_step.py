@@ -44,7 +44,7 @@ import pytest
 
 from t700 import constants as c
 from t700 import maps, realtime, trim
-from t700.engine import Ambient, frame
+from t700.engine import Ambient
 from t700.units import wf_pps_from_pph
 
 REF = Path(__file__).resolve().parent.parent / "data" / "reference"
@@ -157,16 +157,15 @@ def _settled_window(tb, vb):
 def _run(fig: int, wf_hi: float, t_step: float, heat_sink: bool = True):
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
-    f0 = frame(r0.state, wf0, AMB)
     hi = wf_pps_from_pph(wf_hi)
-    st = realtime.from_trim(r0, f0.wa31_pps, f0)
+    st = realtime.from_trim(r0)
     return realtime.run(
         st,
         lambda t: wf0 if t < t_step else hi,
         AMB,
         duration_s=5.0,
         dt=0.007,
-        q_req_ftlbf=f0.q_pt_ftlbf,
+        q_req_ftlbf=r0.frame.q_pt_ftlbf,
         integrate_np=False,
         heat_sink=heat_sink,
     )

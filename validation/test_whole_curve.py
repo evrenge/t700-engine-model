@@ -93,16 +93,15 @@ def _ballin(fig: int, key: str):
 
 def _run(fig: int, heat_sink: bool):
     r0 = trim.solve(WF0, c.NP_DES, AMB)
-    f0 = frame(r0.state, WF0, AMB)
     hi = wf_pps_from_pph(STEPS[fig])
-    st = realtime.from_trim(r0, f0.wa31_pps, f0)
+    st = realtime.from_trim(r0)
     tr = realtime.run(
         st,
         lambda t: WF0 if t < STEP_TIME[fig] else hi,
         AMB,
         duration_s=5.0,
         dt=0.007,
-        q_req_ftlbf=f0.q_pt_ftlbf,
+        q_req_ftlbf=r0.frame.q_pt_ftlbf,
         integrate_np=False,
         heat_sink=heat_sink,
     )
@@ -372,17 +371,16 @@ def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches
     )
 
     r0 = trim.solve(WF0, c.NP_DES, AMB)
-    f0 = frame(r0.state, WF0, AMB)
 
     def settle(tol: float) -> tuple[float, float]:
-        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        st = realtime.from_trim(r0)
         tr = realtime.run(
             st,
             lambda t: WF0 if t < CHOP_STEP else wf_pps_from_pph(125.0),
             AMB,
             duration_s=120.0,
             dt=0.007,
-            q_req_ftlbf=f0.q_pt_ftlbf,
+            q_req_ftlbf=r0.frame.q_pt_ftlbf,
             integrate_np=False,
             heat_sink=True,
             tol=tol,
@@ -430,7 +428,6 @@ def test_the_sub_idle_root_no_longer_depends_on_the_pass_count():
     """
     original = realtime._p45_loop
     r0 = trim.solve(wf_pps_from_pph(125.0), c.NP_DES, AMB)
-    f0 = frame(r0.state, wf_pps_from_pph(125.0), AMB)
     differential = 100.0 * r0.state.ng_rpm / c.NG_DES
 
     def settle_with_cap(cap: int) -> float:
@@ -439,14 +436,14 @@ def test_the_sub_idle_root_no_longer_depends_on_the_pass_count():
 
         realtime._p45_loop = capped
         try:
-            st = realtime.from_trim(r0, f0.wa31_pps, f0)
+            st = realtime.from_trim(r0)
             tr = realtime.run(
                 st,
                 lambda t: wf_pps_from_pph(125.0),
                 AMB,
                 duration_s=40.0,
                 dt=0.007,
-                q_req_ftlbf=f0.q_pt_ftlbf,
+                q_req_ftlbf=r0.frame.q_pt_ftlbf,
                 integrate_np=False,
                 heat_sink=True,
             )
@@ -497,7 +494,6 @@ def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
     the fallback never fires. Below about 160 lbm/hr it fires every frame.
     """
     r0 = trim.solve(WF0, c.NP_DES, AMB)
-    f0 = frame(r0.state, WF0, AMB)
 
     # The differential trims come by CONTINUATION, and that is not a convenience.
     # `TrimResult` documents `trustworthy` as the thing a caller must check, and
@@ -526,14 +522,14 @@ def test_the_frame_map_agrees_with_the_differential_model_below_flight_idle():
             f"NGc={sub.frame.ngc_pct:.4g} %. Continuation is supposed to prevent this."
         )
         differential = 100.0 * sub.state.ng_rpm / c.NG_DES
-        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        st = realtime.from_trim(r0)
         tr = realtime.run(
             st,
             lambda t, g=pph: WF0 if t < CHOP_STEP else wf_pps_from_pph(g),
             AMB,
             duration_s=60.0,
             dt=0.007,
-            q_req_ftlbf=f0.q_pt_ftlbf,
+            q_req_ftlbf=r0.frame.q_pt_ftlbf,
             integrate_np=False,
             heat_sink=True,
         )
@@ -603,8 +599,8 @@ def test_ps3_leverage_on_the_speed_derivative_is_what_it_was_measured_to_be():
     """
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
-    f0 = frame(r0.state, wf0, AMB)
-    st = realtime.from_trim(r0, f0.wa31_pps, f0)
+    f0 = r0.frame
+    st = realtime.from_trim(r0)
     tr = realtime.run(
         st,
         lambda t: wf0 if t < CHOP_STEP else wf_pps_from_pph(125.0),

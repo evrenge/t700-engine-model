@@ -17,12 +17,14 @@ consumes each one.
 
 from __future__ import annotations
 
+from functools import cache
+
 from t700 import maps
 
 _SCHEDULES = maps.SCHEDULE_DIR
 
 
-@maps._cached
+@cache
 def f_hm1() -> maps.Curve:
     """WFPTP = F_HM1(T2) -- HMU topping line, the ceiling of the droop line.
 
@@ -32,7 +34,7 @@ def f_hm1() -> maps.Curve:
     return maps.load_curve("fhm1_topping_line.csv", "F_HM1", directory=_SCHEDULES)
 
 
-@maps._cached
+@cache
 def f_hm2() -> maps.Curve:
     """WFPRF = F_HM2(PAS) -- power-available spindle input schedule.
 
@@ -43,7 +45,7 @@ def f_hm2() -> maps.Curve:
     return maps.load_curve("fhm2_power_available.csv", "F_HM2", directory=_SCHEDULES)
 
 
-@maps._cached
+@cache
 def f_hm3() -> maps.Curve:
     """PNG = F_HM3(XLDSH) -- load-demand compensation, gas generator speed demand.
 
@@ -53,7 +55,7 @@ def f_hm3() -> maps.Curve:
     return maps.load_curve("fhm3_load_demand_png.csv", "F_HM3", directory=_SCHEDULES)
 
 
-@maps._cached
+@cache
 def f_hm4() -> maps.Curve:
     """WFQPS3 = F_HM4(XLDSH) -- load-demand compensation, fuel flow delta demand.
 
@@ -62,7 +64,7 @@ def f_hm4() -> maps.Curve:
     return maps.load_curve("fhm4_load_demand_wfqps3.csv", "F_HM4", directory=_SCHEDULES)
 
 
-@maps._cached
+@cache
 def f_hm5() -> maps.Curve:
     """WFIRF = F_HM5(T2) -- idle schedule, fuel flow reference.
 
@@ -71,7 +73,7 @@ def f_hm5() -> maps.Curve:
     return maps.load_curve("fhm5_idle_wfirf.csv", "F_HM5", directory=_SCHEDULES)
 
 
-@maps._cached
+@cache
 def f_hm6() -> maps.Curve:
     """PCNGI = F_HM6(T2) -- idle schedule, gas generator speed reference.
 
@@ -81,7 +83,7 @@ def f_hm6() -> maps.Curve:
     return maps.load_curve("fhm6_idle_pcngi.csv", "F_HM6", directory=_SCHEDULES)
 
 
-@maps._cached
+@cache
 def f_hm7() -> maps.SpeedMap:
     """WFPAC = F_HM7(PCNGHL, T2) -- HMU acceleration fuel limit. The only 2-D schedule.
 
@@ -103,7 +105,7 @@ def f_hm7() -> maps.SpeedMap:
     )
 
 
-@maps._cached
+@cache
 def f_ec1() -> maps.SpeedMap:
     """TAU45 = F_EC1(W45R, T45L) -- ECU thermocouple sensor time constant, sec.
 

@@ -35,6 +35,7 @@ from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
 
 import numpy as np
@@ -74,26 +75,17 @@ inner `reset_clamps()` destroy the outer one's count.
 """
 
 
-class ClampLog:
-    """What fell outside a map's data during one scoped measurement."""
-
-    __slots__ = ("counts",)
-
-    def __init__(self) -> None:
-        self.counts: dict[str, int] = {}
-
-
 @contextmanager
-def clamp_scope() -> Iterator[ClampLog]:
+def clamp_scope() -> Iterator[dict[str, int]]:
     """Measure clamps over a block without destroying an enclosing measurement.
 
     `trim.solve` counts clamps over the whole Newton search and then again at the solution
     alone, and `validation/` counts them over a run that contains trims. Each of those was
     calling `reset_clamps()`, so an outer count was silently zeroed by an inner one.
 
-        with maps.clamp_scope() as log:
+        with maps.clamp_scope() as counts:
             ...
-        log.counts        # only what happened inside the block
+        counts        # only what happened inside the block, filled in on exit
 
     The enclosing counter is restored on exit with the block's counts added, so nesting
     composes.
@@ -102,11 +94,11 @@ def clamp_scope() -> Iterator[ClampLog]:
     outer = _clamps
     inner: Counter[str] = Counter()
     _clamps = inner
-    log = ClampLog()
+    counts: dict[str, int] = {}
     try:
-        yield log
+        yield counts
     finally:
-        log.counts = dict(inner)
+        counts.update(inner)
         outer.update(inner)
         _clamps = outer
 
@@ -129,15 +121,27 @@ def reset_clamps() -> None:
     _clamps.clear()
 
 
-def _read_csv(path: Path) -> tuple[list[str], dict[str, np.ndarray], list[str]]:
-    """Return (column names, columns as arrays, header comment lines)."""
+_PROPAGATES = "propagating it silently makes the failure surface hundreds of frames later"
+
+
+def _non_finite(name: str, what: str, consequence: str) -> ValueError:
+    """The error a function table raises when asked for NaN or an infinity."""
+    return ValueError(
+        f"{name} was asked for a non-finite {what}. A NaN reaching a function table means "
+        f"something upstream has already failed; {consequence}."
+    )
+
+
+def _read_csv(path: Path) -> tuple[dict[str, np.ndarray], list[str], str]:
+    """Return (columns as arrays, in file order; header comment lines; the `# source:` line)."""
     header = [ln.rstrip("\n") for ln in path.read_text().splitlines() if ln.startswith("#")]
     with path.open() as fh:
         reader = csv.DictReader(ln for ln in fh if not ln.startswith("#"))
         names = list(reader.fieldnames or [])
         rows = list(reader)
     cols = {n: np.array([float(r[n]) for r in rows]) for n in names}
-    return names, cols, header
+    src = next((h[len("# source:") :].strip() for h in header if h.startswith("# source:")), "")
+    return cols, header, src
 
 
 @dataclass(frozen=True)
@@ -198,11 +202,7 @@ class Curve:
             return self._at(xq)
         xa = np.asarray(xq, dtype=float)
         if not np.all(np.isfinite(xa)):
-            raise ValueError(
-                f"{self.name} was asked for a non-finite abscissa ({xa}). A NaN reaching a "
-                f"function table means something upstream has already failed; propagating "
-                f"it silently makes the failure surface hundreds of frames later."
-            )
+            raise _non_finite(self.name, f"abscissa ({xa})", _PROPAGATES)
         lo, hi = self._lo, self._hi
         if not self.constant:
             outside = int(np.count_nonzero((xa < lo) | (xa > hi)))
@@ -223,11 +223,7 @@ class Curve:
         knots, the midpoints, and well outside both ends: zero bit-mismatches.
         """
         if x != x or x == _INF or x == _NINF:
-            raise ValueError(
-                f"{self.name} was asked for a non-finite abscissa ({x}). A NaN reaching a "
-                f"function table means something upstream has already failed; propagating "
-                f"it silently makes the failure surface hundreds of frames later."
-            )
+            raise _non_finite(self.name, f"abscissa ({x})", _PROPAGATES)
         if not self.constant and (x < self._lo or x > self._hi):
             _clamps[self.name] += 1
         xl = self._xl
@@ -375,10 +371,10 @@ class SpeedMap:
         # report. A corrupted speed yielding maximum compressor flow is the worst
         # available failure mode. Found by the 2026-09-13 numerical-mathematics audit.
         if xq != xq or xq == _INF or xq == _NINF or pq != pq or pq == _INF or pq == _NINF:
-            raise ValueError(
-                f"{self.name} was asked for a non-finite argument (x={xq}, param={pq}). "
-                f"A NaN reaching a function table means something upstream has already "
-                f"failed; silently returning the top speed line hides that."
+            raise _non_finite(
+                self.name,
+                f"argument (x={xq}, param={pq})",
+                "silently returning the top speed line hides that",
             )
         lo = self._plo
         hi = self._phi
@@ -455,8 +451,7 @@ def load_speed_map(
     over all lines.
     """
     path = (directory or DATA_DIR) / filename
-    _, cols, header = _read_csv(path)
-    src = next((h[len("# source:") :].strip() for h in header if h.startswith("# source:")), "")
+    cols, _, src = _read_csv(path)
     params = np.unique(cols[param])
     lines = []
     moved = 0.0
@@ -583,8 +578,7 @@ def load_curve(
 ) -> Curve:
     """Load a 1-D function table, optionally conditioned. Defaults to data/maps/."""
     path = (directory or DATA_DIR) / filename
-    _, cols, header = _read_csv(path)
-    src = next((h[len("# source:") :].strip() for h in header if h.startswith("# source:")), "")
+    cols, _, src = _read_csv(path)
     order = np.argsort(cols[xcol])
     c = Curve(name=name, x=cols[xcol][order], y=cols[ycol][order], source=src)
     if phys is not None:
@@ -596,21 +590,11 @@ def load_curve(
 # --------------------------------------------------------------------------- the engine's tables
 
 
-def _cached(fn):
-    """Load once. These are read-only tables; re-reading them per frame is waste."""
-    store: dict[str, object] = {}
-
-    def wrapper():
-        if "v" not in store:
-            store["v"] = fn()
-        return store["v"]
-
-    wrapper.__name__ = fn.__name__
-    wrapper.__doc__ = fn.__doc__
-    return wrapper
+# Each loader is `functools.cache`d: load once. These are read-only tables; re-reading them
+# per frame is waste.
 
 
-@_cached
+@cache
 def f1() -> SpeedMap:
     """Compressor corrected mass flow, WA2c = f1(Ps3/P2, NGc). [pdf p.22, Eq. 7; Fig. A1]
 
@@ -661,7 +645,7 @@ def f1() -> SpeedMap:
     )
 
 
-@_cached
+@cache
 def f1_as_printed() -> SpeedMap:
     """`f1` on the seven beta values Figure A1 actually prints. [Fig. A1]
 
@@ -690,7 +674,7 @@ def f1_as_printed() -> SpeedMap:
     )
 
 
-@_cached
+@cache
 def f2() -> Curve:
     """Compressor temperature ratio, T3/T2 = f2(Ps3/P2). [Fig. A2]"""
     return load_curve(
@@ -705,7 +689,7 @@ def f2() -> Curve:
     )
 
 
-@_cached
+@cache
 def f3() -> Curve:
     """Seal-pressurization bleed fraction, B1 = f3(NGc). [Fig. A3]
 
@@ -727,7 +711,7 @@ def f3() -> Curve:
     )
 
 
-@_cached
+@cache
 def f4() -> Curve:
     """Power-turbine-balance bleed fraction. [Fig. A4]"""
     return load_curve(
@@ -742,7 +726,7 @@ def f4() -> Curve:
     )
 
 
-@_cached
+@cache
 def f5() -> Curve:
     """Impeller tip leakage and turbine cooling bleed fraction. [Fig. A5]"""
     return load_curve(
@@ -752,7 +736,7 @@ def f5() -> Curve:
     )
 
 
-@_cached
+@cache
 def f6() -> Curve:
     """Combustor efficiency against fuel-air ratio. [Fig. A6]
 
@@ -794,7 +778,7 @@ def f6() -> Curve:
     )
 
 
-@_cached
+@cache
 def f7() -> Curve:
     """Gas generator turbine energy parameter against P45/P41. [pdf p.24, Eq. 26; Fig. A7]"""
     return load_curve(
@@ -809,7 +793,7 @@ def f7() -> Curve:
     )
 
 
-@_cached
+@cache
 def f8() -> Curve:
     """Power turbine energy parameter against P49/P45. [Eq. 32; Fig. A8]
 
@@ -828,7 +812,7 @@ def f8() -> Curve:
     )
 
 
-@_cached
+@cache
 def f9() -> Curve:
     """Power turbine corrected mass flow against Ps9/P45. [Eq. 33; Fig. A9]
 
@@ -849,7 +833,7 @@ def f9() -> Curve:
     )
 
 
-@_cached
+@cache
 def f10() -> Curve:
     """Exhaust pressure loss, f10 = P49/Ps9, against NGc. [pdf p.24, Eq. 38; Fig. A10]
 
@@ -885,7 +869,7 @@ def f10() -> Curve:
     )
 
 
-@_cached
+@cache
 def f_hs() -> Curve:
     """Station 4.1 heat-sink constant against NGc. [pdf p.26, Eq. 52; Fig. A11]
 

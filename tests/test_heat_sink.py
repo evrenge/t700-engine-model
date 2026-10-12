@@ -27,7 +27,7 @@ import pytest
 
 from t700 import constants as c
 from t700 import maps, realtime, trim
-from t700.engine import Ambient, frame
+from t700.engine import Ambient
 from t700.realtime import _heat_sink
 from t700.units import wf_pps_from_pph
 
@@ -39,7 +39,7 @@ def _seed(wf_pph: float):
     wf = wf_pps_from_pph(wf_pph)
     r = trim.solve(wf, c.NP_DES, AMB)
     assert r.trustworthy, f"trim at {wf_pph} lbm/hr is not on data; fix the fixture"
-    f = frame(r.state, wf, AMB)
+    f = r.frame
     return wf, r, f
 
 
@@ -98,7 +98,7 @@ def test_heat_sink_is_inert_at_steady_state(wf_pph: float):
     wf, r, f = _seed(wf_pph)
     out = {}
     for hs in (False, True):
-        st = realtime.from_trim(r, f.wa31_pps, f)
+        st = realtime.from_trim(r)
         tr = realtime.run(
             st,
             lambda _t: wf,
@@ -119,7 +119,7 @@ def test_heat_sink_is_inert_at_steady_state(wf_pph: float):
 def test_switch_off_reproduces_t41_ns_exactly(wf_pph: float):
     """With the switch off, T41 is T41_ns identically [Eq. 23, pdf p.23]."""
     wf, r, f = _seed(wf_pph)
-    st = realtime.from_trim(r, f.wa31_pps, f)
+    st = realtime.from_trim(r)
     tr = realtime.run(
         st,
         lambda t: wf if t < 0.5 else wf * 1.3,
@@ -136,7 +136,7 @@ def test_switch_off_reproduces_t41_ns_exactly(wf_pph: float):
 def test_switch_on_separates_t41_from_t41_ns_only_in_transient():
     """On, T41 departs from T41_ns during the step and rejoins it after."""
     wf, r, f = _seed(400.0)
-    st = realtime.from_trim(r, f.wa31_pps, f)
+    st = realtime.from_trim(r)
     tr = realtime.run(
         st,
         lambda t: wf if t < 0.5 else wf * 1.4,
@@ -152,11 +152,3 @@ def test_switch_on_separates_t41_from_t41_ns_only_in_transient():
     after = abs(gap[-1])
     assert during > 50.0, f"heat sink barely engaged: max gap {during:.1f} deg R"
     assert after < 1.0, f"heat sink left a standing offset of {after:.3f} deg R"
-
-
-def test_seeding_without_a_frame_still_builds_a_usable_state():
-    """`from_trim` without a frame is the 5-DOF path and must keep working."""
-    wf, r, f = _seed(400.0)
-    st = realtime.from_trim(r, f.wa31_pps)
-    nxt, out = realtime.step(st, wf, AMB, 0.007, q_req_ftlbf=f.q_pt_ftlbf, integrate_np=False)
-    assert out.t41_degR == pytest.approx(out.t41_ns_degR)

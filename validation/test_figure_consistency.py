@@ -116,16 +116,15 @@ def _run(wf_hi_pph: float, t_step: float, duration_s: float = 5.0):
     """Figures 9 and 10: a step from the 400 lbm/hr trim, NP integration suppressed."""
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
-    f0 = frame(r0.state, wf0, AMB)
     hi = wf_pps_from_pph(wf_hi_pph)
-    st = realtime.from_trim(r0, f0.wa31_pps, f0)
+    st = realtime.from_trim(r0)
     return realtime.run(
         st,
         lambda t: wf0 if t < t_step else hi,
         AMB,
         duration_s=duration_s,
         dt=0.007,
-        q_req_ftlbf=f0.q_pt_ftlbf,
+        q_req_ftlbf=r0.frame.q_pt_ftlbf,
         integrate_np=False,
         heat_sink=True,
     )
@@ -440,16 +439,15 @@ def test_we_match_both_sides_of_the_figure_6_to_9_gap():
     r0, r775 = sweep[0], sweep[-1]
     assert r775.trustworthy
     wf0, hi = wf_pps_from_pph(400.0), wf_pps_from_pph(775.0)
-    f0 = frame(r0.state, wf0, AMB)
     f775 = frame(r775.state, hi, AMB)
-    st = realtime.from_trim(r0, f0.wa31_pps, f0)
+    st = realtime.from_trim(r0)
     tr = realtime.run(
         st,
         lambda t: wf0 if t < 0.539 else hi,
         AMB,
         duration_s=40.0,
         dt=0.007,
-        q_req_ftlbf=f0.q_pt_ftlbf,
+        q_req_ftlbf=r0.frame.q_pt_ftlbf,
         integrate_np=False,
         heat_sink=True,
     )

@@ -197,7 +197,7 @@ def _jacobian(
     return jac
 
 
-def initial_guess(wf_pps: float, np_rpm: float, amb: Ambient) -> State:
+def initial_guess(np_rpm: float, amb: Ambient) -> State:
     """A starting point good enough for Newton to find the root.
 
     Scaled off the design point rather than off any particular trim, so the solver is not
@@ -251,7 +251,7 @@ def solve(
     for correctness. Open question #71.
     """
     amb = ambient
-    st = guess or initial_guess(wf_pps, np_rpm, amb)
+    st = guess or initial_guess(np_rpm, amb)
     x = np.array([st.ng_rpm, st.p3_psia, st.p41_psia, st.p45_psia], dtype=float)
 
     scale = np.array([c.NG_DES, amb.p_amb_psia, amb.p_amb_psia, amb.p_amb_psia])
@@ -267,7 +267,7 @@ def solve(
     ng_lo = ngc_lo / 100.0 * c.NG_DES * root_theta2
     ng_hi = ngc_hi / 100.0 * c.NG_DES * root_theta2
 
-    with maps.clamp_scope() as search:
+    with maps.clamp_scope() as during:
         r = _residuals(x, np_rpm, wf_pps, amb)
         started_off_map = not (ng_lo <= x[0] <= ng_hi)
         converged = False
@@ -331,15 +331,13 @@ def solve(
             else:
                 break
             r = r_new
-    during = search.counts
 
     st = State(float(x[0]), np_rpm, float(x[1]), float(x[2]), float(x[3]))
 
     # Re-evaluate cleanly at the solution: clamps during a Newton search say nothing
     # about whether the answer sits inside the data.
-    with maps.clamp_scope() as log:
+    with maps.clamp_scope() as at_solution:
         f = frame(st, wf_pps, amb)
-    at_solution = log.counts
 
     return TrimResult(
         state=st,

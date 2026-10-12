@@ -85,9 +85,7 @@ from enum import StrEnum
 
 import numpy as np
 
-from t700 import constants as c
-from t700 import maps
-from t700.engine import STANDARD_DAY, Ambient, Frame, State, frame
+from t700.engine import STANDARD_DAY, Ambient, Frame, State, frame, heat_sink_taus
 
 
 class DOF(StrEnum):
@@ -262,6 +260,16 @@ def _central_jacobian(f, x0: np.ndarray, n_out: int, rel: float) -> np.ndarray:
     return A
 
 
+def _wf_difference(f, wf_pps: float, rel: float):
+    """Central difference of `f(wf)` in Wf, at `rel` of the trim fuel flow.
+
+    Not `_central_jacobian`: that steps `rel * max(|x|, 1.0)`, and a fuel flow in lbm/sec is
+    well below 1, so the floor here is `1e-6` instead.
+    """
+    hw = rel * max(abs(wf_pps), 1e-6)
+    return (f(wf_pps + hw) - f(wf_pps - hw)) / (2.0 * hw)
+
+
 def _heat_sink_taus(f: Frame) -> tuple[float, float]:
     """`(tau1, tau2)` at a trim -- the heat-sink lead and lag [nomenclature pdf p.13].
 
@@ -273,8 +281,7 @@ def _heat_sink_taus(f: Frame) -> tuple[float, float]:
     trim-dependent by definition, "those values corresponding to the trim operating
     condition" [pdf p.31], so they can only come from our own Eqs. 50-53 at trim.
     """
-    tau_a = c.TC_T41 * f.t41_ns_degR**0.5 / f.w41_pps**0.8  # (51)
-    tau_b = float(maps.f_hs()(f.ngc_pct)) / f.w41_pps  # (52), (53)
+    tau_a, tau_b = heat_sink_taus(f.t41_ns_degR, f.w41_pps, f.ngc_pct)  # (51)-(53)
     return tau_a - tau_b, tau_a
 
 
@@ -328,9 +335,8 @@ def _extract_heat_sink(dof, f_deriv, f_t41ns, z0, wf_pps, rel_step, taus, states
     cx = _central_jacobian(
         lambda z: np.array([f_t41ns(np.append(z[:m], z0[m]), wf_pps)]), z0, 1, rel_step
     )[0]
-    hw = rel_step * max(abs(wf_pps), 1e-6)
-    Jw = (f_deriv(z0, wf_pps + hw) - f_deriv(z0, wf_pps - hw)) / (2.0 * hw)
-    cw = (f_t41ns(z0, wf_pps + hw) - f_t41ns(z0, wf_pps - hw)) / (2.0 * hw)
+    Jw = _wf_difference(lambda w: f_deriv(z0, w), wf_pps, rel_step)
+    cw = _wf_difference(lambda w: f_t41ns(z0, w), wf_pps, rel_step)
 
     F1 = np.eye(n)
     F1[m, :m] = -tau1 * cx[:m]
@@ -389,7 +395,8 @@ def extract(
         )
     amb = ambient
     full0 = trim_result.state.as_array()
-    qreq0 = frame(trim_result.state, wf_pps, amb, j_load=j_load).q_pt_ftlbf
+    f0 = frame(trim_result.state, wf_pps, amb, j_load=j_load)
+    qreq0 = f0.q_pt_ftlbf
     np_rpm = float(full0[1])
 
     def qreq_at(np_now: float) -> float:
@@ -399,7 +406,6 @@ def extract(
     qreq = qreq0  # the trim value, for the paths that do not perturb NP
 
     if dof in HEAT_SINK:
-        f0 = frame(trim_result.state, wf_pps, amb, j_load=j_load)
         taus = _heat_sink_taus(f0)
         t41_0 = f0.t41_ns_degR  # at a trim T41 == T41_ns: Eq. 50 has unit DC gain
 
@@ -431,11 +437,7 @@ def extract(
         A = _central_jacobian(
             lambda x: _full_deriv(x, wf_pps, amb, qreq_at(x[1]), j_load), full0, 5, rel_step
         )
-        hw = rel_step * max(abs(wf_pps), 1e-6)
-        b = (
-            _full_deriv(full0, wf_pps + hw, amb, qreq, j_load)
-            - _full_deriv(full0, wf_pps - hw, amb, qreq, j_load)
-        ) / (2.0 * hw)
+        b = _wf_difference(lambda w: _full_deriv(full0, w, amb, qreq, j_load), wf_pps, rel_step)
         return LinearModel(dof, STATES[dof], A, b, full0, wf_pps, np_rpm)
 
     if dof is DOF.REDUCED_FIVE:
@@ -459,7 +461,7 @@ def extract(
         return d
 
     A = _central_jacobian(g, s0, 2, rel_step)
-    hw = rel_step * max(abs(wf_pps), 1e-6)
-    bp, _ = _quasi_steady_deriv(s0, p0, wf_pps + hw, amb, qreq, j_load)
-    bm, _ = _quasi_steady_deriv(s0, p0, wf_pps - hw, amb, qreq, j_load)
-    return LinearModel(dof, STATES[dof], A, (bp - bm) / (2.0 * hw), s0, wf_pps, np_rpm)
+    b = _wf_difference(
+        lambda w: _quasi_steady_deriv(s0, p0, w, amb, qreq, j_load)[0], wf_pps, rel_step
+    )
+    return LinearModel(dof, STATES[dof], A, b, s0, wf_pps, np_rpm)

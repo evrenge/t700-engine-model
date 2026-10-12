@@ -77,10 +77,37 @@ class LoopState:
     q_pt_ftlbf: float
 
 
+def _ecu_inputs(
+    engine: realtime.RTState, t45_degR: float, w45_pps: float, q_pt_ftlbf: float, pilot: Pilot
+) -> ecu_mod.ECUInputs:
+    """What the ECU senses: NP, TORQ45, T45, W45 and P45 [Figs. C1-C8]."""
+    return ecu_mod.ECUInputs(
+        np_rpm=engine.np_rpm,
+        torq45_ftlbf=q_pt_ftlbf,
+        t45_degR=t45_degR,
+        w45_pps=w45_pps,
+        p45_psia=engine.p45_psia,
+        pcprf_pct=pilot.pcprf_pct,
+    )
+
+
+def _hmu_inputs(
+    engine: realtime.RTState, pilot: Pilot, ambient: Ambient, spdg: float
+) -> hmu_mod.HMUInputs:
+    """What the HMU senses: NG, PS3 and T2, plus the pilot's levers and the ECU trim
+    [Figs. C9-C22]."""
+    return hmu_mod.HMUInputs(
+        ng_rpm=engine.ng_rpm,
+        ps3_psia=engine_c.K_PS3 * engine.p3_psia,
+        t2_degR=ambient.t_amb_degR,
+        pas_deg=pilot.pas_deg,
+        xcpc_pct=pilot.xcpc_pct,
+        spdg=spdg,
+    )
+
+
 def seed(
     trim_result,
-    wa31_pps: float,
-    frame,
     pilot: Pilot,
     ambient: Ambient = STANDARD_DAY,
 ) -> LoopState:
@@ -90,23 +117,10 @@ def seed(
     `hmu.seed`, which are our own defaults -- the report states no initial condition for
     any of the 22 block diagrams (open question #55).
     """
-    st = realtime.from_trim(trim_result, wa31_pps, frame)
-    e_in = ecu_mod.ECUInputs(
-        np_rpm=trim_result.state.np_rpm,
-        torq45_ftlbf=frame.q_pt_ftlbf,
-        t45_degR=frame.t45_degR,
-        w45_pps=frame.w45_pps,
-        p45_psia=trim_result.state.p45_psia,
-        pcprf_pct=pilot.pcprf_pct,
-    )
-    h_in = hmu_mod.HMUInputs(
-        ng_rpm=trim_result.state.ng_rpm,
-        ps3_psia=engine_c.K_PS3 * trim_result.state.p3_psia,
-        t2_degR=ambient.t_amb_degR,
-        pas_deg=pilot.pas_deg,
-        xcpc_pct=pilot.xcpc_pct,
-        spdg=hmu_mod.SPDG_NULL,
-    )
+    frame = trim_result.frame
+    st = realtime.from_trim(trim_result)
+    e_in = _ecu_inputs(st, frame.t45_degR, frame.w45_pps, frame.q_pt_ftlbf, pilot)
+    h_in = _hmu_inputs(st, pilot, ambient, hmu_mod.SPDG_NULL)
     return LoopState(
         engine=st,
         # Both halves seeded to hold the SAME torque-motor demand. They disagreed until
@@ -140,24 +154,10 @@ def step(
     have, and open question #6 recovers it as roughly 1.78 / 1.45 / 1.18 times
     `|dQ_PT/dNP|` at the three trims -- positive, because rotor torque rises with speed.
     """
-    e_in = ecu_mod.ECUInputs(
-        np_rpm=state.engine.np_rpm,
-        torq45_ftlbf=state.q_pt_ftlbf,
-        t45_degR=state.t45_degR,
-        w45_pps=state.w45_pps,
-        p45_psia=state.engine.p45_psia,
-        pcprf_pct=pilot.pcprf_pct,
-    )
+    e_in = _ecu_inputs(state.engine, state.t45_degR, state.w45_pps, state.q_pt_ftlbf, pilot)
     ecu_state, ecu_out = ecu_mod.step(state.ecu, e_in, dt)
 
-    h_in = hmu_mod.HMUInputs(
-        ng_rpm=state.engine.ng_rpm,
-        ps3_psia=engine_c.K_PS3 * state.engine.p3_psia,
-        t2_degR=ambient.t_amb_degR,
-        pas_deg=pilot.pas_deg,
-        xcpc_pct=pilot.xcpc_pct,
-        spdg=ecu_out.spdg,
-    )
+    h_in = _hmu_inputs(state.engine, pilot, ambient, ecu_out.spdg)
     hmu_state, hmu_out = hmu_mod.step(state.hmu, h_in, dt)
 
     q_req = load(state.engine.np_rpm) if callable(load) else float(load)

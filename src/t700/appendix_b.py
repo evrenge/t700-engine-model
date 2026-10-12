@@ -89,7 +89,7 @@ def _header(path: Path) -> dict[str, str]:
         if ":" in line:
             k, _, v = line[1:].partition(":")
             k = k.strip()
-            if k and not k.startswith(" "):
+            if k:
                 out.setdefault(k, v.strip())
     return out
 

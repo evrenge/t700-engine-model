@@ -61,11 +61,12 @@ CLAUDE.md's architecture constraint. Every state is named for the block that own
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from t700 import constants as engine_c
 from t700.control import constants as c
 from t700.control import schedules
-from t700.control._blocks import backlash, clamp, delay, lag, lead_lag
+from t700.control._blocks import backlash, clamp, deadband, delay, integrator, lag, lead_lag
 from t700.units import wf_pps_from_pph
 
 SPDG_NULL: float = -c.TM_INPUT_BIAS - c.TM_CURRENT_BIAS / c.TM_FORWARD_GAIN
@@ -155,6 +156,60 @@ class HMUOutputs:
     """Which branch of the Fig. C18 cascade set `hmusel`: droop, idle, accel or decel."""
 
 
+def _load_demand(xlds: float) -> float:
+    """DWFP from the load demand spindle, Fig. C17 [C-38]."""
+    png = float(schedules.f_hm3()(xlds))
+    wfqps3 = float(schedules.f_hm4()(xlds))
+    return c.KNDRP * (c.NGREF - png) + (c.LOAD_DEMAND_BIAS - wfqps3)
+
+
+class _Demands(NamedTuple):
+    wfptp: float
+    wfprf: float
+    wfpdm: float
+    wfidm: float
+    wfpac: float
+    wfpdc: float
+    hmusel: float
+    limit: str
+
+
+def _demands(pcnghl: float, t2_degR: float, pas_deg: float, dwfpl: float, tmru: float) -> _Demands:
+    """The droop line, the three limits and the Fig. C18 cascade between them."""
+    # --- C-35/C-37, Figs. C14/C16: topping and power-available schedules ------------
+    wfptp = float(schedules.f_hm1()(t2_degR))
+    wfprf = float(schedules.f_hm2()(pas_deg))
+
+    # --- C-26, Fig. C9: the droop line ---------------------------------------------
+    demand_cut = max(dwfpl + tmru, 0.0)
+    wfpdm = wfptp + c.KNDRP * (c.NGREF - pcnghl) - wfprf - demand_cut
+
+    # --- C-41, Fig. C20: idle schedule ---------------------------------------------
+    wfirf = float(schedules.f_hm5()(t2_degR))
+    pcngi = float(schedules.f_hm6()(t2_degR))
+    wfidm = c.KNDRP * (pcngi - pcnghl) - wfirf
+
+    # --- C-42, Fig. C21: acceleration limit ----------------------------------------
+    wfpac = float(schedules.f_hm7()(pcnghl, t2_degR))
+
+    # --- C-43, Fig. C22: deceleration limit ----------------------------------------
+    wfpdc = clamp(c.AWFP * pcnghl + c.BWFP, c.WFPDCL, c.WFPDCH)
+
+    # --- C-39, Fig. C18: the limit cascade -----------------------------------------
+    after_idle = max(wfpdm, wfidm)
+    after_accel = min(after_idle, wfpac)
+    hmusel = max(after_accel, wfpdc)
+    if hmusel == wfpdc and wfpdc > after_accel:
+        limit = "decel"
+    elif after_accel == wfpac and wfpac < after_idle:
+        limit = "accel"
+    elif after_idle == wfidm and wfidm > wfpdm:
+        limit = "idle"
+    else:
+        limit = "droop"
+    return _Demands(wfptp, wfprf, wfpdm, wfidm, wfpac, wfpdc, hmusel, limit)
+
+
 def seed(u: HMUInputs) -> HMUState:
     """A state consistent with holding `u` -- the HMU's analogue of `realtime.from_trim`.
 
@@ -176,21 +231,11 @@ def seed(u: HMUInputs) -> HMUState:
     """
     pcng = u.ng_rpm * 100.0 / engine_c.NG_DES
     xldsa = c.COLLECTIVE_RIGGING_GAIN * u.xcpc_pct + c.COLLECTIVE_RIGGING_BIAS
-    png = float(schedules.f_hm3()(xldsa))
-    wfqps3 = float(schedules.f_hm4()(xldsa))
-    dwfp = c.KNDRP * (c.NGREF - png) + (c.LOAD_DEMAND_BIAS - wfqps3)
+    dwfp = _load_demand(xldsa)
     # the metering valve has to be seeded too, or the loop starts with a fuel-flow step
     # from zero -- which is a slam acceleration the control never commanded
-    wfptp = float(schedules.f_hm1()(u.t2_degR))
-    wfprf = float(schedules.f_hm2()(u.pas_deg))
     tmru = 0.0  # the integrator is seeded at zero, and TMRU = TMLG * it
-    wfpdm = wfptp + c.KNDRP * (c.NGREF - pcng) - wfprf - max(dwfp + tmru, 0.0)
-    wfidm = c.KNDRP * (float(schedules.f_hm6()(u.t2_degR)) - pcng) - float(
-        schedules.f_hm5()(u.t2_degR)
-    )
-    wfpac = float(schedules.f_hm7()(pcng, u.t2_degR))
-    wfpdc = clamp(c.AWFP * pcng + c.BWFP, c.WFPDCL, c.WFPDCH)
-    hmusel = max(min(max(wfpdm, wfidm), wfpac), wfpdc)
+    hmusel = _demands(pcng, u.t2_degR, u.pas_deg, dwfp, tmru).hmusel
     wfmv = clamp(hmusel * u.ps3_psia, c.WFMIN, c.WFMAX)
     return HMUState(
         tm_leadlag=(u.spdg + c.TM_INPUT_BIAS),
@@ -224,9 +269,7 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
     # --- C-38, Fig. C17: load demand spindle input schedule ------------------------
     # Fed XLDSH here, though Figs. C26/C27 label their x axes XLDSA -- see the
     # inventory's ambiguity 5. The figure wins: the wire carries XLDSH.
-    png = float(schedules.f_hm3()(xldsh))
-    wfqps3 = float(schedules.f_hm4()(xldsh))
-    dwfp = c.KNDRP * (c.NGREF - png) + (c.LOAD_DEMAND_BIAS - wfqps3)
+    dwfp = _load_demand(xldsh)
 
     # --- C-33, Fig. C12: load demand dynamics --------------------------------------
     load_demand_lag = lag(state.load_demand_lag, dwfp, c.CLLDS, dt)
@@ -235,46 +278,13 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
     tm_err = (u.spdg + c.TM_INPUT_BIAS) - c.TMLVG * state.tm_integrator
     tm_leadlag, tm_out = lead_lag(state.tm_leadlag, tm_err, c.TM_LEAD, c.TM_LAG, dt)
     tm_current = tm_out * c.TM_FORWARD_GAIN + c.TM_CURRENT_BIAS
-    if tm_current > c.TMDB:
-        tm_db = tm_current - c.TMDB
-    elif tm_current < -c.TMDB:
-        tm_db = tm_current + c.TMDB
-    else:
-        tm_db = 0.0
-    tm_integrator = clamp(state.tm_integrator + dt * c.TMGN * tm_db, c.XLOLIM, c.XHILIM)
+    tm_db = deadband(tm_current, c.TMDB)
+    tm_integrator = integrator(state.tm_integrator, tm_db, c.TMGN, c.XLOLIM, c.XHILIM, dt)
     tmru = c.TMLG * tm_integrator
 
-    # --- C-35/C-37, Figs. C14/C16: topping and power-available schedules ------------
-    wfptp = float(schedules.f_hm1()(u.t2_degR))
-    wfprf = float(schedules.f_hm2()(u.pas_deg))
-
-    # --- C-26, Fig. C9: the droop line ---------------------------------------------
-    demand_cut = max(load_demand_lag + tmru, 0.0)
-    wfpdm = wfptp + c.KNDRP * (c.NGREF - pcnghl) - wfprf - demand_cut
-
-    # --- C-41, Fig. C20: idle schedule ---------------------------------------------
-    wfirf = float(schedules.f_hm5()(u.t2_degR))
-    pcngi = float(schedules.f_hm6()(u.t2_degR))
-    wfidm = c.KNDRP * (pcngi - pcnghl) - wfirf
-
-    # --- C-42, Fig. C21: acceleration limit ----------------------------------------
-    wfpac = float(schedules.f_hm7()(pcnghl, u.t2_degR))
-
-    # --- C-43, Fig. C22: deceleration limit ----------------------------------------
-    wfpdc = clamp(c.AWFP * pcnghl + c.BWFP, c.WFPDCL, c.WFPDCH)
-
-    # --- C-39, Fig. C18: the limit cascade -----------------------------------------
-    after_idle = max(wfpdm, wfidm)
-    after_accel = min(after_idle, wfpac)
-    hmusel = max(after_accel, wfpdc)
-    if hmusel == wfpdc and wfpdc > after_accel:
-        limit = "decel"
-    elif after_accel == wfpac and wfpac < after_idle:
-        limit = "accel"
-    elif after_idle == wfidm and wfidm > wfpdm:
-        limit = "idle"
-    else:
-        limit = "droop"
+    # --- C-26 and C-39..C-43, Figs. C9 and C18-C22: droop line, limits, cascade ------
+    d = _demands(pcnghl, u.t2_degR, u.pas_deg, load_demand_lag, tmru)
+    hmusel = d.hmusel
 
     # --- C-27/C-40, Figs. C9/C19: metering valve -----------------------------------
     wfmv = hmusel * ps3l
@@ -299,17 +309,17 @@ def step(state: HMUState, u: HMUInputs, dt: float) -> tuple[HMUState, HMUOutputs
         wf_pph=wf_pph,
         pcnghl=pcnghl,
         ps3l_psia=ps3l,
-        wfptp=wfptp,
-        wfprf=wfprf,
+        wfptp=d.wfptp,
+        wfprf=d.wfprf,
         dwfp=dwfp,
         dwfpl=load_demand_lag,
         tmru=tmru,
-        wfpdm=wfpdm,
-        wfidm=wfidm,
-        wfpac=wfpac,
-        wfpdc=wfpdc,
+        wfpdm=d.wfpdm,
+        wfidm=d.wfidm,
+        wfpac=d.wfpac,
+        wfpdc=d.wfpdc,
         hmusel=hmusel,
         wfmv_pph=wfmv,
-        limit=limit,
+        limit=d.limit,
     )
     return new, out

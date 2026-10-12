@@ -439,7 +439,7 @@ def test_clamp_scope_nests_without_destroying_an_enclosing_count():
     with maps.clamp_scope() as inner:
         f9(0.95)
         f9(0.95)
-    assert inner.counts == {"f9": 2}, inner.counts
+    assert inner == {"f9": 2}, inner
     assert maps.clamp_report() == {"f9": 3}, (
         "the enclosing count must survive the inner scope and absorb its clamps"
     )

@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import sqrt
+from typing import NamedTuple
 
 import numpy as np
 
@@ -54,8 +55,8 @@ class Ambient:
     envelope"* [pdf p.22]. So there is no inlet model -- P2 and T2 *are* ambient.
     """
 
-    p_amb_psia: float = 14.696
-    t_amb_degR: float = 518.67
+    p_amb_psia: float = corrections.P_STD_PSIA
+    t_amb_degR: float = corrections.T_STD_DEGR
 
 
 STANDARD_DAY = Ambient()
@@ -153,6 +154,154 @@ class Frame:
 _TORQUE_SCALE = BTU_TO_FTLBF * RAD_PER_SEC_TO_RPM
 
 
+# The blocks below are the equations `frame` and `realtime.step` share. `realtime.step`
+# evaluates the same physics with the three pressures solved inside the frame, so it calls
+# these between its own pressure solves; each is written once, here, in the report's order.
+
+
+class Compressor(NamedTuple):
+    """Station 2, the compressor and the bleeds: everything Eqs. 1-17 produce."""
+
+    h2: float
+    ps3: float
+    theta2: float
+    ngc_pct: float
+    wa2c: float
+    delta2: float
+    wa2: float
+    t3: float
+    h3: float
+    b1: float
+    b2: float
+    b3: float
+    wa24_bl: float
+    wa3_bl: float
+    wa3: float
+
+
+def compressor(ng_rpm: float, p3_psia: float, ambient: Ambient) -> Compressor:
+    """Eqs. 1-17 from NG, P3 and the flight condition alone."""
+    # --- inlet and station 2, Eqs. 1-6 ------------------------------------------------
+    p2 = ambient.p_amb_psia  # (1)
+    t2 = ambient.t_amb_degR  # (2)
+    h2 = thermo.h2_from_t2(t2)  # (3)  no intercept, unlike H3 and H41
+    ps3 = c.K_PS3 * p3_psia  # (4)
+    theta2 = corrections.theta2(t2)  # (5)
+    ngc = corrections.corrected_speed(ng_rpm, theta2)  # (6)
+
+    # --- compressor, Eqs. 7-11 --------------------------------------------------------
+    pr = ps3 / p2
+    ngc_pct = 100.0 * ngc / c.NG_DES
+    wa2c = float(maps.f1()(pr, ngc_pct))  # (7)
+    delta2 = corrections.delta2(p2)  # (8)
+    wa2 = corrections.physical_flow(wa2c, theta2, delta2)  # (9)
+    t3 = t2 * float(maps.f2()(pr))  # (10) a ratio multiplier, not an additive rise
+    h3 = thermo.h3_from_t3(t3)  # (11)
+
+    # --- bleeds, Eqs. 12-17 -----------------------------------------------------------
+    b1 = float(maps.f3()(ngc_pct))  # (12)
+    b2 = float(maps.f4()(wa2c))  # (13)
+    b3 = float(maps.f5()(wa2c))  # (14)
+    wa24_bl = wa2 * (b1 + b2)  # (15)
+    wa3_bl = wa2 * (b3 + c.K_B3)  # (16)  the K_b3 part never returns to the gas path
+    wa3 = wa2 - wa24_bl  # (17)
+    return Compressor(
+        h2,
+        ps3,
+        theta2,
+        ngc_pct,
+        wa2c,
+        delta2,
+        wa2,
+        t3,
+        h3,
+        b1,
+        b2,
+        b3,
+        wa24_bl,
+        wa3_bl,
+        wa3,
+    )
+
+
+def combustor(far: float, h3: float) -> tuple[float, float, float]:
+    """Eqs. 20-22: `(eta_b, H41_ns, T41_ns)` from the fuel-air ratio and H3."""
+    eta_b = float(maps.f6()(far))  # (20)
+    h41_ns = (h3 + eta_b * far * c.HVF) / (1.0 + far)  # (21)
+    t41_ns = thermo.t41_from_h41(h41_ns)  # (22)
+    return eta_b, h41_ns, t41_ns
+
+
+def station41(t41_degR: float) -> tuple[float, float]:
+    """Eqs. 24-25: `(H41, theta41)` from T41."""
+    h41 = thermo.h41_from_t41(t41_degR)  # (24)
+    theta41 = thermo.theta41_from_t41(t41_degR)  # (25)
+    return h41, theta41
+
+
+def gg_turbine_and_station45(
+    h41: float, theta41: float, p41: float, p45: float
+) -> tuple[float, float, float, float, float, float]:
+    """Eqs. 26-31: `(dH_GT, H44, W41, H45, T45, theta45)`."""
+    # --- gas generator turbine, Eqs. 26-28 --------------------------------------------
+    dh_gt = theta41 * float(maps.f7()(p45 / p41))  # (26)
+    h44 = h41 - dh_gt  # (27)
+    w41 = c.K_WGT * p41 / sqrt(theta41)  # (28)
+
+    # --- station 4.5 mixing, Eqs. 29-31 -----------------------------------------------
+    h45 = thermo.h45_from_h44(h44)  # (29)
+    t45 = thermo.t45_from_h45(h45)  # (30)
+    theta45 = thermo.theta45_from_t45(t45)  # (31)
+    return dh_gt, h44, w41, h45, t45, theta45
+
+
+def power_turbine(theta45: float, p45: float, p49: float, ps9: float) -> tuple[float, float, float]:
+    """Eqs. 32-34: `(dH_PT, W45c, W45)`."""
+    dh_pt = theta45 * float(maps.f8()(p49 / p45))  # (32)
+    w45c = float(maps.f9()(ps9 / p45))  # (33)
+    w45 = w45c * p45 / sqrt(theta45)  # (34)
+    return dh_pt, w45c, w45
+
+
+def torques(
+    ng_rpm: float,
+    np_rpm: float,
+    comp: Compressor,
+    w41: float,
+    dh_gt: float,
+    w45: float,
+    dh_pt: float,
+) -> tuple[float, float, float]:
+    """Eqs. 39-41: `(Q_C, Q_GT, Q_PT)`, ft*lbf."""
+    wa2, wa3, h2, h3 = comp.wa2, comp.wa3, comp.h2, comp.h3
+    q_c = _TORQUE_SCALE / ng_rpm * (wa2 * (c.K_QC_1 * h3 - h2) + wa3 * c.K_QC_2 * h3)  # (39)
+    q_gt = _TORQUE_SCALE / ng_rpm * w41 * dh_gt  # (40)
+    q_pt = _TORQUE_SCALE / np_rpm * w45 * dh_pt - c.K_DAMP * RPM_TO_RAD_PER_SEC * (
+        np_rpm - c.NP_DES
+    )  # (41)  damping is on speed *displacement*; the equation governs, not the prose
+    return q_c, q_gt, q_pt
+
+
+def shaft_change(q_drive: float, q_load: float, inertia: float, dt: float = 1.0) -> float:
+    """Eqs. 45 and 47: a spool's speed change over `dt` seconds, rpm.
+
+    The default `dt = 1` is the derivative itself, bit for bit: `1.0 * x` is `x` exactly,
+    so `frame` and `realtime.step` share one expression and one rounding order.
+    """
+    return dt * RAD_PER_SEC_TO_RPM * (q_drive - q_load) / inertia
+
+
+def heat_sink_taus(t41_degR: float, w41_pps: float, ngc_pct: float) -> tuple[float, float]:
+    """Eqs. 51-53: `(tau_a, tau_b)` of the station 4.1 heat sink [pdf p.26].
+
+    `tau_a = M c_pm/(h A_m)` and `tau_b = M c_pm/(W_g c_pg)`, so Eq. 50 is
+    `((tau_a - tau_b) s + 1) / (tau_a s + 1)`. See `realtime._heat_sink`.
+    """
+    tau_a = c.TC_T41 * t41_degR**0.5 / w41_pps**0.8  # (51)
+    tau_b = float(maps.f_hs()(ngc_pct)) / w41_pps  # (52), (53)
+    return tau_a, tau_b
+
+
 def frame(
     state: State,
     wf_pps: float,
@@ -190,30 +339,8 @@ def frame(
         state.p45_psia,
     )
 
-    # --- inlet and station 2, Eqs. 1-6 ------------------------------------------------
-    p2 = ambient.p_amb_psia  # (1)
-    t2 = ambient.t_amb_degR  # (2)
-    h2 = thermo.h2_from_t2(t2)  # (3)  no intercept, unlike H3 and H41
-    ps3 = c.K_PS3 * p3  # (4)
-    theta2 = corrections.theta2(t2)  # (5)
-    ngc = corrections.corrected_speed(ng, theta2)  # (6)
-
-    # --- compressor, Eqs. 7-11 --------------------------------------------------------
-    pr = ps3 / p2
-    ngc_pct = 100.0 * ngc / c.NG_DES
-    wa2c = float(maps.f1()(pr, ngc_pct))  # (7)
-    delta2 = corrections.delta2(p2)  # (8)
-    wa2 = corrections.physical_flow(wa2c, theta2, delta2)  # (9)
-    t3 = t2 * float(maps.f2()(pr))  # (10) a ratio multiplier, not an additive rise
-    h3 = thermo.h3_from_t3(t3)  # (11)
-
-    # --- bleeds, Eqs. 12-17 -----------------------------------------------------------
-    b1 = float(maps.f3()(ngc_pct))  # (12)
-    b2 = float(maps.f4()(wa2c))  # (13)
-    b3 = float(maps.f5()(wa2c))  # (14)
-    wa24_bl = wa2 * (b1 + b2)  # (15)
-    wa3_bl = wa2 * (b3 + c.K_B3)  # (16)  the K_b3 part never returns to the gas path
-    wa3 = wa2 - wa24_bl  # (17)
+    # --- inlet, compressor and bleeds, Eqs. 1-17 ----------------------------------------
+    cp = compressor(ng, p3, ambient)
 
     # --- combustor and station 4.1, Eqs. 18-25 ----------------------------------------
     # Eq. 18 inverts the combustor pressure-drop law, so it needs P3 > P41. Two guards
@@ -229,12 +356,10 @@ def frame(
     # checked claim rather than an assumption -- see
     # `tests/test_mass_conservation.py::test_the_combustor_flow_guards_never_fire`.
     dp = p3 * (p3 - p41)
-    wa31 = sqrt(max(dp, 0.0) / (c.K_DPB * t3))  # (18)
+    wa31 = sqrt(max(dp, 0.0) / (c.K_DPB * cp.t3))  # (18)
     substituted = dp <= 0.0 or wa31 <= 0.0
     far = wf_pps / wa31 if wa31 > 0.0 else 0.0  # (19)
-    eta_b = float(maps.f6()(far))  # (20)
-    h41_ns = (h3 + eta_b * far * c.HVF) / (1.0 + far)  # (21)
-    t41_ns = thermo.t41_from_h41(h41_ns)  # (22)
+    eta_b, h41_ns, t41_ns = combustor(far, cp.h3)  # (20)-(22)
     # (23): T41 = T41_ns when no heat-sink representation is used [pdf p.23]. Passing
     # `t41_degR` drives it instead, which is what makes T41 a sixth **state** rather than
     # a computed quantity -- the 6-DOF configuration, and the form the report's own
@@ -242,64 +367,49 @@ def frame(
     # trim value and the change in T41 was determined for each state perturbation"
     # [pdf p.31].
     t41 = t41_ns if t41_degR is None else float(t41_degR)
-    h41 = thermo.h41_from_t41(t41)  # (24)
-    theta41 = thermo.theta41_from_t41(t41)  # (25)
+    h41, theta41 = station41(t41)  # (24), (25)
 
-    # --- gas generator turbine, Eqs. 26-28 --------------------------------------------
-    dh_gt = theta41 * float(maps.f7()(p45 / p41))  # (26)
-    h44 = h41 - dh_gt  # (27)
-    w41 = c.K_WGT * p41 / sqrt(theta41)  # (28)
-
-    # --- station 4.5 mixing, Eqs. 29-31 -----------------------------------------------
-    h45 = thermo.h45_from_h44(h44)  # (29)
-    t45 = thermo.t45_from_h45(h45)  # (30)
-    theta45 = thermo.theta45_from_t45(t45)  # (31)
+    # --- gas generator turbine and station 4.5 mixing, Eqs. 26-31 ---------------------
+    dh_gt, h44, w41, h45, t45, theta45 = gg_turbine_and_station45(h41, theta41, p41, p45)
 
     # --- exhaust first, Eqs. 37-38: P49 sets the power turbine's back pressure ---------
     ps9 = ambient.p_amb_psia  # (37)
-    p49 = ps9 * float(maps.f10()(ngc_pct))  # (38)  f10 > 1; see maps.f10 and question #5
+    p49 = ps9 * float(maps.f10()(cp.ngc_pct))  # (38)  f10 > 1; see maps.f10 and question #5
 
     # --- power turbine, Eqs. 32-36 ----------------------------------------------------
-    dh_pt = theta45 * float(maps.f8()(p49 / p45))  # (32)
-    w45c = float(maps.f9()(ps9 / p45))  # (33)
-    w45 = w45c * p45 / sqrt(theta45)  # (34)
+    dh_pt, w45c, w45 = power_turbine(theta45, p45, p49, ps9)  # (32)-(34)
     h49 = h45 - dh_pt  # (35)
     t49 = thermo.t49_from_h49(h49)  # (36)
 
     # --- torques, Eqs. 39-41 ----------------------------------------------------------
-    q_c = _TORQUE_SCALE / ng * (wa2 * (c.K_QC_1 * h3 - h2) + wa3 * c.K_QC_2 * h3)  # (39)
-    q_gt = _TORQUE_SCALE / ng * w41 * dh_gt  # (40)
-    q_pt = _TORQUE_SCALE / np_ * w45 * dh_pt - c.K_DAMP * RPM_TO_RAD_PER_SEC * (
-        np_ - c.NP_DES
-    )  # (41)  damping is on speed *displacement*; the equation governs, not the prose
+    q_c, q_gt, q_pt = torques(ng, np_, cp, w41, dh_gt, w45, dh_pt)
 
     # --- state derivatives, Eqs. 42-45, 47 --------------------------------------------
     # Eq. 43 as printed reads (WA31 - Wf - W41). Eq. 73 [pdf p.36] prints +Wf for the same
     # balance and Eq. 77 follows from that one, not from Eq. 43. Fuel adds mass to the
     # combustor, so +Wf is also the only physical reading. Open questions #14 and #29.
-    dp3 = c.K_V3 * t3 * (wa3 - wa3_bl - wa31)  # (42)
+    dp3 = c.K_V3 * cp.t3 * (cp.wa3 - cp.wa3_bl - wa31)  # (42)
     dp41 = c.K_V41 * t41 * (wa31 + wf_pps - w41)  # (43), sign per Eq. 73
-    dp45 = c.K_V45 * t45 * (w41 - w45 + b3 * c.K_BL * wa2)  # (44)
-    dng = RAD_PER_SEC_TO_RPM * (q_gt - q_c) / c.J_GT  # (45)
+    dp45 = c.K_V45 * t45 * (w41 - w45 + cp.b3 * c.K_BL * cp.wa2)  # (44)
+    dng = shaft_change(q_gt, q_c, c.J_GT)  # (45)
     j = c.J_PT + j_load  # (46)
-    dnp = RAD_PER_SEC_TO_RPM * (q_pt - q_req_ftlbf) / j  # (47)
-
+    dnp = shaft_change(q_pt, q_req_ftlbf, j)  # (47)
     return Frame(
-        theta2=theta2,
-        delta2=delta2,
-        ngc_pct=ngc_pct,
-        ps3_psia=ps3,
-        wa2c_pps=wa2c,
-        wa2_pps=wa2,
-        t3_degR=t3,
-        h3=h3,
-        h2=h2,
-        b1=b1,
-        b2=b2,
-        b3=b3,
-        wa24_bl_pps=wa24_bl,
-        wa3_bl_pps=wa3_bl,
-        wa3_pps=wa3,
+        theta2=cp.theta2,
+        delta2=cp.delta2,
+        ngc_pct=cp.ngc_pct,
+        ps3_psia=cp.ps3,
+        wa2c_pps=cp.wa2c,
+        wa2_pps=cp.wa2,
+        t3_degR=cp.t3,
+        h3=cp.h3,
+        h2=cp.h2,
+        b1=cp.b1,
+        b2=cp.b2,
+        b3=cp.b3,
+        wa24_bl_pps=cp.wa24_bl,
+        wa3_bl_pps=cp.wa3_bl,
+        wa3_pps=cp.wa3,
         wa31_pps=wa31,
         far=far,
         eta_b=eta_b,

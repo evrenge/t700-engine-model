@@ -62,7 +62,7 @@ def _streams(wf_pph: float, real_time: bool = False) -> dict[str, float]:
     f = frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
 
     if real_time:
-        st = realtime.from_trim(r, f.wa31_pps, f)
+        st = realtime.from_trim(r)
         tr = realtime.run(
             st,
             lambda t: wf,
@@ -170,8 +170,8 @@ def test_the_balances_open_during_a_transient_and_close_again():
     """
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
-    f0 = frame(r0.state, wf0, AMB)
-    st = realtime.from_trim(r0, f0.wa31_pps, f0)
+    f0 = r0.frame
+    st = realtime.from_trim(r0)
     tr = realtime.run(
         st,
         lambda t: wf0 if t < 0.5 else wf_pps_from_pph(600.0),
@@ -342,15 +342,14 @@ def test_the_combustor_flow_guards_never_fire():
 
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
-    f0 = frame(r0.state, wf0, AMB)
     for target in (775.0, 125.0):
-        st = realtime.from_trim(r0, f0.wa31_pps, f0)
+        st = realtime.from_trim(r0)
         tr = realtime.run(
             st,
             lambda t, g=target: wf0 if t < 0.5 else wf_pps_from_pph(g),
             AMB,
             duration_s=3.0,
-            q_req_ftlbf=f0.q_pt_ftlbf,
+            q_req_ftlbf=r0.frame.q_pt_ftlbf,
             integrate_np=False,
             heat_sink=True,
         )
