@@ -417,9 +417,7 @@ def fit_soft_anchored(t, val, order, lo, hi):
     notes asks per figure.
     """
     return np.polyfit(
-        np.concatenate([t, [0.0, 0.0, 1.0, 1.0]]),
-        np.concatenate([val, [lo, lo, hi, hi]]),
-        order,
+        *soft_anchor(t, val, ("lo", "hi"), {"lo": 0.0, "hi": 1.0}, {"lo": lo, "hi": hi}), order
     )
 
 

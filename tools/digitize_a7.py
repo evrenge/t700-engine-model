@@ -59,7 +59,15 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
-from figure.axis import blend_axis, choose, fit_anchored, parity, poly_se, tail_cv
+from figure.axis import (
+    blend_axis,
+    choose,
+    fit_anchored,
+    fit_soft_anchored,
+    parity,
+    poly_se,
+    tail_cv,
+)
 from figure.axis import loo as _loo
 from figure.frame import (
     corner_arc,
@@ -430,8 +438,8 @@ def values(P, C, to_sv, xo=None, yo=None, blend=True, hard=True):
             px = (fit_anchored(tx, vx, xo, X0, X1),) * 2
             py = (fit_anchored(ty, vy, yo, Y0, Y1),) * 2
         else:
-            px = (np.polyfit(np.r_[tx, 0, 0, 1, 1], np.r_[vx, X0, X0, X1, X1], xo),) * 2
-            py = (np.polyfit(np.r_[ty, 0, 0, 1, 1], np.r_[vy, Y0, Y0, Y1, Y1], yo),) * 2
+            px = (fit_soft_anchored(tx, vx, xo, X0, X1),) * 2
+            py = (fit_soft_anchored(ty, vy, yo, Y0, Y1),) * 2
         X = np.polyval(px[0], s)
         Y = np.polyval(py[0], v)
     return X, Y, px, py, s, v

@@ -41,7 +41,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from digitize_single_curve import FIGS, run  # noqa: E402
-from figure.axis import blend_value, fit_anchored, soft_anchor  # noqa: E402
+from figure.axis import blend_axis, blend_value, fit_anchored, soft_anchor  # noqa: E402
 from figure.frame import edge_spans, fit_edges, unit_square  # noqa: E402
 from figure.ticks import coarse_lattice, fine_lattice_all, majors_all_edges  # noqa: E402
 
@@ -75,19 +75,13 @@ def axis_polys(P, spec, order, anchor):
     printed = {"lo": spec["lo"], "hi": spec["hi"]}
     at = {"lo": 0.0, "hi": 1.0}
     sides = spec.get("anchor", spec["printed"])
+    if anchor == "once":
+        return list(blend_axis(*P[lo_nm], *P[hi_nm], order, spec["lo"], spec["hi"]))
     out = []
     for nm in (lo_nm, hi_nm):
         t, val = P[nm]
         if anchor == "hard":
             out.append(fit_anchored(t, val, order, spec["lo"], spec["hi"]))
-        elif anchor == "once":
-            out.append(
-                np.polyfit(
-                    np.concatenate([t, [0.0, 1.0]]),
-                    np.concatenate([val, [spec["lo"], spec["hi"]]]),
-                    order,
-                )
-            )
         else:
             out.append(np.polyfit(*soft_anchor(t, val, sides, at, printed), order))
     return out
