@@ -1,30 +1,14 @@
 """Function tables: loading the digitized figures and evaluating them.
 
-Every functional relationship in Ballin's engine exists only as a printed plot -- there
-are no numeric tables in the report for `f1`..`f10` or `f_hs`. The digitizers under
-`tools/` turned those plots into the CSVs in `data/maps/`, one script per figure over a
-shared library in `tools/figure/`; this module is what the model uses to read them, and
-`docs/notes/digitizing-recipe.md` is how they were read.
+Every function in Ballin's engine (`f1`..`f10`, `f_hs`) exists only as a printed plot. The
+digitizers under `tools/` turned them into the CSVs in `data/maps/`
+(`docs/notes/digitizing-recipe.md`); this module reads and evaluates them.
 
-## Interpolation is a decision, not a transcription
-
-The body calls these "function table lookups" [pdf p.37] but **never states the
-interpolation scheme** (open question #43). Implemented here as **linear between
-breakpoints**, for two reasons:
-
-* the figures are drawn as discrete knots joined by *straight segments*, which is what a
-  linear table looks like when plotted; and
-* a 1988 real-time model on a 10 ms frame would not have afforded spline evaluation.
-
-Both are inference. If a later reading of the report states the scheme, every value
-*between* knots moves.
-
-## Off the end of a map
-
-Clamping, and **counted**. A model that wanders outside its data during a transient is
-inventing physics, and the dangerous version of that is the one nobody notices. Every
-evaluation outside the digitized range increments a counter, so a run can report how
-often it left the data it was built from. See `clamp_report()`.
+The report calls these "function table lookups" [pdf p.37] but never states the
+interpolation scheme (open question #43). Linear between breakpoints is an inference: the
+figures are knots joined by straight segments, and a 1988 real-time model could not afford
+splines. Off the end of a table the value is clamped and counted (`clamp_report()`), so a
+run can report how often it left its data.
 """
 
 from __future__ import annotations
@@ -47,31 +31,17 @@ _NINF = float("-inf")
 
 DATA_DIR = DATA_ROOT / "maps"
 SCHEDULE_DIR = DATA_ROOT / "schedules"
-"""The engine's function tables and the fuel control's scheduling functions are the same
-*kind* of object -- a printed plot, digitized, linear between knots -- so they share
-`Curve`, `SpeedMap` and the loaders. They live in different directories because they
-belong to different phases and different appendices."""
+"""The fuel control's scheduling functions: the same kind of object as the engine's tables,
+so they share `Curve`, `SpeedMap` and the loaders."""
 
 _clamps: Counter[str] = Counter()
-"""The one piece of mutable module state in the model core, and it is diagnostic only.
+"""The clamp counter: mutable module state, sanctioned in CLAUDE.md, diagnostic only.
 
-CLAUDE.md sanctions exactly one exception to "no global mutable state" -- the thermo
-backend interface -- so this is a second, and it is recorded here rather than left to be
-rediscovered (the 2026-09-13 engine-physics audit found it).
-
-**Why it is kept.** A clamp is a property of an *evaluation*, not of a component: `f6` is
-asked for a fuel-air ratio outside its table by the combustor, which has no way to return
-that fact to whoever is interpreting the result three call levels up. Threading a log
-through `frame`, `step`, `run`, `trim.solve` and every map call would put diagnostic
-plumbing in the signature of every function in the model to carry something no model
-equation reads.
-
-**What it costs, bounded.** `frame()` is impure: calling it twice runs the counter up.
-Nothing downstream of a map lookup reads the counter, so no model output can depend on
-it -- `tests/test_maps.py::test_the_clamp_counter_cannot_influence_any_model_output`
-asserts that behaviourally. And clamp accounting is not reentrant, which is what
-`clamp_scope` exists to fix: nesting a measurement inside another one used to have the
-inner `reset_clamps()` destroy the outer one's count.
+A clamp is a property of an evaluation, which a component cannot hand back to whoever reads
+the result three calls up; threading a log through every signature would carry something
+no equation reads. The cost is that `frame()` is impure. No model equation reads the
+counter, so no model output can depend on it
+(`tests/test_maps.py::test_the_clamp_counter_cannot_influence_any_model_output`).
 """
 
 
@@ -79,16 +49,13 @@ inner `reset_clamps()` destroy the outer one's count.
 def clamp_scope() -> Iterator[dict[str, int]]:
     """Measure clamps over a block without destroying an enclosing measurement.
 
-    `trim.solve` counts clamps over the whole Newton search and then again at the solution
-    alone, and `validation/` counts them over a run that contains trims. Each of those was
-    calling `reset_clamps()`, so an outer count was silently zeroed by an inner one.
-
         with maps.clamp_scope() as counts:
             ...
         counts        # only what happened inside the block, filled in on exit
 
     The enclosing counter is restored on exit with the block's counts added, so nesting
-    composes.
+    composes, where `reset_clamps()` would zero the outer count (a run that counts
+    contains trims that count).
     """
     global _clamps
     outer = _clamps
@@ -106,9 +73,8 @@ def clamp_scope() -> Iterator[dict[str, int]]:
 def clamp_report() -> dict[str, int]:
     """How many evaluations fell outside each map's data range, since the last reset.
 
-    A nonzero count is not automatically wrong -- a transient may legitimately touch the
-    edge -- but it must be reported alongside any result, because outside the knots the
-    model is extrapolating a constant rather than following the report.
+    Not automatically wrong, but report it with any result: outside the knots the model
+    extrapolates a constant rather than following the report.
     """
     return dict(_clamps)
 
@@ -159,38 +125,28 @@ class Curve:
     """Set by `condition` when `Physics.constant` declares the figure a horizontal line.
 
     A constant has no domain to leave, so evaluations outside `[x[0], x[-1]]` are not
-    counted as clamps: there is nothing being extrapolated. `f6` is the only one, and it is
-    why "f6 clamped N times" stopped appearing in clamp reports on 2026-09-13. The report
-    asked for FAR up to 0.0327 against a table ending at 0.0200, and the answer was the
-    same number at both."""
+    counted as clamps. `f6` is the only one."""
 
     def __post_init__(self) -> None:
         if self.x.size < 2:
             raise ValueError(f"{self.name}: need at least two knots, got {self.x.size}")
         if not np.all(np.diff(self.x) > 0):
             raise ValueError(f"{self.name}: knots are not strictly increasing in x")
-        # `frozen=True` protects the *references*, not what they point at, and the loaders
-        # are cached -- so every caller shares one `Curve` per table and
-        # `maps.f2().y[:] = ...` silently rewrote the report's data for the whole process.
-        # The dangerous spelling was `maps.f2().y *= 1.02`: numpy applies the in-place
-        # multiply first and the dataclass guard fires afterwards, so the "protected" form
-        # corrupted the table and then raised. Found by the 2026-09-13 code-quality audit.
+        # `frozen=True` protects the references, not the arrays, and the cached loaders
+        # share one `Curve` per table: lock the data, or `maps.f2().y *= 1.02` rewrites the
+        # table for the whole process (and only then raises).
         self.x.flags.writeable = False
         self.y.flags.writeable = False
-        # Scalar-lookup caches. Every model call site asks for ONE abscissa and wraps the
-        # answer in `float()`, and the NumPy round-trip for that -- asarray, isfinite,
-        # count_nonzero, np.interp's Python wrapper -- costs about 30 us against 0.6 us
-        # for the same arithmetic on Python floats. These are copies of `x` and `y`, which
-        # are read-only above, so they cannot drift. `object.__setattr__` is how a frozen
-        # dataclass caches a derived value.
+        # Scalar-lookup caches: every model call site asks for one abscissa, and the NumPy
+        # round-trip costs far more than the arithmetic on Python floats. Copies of the
+        # read-only `x` and `y`, so they cannot drift.
         set_ = object.__setattr__
         set_(self, "_xl", self.x.tolist())
         set_(self, "_yl", self.y.tolist())
         set_(self, "_n", int(self.x.size))
         set_(self, "_lo", float(self.x[0]))
         set_(self, "_hi", float(self.x[-1]))
-        # Answered once at load rather than per frame. `realtime._p45_exact` needs it:
-        # Eq. 80's root is unique only where the table cannot rise.
+        # For `realtime._p45_exact`: Eq. 80's root is unique only where the table cannot rise.
         set_(self, "non_increasing", bool(np.all(np.diff(self.y) <= 0.0)))
 
     @property
@@ -213,14 +169,10 @@ class Curve:
     def _at(self, x: float) -> float:
         """One abscissa, clamped at both ends -- `np.interp`'s arithmetic, bit for bit.
 
-        This reproduces NumPy's `arr_interp` for the scalar case rather than approximating
-        it: the bracket is the largest `j` with `x[j] <= x`, the endpoints return `y[0]`
-        and `y[-1]` (NumPy's defaulted `left`/`right`), an abscissa landing exactly on a
-        knot returns that knot's ordinate without touching the slope, and the interior
-        formula is `slope*(x - x[j]) + y[j]` with the slope formed per call -- NumPy only
-        pre-tabulates slopes when there are more query points than knots, which one
-        scalar never is. Checked over 129,694 queries across all 32 shipped curves, at the
-        knots, the midpoints, and well outside both ends: zero bit-mismatches.
+        Reproduces NumPy's `arr_interp` for one scalar: the bracket is the largest `j` with
+        `x[j] <= x`, the ends return `y[0]` and `y[-1]`, a query exactly on a knot returns
+        that knot's ordinate, and the interior is `slope*(x - x[j]) + y[j]` with the slope
+        formed per call. Keep that form; it is what makes the bits match.
         """
         if x != x or x == _INF or x == _NINF:
             raise _non_finite(self.name, f"abscissa ({x})", _PROPAGATES)
@@ -242,99 +194,23 @@ class Curve:
 
 @dataclass
 class SpeedMap:
-    """A two-dimensional map: z = f(x, parameter).
+    """A two-dimensional map: z = f(x, parameter), one `Curve` per parameter value.
 
-    `f1` is the only one in the engine -- corrected compressor mass flow against static
-    pressure ratio, parameterised by corrected gas generator speed.
+    `f1` is the only one in the engine: corrected compressor mass flow against static
+    pressure ratio, one line per corrected gas generator speed.
 
-    ## Interpolation is at constant BETA, along the figure's own beta lines
+    Lines are blended at constant beta, the standard compressor-map coordinate (0 at the
+    choked end of a speed line, 1 at surge): knot k names the same beta on every line, so
+    the two bracketing lines are blended knot by knot, x and y together, and the query is
+    evaluated on the blended line. Never blend at constant x: each line ends at its own
+    surge point, so the shorter line would answer with its clamped end value and blend in a
+    fictitious extrapolation (open question #58).
 
-    Beta is the standard compressor-map coordinate: **0 at the choked end of a speed line,
-    1 at surge**, so that a given beta names corresponding points on every speed line no
-    matter how different their pressure-ratio ranges are. Interpolating between speed lines
-    at constant beta is what performance models do, and it is what this class does.
-
-    **Ballin drew the beta lines.** Figure A1 prints six dotted construction lines, each
-    joining the k-th marker of all eleven speed lines, plus a seventh vertical one joining
-    their left ends -- and those are beta lines. `tools/digitize_a1.py` tests every
-    extracted point against them, and the result is a perfect **11 x 7 grid**: each speed
-    line carries markers k = 0..6 at the same seven beta values,
-
-        beta = k / 6,   beta = 0 at the choked left end, beta = 1 at surge,
-
-    with the knee (the end of the flat choked extension) at beta = 1/6. So the report gives
-    the beta grid rather than leaving it to be invented, which is why this needs no
-    parameterisation of ours.
-
-    ## The seven values are unevenly spaced, and that is correct rather than a defect
-
-    They look alarming: on an average speed line the first interval, beta 0 to 1/6, spans
-    **9.15** in pressure ratio and the remaining five together span **1.8**. But the first
-    interval is the *choked* part of the line, where corrected flow does not depend on back
-    pressure, and it is flat -- measured over all eleven lines, y varies by at most **0.0048
-    lbm/s across it, 0.15 %**. The five crowded intervals cover the unchoked run, where y
-    varies by **3.0 to 6.4 %**. Ballin put the resolution where the curvature is.
-
-    Checked rather than argued: inserting an extra beta line anywhere inside the choked
-    segment, at any skew, moves `f1` by at most **4.3e-16**. Nothing there needs resolving,
-    so nothing is lost by not resolving it. Equally spaced beta lines would move resolution
-    away from the only part of the line that bends, and would replace a correspondence the
-    figure prints with one of ours.
-
-    ## Why seven, and not more
-
-    A real compressor characteristic is smooth, so representing a speed line by six chords
-    must in principle lose something -- which is an argument for digitizing intermediate
-    beta values off the printed curve. **The printed curve does not have any.** Read at
-    600 dpi, Figure A1's speed lines are drawn as *polylines*: straight runs with a visible
-    corner at each marker, not splines through them. The plotter drew Ballin's table, and
-    the table has seven points per line.
-
-    That makes linear interpolation between the seven a reproduction of his model rather
-    than an approximation of it -- a 1988 function-table processor interpolates linearly,
-    and the polyline on the page is what that produces. Adding beta values would mean
-    inventing intermediate points the report does not contain, and would make this map
-    *smoother than the one being replicated*. If that is ever wanted it is a departure to
-    be argued and recorded, like Eq. 80's solver, not a digitizing job.
-
-    (The evidence is visual and bounded: the digit markers are about 50 px tall on chords
-    of 50 to 83 px, so they occupy most of each segment and a tracer cannot separate the
-    line's own bow from glyph strokes. What can be said is that the corners are visible at
-    the markers and the segments between them read straight.)
-
-    Evaluation blends the two bracketing speed lines at equal beta -- x and y together --
-    and evaluates the query on the blended line. Blending the seven printed beta values
-    directly is exact: both coordinates are piecewise linear in beta with the same
-    breakpoints on every line, so resampling each line onto a finer beta grid first and
-    blending there gives an identical answer. Measured, against 50 points per line:
-    **2.4e-16**. A coarser resampling is *worse*, not better -- at 20 points it misses the
-    knots and loses 3.2e-4 -- so the seven printed values are both the cheapest and the most
-    accurate grid available. See
-    `tests/test_maps.py::test_blending_at_the_printed_beta_values_is_exact`.
-
-    ## Interpolating at constant pressure ratio manufactures an extrapolation
-
-    That is what this class did until 2026-09-13. Each speed line ends at its own last
-    marker, which is the surge limit for that speed: the 65 % line stops at Ps3/P2 = 3.753
-    where the 80 % line reaches 6.671, because a compressor at 65 % corrected speed cannot
-    make a pressure ratio of 6. Asking both lines for the same x therefore asks the shorter
-    one for a pressure ratio it cannot reach, takes its clamped end value, and blends a real
-    number with a fictitious one. Over the Figure 10 chop that happened on **389 frames**,
-    every one below 80 %NGc, up to 45 % past the 65 % line's last knot -- and it was
-    recorded as open question #58, "f1's 15-point data hole".
-
-    **There is no hole.** Blending along the construction lines, the map's own right edge
-    runs 3.753 at 65 %NGc, 4.726 at 70, 5.504 at 74 and 6.671 at 80, while the chop's worst
-    query is 5.439 at 74.09 %NGc: **zero of 715 frames fall outside the map.** The
-    extrapolation was an artifact of the evaluation, not a property of the data.
-
-    (The 65-to-80 gap is still fifteen points where every other gap is two or three, so the
-    blend there is a longer secant than elsewhere. That is a real limit of what the report
-    printed, and it is not extrapolation.)
-
-    The previous docstring also claimed the *order* of the two interpolations mattered. It
-    did not, under constant-x evaluation -- both orders agreed to 2.9e-16. Under constant-k
-    the question does not arise: there is one blended line and one evaluation on it.
+    Figure A1 prints the beta lines itself: dotted construction lines join the k-th marker
+    of all eleven speed lines, beta = k/6 (`f1_as_printed`). The speed lines are drawn as
+    polylines, so linear interpolation between markers reproduces Ballin's table. Blending
+    at the knots is exact
+    (`tests/test_maps.py::test_blending_at_the_printed_beta_values_is_exact`).
     """
 
     name: str
@@ -344,9 +220,7 @@ class SpeedMap:
 
     def __post_init__(self) -> None:
         self.params.flags.writeable = False  # see Curve.__post_init__
-        # Same reasoning as `Curve.__post_init__`: the evaluation below is scalar and the
-        # NumPy round-trip costs more than the arithmetic. `beta_grid` in particular built
-        # a set of eleven array sizes on every frame to answer a question fixed at load.
+        # Scalar evaluation, as in `Curve.__post_init__`: cache what is fixed at load.
         self._pl: list[float] = self.params.tolist()
         self._plo: float = self._pl[0]
         self._phi: float = self._pl[-1]
@@ -359,17 +233,13 @@ class SpeedMap:
 
     @property
     def beta_grid(self) -> bool:
-        """True when every speed line carries the same number of beta values, so knot k of
-        one line names the same beta as knot k of the next. `f1` is an 11 x 7 grid, with
-        beta = k/6 from the choked end to surge."""
+        """True when every speed line carries the same number of knots, so knot k names the
+        same beta on every line."""
         return self._beta_grid
 
     def __call__(self, xq: float, pq: float) -> float:
-        # `nan < lo or nan > hi` is False, `np.clip(nan, lo, hi)` is nan, and
-        # `np.searchsorted(params, nan)` returns len(params) -- so a NaN speed used to
-        # select the TOP speed line and return the 100 % value, with an empty clamp
-        # report. A corrupted speed yielding maximum compressor flow is the worst
-        # available failure mode. Found by the 2026-09-13 numerical-mathematics audit.
+        # A NaN passes every range test and bisects past the last line, so it would
+        # silently return the top speed line with an empty clamp report: raise instead.
         if xq != xq or xq == _INF or xq == _NINF or pq != pq or pq == _INF or pq == _NINF:
             raise _non_finite(
                 self.name,
@@ -398,15 +268,10 @@ class SpeedMap:
             z1 = float(self.lines[j](xq))
             return z0 + w * (z1 - z0)
 
-        # Blend the two speed lines at constant beta -- along the figure's own printed
-        # beta lines -- then evaluate the blended line. See the class docstring.
-        #
-        # The blended line is never MATERIALIZED. Building it cost two 56-element
-        # allocations a frame to serve one abscissa, and the bracket needs six of those
-        # elements: `xb[k] = om*a.x[k] + w*b.x[k]` is evaluated on demand inside the same
-        # binary search `np.interp` runs, and only the two bracketing knots are blended in
-        # y. Identical arithmetic, element for element, so identical bits -- the array form
-        # is two separate multiplies and an add per element, which is what this is.
+        # Blend the two speed lines at constant beta, then evaluate the blended line (see
+        # the class docstring). The blended line is never materialized: `xb[k] = om*a.x[k]
+        # + w*b.x[k]` is formed on demand inside the same bisection `np.interp` runs, with
+        # the array form's arithmetic element for element, so the bits are identical.
         a, b = self.lines[j - 1], self.lines[j]
         om = 1.0 - w
         ax, ay, bx, by = a._xl, a._yl, b._xl, b._yl
@@ -475,15 +340,10 @@ def load_speed_map(
 class Physics:
     """What physics requires of a function, declared per table.
 
-    These plots are pen-plotter drawings of an underlying numeric table, scanned in 2009
-    and read back with a pixel counter. What we want is Ballin's *table*, not the ink --
-    and where the ink and physics disagree at the level of read noise, physics wins.
-
-    This is emphatically **not** tuning. Nothing here is adjusted to make a result match:
-    the constraints are declared from what the quantity *is* (a bleed fraction cannot be
-    negative; a choked mass flow cannot rise with back pressure), applied before any
-    comparison, and every change is measured and reported. The CSVs under `data/` stay
-    exactly as digitized, so the provenance chain back to the page is unbroken.
+    The plots are pen-plotter drawings of Ballin's numeric table; where ink and physics
+    disagree at the level of read noise, physics wins. Not tuning: constraints come from
+    what the quantity is (a bleed fraction cannot be negative), are applied before any
+    comparison, and every change is recorded in `CONDITIONING`. The CSVs stay as digitized.
     """
 
     nonnegative: bool = False
@@ -493,18 +353,9 @@ class Physics:
     constant: bool = False
     """The figure draws a horizontal line and the printed spread is read noise.
 
-    Declared only where the *ink* says so: `f6` is Figure A6 [pdf p.61], a single
-    horizontal line across a y axis spanning 0.88 to 1.10, with an `x` marker at each
-    frame edge and nothing between them. Its two digitized endpoints differ by 9.0e-6
-    against a 1-sigma read error of 3.5e-4 and 4.3e-4 -- **0.016 sigma on the
-    difference**, and
-    0.46 px at 200 dpi. The page's four frame edges are fitted at +0.209, +0.155, -0.109
-    and +0.150 degrees, four *different* angles, so the frame is a genuine quadrilateral
-    and a horizontal line across it does not come back horizontal. That skew is what the
-    residual slope is.
-
-    A two-point table is how you write a constant for a function-table processor that
-    wants endpoints. Reading a slope out of it is reading the paper, not the model."""
+    Declared only where the ink says so: `f6`, Figure A6 [pdf p.61], one horizontal line
+    whose digitized endpoints differ by far less than the read error; the residual slope is
+    the page's skew. A two-point table is how a function-table processor writes a constant."""
     why: str = ""
 
 
@@ -558,14 +409,11 @@ def condition(curve: Curve, phys: Physics) -> tuple[Curve, float]:
 
 
 CONDITIONING: dict[str, float] = {}
-"""Largest change physical conditioning made to each table, in data units. Report it
-alongside any result -- if a number here is ever large, the digitization is wrong, not
-the physics.
+"""Largest change physical conditioning made to each table, in data units. Report it with
+any result: a large number means the digitization is wrong, not the physics.
 
-The second piece of mutable module state in the core, and unlike `_clamps` it is
-**write-once**: the loaders are cached, so each table writes its entry exactly once at
-load and nothing touches it again. Named in CLAUDE.md alongside `_clamps` after the
-2026-09-13 code-quality audit pointed out that it was a third global nobody had counted."""
+Mutable module state sanctioned in CLAUDE.md, but write-once: the loaders are cached, so
+each table writes its entry once at load."""
 
 
 def load_curve(
@@ -590,43 +438,19 @@ def load_curve(
 # --------------------------------------------------------------------------- the engine's tables
 
 
-# Each loader is `functools.cache`d: load once. These are read-only tables; re-reading them
-# per frame is waste.
+# Each loader is `functools.cache`d: the read-only tables load once.
 
 
 @cache
 def f1() -> SpeedMap:
     """Compressor corrected mass flow, WA2c = f1(Ps3/P2, NGc). [pdf p.22, Eq. 7; Fig. A1]
 
-    The only 2-D map in the engine, and the one the real-time scheme is built around
-    avoiding: closing the compressor loop would mean evaluating this several times per
-    frame, which is why Ballin opened it.
-
-    **This loads the beta-gridded map**, `f1_compressor_mass_flow_beta.csv`: the same eleven
-    speed lines re-expressed on a common beta grid of 56 values, produced by
-    `tools/digitize_a1.py` from the raw seven-point extraction. `f1_as_printed()` loads the
-    seven-point file.
-
-    Beta is the fraction of a speed line's own pressure-ratio span -- 0 at the choked left
-    end, 1 at surge -- **not** the six dotted construction lines Figure A1 prints, although
-    those are beta lines and are Ballin's own. The markers carry digitizing noise: as a
-    fraction of each line's span the k=1 markers run 0.785, 0.817, 0.831, 0.832, 0.814,
-    0.811, 0.855 ... -- non-monotone -- while the spans themselves are smooth. Using the
-    markers as the correspondence propagates that jitter into every interpolated value.
-
-    **Using this file is a departure from replication and is recorded as one** (open
-    question #60). Figure A1's speed lines are *drawn* as polylines, so the raw file is
-    Ballin's table and linear interpolation between those points is his model. The
-    characteristic they sample is smooth; the corners are an artifact of plotting.
-
-    Worth, measured against the printed-marker correspondence: Table B.1's rms
-    0.2471 -> 0.2439 %, the worst Table 1 NG mode 8.18 -> 7.56 %, transients and the
-    zero-extrapolation property unchanged, at 56 stored points instead of 97. Against the
-    seven-point original: worst Table 1 NG mode 11.80 -> 7.56 %.
-
-    The fit lives in the digitizer, not here: it needs SciPy, the core may not import it,
-    and a derived data file carries its own provenance header and is checked by the
-    reproducibility gate like every other.
+    Loads the beta-gridded map, `f1_compressor_mass_flow_beta.csv`: the eleven speed lines
+    re-expressed by `tools/digitize_a1.py` on a common grid of 56 beta values, beta being
+    the fraction of each line's own pressure-ratio span. A departure from replication
+    (open question #60): the printed markers carry digitizing jitter that would propagate
+    into every interpolated value. `f1_as_printed()` loads Ballin's seven-point table. The
+    fit lives in the digitizer because it needs SciPy.
     """
     return load_speed_map(
         "f1_compressor_mass_flow_beta.csv",
@@ -647,11 +471,10 @@ def f1() -> SpeedMap:
 
 @cache
 def f1_as_printed() -> SpeedMap:
-    """`f1` on the seven beta values Figure A1 actually prints. [Fig. A1]
+    """`f1` on the seven beta values Figure A1 prints. [Fig. A1]
 
-    The faithful transcription: seven markers per speed line, interpolated linearly, which
-    is Ballin's own table and what a 1988 function-table processor did with it. `f1()`
-    loads the densified extension instead and says why.
+    The faithful transcription: Ballin's own table, interpolated linearly as a 1988
+    function-table processor did. `f1()` loads the densified extension and says why.
     """
     return load_speed_map(
         "f1_compressor_mass_flow.csv",
@@ -740,29 +563,14 @@ def f5() -> Curve:
 def f6() -> Curve:
     """Combustor efficiency against fuel-air ratio. [Fig. A6]
 
-    **This is a constant, and as of 2026-09-13 it is loaded as one.** Figure A6 draws a
-    single horizontal line at 0.985 across a y axis spanning 0.88 to 1.10, with an `x`
-    marker at each frame edge and no other ink. The two digitized endpoints, 0.984961 and
-    0.984970, differ by 9.0e-6 against a 1-sigma read error of 3.5e-4 and 4.3e-4 -- 0.016 sigma
-    on the difference, and 0.46 px at the 200 dpi the figure was read at. The page's four
-    frame edges sit at four *different* angles (+0.209, +0.155, -0.109, +0.150 degrees), so
-    the frame is a quadrilateral and a printed horizontal line does not come back
-    horizontal. The slope was the paper.
+    A constant (open question #62): Figure A6 draws one horizontal line, and the two
+    digitized endpoints differ by far less than the read error; the slope was the page's
+    skew. Conditioned to the mean, recorded in `CONDITIONING`; the CSV keeps the ink. A
+    constant has no domain to leave, so FAR beyond the table (open question #45) is not an
+    extrapolation.
 
-    Conditioned to the mean, **0.985002**, which moves each endpoint by 3.65e-5 and is
-    recorded in `CONDITIONING`. The CSV is untouched -- it still carries the ink as
-    measured, so the provenance chain back to the page is unbroken and the reproducibility
-    gate is unaffected.
-
-    Two consequences worth stating. The model asks for FAR up to 0.0327 against a table
-    ending at 0.0200 [open question #45], and **that stops being an extrapolation at all**:
-    a constant has no domain to leave. And the combustor efficiency stops being a source of
-    transient error by construction, which the 2026-09-12 measurement had already shown it
-    was not -- relaxing the clamp to linear extrapolation moved the T41 peak by -0.2 degR
-    against a 112 degR gap.
-
-    The printed abscissa reads "FUEL-TO-RATIO, FAR"; the word AIR is missing on the page
-    (open question #7, closed as a report typo).
+    The printed abscissa reads "FUEL-TO-RATIO, FAR"; AIR is missing on the page (open
+    question #7).
     """
     return load_curve(
         "f6_combustor_efficiency.csv",
@@ -797,9 +605,8 @@ def f7() -> Curve:
 def f8() -> Curve:
     """Power turbine energy parameter against P49/P45. [Eq. 32; Fig. A8]
 
-    Goes genuinely negative above P49/P45 ~= 0.83; the printed axis is deliberately
-    extended to -5.0. Note the argument is total/total -- `f9` next door takes
-    static/total and the two must never be cross-indexed.
+    Goes genuinely negative above P49/P45 ~= 0.83; the printed axis extends to -5.0. The
+    argument is total/total, while `f9` takes static/total: never cross-index them.
     """
     return load_curve(
         "f8_pt_energy.csv",
@@ -837,26 +644,11 @@ def f9() -> Curve:
 def f10() -> Curve:
     """Exhaust pressure loss, f10 = P49/Ps9, against NGc. [pdf p.24, Eq. 38; Fig. A10]
 
-    **The figure's axis LABEL is inverted, not its values.** Figure A10's ordinate is
-    printed `PS9/P49` while Eq. 38 uses f10 as a multiplier on Ps9 to give P49, which
-    requires P49/Ps9. Open question #5 originally resolved this by digitizing as printed
-    and taking the reciprocal at the point of use. **That was wrong**, and the physics
-    settles it:
-
-    * Eq. 37 sets Ps9 = P_amb, so P49 = P_amb * f10.
-    * Expansion through the power turbine requires P45 > P49 > Ps9, so P49/Ps9 > 1.
-    * The plotted values are 1.021-1.124, all greater than 1.
-    * Taking them as printed gives P49 = 1.02..1.12 x P_amb -- the exhaust total exceeds
-      ambient, which is what lets the engine exhaust at all.
-    * Taking the reciprocal gives P49 = 0.89..0.98 x P_amb -- exhaust total *below*
-      ambient, which is physically impossible for a running engine.
-
-    Corroboration from the neighbouring maps: `f8` takes P49/P45 over 0.3007-0.8505 and
-    `f9` takes Ps9/P45 over 0.3003-0.8500. Those spans coincide, so P49 and Ps9 are close
-    in magnitude and their ratio is near 1 -- exactly the 1.02-1.12 plotted.
-
-    So the CSV holds f10 directly and there is no inversion anywhere. The defect is the
-    printed axis label, and it joins the report's other typesetting errors.
+    The axis label is inverted, not the values (open question #5). Figure A10 prints
+    `PS9/P49`, but Eq. 38 multiplies Ps9 (= P_amb, Eq. 37) by f10 to give P49, and the
+    plotted values, all above 1, put the exhaust total above ambient as a running engine
+    requires; the reciprocal would put it below. The CSV holds f10 directly; nothing is
+    inverted.
     """
     return load_curve(
         "f10_exhaust_pressure_loss.csv",
@@ -873,9 +665,8 @@ def f10() -> Curve:
 def f_hs() -> Curve:
     """Station 4.1 heat-sink constant against NGc. [pdf p.26, Eq. 52; Fig. A11]
 
-    Note this is `f_hs`, the lookup, not `f_s` -- the heat-sink transfer function of
-    Eqs. 48-53 that contains it. The report prints them as different symbols and an
-    earlier draft of the notes conflated them.
+    `f_hs` is the lookup, not `f_s`, the heat-sink transfer function of Eqs. 48-53 that
+    contains it; the report prints different symbols.
     """
     return load_curve(
         "fhs_heat_sink_constant.csv",

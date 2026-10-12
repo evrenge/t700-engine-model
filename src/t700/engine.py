@@ -1,36 +1,21 @@
 """One frame of the T700 gas path: Eqs. 1-49, in the report's own order.
 
-This is the heart of the replication. Given the five states and a fuel flow, `frame()`
-walks the gas path once -- inlet, compressor, bleeds, combustor, gas generator turbine,
-station 4.5 mixing, power turbine, exhaust -- and returns every station value, the three
-torques, and the five state derivatives.
+Given the five states and a fuel flow, `frame()` walks the gas path once -- inlet,
+compressor, bleeds, combustor, gas generator turbine, station 4.5 mixing, power turbine,
+exhaust -- and returns every station value, the three torques and the five derivatives.
 
-## Why one forward pass is enough
-
-Ballin's three pressures are **pure integrators** (Eqs. 42-44): each is a volume constant
-times the integral of its own temperature times a net mass-flow imbalance. Nothing solves
-for a pressure balance, so nothing iterates. That is the whole trick, and it is what makes
-the model real time.
-
-The real-time *implementation* adds an iteration on top of this for the quasi-steady case
-(Eqs. 74-80, pdf pp.36-38) -- the opened compressor mass-flow loop. That belongs in the
-integrator, not here. This module is the physics.
-
-## The five states
+One forward pass is enough because the three pressures are pure integrators (Eqs. 42-44):
+nothing solves for a pressure balance. The real-time implementation's opened iteration
+(Eqs. 74-80, pdf pp.36-38) belongs in `t700.realtime`.
 
     NG, NP    spool speeds, rpm
     P3        compressor discharge total pressure, psia
     P41       gas generator turbine inlet total pressure, psia
     P45       power turbine inlet total pressure, psia
 
-A sixth, T41, appears in the heat-sink variant (Eqs. 48-53). Not modelled here: with no
-heat-sink representation the report sets `T41 = T41_ns` [pdf p.23], which is the 5-DOF
-model that Appendix B's matrices and Table B.1's trims describe.
-
-## Units
-
-The report's, throughout: lbm, lbm/sec, psia, deg R, rpm, ft*lbf, Btu/lbm. See
-`t700.units`.
+T41 is a sixth state only with the heat sink (Eqs. 48-53); without it `T41 = T41_ns`
+[pdf p.23], the 5-DOF model of Appendix B and Table B.1. Units are the report's
+(`t700.units`).
 """
 
 from __future__ import annotations
@@ -48,11 +33,9 @@ from t700.units import BTU_TO_FTLBF, RAD_PER_SEC_TO_RPM, RPM_TO_RAD_PER_SEC
 
 @dataclass(frozen=True)
 class Ambient:
-    """Flight condition. Station 1 and 2 are set equal to it [Eqs. 1-2].
+    """Flight condition. Stations 1 and 2 are set equal to it [Eqs. 1-2].
 
-    The report justifies this: *"Pressure and temperature stagnation effects have been
-    found to roughly offset the aircraft inlet losses over most of the aircraft flight
-    envelope"* [pdf p.22]. So there is no inlet model -- P2 and T2 *are* ambient.
+    No inlet model: stagnation effects "roughly offset the aircraft inlet losses" [pdf p.22].
     """
 
     p_amb_psia: float = corrections.P_STD_PSIA
@@ -60,8 +43,7 @@ class Ambient:
 
 
 STANDARD_DAY = Ambient()
-"""Standard sea level, the report's trim condition [Table B.1, pdf p.67]. A frozen
-singleton so it can serve as a default argument without constructing one per call."""
+"""Standard sea level, the report's trim condition [Table B.1, pdf p.67]."""
 
 
 @dataclass(frozen=True)
@@ -142,11 +124,7 @@ class Frame:
     # diagnostics
     combustor_flow_substituted: bool
     """True when Eq. 18's pressure drop was not positive and the combustor flow and
-    fuel-air ratio were substituted rather than computed. See `frame`.
-
-    It was `combustor_dp_negative` until 2026-09-13 and missed `dp == 0` exactly, which
-    takes the same `far = 0` branch with a non-negative drop. It was also computed and
-    read by nothing, which is how a silent substitution stays silent."""
+    fuel-air ratio were substituted rather than computed. See `frame`."""
 
 
 # The report writes 778.12 * (60 / 2*pi) * (1/N) in Eqs. 39-41. Torque is power over
@@ -154,9 +132,8 @@ class Frame:
 _TORQUE_SCALE = BTU_TO_FTLBF * RAD_PER_SEC_TO_RPM
 
 
-# The blocks below are the equations `frame` and `realtime.step` share. `realtime.step`
-# evaluates the same physics with the three pressures solved inside the frame, so it calls
-# these between its own pressure solves; each is written once, here, in the report's order.
+# The equations `frame` and `realtime.step` share, written once in the report's order;
+# `realtime.step` calls them between its own pressure solves.
 
 
 class Compressor(NamedTuple):
@@ -316,22 +293,18 @@ def frame(
         state: the five states.
         wf_pps: metered fuel flow, lbm/sec. Table B.1 quotes lbm/hr -- convert.
         ambient: flight condition.
-        q_req_ftlbf: load torque on the power turbine, Qreq [Eq. 47]. An **input**: it
-            comes from the Gen Hel UH-60A simulation, which this report consumes and does
-            not contain.
-        j_load: load inertia added to J_PT [Eq. 46]. External to the report; recovered
-            from Appendix B as `constants.J_LOAD_UH60A` (open question #6, **partly**
-            closed -- `J_load` is recovered, `dQreq/dNP` is still external).
-        t41_degR: drive T41 instead of computing it from T41_ns. `None` -- the default --
-            is Eq. 23's `T41 = T41_ns`, the 5-DOF configuration. Supplying it makes T41 an
-            independent input, which is how the heat-sink (3-/6-DOF) linear models are
-            extracted. It changes nothing at a trim, because Eq. 50 has unit DC gain and
-            the trim value of T41 *is* T41_ns.
+        q_req_ftlbf: load torque on the power turbine, Qreq [Eq. 47]. An input, from the
+            Gen Hel UH-60A simulation the report does not contain.
+        j_load: load inertia added to J_PT [Eq. 46], recovered from Appendix B as
+            `constants.J_LOAD_UH60A` (open question #6).
+        t41_degR: drive T41 instead of Eq. 23's `T41 = T41_ns` (`None`, the 5-DOF
+            default). How the heat-sink (3-/6-DOF) linear models are extracted; it changes
+            nothing at a trim, because Eq. 50 has unit DC gain.
 
     Returns:
         Every station value, the three torques, and the five derivatives.
     """
-    ng, np_, p3, p41, p45 = (
+    ng, np_, p3, p41, p45 = (  # np_ is NP: np is NumPy
         state.ng_rpm,
         state.np_rpm,
         state.p3_psia,
@@ -343,29 +316,18 @@ def frame(
     cp = compressor(ng, p3, ambient)
 
     # --- combustor and station 4.1, Eqs. 18-25 ----------------------------------------
-    # Eq. 18 inverts the combustor pressure-drop law, so it needs P3 > P41. Two guards
-    # sit on it and both are SILENT SUBSTITUTIONS rather than clamps: `max(dp, 0)`
-    # replaces a reversed pressure drop with zero flow, and the `far` fallback then
-    # replaces an infinite fuel-air ratio with zero -- which injects fuel into the mass
-    # balance (Eq. 43 carries `wa31 + wf`) and releases none of its heat, since Eq. 21's
-    # `eta_b * far * HVF` term vanishes. The state is unphysical either way; what matters
-    # is that the model says so instead of returning a number.
-    #
-    # **Latent, and measured**: zero occurrences at every trim from 100 to 800 lbm/hr and
-    # across both published transients. `combustor_flow_substituted` is what makes that a
-    # checked claim rather than an assumption -- see
+    # Eq. 18 needs P3 > P41. Its two guards are silent substitutions, not clamps:
+    # `max(dp, 0)` turns a reversed drop into zero flow, and the `far` fallback then puts
+    # fuel into the mass balance (Eq. 43) while releasing none of its heat (Eq. 21).
+    # `combustor_flow_substituted` reports it; see
     # `tests/test_mass_conservation.py::test_the_combustor_flow_guards_never_fire`.
     dp = p3 * (p3 - p41)
     wa31 = sqrt(max(dp, 0.0) / (c.K_DPB * cp.t3))  # (18)
     substituted = dp <= 0.0 or wa31 <= 0.0
     far = wf_pps / wa31 if wa31 > 0.0 else 0.0  # (19)
     eta_b, h41_ns, t41_ns = combustor(far, cp.h3)  # (20)-(22)
-    # (23): T41 = T41_ns when no heat-sink representation is used [pdf p.23]. Passing
-    # `t41_degR` drives it instead, which is what makes T41 a sixth **state** rather than
-    # a computed quantity -- the 6-DOF configuration, and the form the report's own
-    # derivative extraction uses: "During derivative extraction, T41 was held fixed at the
-    # trim value and the change in T41 was determined for each state perturbation"
-    # [pdf p.31].
+    # (23): T41 = T41_ns without a heat-sink representation [pdf p.23]. Passing `t41_degR`
+    # makes T41 a sixth state, held fixed as the report's derivative extraction does [pdf p.31].
     t41 = t41_ns if t41_degR is None else float(t41_degR)
     h41, theta41 = station41(t41)  # (24), (25)
 
@@ -385,9 +347,8 @@ def frame(
     q_c, q_gt, q_pt = torques(ng, np_, cp, w41, dh_gt, w45, dh_pt)
 
     # --- state derivatives, Eqs. 42-45, 47 --------------------------------------------
-    # Eq. 43 as printed reads (WA31 - Wf - W41). Eq. 73 [pdf p.36] prints +Wf for the same
-    # balance and Eq. 77 follows from that one, not from Eq. 43. Fuel adds mass to the
-    # combustor, so +Wf is also the only physical reading. Open questions #14 and #29.
+    # Eq. 43 as printed reads (WA31 - Wf - W41); Eq. 73 [pdf p.36] prints +Wf for the same
+    # balance, Eq. 77 follows from it, and fuel adds mass. Open questions #14 and #29.
     dp3 = c.K_V3 * cp.t3 * (cp.wa3 - cp.wa3_bl - wa31)  # (42)
     dp41 = c.K_V41 * t41 * (wa31 + wf_pps - w41)  # (43), sign per Eq. 73
     dp45 = c.K_V45 * t45 * (w41 - w45 + cp.b3 * c.K_BL * cp.wa2)  # (44)
