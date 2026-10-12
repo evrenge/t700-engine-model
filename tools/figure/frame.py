@@ -455,6 +455,17 @@ def edge_uv(fr, H):
     return uv_of
 
 
+def edge_at_straight(uv_of):
+    """`at(name, positions)` -- the along-edge coordinate from `edge_uv`'s map: v on the left
+    and right edges, u on the top and bottom."""
+
+    def at(nm, pos):
+        q = uv_of(nm, list(np.atleast_1d(pos)))
+        return q[1] if nm in ("left", "right") else q[0]
+
+    return at
+
+
 def edge_at(fc, to_sv):
     """`at(name, coords)` -- the same for the arc model, returning the along-edge coordinate."""
 

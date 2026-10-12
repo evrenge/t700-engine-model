@@ -49,6 +49,7 @@ from figure.frame import (  # noqa: E402  # noqa: E402  # noqa: E402
     auto_frame_spec,
     corners,
     edge_at,
+    edge_at_straight,
     edge_uv,
     fit_edges,
     homography,
@@ -89,10 +90,7 @@ def edge_positions(ink, fc, cfg, order, fine=True):
     maj, _allt, _cor = majors_all_edges(ink, fc, cfg, verbose=False, order=order)
     if order == 1:
         uv_of = edge_uv(as_lines(fc), homography(corners(fc, order=1), UNIT))
-
-        def at(nm, pos):
-            q = uv_of(nm, list(np.atleast_1d(pos)))
-            return q[1] if nm in ("left", "right") else q[0]
+        at = edge_at_straight(uv_of)
     else:
         to_sv, _ = make_sv(fc)
         at = edge_at(fc, to_sv)

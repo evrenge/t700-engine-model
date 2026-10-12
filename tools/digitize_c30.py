@@ -81,7 +81,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from figure.axis import blend_value, pick_lattice
 from figure.frame import apply_h as _apply
-from figure.frame import as_lines, auto_frame_spec, edge_uv, fit_edges, homography
+from figure.frame import as_lines, auto_frame_spec, edge_at_straight, edge_uv, fit_edges, homography
 from figure.frame import corner_line as corner
 from figure.raster import native_bitmap
 from figure.ticks import fine_lattice_all, major_values, majors_all_edges
@@ -323,9 +323,7 @@ def main(argv=None) -> int:
 
     xv, yv = major_values(CFG["x"]), major_values(CFG["y"])
 
-    def tick_u(nm, pos):
-        q = uv_of(nm, list(np.atleast_1d(pos)))
-        return q[1] if nm in ("left", "right") else q[0]
+    tick_u = edge_at_straight(uv_of)
 
     coarse_of = {}
     for nm, vals, desc in (

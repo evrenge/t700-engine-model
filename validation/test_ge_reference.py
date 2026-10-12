@@ -37,10 +37,6 @@ is automatically our error -- it does not turn the gap into a credential.
 
 from __future__ import annotations
 
-import csv
-from functools import lru_cache
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -48,33 +44,14 @@ from t700 import constants as c
 from t700 import trim
 from t700.engine import Ambient, frame
 from t700.units import shp_from_torque, wf_pps_from_pph
+from test_steady_sweeps import _reference, _rungs
 
-REF = Path(__file__).resolve().parent.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
 NP_RPM = 20895.0
 
 
-def _read(name: str, xc: str, yc: str):
-    rows = list(csv.DictReader(ln for ln in (REF / name).open() if not ln.startswith("#")))
-    x = np.array([float(r[xc]) for r in rows])
-    y = np.array([float(r[yc]) for r in rows])
-    o = np.argsort(x)
-    return x[o], y[o]
-
-
-@lru_cache(maxsize=1)
-def _rungs():
-    out, guess = [], None
-    for pph in np.arange(120.0, 815.0, 10.0):
-        r = trim.solve(wf_pps_from_pph(float(pph)), NP_RPM, AMB, guess=guess)
-        if r.trustworthy:
-            guess = r.state
-            out.append((float(pph), r.state))
-    return tuple(out)
-
-
 def _ours(pph: float):
-    lower = [st for x, st in _rungs() if x <= pph]
+    lower = [st for x, st in _rungs(NP_RPM) if x <= pph]
     r = trim.solve(wf_pps_from_pph(pph), NP_RPM, AMB, guess=lower[-1] if lower else None)
     if not r.trustworthy:
         return None
@@ -111,8 +88,8 @@ SPEC = {
 def _spreads(fig: int, series: str):
     """(Ballin - GE, ours - GE) on GE's own abscissae, in %NG or per cent."""
     stem, xc, yc, mode = SPEC[fig]
-    bx, by = _read(f"{stem}_realtime.csv", xc, yc)
-    gx, gy = _read(f"{stem}_{series}.csv", xc, yc)
+    bx, by = _reference(f"{stem}_realtime.csv", xc, yc)
+    gx, gy = _reference(f"{stem}_{series}.csv", xc, yc)
     inb = (gx >= bx.min()) & (gx <= bx.max())
     bal = np.interp(gx[inb], bx, by)
     m, ov = _curve(fig, gx[inb])
@@ -191,8 +168,8 @@ def test_the_two_ge_models_disagree_with_each_other_substantially():
     """
     for fig in (6, 7, 8):
         stem, xc, yc, mode = SPEC[fig]
-        sx, sy = _read(f"{stem}_ge_status81.csv", xc, yc)
-        ux, uy = _read(f"{stem}_ge_unbalanced.csv", xc, yc)
+        sx, sy = _reference(f"{stem}_ge_status81.csv", xc, yc)
+        ux, uy = _reference(f"{stem}_ge_unbalanced.csv", xc, yc)
         inb = (ux >= sx.min()) & (ux <= sx.max())
         if inb.sum() < 3:
             continue
@@ -229,7 +206,7 @@ def _fig6_series():
     """Fuel flow as a function of NG for all three Figure 6 series, plus ours."""
     out = {}
     for key in ("realtime", "ge_status81", "ge_unbalanced"):
-        wf, ng = _read(f"fig06_{key}.csv", "wf_pph", "ng_pct")
+        wf, ng = _reference(f"fig06_{key}.csv", "wf_pph", "ng_pct")
         o = np.argsort(ng)
         out[key] = (ng[o], wf[o])
     grid = np.arange(125.0, 851.0, 2.5)

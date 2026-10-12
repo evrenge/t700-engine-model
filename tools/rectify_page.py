@@ -27,15 +27,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from figure.frame import longest_run
 from figure.raster import load_gray
 
 # --------------------------------------------------------------------------- line finding
-
-
-def longest_run(mask: np.ndarray) -> int:
-    """Length of the longest run of True in a 1-D bool array."""
-    edges = np.flatnonzero(np.diff(np.concatenate(([0], mask.view(np.int8), [0]))))
-    return 0 if edges.size == 0 else int((edges[1::2] - edges[0::2]).max())
 
 
 def _group(idx: np.ndarray, gap: int) -> list[list[int]]:

@@ -70,18 +70,19 @@ def _reference(name: str, xc: str, yc: str):
     return x[o], y[o]
 
 
-@lru_cache(maxsize=1)
-def _rungs() -> tuple[tuple[float, object], ...]:
-    """A dense continuation ladder, built once and independent of any query.
+@lru_cache(maxsize=2)
+def _rungs(np_rpm: float = NP_RPM) -> tuple[tuple[float, object], ...]:
+    """A dense continuation ladder, built once per speed and independent of any query.
 
     Chaining through the reference flows themselves is not enough: Figure 7's points jump
     702 -> 750 -> 801 lb/hr, and a 50 lb/hr step is too coarse to carry the solution
     through the top of the compressor map. The ladder must be fine and the queries must
-    hang off it, not the other way round.
+    hang off it, not the other way round. `test_ge_reference` builds its own at its own
+    speed.
     """
     out, guess = [], None
     for pph in np.arange(120.0, 815.0, 10.0):
-        r = trim.solve(wf_pps_from_pph(float(pph)), NP_RPM, AMB, guess=guess)
+        r = trim.solve(wf_pps_from_pph(float(pph)), np_rpm, AMB, guess=guess)
         if r.trustworthy:
             guess = r.state
             out.append((float(pph), r.state))

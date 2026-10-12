@@ -51,6 +51,7 @@ from figure.frame import (  # noqa: E402  # noqa: E402
     as_lines,
     auto_frame_spec,
     corners,
+    edge_at_straight,
     edge_uv,
     fit_edges,
     homography,
@@ -62,34 +63,11 @@ from figure.ticks import (  # noqa: E402  # noqa: E402
     label_by_map,
     major_step,
     major_values,
+    minors_per_major,
     paired,
     pick_majors,
     protrusion,
 )
-
-
-def lattice_of(pos, t0, t1, major_px):
-    """Infer the minor spacing from the detected ticks themselves.
-
-    `major_px` is the major spacing in pixels along this edge. The median gap between
-    consecutive detected ticks is the minor spacing when the lattice is well resolved; the
-    ratio is then rounded, and how far it had to be rounded is reported as the evidence.
-    """
-    pos = np.sort(np.asarray(pos, float))
-    if pos.size < 4:
-        return None
-    gaps = np.diff(pos)
-    gaps = gaps[gaps > 1.0]
-    if gaps.size == 0:
-        return None
-    minor_px = (
-        float(np.median(gaps[gaps < 0.75 * major_px]))
-        if (gaps < 0.75 * major_px).any()
-        else float(np.median(gaps))
-    )
-    ratio = major_px / minor_px
-    n = int(round(ratio))
-    return n, ratio, minor_px
 
 
 def label_fine(u, coarse_poly, step, tol=0.30):
@@ -113,7 +91,7 @@ def report(key, verbose=True):
     fr = as_lines(fc)
     TL, TR, BR, BL = corners(fc, order=1)
     H = homography([TL, TR, BR, BL], [(0, 1), (1, 1), (1, 0), (0, 0)])
-    uv_of = edge_uv(fr, H)
+    at = edge_at_straight(edge_uv(fr, H))
     span = {
         "left": (TL[1], BL[1]),
         "right": (TR[1], BR[1]),
@@ -149,12 +127,11 @@ def report(key, verbose=True):
             verbose=False,
         )
         mp, mv = paired({nm: mpos}, nm, vals, desc)
-        q = uv_of(nm, list(mp))
-        umaj = q[1] if desc else q[0]
+        umaj = at(nm, mp)
         major_px = abs(b - a) / ((ax["hi"] - ax["lo"]) / major_step(ax))
 
         ticks = find_ticks(ink, fc[nm], along, sign, lo, hi, 3)
-        got = lattice_of(ticks, a, b, major_px)
+        got = minors_per_major(ticks, major_px)
         if got is None or umaj.size < 3:
             if verbose:
                 print(f"  {nm:>7} {len(vals):7d}   -- too few ticks to measure a lattice")
@@ -164,8 +141,7 @@ def report(key, verbose=True):
         # a coarse map from the majors alone, then the fine lattice labelled through it
         order = min(3, umaj.size - 2)
         coarse = np.polyfit(umaj, mv, max(order, 1))
-        q = uv_of(nm, list(ticks))
-        ufine = q[1] if desc else q[0]
+        ufine = at(nm, ticks)
         uk, vk, keep = label_fine(ufine, coarse, step)
         resid = vk - np.polyval(coarse, uk)
         out[nm] = dict(u=uk, v=vk, n=n, step=step, order=order)
