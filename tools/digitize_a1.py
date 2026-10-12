@@ -1,52 +1,28 @@
 """Digitize Figure A1 (pdf p.56) -- f1, compressor mass flow. The one 2-D map in the report.
 
-Figure A1 is the only figure in TM-100991 the single-curve path cannot do, so it gets its
-own script. Four things make it different:
+What sets it apart from the single-curve path:
 
-1. **Eleven speed lines that cross and crowd.** A per-curve `--roi` band cannot separate
-   curves 1-4 in the lower left. It turns out not to be needed: at 600 dpi each speed line
-   -- flat extension, joining polyline and all seven digit markers -- is a single
-   8-connected ink component, and the eleven components are disjoint. Connected-component
-   labelling separates the family exactly.
-
-2. **The marker is the curve's own index digit, not a cross.** `1`..`11`, so the marker is
-   one glyph on nine curves and a two-glyph string on two, and a digit's ink centroid is
-   not its string centre. Each curve gets the estimator its digit shape allows: density
-   peak for the single digits, the bowl of the `0` for SYMBOL 10, the pair of `1` strokes
-   for SYMBOL 11, and vertical strokes alone for SYMBOL 1, whose markers overprint.
-
-3. **The figure carries its own check.** Six dotted construction lines each join the k-th
-   marker of all eleven speed lines, and a seventh vertical one joins the left ends. They
-   are printed ink, they are separable from the data (small isolated components), and they
-   settle the attribution question that matters on a 2-D map: which speed line and which
-   index does this marker belong to. Every extracted point is tested against them.
-
-4. **The axes are calibrated on the SCAN, not on a render, and not linearly.** `pdfimages
-   -list` shows p.56 is one 300 dpi 1-bit CCITT image, so the 600 dpi page is a 2x upsample
-   -- fine for sub-pixel centroids, wrong for geometry. The four frame lines are fitted
-   sub-pixel in the native bitmap and their rotation and keystone are carried as a
-   HOMOGRAPHY applied to the measured points; nothing interpolates the geometry. The tick
-   lattice then bows along the page, so the value map is a CUBIC in the homography
-   coordinate, chosen by a held-out test the figure gives away free: both axes print a
-   value at both frame lines (0/20 in x, 2/12 in y), so a fit made on the interior ticks
-   alone can be asked to predict four numbers it was never told. See `calibrate`.
+1. Eleven speed lines that cross and crowd. At 600 dpi each speed line (flat extension,
+   joining polyline and all seven digit markers) is one 8-connected ink component and the
+   eleven are disjoint, so connected-component labelling separates them exactly.
+2. The marker is the curve's own index digit, `1`..`11`, so each curve gets the estimator
+   its digit allows: density peak for single digits, the bowl of the `0` for SYMBOL 10,
+   the pair of `1` strokes for SYMBOL 11, vertical strokes alone for SYMBOL 1.
+3. Six dotted construction lines join the k-th marker of all eleven lines, and a seventh
+   joins the left ends. Every extracted point is tested against them, which settles which
+   speed line and index it belongs to.
+4. The axes are calibrated on the native 300 dpi scan (the 600 dpi render is an upsample),
+   the frame carried as a homography, the value map a cubic chosen by the held-out frame
+   test (0/20 in x, 2/12 in y are printed at the frame lines). See `calibrate`.
 
 Run from the repo root; writes data/maps/f1_compressor_mass_flow.csv and its beta-gridded
-derivative. Inputs:
+derivative. Inputs, pulled automatically if missing (`native_bitmap`, `ensure_page`):
 
     pdfimages -f 56 -l 56 -png docs/ballin-tm100991.pdf validation/out/digitize/a1redo/native
     pdftoppm -f 56 -l 56 -r 600 -png docs/ballin-tm100991.pdf validation/out/digitize/a1-600dpi
     rectify_page.rectify(<that render>, validation/out/digitize/a1r_600-056.png)   # no CLI
 
-All three are pulled automatically if missing -- see `native_bitmap` and `ensure_page` --
-so this script runs from a fresh clone with only the PDF and poppler present. Until
-2026-09-13 only the first was, and the other two were gitignored intermediates no tool
-produced, which made `tools/reproduce_all.sh` unrunnable outside the one machine that
-happened to still have them.
-
-This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
-src/t700/ -- and nothing imports *it*: it is a script that works at module level, and
-importing it raises.
+The work happens at module level, so importing this file raises.
 """
 
 from __future__ import annotations
@@ -72,13 +48,7 @@ from figure.raster import load_gray, native_bitmap, render
 from figure.ticks import groups as _tick_groups
 from figure.ticks import protrusion as _protrusion
 
-# This file is a script whose work happens at module level, so *importing* it used to run
-# the whole digitization and overwrite data/maps/f1_compressor_mass_flow.csv as a side
-# effect -- `python3 -c "import digitize_a1"` silently rewrote a committed data file. It
-# was the only tool in tools/ with no `if __name__ == "__main__"` guard. Refusing the
-# import outright is the honest form of that guard here: there is no library in this
-# module to import, every name below is an intermediate of one figure's extraction, and a
-# partial run would leave the CSV half written.
+# The work happens at module level, so an import would rewrite the f1 CSV; refuse it.
 if __name__ != "__main__":
     raise ImportError(
         "tools/digitize_a1.py is a script, not a module: everything it does happens at "
@@ -94,16 +64,10 @@ PAGE = Path("validation/out/digitize/a1r_600-056.png")
 def ensure_page() -> None:
     """Produce the rectified 600 dpi render this script reads, if it is not already there.
 
-    `PAGE` lives under `validation/out/`, which is gitignored, and until 2026-09-13 no
-    tool in `tools/reproduce_all.sh` produced it -- so the reproducibility gate that
-    CLAUDE.md names as one of two `live` mechanisms could not run from a fresh clone at
-    all. It failed loudly rather than falsely passing, which is the better of the two
-    failures, but a gate nobody can run is not enforcing anything.
-
-    Both steps are the two commands this module's docstring already told a reader to run
-    by hand, in the same order and with the same arguments. Neither introduces a number:
-    `pdftoppm` rasterizes the page and `rectify_page.rectify` fits the four printed frame
-    lines and maps their quadrilateral onto its enclosing rectangle.
+    `PAGE` is under the gitignored `validation/out/`, so a fresh clone must build it for the
+    reproducibility gate to run. Neither step introduces a number: `pdftoppm` rasterizes
+    the page and `rectify_page.rectify` maps the four printed frame lines onto their
+    enclosing rectangle.
     """
     if not PAGE.exists():
         print(f"rectifying -> {PAGE}")
@@ -122,15 +86,9 @@ RFRAME = (910.0, 814.0, 4225.0, 5010.0)  # rectified frame: left, top, right, bo
 # ======================================================================================
 # 1. CALIBRATION -- measured on the native 300 dpi scan, never on a render
 # ======================================================================================
-# The old calibration for this figure was a linear least squares over every printed tick
-# on a pixel-warped ("rectified") 600 dpi render, and it left a disagreement nothing on
-# the page could settle: the tick lattice implied a y scale 0.37 % shorter than the frame
-# span, and the x = 10 major tick sat 1.9 px right of the frame midpoint.  Both facts are
-# real -- they reproduce here, in the un-warped scan -- but the first is not a conflict in
-# the data, it is a WRONG MODEL.  The page bows: the y minor-tick spacing runs 42.4 px
-# near the top frame, 41.2 px in the middle and 42.1 px near the bottom, a smooth 3 %
-# swing worth +-3 px against a straight line.  Force a straight line through that and the
-# ends go 4 px wrong in opposite directions, which is exactly the "0.37 % disagreement".
+# The page bows: the y minor-tick spacing runs 42.4 px near the top frame, 41.2 px in the
+# middle and 42.1 px near the bottom, +-3 px against a straight line. A linear axis map is
+# the wrong model (recipe trap 5); the cubic is chosen in `calibrate`.
 
 
 NINK = native_bitmap(PAGE_NO)
@@ -188,14 +146,13 @@ def calibrate(ink, fr):
 
     x runs 0..20 with a minor tick every 1.0 and one long major at 10; y runs 2..12 with a
     minor every 0.2 and majors at 4/6/8/10.  Both axes print their end values AT the frame
-    lines, so fitting the interior ticks alone leaves four numbers to predict that the fit
-    was never given.  That is the whole model-selection argument, and it is free."""
+    lines, so a fit on the interior ticks alone has four numbers left to predict."""
 
     def T(nm, along, sign, lo, hi):
         # maxlen 40, not the shared default 60: A1's ticks are short and its flat
         # speed-line extensions are long, so a deeper probe starts finding data.
-        # `fr` holds (intercept, slope); the shared probe follows a POLYNOMIAL, highest
-        # power first, so the pair is reversed here rather than guessed at inside it.
+        # `fr` holds (intercept, slope) but `protrusion` takes a polynomial, highest power
+        # first, so the pair is reversed here (recipe trap 12).
         a, b = fr[nm]
         pr = _protrusion(ink, (b, a), along, sign, lo, hi, maxlen=40)
         # a peak of 20 or more is a frame corner or a marker sitting on the line
@@ -207,10 +164,8 @@ def calibrate(ink, fr):
     rig = T("right", 0, -1, 412, 2508)
     n = (len(bot), len(top), len(lef), len(rig))
     assert n == (19, 19, 49, 49), f"tick counts {n}, wanted (19,19,49,49)"
-    # Assert on STRUCTURE, not on count (A7's lesson: a tick filter can return the right
-    # number of ticks and the wrong ticks).  A minor-tick lattice has no gaps: every
-    # consecutive spacing must be within 10 % of that edge's median, or a tick was missed
-    # or invented and the count assertion above happened to survive it.
+    # Assert on structure, not count: a minor-tick lattice has no gaps, so every spacing
+    # must be within 10 % of the edge's median, or a tick was missed or invented.
     for nm, arr in (("bottom", bot), ("top", top), ("left", lef), ("right", rig)):
         g = np.diff(np.sort(arr))
         assert np.abs(g / np.median(g) - 1.0).max() < 0.10, (
@@ -256,11 +211,8 @@ def calibrate(ink, fr):
         )
     cx = _anchored(U, XX, 3, 0.0, 20.0)
     cy = _anchored(V, YY, 3, 2.0, 12.0)
-    # ... and the same cubic fitted to each ticked edge ALONE, so the map used at a point
-    # is the one that point's own end of the plot measured. Pooling the two, which this
-    # file did until 2026-09-16, averages away a real difference -- it is the same defect
-    # `figure.axis.blend_axis` exists to avoid on A2, A7 and A9, and the one
-    # `digitize_single_curve` was corrected for the same day.
+    # ... and the same cubic fitted to each ticked edge alone, then blended across the plot:
+    # pooling the two edges averages away a real difference (see `figure.axis.blend_axis`).
     cx_edges = (_anchored(ub, XV, 3, 0.0, 20.0), _anchored(ut, XV, 3, 0.0, 20.0))
     cy_edges = (_anchored(vl, YV, 3, 2.0, 12.0), _anchored(vr, YV, 3, 2.0, 12.0))
     for nm, (e0, e1), tt in (("x", cx_edges, U), ("y", cy_edges, V)):
@@ -486,10 +438,8 @@ for lbl in LABELS:
 
 
 # ---------------------------------------------------------------- 5. refine + assemble
-# The bounding-box refinement was validated on the eleven left endpoints (isolated glyphs)
-# but does NOT generalise to the sloped runs: where two markers are within a glyph width it
-# merges or clips their column runs and moves them by up to 10 px, wrecking the spacing.
-# Structural seeds are used unrefined.
+# Seeds are used unrefined: a bounding-box refinement merges or clips the column runs of
+# two markers within a glyph width of each other and moves them by up to 10 px.
 PX = {}
 for lbl in LABELS:
     pts = list(SEEDS[lbl])
@@ -552,12 +502,9 @@ print("links failing the 11 px test:", bad)
 
 
 # ---------------------------------------------------------------- 3b. bridge validation
-# The markers are measured on the rectified 600 dpi render; the axes are calibrated on the
-# native scan.  What joins them is the assumption that `rectify_page` produced a true
-# homography, so that (px - left)/(right - left) on the rectified page is the same `u` the
-# native homography produces.  That assumption is not asserted, it is MEASURED: twelve
-# structures visible on both rasters -- the printed vertical construction line and the
-# eleven flat extensions -- are located independently in each and compared in (u,v).
+# Markers are measured on the rectified 600 dpi render, axes calibrated on the native scan.
+# That both share one (u,v) is measured, not assumed: the vertical construction line and the
+# eleven flat extensions are located independently on each raster and compared.
 def native_structures():
     nx0, nx1, ny0, ny1 = 458, 2112, 410, 2494
     sub = NINK[ny0:ny1, nx0:nx1]
@@ -708,17 +655,11 @@ overlay()
 # ---------------------------------------------------------------- 8. output
 os.makedirs("data/maps", exist_ok=True)
 out = "data/maps/f1_compressor_mass_flow.csv"
-# The date the calibration was last established -- NOT the date this script runs.
-# Stamping `date.today()` here made the output a function of the clock, so
-# `tools/reproduce_all.sh` reported a diff on f1 on every day after the file was
-# committed. A gate that always cries wolf gets ignored, which is worse than no gate:
-# this is the most load-bearing map in the project (the only 2-D one, and Ps3 has ~13x
-# leverage on dNG/dt). Bump this literal when the calibration actually changes, and say
-# in the commit message what moved.
+# The date the calibration was last established, NOT today's: a clock stamp would make the
+# gate report a diff on f1 every day. Bump it when the calibration changes.
 RECALIBRATED = "2026-09-11"
-# The construction line is vertical, and the x map is blended across the plot, so it does
-# not read as one number: it reads as a band. Quoting only the mid-plot value would hide
-# exactly the spread this calibration exists to measure, so both ends are reported.
+# The x map is blended across the plot, so the vertical construction line reads as a band,
+# not one number; both ends are reported.
 _ULU = float(to_uv_rect(XV, 0.0)[0])
 UL_LO = float(blend(CXE, _ULU, 0.0))
 UL_HI = float(blend(CXE, _ULU, 1.0))
@@ -961,81 +902,33 @@ print("wrote", out)
 # ======================================================================================
 # THE BETA-GRIDDED MAP -- traced from the printed line, not interpolated between markers
 # ======================================================================================
-# Beta is the standard compressor-map coordinate: 0 at the choked end of a speed line, 1 at
-# surge, so that one beta names corresponding points on lines whose pressure-ratio ranges
-# differ by a factor of six. Interpolating between speed lines at constant beta is what
-# performance models do, and it is what `t700.maps.SpeedMap` does with this file.
+# Beta is 0 at the choked end of a speed line and 1 at surge; `t700.maps.SpeedMap`
+# interpolates between speed lines at constant beta. It is defined from each line's own span,
+#     beta = (Ps3/P2 - x_left) / (Ps3/P2 at surge - x_left),   x_left = the k=0 points
+# and not from the six printed dotted construction lines: those are Ballin's beta lines, but
+# the marker positions that define them carry digitizing jitter, while the spans are smooth.
 #
-# WHY NOT THE PRINTED CONSTRUCTION LINES. Figure A1 draws six dotted lines joining the k-th
-# marker of all eleven speed lines, and those ARE beta lines -- Ballin's own. Using them is
-# the obvious choice and it is not the best one, because the marker positions carry
-# digitizing noise and using them as the correspondence propagates it. Expressed as a
-# fraction of each line's own span, the k=1 markers sit at
-#
-#     0.7846 0.8174 0.8306 0.8318 0.8135 0.8113 0.8549 0.8681 0.8818 0.8914 0.8973
-#
-# -- up, up, up, DOWN, DOWN, up -- which is jitter, not physics (rms second difference
-# 0.0216). The span they are fractions of is smooth. So beta here is defined analytically:
-#
-#     beta = (Ps3/P2 - X0) / (Ps3/P2 at surge - X0),   X0 = 0.9907, the plot's left frame
-#
-# WHAT THE CURVE COMES FROM, AND WHY IT CHANGED ON 2026-09-15. Until this revision y came
-# from `scipy.interpolate.PchipInterpolator` through the seven printed markers -- an
-# INTERPOLANT, whose residual at every marker is zero by construction. Six noisy points per
-# line is very little to build a map from, and an exact interpolant through them turns the
-# glyph-centroid read error straight into curvature: five of the eleven lines came out with
-# a non-monotone secant sequence (94 %: -0.015 -0.170 -0.117 -0.396 -0.398), and
-# Fritsch-Carlson then amplified it, because it sets each node's derivative to a weighted
-# harmonic mean of the adjacent secants and so pins a secant that is flat within noise to a
-# dead-flat shelf followed by a cliff. Local dWA2c/d(Ps3/P2) differed from any smooth fit by
-# 14-135 % on ten of the eleven lines.
-#
-# The markers were never the best measurement on this page. The printed LINE is: it is
-# continuous ink, and it is drawn as straight segments between Ballin's own table points, so
-# it carries far more samples of the same function. This section traces it.
-#
+# The curve is the printed LINE, traced, not an interpolant through the seven markers: an
+# exact interpolant turns glyph read error into curvature, and Fritsch-Carlson (PCHIP) then
+# amplifies it into shelves and cliffs.
 #   1. TRACE. Cut perpendicular to a guide curve, take the ink run nearest the guide, keep
-#      it when the run is thin enough to be line rather than glyph. The first guide is the
-#      seven-point extraction above -- good to a couple of pixels, far better than needed to
-#      aim a cross-section -- and each fit becomes the next guide. Three passes.
+#      it when thin enough to be line rather than glyph. The first guide is the seven-point
+#      extraction above; each fit becomes the next guide. Guide sampling carries no state
+#      along the curve, so unlike a sequential walker it cannot drift through a glyph.
+#   2. FIT. Values at knots, linear between, with first and second differences <= 0 as hard
+#      constraints (less corrected flow at higher pressure ratio; flat at choke, steepening
+#      into surge) plus a second-difference roughness penalty. The knee is found, not
+#      assumed: it is where the fitted curve leaves the flat level.
+#   3. Traced samples (SIG_TRACE_PX, the residual a well-traced line reaches) and the seven
+#      markers (SIG_MARKER_PX, ACCURACY check 2 in HDR) are fitted together at 1/sigma^2.
+#      Where glyphs overprint the markers are the only measurement left: SYMBOL 1 has no
+#      traced sample in four of its five segments.
 #
-#      A sequential walker was tried first and abandoned: it has to coast blind through
-#      every glyph, and tuning the coast to rescue SYMBOL 2 broke SYMBOL 9, retightening it
-#      broke SYMBOL 5 and 6. Guide sampling carries no state along the curve, so it cannot
-#      drift; the guide supplies the direction everywhere and the perpendicular is always
-#      right. All eleven lines converge, 1104-1343 samples each.
+# Using this file is a departure from replication (open question #60): the seven-point file
+# is Ballin's table, and `maps.f1_as_printed()` still provides it.
 #
-#   2. FIT. Values at 26 knots, linear between, with the shape the physics gives free
-#      imposed as hard constraints -- first differences <= 0 (a compressor passes less
-#      corrected flow against a higher pressure ratio) and second differences <= 0 (flat at
-#      choke, steepening into surge) -- plus a second-difference roughness penalty. Smooth
-#      and monotone by construction, so no abrupt change can be invented. The knee is found,
-#      not assumed: it is where the fitted curve leaves the flat level.
-#
-#   3. BOTH MEASUREMENTS, EACH AT ITS OWN VARIANCE. The traced samples (sigma 0.45 px, the
-#      residual a well-traced line reaches) and the seven printed markers (sigma 2.35 px,
-#      the estimator figure from ACCURACY check 2 above) are fitted together, weighted by
-#      1/sigma^2. Where the trace is rich the markers are swamped and change nothing. Where
-#      the glyphs overprint into one ink mass they are the only measurement left: SYMBOL 1's
-#      six '1' glyphs leave FOUR OF ITS FIVE SEGMENTS with no traced sample at all, and
-#      without the markers the fit there is a smoothness prior filling a vacuum -- it put
-#      surge 21 px high and drew a corner. This is one rule for all eleven lines, not a
-#      special case for SYMBOL 1.
-#
-# MEASURED. Fit residual 0.23-0.60 px rms per line. Surge endpoints land within -7.2..+8.6 px
-# of the seven-point extraction, SYMBOL 1 at 0.00. The stored map moves from the PCHIP
-# version by 1.76 px rms, 8.58 px worst. Against the report: Table B.1 rms 0.2439 -> 0.2211 %,
-# worst -0.900 -> -0.806 %, Table 1 eigenvalue rms 5.494 -> 5.379, whole-curve Figure 9 %NG
-# 1.474 -> 1.400 and Ps3 0.760 -> 0.717, closed loop 0.0981 -> 0.0945; against Figure 8 rms
-# 0.4247 -> 0.4564 and Appendix B b rms 5.222 -> 5.348. See open questions #60 and #69.
-#
-# STILL A DEPARTURE FROM REPLICATION -- open question #60. Figure A1's speed lines are DRAWN
-# as polylines, so the seven-point file is Ballin's table and linear interpolation between
-# those points is his model; `maps.f1_as_printed()` still provides it.
-#
-# GRID. 8 values in the choked part and 48 in the unchoked, split at beta = 0.70. The knee
-# sits below beta 0.90 on every line, so the split is below every one of them and the whole
-# unchoked run gets the fine spacing. The choked run is flat and needs nothing.
+# GRID: the knee sits below beta 0.90 on every line, so a split at BETA_SPLIT gives the whole
+# unchoked run the fine spacing; the choked run is flat.
 #
 # `--raw-only` skips this file.
 BETA_CHOKED = 8
@@ -1054,10 +947,8 @@ if "--raw-only" not in sys.argv:
     x_left = min(DATA[lbl][0][0] for lbl in LABELS)
 
     _UG = np.linspace(0.0, 1.0, 400001)
-    # The forward map is blended, so its inverse depends on BOTH coordinates. This inverse
-    # is used only to place the tracing guide, where a mid-plot blend is far better than
-    # the couple of pixels the guide needs; `native_to_data`, which produces every stored
-    # value, blends exactly.
+    # Approximate inverse (mid-plot blend), good enough to place the tracing guide only;
+    # `native_to_data`, which produces every stored value, blends exactly.
     _GX, _GY = blend(CXE, _UG, 0.5), blend(CYE, _UG, 0.5)
 
     def data_to_native(x, y):
