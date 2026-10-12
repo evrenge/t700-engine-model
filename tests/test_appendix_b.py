@@ -5,7 +5,7 @@ Appendix B prints 297 matrix elements [pdf pp.68-76]. Table 1 prints 27 eigenval
 other in this repository, so agreement is an end-to-end check on the transcription:
 90 numbers read off six pages reproducing 15 numbers read off a seventh.
 
-**None of this involves our model.** It tests only that we read the report correctly.
+None of this involves our model: it tests only that we read the report correctly.
 Comparing our own derivatives against these matrices is `validation/`'s job.
 """
 
@@ -35,15 +35,9 @@ def test_all_twelve_load():
 def test_five_dof_eigenvalues_reproduce_table_1(trim: int):
     """The strongest available check on 90 transcribed numbers.
 
-    Measured worst case across all fifteen modes is **3.33e-3 relative**, and every
-    residual is accounted for by print precision: Appendix B gives 4 significant figures,
-    Table 1 gives 3, so a Table 1 value can sit up to half a unit in its last place away
-    from the number it was computed from. The bound below is set from that measurement,
-    not chosen to pass.
-
-    Two residuals show Table 1 **truncating rather than rounding**: -2.66843 is printed
-    "-2.66" where rounding gives -2.67, and -2.08692 is printed "-2.08". Harmless, but it
-    is why the bound is 4e-3 and not 2e-3.
+    Every residual is print precision (worst 3.33e-3 relative): Appendix B gives 4
+    significant figures, Table 1 gives 3. Table 1 truncates rather than rounds in two places
+    (-2.66843 printed "-2.66", -2.08692 "-2.08"), which is why the bound is 4e-3, not 2e-3.
     """
     ev = np.sort(np.linalg.eigvals(ab.find(5, trim).A).real)
     want = np.array(sorted(TABLE_1_5DOF[trim].values()))
@@ -55,12 +49,8 @@ def test_five_dof_eigenvalues_reproduce_table_1(trim: int):
 
 @pytest.mark.parametrize("trim", [1, 2, 3])
 def test_two_dof_is_lower_triangular_so_its_diagonal_is_its_spectrum(trim: int):
-    """A(1,2) = 0 exactly, so the eigenvalues are readable off the diagonal.
-
-    So this check needs no eigenvalue solver at all: Table 1's 2-DOF column *is* the
-    diagonal of B1/B3/B5, to Table 1's printing precision (worst 2.2e-3 relative, all of
-    it the 4-figure to 3-figure reduction -- e.g. -1.816 printed as "-1.82").
-    """
+    """A(1,2) = 0 exactly, so Table 1's 2-DOF column is the diagonal of B1/B3/B5, to Table
+    1's printing precision (-1.816 printed as "-1.82")."""
     r = ab.find(2, trim)
     diag = sorted(np.diag(r.A))
     for got, exp in zip(diag, sorted(TABLE_1_2DOF[trim]), strict=True):
@@ -82,12 +72,9 @@ def test_np_is_decoupled_in_every_variant(trim: int):
 
 @pytest.mark.parametrize("trim", [1, 2, 3])
 def test_the_np_eigenvalue_is_identical_across_all_four_variants(trim: int):
-    """A(2,2) is the same number in the 2-, 3-, 5- and 6-DOF models at each trim.
-
-    -0.5650 / -0.4461 / -0.3567. It has to be: NP is decoupled, so its mode cannot
-    depend on how the rest of the model is approximated. A transcription error in any of
-    the four would break this, which is why it is worth asserting.
-    """
+    """A(2,2) is the same number in the 2-, 3-, 5- and 6-DOF models at each trim: NP is
+    decoupled, so its mode cannot depend on the rest of the model. A transcription error in
+    any of the four breaks this."""
     vals = [ab.find(dof, trim).A[1, 1] for dof in (2, 3, 5, 6)]
     assert len(set(vals)) == 1, f"trim {trim}: A(2,2) differs across variants: {vals}"
     # Appendix B prints 4 figures (-0.3567), Table 1 prints 3 (-0.357).
@@ -112,11 +99,10 @@ def test_feedthrough_is_nonzero_only_on_the_t41_row(fig: int):
 def test_the_six_dof_instability_is_recorded_not_repaired():
     """B8 is unstable as printed, at about +3 /sec. Do not "fix" it.
 
-    Row 6 is `F1^-1 F2` row 6, a difference of terms of order 2e5 giving order 1e3, so the
-    printed four digits carry about +-50 absolute in A(6,3) and A(6,4) -- and perturbing
-    those two *within their printed rounding* moves this mode from -0.99 to +7.3. The
-    instability is lost precision, not a claim by the report. This test exists so that a
-    future reader who spots it finds an explanation instead of editing the data.
+    Row 6 of `F1^-1 F2` is a difference of terms of order 2e5 giving order 1e3, so the
+    printed four digits carry about +-50 absolute in A(6,3) and A(6,4); perturbing those
+    within their printed rounding moves this mode from -0.99 to +7.3. The instability is
+    lost precision, not a claim by the report.
     """
     r = ab.load(8)
     assert r.ill_conditioned

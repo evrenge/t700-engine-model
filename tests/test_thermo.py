@@ -27,11 +27,8 @@ def test_station_41_fits_are_mutual_inverses():
 
 def test_station_49_fit_is_the_printed_one():
     """K_T49_1 = 3.516 lbm*degR/Btu and K_T49_2 = 172.3 degR [Table A.1 rows 21, 22 -- pdf
-    p.55, read off the page image 2026-10-12].
-
-    Pinned by value because nothing else can pin them: T49 [Eq. 36] is computed and read by
-    nothing, the report prints no T49, and no inverse fit is printed to check them against.
-    """
+    p.55]. Pinned by value because nothing else can: T49 [Eq. 36] is read by nothing, the
+    report prints no T49, and no inverse fit is printed."""
     assert c.K_T49_1 == 3.516
     assert c.K_T49_2 == 172.3
 
@@ -58,9 +55,8 @@ def test_enthalpy_increases_with_temperature():
 def test_velocity_ratio_fits_agree_between_stations():
     """theta_41 and theta_45 use numerically equal coefficients [Table A.1 rows 23-26].
 
-    They are separate constants in the report and separate constants here. This test
-    records that they currently coincide, so that if one is ever corrected the other is
-    considered deliberately rather than by accident.
+    Separate constants in the report and here; if one is ever corrected, the other must be
+    considered deliberately.
     """
     t = np.array([1200.0, 1600.0, 2000.0])
     assert np.array_equal(thermo.theta41_from_t41(t), thermo.theta45_from_t45(t))

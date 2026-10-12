@@ -1,22 +1,13 @@
 """The station 4.1 heat-sink model, Eqs. 48-53 [pdf pp.25-26].
 
-Ballin ran the engine in two configurations and published results for both, so this
-model is a **switch**, not a feature. What the report says about which is which:
+Ballin published results in both configurations, so the model is a switch:
 
-* `T41 = T41_ns` when no heat-sink representation is used [pdf p.23, below Eq. 22].
-* Table 1's eigenvalues and Appendix B figures B1-B6 (2- and 5-DOF) are heat-sink
-  **off**: "Because the station 4.1 heat-sink approximation was added to both models as
-  a linear lead-lag representation, **it was not included in the analysis**" [pdf p.27].
-  Table 1 has no T41 row, which corroborates it.
-* Appendix B figures B7-B12 (3- and 6-DOF) are heat-sink **on**: "The heat-sink model is
-  contained in the three- and six-degree-of-freedom models" [pdf p.67].
-* Figures 9 and 10 are heat-sink **on**. The report never writes that sentence; it is
-  inferred from p.20 ("a model of the nonadiabatic energy transfer at station 4.1 was
-  required"), p.38 ("Because of the use of the heat-sink model..."), and p.47's
-  discussion of Figure 10, which only parses if the model is running. Recorded as an
-  inference in `docs/notes/heat-sink-configuration.md`, not as a transcription.
+* off: `T41 = T41_ns` [pdf p.23, below Eq. 22]. Table 1 and Appendix B figures B1-B6
+  (2- and 5-DOF): "it was not included in the analysis" [pdf p.27]; Table 1 has no T41 row.
+* on: Appendix B figures B7-B12 (3- and 6-DOF) [pdf p.67]. Figures 9 and 10, inferred from
+  pdf pp.20, 38 and 47 rather than stated; see `docs/notes/heat-sink-configuration.md`.
 
-The sixth state is **gas** temperature at station 4.1 [pdf p.29], not metal temperature.
+The sixth state is gas temperature at station 4.1 [pdf p.29], not metal temperature.
 `T_m` exists only in Eqs. 48-49 and is eliminated when they collapse into Eq. 50.
 """
 
@@ -57,12 +48,9 @@ def _run(wf_pph: float, fuel_of_t, duration_s: float, heat_sink: bool):
 
 
 def test_dc_gain_is_exactly_one():
-    """Eq. 50 evaluated at s = 0 is 1, for any coefficients.
-
-    This is the property the whole design rests on: it is why `engine.frame` and
-    `trim.solve` need no heat-sink flag, and why every Table B.1 trim comparison is
-    valid for both configurations at once.
-    """
+    """Eq. 50 evaluated at s = 0 is 1, for any coefficients. This is why `engine.frame` and
+    `trim.solve` need no heat-sink flag, and every Table B.1 trim comparison holds for both
+    configurations."""
     for t41_ns in (1800.0, 2200.0, 2700.0):
         t41 = t41_ns
         # Drive a constant input to convergence; the output must return the input.
@@ -85,9 +73,8 @@ def test_high_frequency_gain_is_one_minus_tau_ratio():
     tau_b = float(maps.f_hs()(ngc)) / w41  # (52), (53)
     k = 1.0 - tau_b / tau_a
 
-    # The state is the METAL temperature (Eq. 48), which at the old level sits AT the gas
-    # temperature. That is the whole seed -- it needs no coefficients, unlike the lead-lag
-    # memory it replaced, which had to be (tau_b/tau_a)*T41.
+    # The state is the metal temperature (Eq. 48), which at the old level equals the gas
+    # temperature, so the seed needs no coefficients.
     tm0 = 2200.0
     stepped, _ = _heat_sink(2200.0 * 1.5, tm0, t41_prev, w41, ngc, 0.007)
     jump = (stepped - 2200.0) / (2200.0 * 1.5 - 2200.0)
@@ -100,11 +87,8 @@ def test_high_frequency_gain_is_one_minus_tau_ratio():
 
 @pytest.mark.parametrize("wf_pph", TRIMS_PPH)
 def test_heat_sink_is_inert_at_steady_state(wf_pph: float):
-    """A trimmed engine held at constant fuel flow lands in the same place either way.
-
-    Measured, not asserted from theory: this is what proves no trim comparison in this
-    repository can be improved -- or broken -- by flipping the switch.
-    """
+    """A trimmed engine held at constant fuel flow lands in the same place either way, so no
+    trim comparison can be improved or broken by flipping the switch."""
     out = {hs: _run(wf_pph, lambda _t, wf: wf, 8.0, hs) for hs in (False, True)}
     for key in ("t41", "ng", "p3", "p41", "p45", "t45"):
         a, b = out[False][key][-1], out[True][key][-1]

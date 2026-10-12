@@ -80,35 +80,17 @@ def test_combustor_efficiency_is_near_unity():
 def test_f6_is_loaded_as_the_constant_figure_a6_draws():
     """Open question #62's departure, pinned so it cannot be undone without a test failing.
 
-    Nothing detected it before 2026-09-14. `test_combustor_efficiency_is_near_unity` above
-    passes on the digitized slope too -- the two printed endpoints differ by less than a
-    tenth of their own read error -- so every range check in this file is blind to whether
-    `f6` is a constant or a line. That is the same hole
-    `test_f1_is_interpolated_on_a_smooth_analytic_beta_grid` exists to close for #60, found the
-    same way: revert the departure and watch the suite stay green.
-
-    Four things are asserted, and the last two are what keep the provenance honest.
-
-    **The expected value is computed from the CSV, not frozen into this file.** It used to
-    be `0.5 * (0.985038 + 0.984965)`, a pair of numbers from an extraction two revisions
-    old: the 2026-09-16 blend of the two ticked edges redistributed those endpoints while
-    leaving their mean untouched, so the assertion went on passing against numbers the file
-    no longer held, and only the fine-lattice recalibration made it fail. A frozen number
-    that survives the data changing underneath it is not pinning anything. What is actually
-    being asserted -- that the loader takes the MEAN of the two measured endpoints, and
-    that those endpoints are the same number to within the page's own read error -- is
-    asserted directly instead.
+    The range checks above pass on the digitized slope too, so only this sees whether `f6`
+    is a constant or a line. The expected value is computed from the CSV, not frozen here:
+    the loader takes the mean of the two measured endpoints, and those endpoints are one
+    number within the page's own read error.
     """
     c = maps.f6()
     assert c.y.size >= 2
     assert len(set(c.y.tolist())) == 1, (
-        f"f6 is not constant: {c.y}. Figure A6 draws one horizontal line, and the tilt on "
-        f"the page is the page (open question #62). If this is deliberate, move #62 to "
-        f"closed and say why here."
+        f"f6 is not constant: {c.y}; Figure A6 draws one horizontal line (open question #62)"
     )
-    # the CSV still carries the ink as measured: the conditioning is what makes it
-    # constant, so the chain back to the page is unbroken and the reproducibility gate
-    # still has something to reproduce.
+    # the CSV keeps the ink as measured; conditioning at load makes it constant
     cols, _, _ = maps._read_csv(DATA_ROOT / "maps" / "f6_combustor_efficiency.csv")
     ys = cols["y"].tolist()
     sy = cols["sigma_y"].tolist()
@@ -118,9 +100,8 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
     # and #62's premise: those two endpoints ARE one number, as far as the page can say
     gap = abs(ys[0] - ys[1]) / min(sy)
     assert gap < 0.5, (
-        f"f6's two printed endpoints now differ by {gap:.2f} of their own 1 sigma read "
-        f"error. Open question #62 rests on them being the same number; if the page really "
-        f"does draw a slope, #62 is answered and this departure has to go."
+        f"f6's two printed endpoints differ by {gap:.2f} sigma; open question #62 rests on "
+        f"them being one number"
     )
     assert maps.CONDITIONING["f6"] == pytest.approx(abs(ys[0] - c.y[0]), rel=1e-6)
 
@@ -143,12 +124,8 @@ def test_f10_is_used_as_printed_not_inverted():
     """f10 = P49/Ps9 > 1. The figure's axis LABEL is inverted, not its values.
 
     Eq. 37 sets Ps9 = P_amb and Eq. 38 gives P49 = Ps9 * f10, so f10 < 1 would put the
-    exhaust total pressure below ambient and the engine could not exhaust. Every plotted
-    value is above 1, and the neighbouring maps corroborate: f8's P49/P45 spans
-    0.3007-0.8505 and f9's Ps9/P45 spans 0.3003-0.8500, so P49 and Ps9 are close in
-    magnitude and their ratio sits just above 1.
-
-    An earlier reading of open question #5 had this inverted. This test is the guard.
+    exhaust total pressure below ambient. Every plotted value is above 1, and f8 (P49/P45)
+    and f9 (Ps9/P45) span the same range, so P49/Ps9 sits just above 1 (open question #5).
     """
     c = maps.f10()
     assert c.y.min() > 1.0, "f10 must exceed 1 or the engine cannot exhaust"
@@ -210,30 +187,16 @@ def test_f1_parameter_clamping_is_counted():
 
 
 CONDITIONING_TOL_SIGMA = 3.0
-"""How far physical conditioning may move a value, in that map's OWN read error.
+"""How far physical conditioning may move a value, in that map's own read error.
 
-Was an absolute 1e-3 for every map until 2026-09-16, which is not what the docstring below
-says and not what it measured. These maps carry y in units that differ by four orders of
-magnitude, so one absolute number means wildly different things:
-
-    f9   1e-3 = 35.49 sigma_y     f3   1e-3 =  5.92 sigma_y
-    f6   1e-3 =  2.46 sigma_y     f1   1e-3 =  0.09 sigma_y
-
-It was caught by f1. Blending `f1`'s two ticked edges instead of pooling them -- which
-makes its eleven physically-flat extensions flatter, 0.573 px mean end-to-end difference
-against 0.409 px, a free check the calibration is never told about -- left the flat pair of
-one speed line 2.3e-03 apart, so the monotone step moves each end by 1.15e-03. Against the
-absolute bound that FAILED. Against f1's own read error it is **0.098 sigma**, a tenth of
-the noise the value is known to. The bound was wrong, not the data.
-
-Three sigma is stricter than the old bound for three of the four maps that condition
-anything, and the honest reading of "read-error scale" for the fourth."""
+Not one absolute number: the maps carry y in units four orders of magnitude apart, so 1e-3
+is about 35 sigma on f9 and 0.09 sigma on f1."""
 
 
 def _read_error(name: str) -> float | None:
     """That map's mean quoted 1 sigma on y, from its own CSV. Found, not listed."""
-    # `f_hs` is stored as `fhs_heat_sink_constant.csv`, so try the name with and without
-    # its underscore rather than keeping a name-to-file table that can go stale.
+    # `f_hs` is stored as `fhs_heat_sink_constant.csv`: try the name with and without its
+    # underscore rather than keep a name-to-file table.
     stems = {name, name.replace("_", "")}
     for sub in ("maps", "schedules"):
         for stem in stems:
@@ -242,9 +205,8 @@ def _read_error(name: str) -> float | None:
                 col = [c for c in cols if c in ("sigma_y", "sy")]
                 if col:
                     return float(np.mean(cols[col[0]]))
-                # `f1` quotes its read error as a table in the header rather than as
-                # columns, because it varies by marker index and speed line rather than by
-                # point. Take the largest, which is the class the conditioning acts on.
+                # `f1` quotes its read error as a header table, by marker index and speed
+                # line; take the largest, the class the conditioning acts on.
                 head = "\n".join(header)
                 quoted = re.findall(r"^#\s+k=\S[^\n]*?(\d+\.\d+)\s*$", head, re.M)
                 if quoted:
@@ -253,12 +215,8 @@ def _read_error(name: str) -> float | None:
 
 
 def test_conditioning_changes_are_tiny_everywhere():
-    """Physical conditioning must be a correction, never a rewrite.
-
-    If any of these grows past read-error scale, the digitization is wrong and the fix
-    belongs at the figure, not here. "Read-error scale" means that map's own quoted
-    sigma -- see `CONDITIONING_TOL_SIGMA` for why it cannot be one absolute number.
-    """
+    """Physical conditioning must be a correction, never a rewrite: past read-error scale
+    (`CONDITIONING_TOL_SIGMA`) the digitization is wrong and the fix belongs at the figure."""
     for name in ALL_CURVES + ("f10",):
         getattr(maps, name)()
     maps.f1_as_printed()
@@ -266,9 +224,8 @@ def test_conditioning_changes_are_tiny_everywhere():
         sigma = _read_error(name)
         assert sigma, f"{name}: no quoted read error to judge its conditioning against"
         assert moved < CONDITIONING_TOL_SIGMA * sigma, (
-            f"{name}: physical conditioning moved a value by {moved:.2e}, which is "
-            f"{moved / sigma:.2f} of its own 1 sigma read error ({sigma:.2e}). That is too "
-            f"large to be read noise -- re-digitize the figure instead."
+            f"{name}: physical conditioning moved a value by {moved:.2e}, "
+            f"{moved / sigma:.2f} of its 1 sigma read error ({sigma:.2e}); re-digitize instead."
         )
 
 
@@ -293,26 +250,21 @@ def test_declared_monotonic_tables_really_are():
 
 
 def test_conditioning_leaves_the_csv_alone():
-    """Provenance is unbroken: the file on disk still holds what was read off the page.
-
-    Conditioning happens at load. If someone ever 'fixes' the data files instead, the
-    chain back to the printed figure is lost and this test fails.
-    """
+    """Conditioning happens at load: the file on disk still holds what was read off the
+    page, so the chain back to the printed figure is unbroken."""
     cols, _, _ = maps._read_csv(maps.DATA_DIR / "f3_seal_bleed_fraction.csv")
     raw = cols["y"].tolist()
     assert min(raw) < 0.0, (
-        "the CSV should still carry the raw digitized value, including its negative "
-        "excursion -- conditioning belongs at load, not in data/"
+        "the CSV should still carry the raw negative excursion; conditioning belongs at load"
     )
 
 
 def test_f1_cross_line_ordering_holds_as_digitized():
     """More corrected speed passes more corrected flow at a given pressure ratio.
 
-    This is the one physical constraint on `f1` that is *not* conditioned, and the reason
-    is that the digitized map already obeys it everywhere. Asserting it here keeps that
-    claim honest: if a re-digitization ever breaks the ordering, this fails rather than
-    being silently repaired at load. See open question #44 on the principle.
+    The one physical constraint on `f1` that is not conditioned, because the digitized map
+    already obeys it: a re-digitization that breaks it fails here rather than being silently
+    repaired at load (open question #44).
     """
     m = maps.f1()
     lo = max(float(line.x.min()) for line in m.lines)
@@ -330,9 +282,7 @@ def test_the_printed_f1_markers_lie_on_the_traced_map():
     """`f1_compressor_mass_flow.csv` against the beta map traced off the same figure.
 
     The beta map is fitted mostly to the traced line, so the two are near-independent reads
-    of Figure A1. Measured worst 0.67 % at one marker, mean +0.038 % over all 77. Until
-    2026-10-12 nothing in pytest read the seven-point file: +5 % on its whole wa2c column
-    failed no test.
+    of Figure A1. Measured worst 0.67 % at one marker, mean +0.038 % over all 77.
     """
     raw, traced = maps.f1_as_printed(), maps.f1()
     devs = []
@@ -370,20 +320,14 @@ def test_blending_at_the_printed_beta_values_is_exact():
 
 
 # --------------------------------------------------------------------------------------
-# The 2026-09-13 audits. Each of these is a hole that existed rather than a property that
-# was in doubt: the model was clean on all of them, and the mechanisms were not.
+# Guards on the lookup machinery itself.
 # --------------------------------------------------------------------------------------
 
 
 def test_a_nan_parameter_does_not_silently_select_the_top_speed_line():
-    """The worst available failure mode, and it was the one in place.
-
-    `nan < lo or nan > hi` is False, so the clamp counter never fired; `np.clip(nan,...)`
-    is nan; and `np.searchsorted(params, nan)` returns `len(params)`, which took the
-    `j >= len(self.params)` branch. So `f1(5.0, nan)` returned **10.108** -- the 100 %
-    speed line's value, maximum compressor flow -- with an empty clamp report. A corrupted
-    gas generator speed produced a plausible large number instead of a detectable NaN.
-    """
+    """A NaN must raise. `nan < lo` is False, so the clamp counter never fires, and
+    `np.searchsorted(params, nan)` returns `len(params)`: a corrupted NG would read the
+    100 % speed line, a plausible number, with an empty clamp report."""
     m = maps.f1()
     with pytest.raises(ValueError, match="non-finite"):
         m(5.0, float("nan"))
@@ -396,14 +340,10 @@ def test_a_nan_parameter_does_not_silently_select_the_top_speed_line():
 def test_f1_has_no_speed_line_between_65_and_80_percent():
     """The data hole the Figure 10 chop lives in. Open question #58.
 
-    Eleven speed lines at 65, 80, 82, 85, 87, 89, 92, 94, 96, 98, 100 %NGc: fifteen
-    percentage points between the first two and two or three between every other pair.
-    Everything below 80 %NGc is therefore interpolated across that gap, with the 65 line
-    as the lower bracket -- and the 65 line's abscissa ends at 3.753 against the 80 line's
-    6.671, so past 3.753 a clamped line is bracketing an unclamped one.
-
-    Pinned so the gap is a recorded property of the data rather than a surprise. It is
-    also the reason the ratchet in `test_whole_curve` went up on 2026-09-13.
+    Fifteen points of NGc between the first two speed lines, two or three between every
+    other pair, so everything below 80 %NGc is interpolated across that gap. The 65 line's
+    abscissa ends at 3.753 against the 80 line's 6.671, so past 3.753 a clamped line is
+    bracketing an unclamped one.
     """
     lo = maps.f1().lines[0]
     assert float(lo.x[-1]) < 4.0, (
@@ -413,15 +353,10 @@ def test_f1_has_no_speed_line_between_65_and_80_percent():
 
 
 def test_clamp_scope_nests_without_destroying_an_enclosing_count():
-    """`reset_clamps()` inside a measurement used to zero the measurement around it.
-
-    `trim.solve` counts clamps over its Newton search and then again at the solution, and
-    `validation/` counts them over runs that contain trims. Every one of those was a
-    nested measurement.
-    """
+    """A nested count must not zero the one around it: `trim.solve` counts clamps over its
+    Newton search and again at the solution, and `validation/` over runs containing trims."""
     maps.reset_clamps()
-    # f9, not f6: as of 2026-09-13 f6 is loaded as the constant Figure A6 draws, and a
-    # constant has no domain to leave, so it no longer counts clamps at all.
+    # f9, not f6: f6 is loaded as a constant, which has no domain to leave.
     f9 = maps.f9()
     f9(0.95)  # outside f9's 0.30050-0.85012 table
     with maps.clamp_scope() as inner:
@@ -435,14 +370,9 @@ def test_clamp_scope_nests_without_destroying_an_enclosing_count():
 
 
 def test_the_clamp_counter_cannot_influence_any_model_output():
-    """`maps._clamps` is the one mutable module global in the core. This bounds it.
-
-    CLAUDE.md sanctions one exception to "no global mutable state" -- the thermo backend
-    -- so the counter is a second, recorded in `maps._clamps`' own docstring. The
-    guarantee that makes it acceptable is that nothing downstream of a lookup reads it,
-    and that is checked behaviourally here rather than by inspection: the same trim run
-    with the counter empty, pre-loaded, and never reset must be bit-identical.
-    """
+    """`maps._clamps` is a sanctioned mutable global because nothing downstream of a lookup
+    reads it. Checked behaviourally: the same trim with the counter empty, pre-loaded and
+    never reset must be bit-identical."""
     from t700 import trim
     from t700.engine import Ambient
     from t700.units import wf_pps_from_pph
@@ -465,19 +395,9 @@ def test_the_clamp_counter_cannot_influence_any_model_output():
 def test_the_loaded_tables_cannot_be_mutated_through_a_cached_handle():
     """`frozen=True` protects the reference, not the array it points at.
 
-    The loaders are cached, so `maps.f2()` hands every caller the same `Curve`. Two
-    spellings got past the dataclass guard entirely:
-
-        maps.f2().y[:] = something     -- no attribute assignment, so no guard at all;
-                                          it moved the 400 lbm/hr trim's NG by 482 rpm
-        maps.f2().y *= 1.02            -- numpy applies the in-place multiply FIRST and
-                                          the FrozenInstanceError fires after, so the
-                                          "protected" spelling corrupts the table and
-                                          then raises
-
-    The second is the dangerous one: a reader seeing the exception would conclude nothing
-    happened. Found by the 2026-09-13 code-quality audit. `appendix_b` already did this
-    with `setflags(write=False)`; the function tables did not.
+    The loaders are cached, so every caller shares one `Curve`. `maps.f2().y[:] = x` has no
+    attribute assignment to guard; `maps.f2().y *= 1.02` multiplies in place first and raises
+    FrozenInstanceError after, so the table is corrupted while the exception suggests not.
     """
     curve = maps.f2()
     with pytest.raises(ValueError, match="read-only"):
@@ -500,16 +420,10 @@ def test_the_loaded_tables_cannot_be_mutated_through_a_cached_handle():
 def test_the_uneven_beta_spacing_puts_resolution_where_the_curvature_is():
     """The seven printed beta values are far from evenly spaced. That is correct.
 
-    On an average speed line the first interval -- beta 0 to 1/6, the choked part -- spans
-    9.15 in pressure ratio, and the remaining five together span 1.8. It looks like the
-    resolution is in the wrong place until you look at what varies: across the choked
-    interval `y` moves by at most 0.0048 lbm/s over all eleven lines (0.15 %), while across
-    the unchoked run it moves 3.0 to 6.4 %.
-
-    So the sparse interval is flat and the dense ones bend. Inserting an extra beta line
-    inside the choked segment, at any skew, changes `f1` by ~1e-16 -- there is nothing there
-    to resolve. Evenly spaced beta lines would take resolution from the only part of the
-    line that curves, and would replace the correspondence Figure A1 prints with one of ours.
+    The first interval (beta 0 to 1/6, the choked part) spans most of the pressure ratio,
+    but `y` barely moves across it; the dense intervals are where the line bends. Evenly
+    spaced beta lines would take resolution from the only part that curves, and replace the
+    correspondence Figure A1 prints with one of ours.
     """
     m = maps.f1()
     choked_dy = [abs(line.y[1] - line.y[0]) for line in m.lines]
@@ -522,30 +436,16 @@ def test_the_uneven_beta_spacing_puts_resolution_where_the_curvature_is():
 def test_f1_is_interpolated_on_a_smooth_analytic_beta_grid():
     """Beta is the fraction of a speed line's own pressure-ratio span, not a printed marker.
 
-    0 at the choked left end of every line, 1 at surge, so one beta names corresponding
-    points on lines whose spans differ by a factor of six. Figure A1 *does* print beta lines
-    -- the six dotted construction lines joining the k-th marker of all eleven speed lines
-    -- and they are not used, because the marker positions carry digitizing noise. As a
-    fraction of each line's span the k=1 markers run
+    0 at the choked left end of every line, 1 at surge. Figure A1's dotted construction
+    lines (joining the k-th markers) are not used: the marker positions carry digitizing
+    jitter, while the spans are smooth.
 
-        0.785 0.817 0.831 0.832 0.814 0.811 0.855 0.868 0.882 0.891 0.897
-
-    which goes up, up, up, **down, down**, up. That is jitter, and using it as the
-    correspondence propagates it into every interpolated value. The spans it is a fraction
-    of are smooth. Measured: Table B.1's rms 0.2471 -> 0.2439 % and the worst Table 1 NG
-    mode 8.18 -> 7.56 % on moving from the printed markers to the analytic beta.
-
-    What this pins is the property that made beta worth having at all: **blending two speed
-    lines at equal beta blends their surge limits too**, so a query inside both lines is
-    inside the blend and nothing is ever asked for a pressure ratio it cannot reach. Under
-    the old constant-abscissa evaluation that failed on 389 frames of the Figure 10 chop.
+    Pinned: blending two speed lines at equal beta blends their surge limits too, so a query
+    inside both lines is inside the blend and never asks for an unreachable pressure ratio.
     """
     m = maps.f1()
-    # The knot counts that separate this grid from the printed table (56 against 7 per
-    # line) are pinned by `test_f1_structure`.
-    # The grid is DENSER above the knee than below it, which the printed table is not.
-    # Beta is the fraction of the line's own span, so it comes from x and not from the
-    # index -- that is the whole point of the scheme.
+    # Knot counts (56 against 7 per line) are pinned by `test_f1_structure`. The grid is
+    # denser above the knee than below it; beta comes from x, not from the index.
     x = m.lines[0].x
     beta = (x - x[0]) / (x[-1] - x[0])
     below = int(np.count_nonzero(beta <= 0.70 + 1e-9))

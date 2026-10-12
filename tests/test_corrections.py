@@ -1,8 +1,7 @@
 """Check the standard-day corrections, including the evidence T_std and P_std rest on.
 
 T_STD_DEGR and P_STD_PSIA are the only two numbers in the model core that are a decision
-rather than a transcription (open question #15). These tests pin the reasoning in place so
-that if anyone ever changes them, the justification breaks loudly.
+rather than a transcription (open question #15); these tests pin the reasoning.
 """
 
 from __future__ import annotations
@@ -33,11 +32,7 @@ def test_corrections_move_the_right_way():
 
 def test_physical_flow_uncorrects_by_delta_over_root_theta():
     """Uncorrecting must apply W = Wc*delta/sqrt(theta), the inverse of the correction.
-
-    The compressor map is drawn in corrected flow, so every physical flow passes through
-    this. An inverted correction is invisible at sea level and wrong everywhere else,
-    which is the worst way for a bug to behave.
-    """
+    An inverted correction is invisible at sea level and wrong everywhere else."""
     wc = np.array([2.5, 7.5, 12.0])
     for t2, p2 in ((518.67, 14.696), (560.0, 10.9), (470.0, 4.4)):
         th, de = corr.theta2(t2), corr.delta2(p2)

@@ -1,8 +1,7 @@
 """The five linear-model variants, and the structure that makes them comparable.
 
-These tests exist because the eigenvalue comparison was twice recorded wrong in this
-repository -- once with numbers no committed code produces, once with the NG and NP modes
-paired against each other's rows. Both were caught by re-deriving rather than re-reading.
+The eigenvalue comparison is re-derived here rather than re-read: it is easy to record with
+numbers no code produces, or with the NG and NP modes paired against each other's rows.
 """
 
 from __future__ import annotations
@@ -40,27 +39,23 @@ def _model(name: str, dof: DOF = DOF.FIVE, rel_step: float = 1e-5):
 
 @pytest.mark.parametrize("name", TRIMS)
 def test_sorting_would_mispair_the_slow_modes(name: str):
-    """Guard the *method*, not just the numbers.
+    """Guard the method, not just the numbers.
 
-    At hover and descent our NP mode is more damped than our NG mode, while Ballin's is
-    far less. Pairing sorted eigenvalues against Table 1's row order therefore swaps them
-    and reports the two slow modes as roughly +-5 % when they are -14 % and -23 %. This
-    test fails if anyone reintroduces positional pairing.
+    At hover our NP mode is more damped than our NG mode, while Ballin's is far less, so
+    pairing sorted eigenvalues against Table 1's row order swaps the two slow modes. This
+    fails if positional pairing comes back.
     """
     m = _model(name)
     ev = np.sort(np.linalg.eigvals(m.A).real)
     np_mode = m.A[1, 1]
     assert m.comparable_eigenvalues.size == 4
     assert np_mode not in m.comparable_eigenvalues
-    # Hover only since 2026-09-13. Interpolating f1 along Figure A1's construction lines
-    # moved the descent NG mode from -1.41 to -1.84 /sec, past NP's -1.66, so NP became the
-    # slowest mode there and positional pairing would now coincidentally work at descent.
-    # That is exactly the coincidence this test warns about, and it is why the guard is a
-    # guard rather than the test.
+    # Hover only: at descent NP is the slowest mode, so positional pairing works there by
+    # coincidence -- the coincidence this test warns about.
     if name == "hover":
         assert ev[-1] != np_mode, (
-            "NP is no longer the *slowest* mode at hover either, so positional pairing "
-            "would now coincidentally work everywhere; re-read this test before trusting it"
+            "NP is no longer the slowest mode at hover; positional pairing now works by "
+            "coincidence everywhere, re-read this test"
         )
 
 
@@ -68,27 +63,17 @@ def test_sorting_would_mispair_the_slow_modes(name: str):
 def test_eigenvalues_are_step_independent(name: str):
     """A Jacobian that moves with the differencing step is measuring the step.
 
-    The system spans four decades, 4900 to 0.5 /sec, which is exactly where one-sided
-    differences go soft. Central differences are converged over rel = 1e-4 .. 1e-8.
+    The system spans four decades, 4900 to 0.5 /sec, where one-sided differences go soft.
+    Central differences are converged over rel = 1e-4 .. 1e-8.
 
-    **The plateau ends well before the report's own step**, which is worth stating here
-    because `SCOPE.md` claimed we used that step until 2026-09-13. [pdf p.28] prescribes
-    ±2 % of equilibrium -- three decades above the top of this sweep -- and at ±2 % the
-    5-DOF spectrum moves +21.6 % at hover, +2.6 % at level and +22.7 % at descent. That is
-    not a defect in either choice: ±2 % is an *amplitude* matched to real rotor-speed
-    excursions, so it is a secant over the range the model must represent, while 1e-5 is
-    the derivative. The last assertion below pins the separation so the two cannot be
-    quietly conflated again. Open question #56.
+    The report's step, +/-2 % of equilibrium [pdf p.28], is three decades above that plateau:
+    an amplitude matched to real rotor-speed excursions, so a secant rather than the
+    derivative. The last assertion pins the separation so the two cannot be conflated (open
+    question #56).
     """
     wf = wf_pps_from_pph(TRIMS[name][0])
     r = trim.solve(wf, NP_RPM, AMB)
     ref = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=1e-5).A).real)
-    # 1e-4 was dropped on 2026-09-14 and is back on 2026-09-15. It was dropped because the
-    # beta-gridded `f1` carried 56 knots per speed line instead of 7, so a 1e-4 step no
-    # longer averaged cleanly over the corners between them and descent read 1.1e-3 against
-    # this 1e-3 bound. Tracing the printed line removed the corners rather than the knots:
-    # the knots now sample a curve that is monotone and concave by construction, and the
-    # worst of the three trims reads 1.0e-6. The plateau is four decades wide again.
     for rel in (1e-4, 1e-6, 1e-7, 1e-8):
         ev = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=rel).A).real)
         assert np.allclose(ev, ref, rtol=1e-3), f"rel={rel:g} moved the spectrum: {ev}"
@@ -96,26 +81,14 @@ def test_eigenvalues_are_step_independent(name: str):
     report = np.sort(np.linalg.eigvals(extract(r, wf, DOF.FIVE, AMB, rel_step=0.02).A).real)
     shifts = [100.0 * (b / a - 1.0) for a, b in zip(ref, report, strict=True)]
     worst = max(shifts, key=abs)
-    # These have moved with every `f1` revision, and WHICH trim moves is the check that the
-    # cause is understood. The gap measured here is a second-derivative effect -- a +/-2 %
-    # secant against a 1e-5 derivative -- so only a trim whose perturbation lands on the
-    # part of `f1` that changed can move at all.
-    #
-    #   descent  +22.7 % -> +2.0 %  2026-09-13, constant-k along the construction lines
-    #                    -> -2.5 %  2026-09-14, the beta grid
-    #                    -> -1.5 %  2026-09-15, traced from the printed line
-    #   level     -7.1 % -> -7.4 %        hover  +21.6 % throughout
-    #
-    # Hover has read +21.6 % through all four, because it sits mid-segment: in beta it is at
-    # 0.847 against its own knee at 0.862 -- on the flat choked run, short of the corner,
-    # where every revision of `f1` draws the same straight line. Descent, at beta 0.866
-    # against a knee at 0.831, sits past its knee on the part that keeps being redrawn.
+    # Recorded values. The gap is a second-derivative effect, so an `f1` revision moves only
+    # a trim whose perturbation lands on the changed part: hover sits short of its knee on
+    # the flat choked run, which every revision draws the same; descent sits past its knee.
     expected = {"hover": 21.6, "level": -7.4, "descent": -1.5}[name]
     assert abs(worst - expected) < 1.0, (
         f"{name}: the report's +/-2 % perturbation [pdf p.28] moves the 5-DOF spectrum by "
-        f"{worst:+.1f} % against rel=1e-5, where {expected:+.1f} % is on record. If this "
-        f"has collapsed, the two steps have become interchangeable and SCOPE.md's open "
-        f"question #56 can be closed."
+        f"{worst:+.1f} % against rel=1e-5, {expected:+.1f} % on record. If this has "
+        f"collapsed, open question #56 can be closed."
     )
 
 
@@ -125,44 +98,26 @@ def test_two_dof_equals_reduced_five_identically(name: str):
 
     dg/ds = A11 - A12 A22^-1 A21 by implicit differentiation. Ballin's two differ (-2.69
     vs -2.81 at hover) because his reduced-order model is a separate program with the
-    opened Eq. 74 iteration and finite loop counts; ours is a Newton solve to 1e-10, so
-    it lands exactly on the Schur complement. See open question #49.
+    opened Eq. 74 iteration; ours is a Newton solve to 1e-10 (open question #49).
 
-    The identity is exact; the two sides are finite differences, and they agree only where
-    BOTH differences are converged. At the shipped `rel_step=1e-5` they do at hover
-    (1.3e-8) and level (3.7e-9) and do NOT at descent, where `A[1,0]` disagrees by 9.6e-4.
-    That is truncation, not noise, and it is one-sided: `REDUCED_FIVE` sits on 3.5895615
-    from rel 1e-5 all the way to 1e-8, while `TWO` walks 3.5895615 -> 3.5930076 ->
-    3.5990306 -> 3.6038432 as the step grows from 1e-6 to 1e-3. The quasi-steady `g(s)`
-    slaves the pressures, so it composes the map nonlinearities and curves harder in NG
-    than the 5-DOF `f(x)` does; at descent a 1e-5 step (0.38 rpm) is already in that
-    curvature.
-
-    So the identity is checked where the numerics can carry it, at 1e-6, and the truncation
-    at the shipped step is measured here rather than left to be rediscovered. It was
-    rediscovered once: the 2026-09-16 fine-lattice recalibration moved the descent trim
-    just far enough for the 9.6e-4 to appear, and this test failed with no indication that
-    the cause was a step size rather than the data.
-
-    **What it does not touch.** `A[0,1]` is exactly zero at all three trims -- NP drives
-    nothing -- so the 2-DOF eigenvalues are `A[0,0]` and `A[1,1]`, and this element is not
-    in them. The truncation reaches the NG->NP coupling and nothing that is compared to a
-    printed eigenvalue.
+    Checked at rel 1e-6, where both finite differences are converged. At the shipped 1e-5,
+    descent's `A[1,0]` carries truncation: the quasi-steady `g(s)` slaves the pressures and
+    curves harder in NG than the 5-DOF `f(x)`. That element is the NG->NP coupling, in no
+    compared eigenvalue (`A[0,1]` is zero, so the 2-DOF eigenvalues are the diagonal).
     """
     a = _model(name, DOF.TWO, rel_step=1e-6)
     b = _model(name, DOF.REDUCED_FIVE, rel_step=1e-6)
     assert np.allclose(a.A, b.A, rtol=1e-6, atol=1e-9), f"\n{a.A}\n{b.A}"
     assert np.allclose(a.b, b.b, rtol=1e-6, atol=1e-9)
 
-    # and the shipped step, measured rather than asserted away: a growth alarm, not a bound
-    # chosen to pass. Measured 2026-09-16: hover 1.3e-8, level 3.7e-9, descent 9.6e-4.
+    # The shipped step: a growth alarm, so a failure points at the step rather than the
+    # data (descent measured 9.6e-4).
     a5 = _model(name, DOF.TWO)
     b5 = _model(name, DOF.REDUCED_FIVE)
     gap = float(np.max(np.abs(a5.A - b5.A) / np.maximum(np.abs(a5.A), 1e-30)))
     assert gap < 2e-3, (
-        f"{name}: at the shipped rel_step=1e-5 the two routes to the 2-DOF A now differ by "
-        f"{gap:.2e}, against 9.6e-4 at descent and under 1.4e-8 elsewhere when this was "
-        f"measured. The step has stopped being adequate for the quasi-steady Jacobian."
+        f"{name}: at the shipped rel_step=1e-5 the two routes to the 2-DOF A differ by "
+        f"{gap:.2e} (9.6e-4 at descent on record); the step is no longer adequate."
     )
 
 
@@ -170,15 +125,10 @@ def test_two_dof_equals_reduced_five_identically(name: str):
 def test_five_dof_modes_against_table_1(name: str):
     """The two pressure modes, then the NG mode, against Table 1.
 
-    The pressure modes are the well-conditioned part of the comparison. Within 3 %
-    everywhere except hover's slower one, which is the -14.9 % outlier. Bound set at 16 %
-    to hold that one; **if it tightens, tighten this** rather than leaving slack that hides
-    a regression.
-
-    The NG mode is a characterization: the one a pilot feels and our worst comparison.
-    -14.0 % hover, +2.3 % level, -22.6 % descent -- no monotone pattern, good in the
-    middle and poor either side. Recorded so it cannot drift unnoticed; the bound is
-    deliberately just wide enough to hold today's values.
+    The pressure modes are the well-conditioned part. The 16 % bound holds hover's slower
+    one, the -14.9 % outlier; if it tightens, tighten this. The NG mode, the one a pilot
+    feels and our worst comparison, is a characterization: its bound is just wide enough to
+    hold today's values, so it cannot drift unnoticed.
     """
     m = _model(name)
     want = sorted([TRIMS[name][1]["P41"], TRIMS[name][1]["P45"]])
@@ -195,12 +145,8 @@ def test_five_dof_modes_against_table_1(name: str):
 
 @pytest.mark.parametrize("dof", [DOF.THREE, DOF.SIX])
 def test_heat_sink_variants_extract_with_the_right_shape(dof: DOF):
-    """All five variants are now live. These two carry a `Wf-dot` feedthrough.
-
-    Shape and structure only -- the numeric comparison against Figures B7-B12 lives in
-    `validation/test_appendix_b_elements.py`, since the report prints no 3- or 6-DOF
-    eigenvalues and the 6-DOF matrices support nothing but element-wise checks.
-    """
+    """These two carry a `Wf-dot` feedthrough. Shape and structure only: the comparison
+    against Figures B7-B12 is in `validation/test_appendix_b_elements.py`."""
     wf = wf_pps_from_pph(476.3)
     r = trim.solve(wf, NP_RPM, AMB)
     m = extract(r, wf, dof, AMB)

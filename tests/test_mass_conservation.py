@@ -1,34 +1,15 @@
 """Mass conservation across the engine, at steady state and through a transient.
 
-## Why this file exists
+The streams in the three volume balances are each determined independently -- WA2 by the
+compressor map `f1` (Eqs. 7, 9), WA31 by the combustor pressure-drop orifice (Eq. 18), W41
+by the choked turbine nozzle (Eq. 28), W45 by the power turbine map `f9` (Eqs. 33, 34) --
+so closure is a real check, not an identity.
 
-Nothing asserted it. The three volume equations *are* the mass balances, so it is easy to
-assume they close -- but the streams in them are each determined **independently**, and
-that is what makes closure a real check rather than an identity:
+The overboard accounting, not obvious from the equations (in = WA2 + Wf, out = W45):
 
-| stream | set by | equations |
-|---|---|---|
-| WA2 | the compressor map `f1`, uncorrected | 7, 9 |
-| WA31 | the combustor pressure-drop orifice | 18 |
-| W41 | the choked turbine nozzle | 28 |
-| W45 | the power turbine map `f9` | 33, 34 |
-
-Four independent determinations, three balances. If any map or constant were wrong in a
-way that broke continuity, these residuals would show it, and no other test in the
-repository would.
-
-## The overboard accounting, which is not obvious from the equations
-
-    in   = WA2 + Wf
-    out  = W45                        through the power turbine
-    lost = WA2*(B1 + B2)              station 2.4 bleed, Eq. 15 -- seal air and the
-                                      power turbine balance piston; neither returns
+    lost = WA2*(B1 + B2)              station 2.4 bleed, Eq. 15; none of it returns
          + WA2*K_B3                   the part of Eq. 16 that never returns
-         + WA2*B3*(1 - K_bl)          the diffuser bleed not reintroduced at 4.5
-
-`K_bl = 0.7826` is the fraction of the diffuser bleed that *is* reintroduced, and it
-appears in Eq. 44 as `+ B3 K_bl WA2`. So the diffuser bleed is split and only part of it
-leaves; the station 2.4 bleed leaves entirely.
+         + WA2*B3*(1 - K_bl)          the diffuser bleed not reintroduced at 4.5 (Eq. 44)
 """
 
 from __future__ import annotations
@@ -129,20 +110,10 @@ def test_every_volume_balance_closes_at_steady_state(wf_pph: float, real_time: b
 def test_the_overboard_bleed_is_only_exercised_below_the_printed_trims():
     """A gap in the evidence, recorded because it bears on open question #47.
 
-    The overboard fraction is driven by `B1`, the station 2.4 seal bleed, which Figure A3
-    makes zero above NGc 89 and 0.1089 below 78. Measured here, the total overboard loss
-    runs about 3 % at the two high trims and reaches 14 % at 175 lbm/hr.
-
-    The consequence is that **`B1`'s plateau is unconstrained by any printed trim**: of
-    the three Table B.1 conditions, two sit where B1 is exactly zero and the third at
-    NGc 85.2 sees only 0.047, less than half the plateau. Everything below NGc 78, where
-    the plateau is fully in effect, has no printed anchor at all -- and that is the region
-    where Figure 10's decay disagrees with us.
-
-    This test does not claim B1 is wrong. Figure A3 is unambiguous and its thirteen
-    glyphs are reproduced to 1e-4. It records that the quantity with the most leverage on
-    the one remaining transient disagreement is also the one the printed data constrains
-    least, so that the next person does not have to rediscover it.
+    The overboard loss is driven by `B1`, the station 2.4 seal bleed, which Figure A3 makes
+    zero above NGc 89 and 0.1089 below 78. Two Table B.1 trims sit where B1 is zero and the
+    third sees less than half the plateau, so the plateau has no printed anchor, and below
+    NGc 78 is where Figure 10's decay disagrees with us. Not a claim that B1 is wrong.
     """
     seen = {}
     for wf_pph in (476.3, 349.3, 267.7, 175.0):
@@ -165,27 +136,14 @@ def test_the_overboard_bleed_is_only_exercised_below_the_printed_trims():
 
 
 def test_the_balances_open_during_a_transient_and_close_again():
-    """The counterpart to the steady-state tests, and it is not symmetric with them.
+    """At equilibrium the balances close; during a transient they must not, or nothing is
+    storing mass.
 
-    At equilibrium the balances close to machine precision. During a transient they must
-    NOT -- if they did, nothing would be storing mass and the volume dynamics would be
-    doing no work. Measured through a 400 -> 600 lbm/hr step, as a fraction of WA2:
-
-    | t after step | differential | real-time |
-    |---|---|---|
-    | 7 ms | 7.5e-2 | 6.3e-2 |
-    | 0.1 s | 9.8e-3 | 1.3e-2 |
-    | 1.5 s | 8.0e-5 | 1.7e-3 |
-    | 2.5 s | 3.3e-6 | 6.1e-4 |
-
-    Both open by about 7 % and both decay, but for different reasons, and that is the
-    quasi-steady approximation made visible. In the differential model the residual IS
-    the storage: `dP3/dt` and the rest are literally these terms. In the real-time frame
-    the pressures are algebraic, so nothing stores -- yet the balances still open,
-    because Eqs. 76, 78 and 80 enforce the orifice, the combustor pressure drop and the
-    station 4.5 continuity rather than Eqs. 42 and 43 themselves, and WA31 is a frame
-    behind by Eq. 74. The real-time residual therefore decays more slowly -- 6e-4 against
-    3e-6 at 2.5 s -- which is the lag working itself out rather than a volume emptying.
+    Both models open at a 400 -> 600 lbm/hr step and decay, for different reasons. In the
+    differential model the residual is the storage (`dP3/dt` and the rest). In the real-time
+    frame the pressures are algebraic, but Eqs. 76, 78 and 80 enforce the orifice, combustor
+    drop and station 4.5 continuity rather than Eqs. 42-43, and WA31 is a frame behind
+    (Eq. 74), so its residual opens too and decays more slowly.
     """
     wf0 = wf_pps_from_pph(400.0)
     r0 = trim.solve(wf0, c.NP_DES, AMB)
@@ -215,8 +173,7 @@ def test_the_balances_open_during_a_transient_and_close_again():
 
     just_after = residuals(int(np.argmax(t >= 0.5)))
     assert max(just_after) > 1e-2, (
-        f"the balances should open by more than 1 % of WA2 at the step -- if they do "
-        f"not, nothing is storing mass and the volume terms are inert; got {just_after}"
+        f"the balances should open by more than 1 % of WA2 at the step; got {just_after}"
     )
 
     settled = residuals(int(np.argmin(np.abs(t - 2.9))))
@@ -245,10 +202,8 @@ def test_eq_39_is_an_exact_two_stream_work_balance(wf_pph: float):
 
         WA2*K_QC1*h3 + WA3*K_QC2*h3 - WA2*h2 = WA3*h3 + W24*K_QC1*h3 - WA2*h2
 
-    The two are equal **if and only if h24 = K_QC1*h3 = 0.71 h3**. So the equation is an
-    exact energy accounting that puts the station 2.4 port where the enthalpy is 71 % of
-    compressor discharge -- which works out at 36-49 % of the enthalpy RISE above inlet,
-    increasing with power. Verified here to 5e-13.
+    The two are equal if and only if h24 = K_QC1*h3 = 0.71 h3: an exact energy accounting
+    that puts the station 2.4 port where the enthalpy is 71 % of compressor discharge.
     """
     _, _, f = _trimmed(wf_pph)
 
@@ -285,23 +240,15 @@ def test_the_combustor_energy_balance_closes(wf_pph: float):
 def test_station_4_5_mixing_loses_energy_as_the_report_specifies(wf_pph: float):
     """Eq. 29 does NOT conserve energy, by construction, and this records how much.
 
-    The report is explicit: *"At station 4.5, gases from the station 4.4 and cooling-bleed
-    flow from the compressor are mixed before passing through the power turbine. The
-    enthalpy of the mixed gases is proportional to enthalpy [at] station 4.4"*
-    [pdf p.24] -- so Eq. 29 is `h45 = K_H45 * h44`, a single multiplicative fraction and
-    not a flow-weighted mix of the two streams. A flow-weighted mix would give
+    "The enthalpy of the mixed gases is proportional to enthalpy [at] station 4.4" [pdf
+    p.24], so Eq. 29 is `h45 = K_H45 * h44`, not the flow-weighted mix
 
         h45 = (W41*h44 + B3*K_bl*WA2*h3) / W45
 
-    and the coefficient that would produce it is **0.974 to 0.979** across the five trims,
-    strikingly constant, against the printed **0.9623**. So the printed value sits 1.1 to
-    1.7 % below an energy-conserving mix, and that deficit is the entire reason the
-    engine's overall energy balance does not close.
-
-    Reproduced as printed, per CLAUDE.md, and asserted rather than corrected: the band
-    below fails if the deficit ever changes, whether by our error or by a re-reading of
-    `K_H45`. It affects only the power turbine -- h45 feeds T45, theta45, dH_PT and W45 --
-    so it does not touch the gas generator dynamics of open question #47.
+    whose equivalent coefficient is 0.974 to 0.979 across the trims, against the printed
+    0.9623. That deficit is why the engine's overall energy balance does not close.
+    Reproduced as printed and asserted, not corrected; it affects only the power turbine
+    (h45 feeds T45, theta45, dH_PT and W45), not the gas generator of open question #47.
     """
     _, _, f = _trimmed(wf_pph)
 
@@ -322,21 +269,13 @@ def test_station_4_5_mixing_loses_energy_as_the_report_specifies(wf_pph: float):
 
 
 def test_the_combustor_flow_guards_never_fire():
-    """Two silent substitutions in the gas path, and the claim that they are latent.
+    """Two silent substitutions in the gas path must stay latent.
 
-    Eq. 18 inverts the combustor pressure-drop law and so needs P3 > P41. `engine.frame`
-    guards it with `max(dp, 0)` and then falls back to `far = 0`, which puts fuel into the
-    mass balance (Eq. 43 carries `wa31 + wf`) and releases none of its heat. `realtime.step`
-    has a second one on Eq. 74's carried flow, floored at 1e-6 lbm/s -- a number of ours
-    that the report prints nothing like.
-
-    Neither is a clamp: a clamp returns the nearest value in a table, while these return a
-    *different equation*. Both are defensible as guards against states that cannot occur,
-    and "cannot occur" is the part that has to be checked rather than asserted. It was
-    computed and discarded until 2026-09-13: `Frame.combustor_dp_negative` existed, read
-    by nothing, and missed `dp == 0` exactly.
-
-    Checked across the whole operating range and both published transients.
+    Eq. 18 needs P3 > P41; `engine.frame` guards it with `max(dp, 0)` and falls back to
+    `far = 0`, which puts fuel into the mass balance and releases none of its heat.
+    `realtime.step` floors Eq. 74's carried flow at 1e-6 lbm/s, a number of ours. Neither is
+    a clamp (each returns a different equation), so "cannot occur" is checked across the
+    operating range and both published transients.
     """
     for pph in range(100, 801, 25):
         r = trim.solve(wf_pps_from_pph(float(pph)), c.NP_DES, AMB)
