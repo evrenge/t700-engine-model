@@ -1,53 +1,16 @@
 """The marker: a generative model of the local ink, fitted sub-pixel.
 
-A printed marker on these pages is two crossing strokes -- an `x` -- with the joining
-polyline running through it. Blob detection is useless on that (trap 1 of the recipe: the
-curve and its markers are one connected component), and a centroid of the local ink is
-pulled off-centre by whichever arm of the line is longer. So the marker is *modelled*:
-two strokes plus the two joining half-segments, all radiating from one point, supersampled
-to a sub-pixel area fraction, and scored against ink **and background** over an unmasked
-disc. Scoring the background is what stops a near-parallel pair of lines from outscoring a
-four-armed glyph.
+A marker is two crossing strokes with the joining polyline running through it, so blob
+detection fails (recipe, trap 1) and an ink centroid is pulled toward the longer arm. The
+model is two strokes plus the two joining half-segments, radiating from one point,
+supersampled to an area fraction and scored against ink AND background over an unmasked
+disc. The template is global -- the plotter drew the same mark everywhere -- so the fit
+alternates between the centres and the template.
 
-The template is global -- the plotter drew the same mark at every point -- so the fit
-alternates: every centre against a fixed template, then the template against all centres.
-
-## What was duplicated, and what it cost
-
-This existed twice, and the two copies had drifted apart on exactly the two points the
-recipe records as traps:
-
-* **Trap 8, the Nelder-Mead simplex.** SciPy builds its initial simplex by perturbing each
-  coordinate by 5 % of its own value. At an image column of 2269 that is a 113 px first
-  step, outside any scoring window, where the cost is flat and every printed diagnostic
-  looks converged -- on A6's right-hand marker the fit took that step and settled 125 px
-  off the data line. The cure is to optimise the **offset** from the current centre with
-  an explicit 2 px simplex. `digitize_single_curve` always did; `digitize_native` made it
-  optional and defaulted it off, and of its three callers only `digitize_a7` passed it.
-  A2 and A9 did not -- and those produce `f2` and `f9`, two of the highest-leverage maps
-  per +1 % of their value.
-* **Trap 9, the seed guard.** `digitize_single_curve` raises if a fitted centre moves more
-  than 10 px from its seed, which is what makes a bad seed loud instead of plausible.
-  `digitize_native` had no such check.
-
-`simplex` therefore defaults to 2.0 and `max_move` to 10.0 here -- the guarded behaviour
-is the default, and a caller that wants the unguarded one has to say so at the call site
-where it can be seen and dated.
-
-## The parameters that still differ between callers
-
-Not unified, deliberately: unifying them would move published numbers, and that is a
-separate decision from removing a duplicate implementation. Each is a caller's current
-value, carried over unchanged.
-
-    seglen     45.0 in the single-curve family, 42.0 in the native family, 32.0 in A9
-    centre     Nelder-Mead tolerances: xatol 2e-3 / fatol 1e-6 / maxiter 400
-               against 1e-4 / 1e-8 / 4000
-    template   Powell tolerances: xtol 1e-3 / ftol 1e-5 / maxfev 1200
-               against 1e-5 / 1e-8 / maxiter 20000 / maxfev 60000
-
-This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
-`src/t700/`.
+The guards are the defaults: a 2 px Nelder-Mead simplex on the offset from the current
+centre (trap 8) and a 10 px bound on the walk from the seed (trap 9). `seglen` and the
+optimiser tolerances still differ between the two families; unifying them would move
+published numbers.
 """
 
 from __future__ import annotations
@@ -56,15 +19,14 @@ import numpy as np
 from scipy.optimize import minimize
 
 SS = 5
-"""Supersampling per axis, for a sub-pixel coverage model. Both families used 5."""
+"""Supersampling per axis, for the sub-pixel coverage model."""
 
 TPL0 = (np.radians(-44.05), 14.88, np.radians(46.09), 15.22, 3.46, 3.52)
 """Template seed: (angle1, half-length1, angle2, half-length2, glyph width, line width).
+A7's fitted template, whose markers stand clearest; `fit_glyphs` refits it."""
 
-A7's fitted template, which is the one figure whose markers stand clearest of everything
-else on the page. A seed, not a constraint -- `fit_glyphs` refits it.
-"""
-
+# optimiser tolerances: Nelder-Mead per centre, Powell for the template; single-curve
+# family (`_CURVE`) and native family A2, A7, A9 (`_NATIVE`)
 CENTRE_CURVE = dict(xatol=2e-3, fatol=1e-6, maxiter=400)
 CENTRE_NATIVE = dict(xatol=1e-4, fatol=1e-8, maxiter=4000)
 TEMPLATE_CURVE = dict(xtol=1e-3, ftol=1e-5, maxfev=1200)
@@ -74,12 +36,8 @@ TEMPLATE_NATIVE = dict(xtol=1e-5, ftol=1e-8, maxiter=20000, maxfev=60000)
 def windows(ink, C0, rad, mask_fn=None, pad=5):
     """One scoring window per marker: the used pixels flattened, with an SSxSS sub-grid.
 
-    Flattened rather than kept as a dense (H, W, SS, SS) array -- the dense form was
-    `digitize_native`'s and it evaluates the model at every pixel of the bounding box
-    including the ones the disc excludes, which is most of them.
-
-    `mask_fn(X, Y) -> bool array` marks pixels to EXCLUDE (frame lines, tick marks). See
-    `blocked_mask`.
+    Flattened so the model is evaluated only inside the disc. `mask_fn(X, Y) -> bool array`
+    marks pixels to EXCLUDE (frame lines, tick marks); see `frame.blocked_mask`.
     """
     W = []
     off = (np.arange(SS) + 0.5) / SS - 0.5
@@ -171,14 +129,10 @@ def fit_glyphs(
 ):
     """Coordinate descent: each centre against its own window, then the shared template.
 
-    `simplex` is the side of the initial Nelder-Mead simplex in PIXELS, and the centre is
-    optimised as an OFFSET from its current value.
-
-    `max_move` raises if a centre moves further than that from its seed. `None` disables
-    the check, which is trap 9.
-
-    A window may carry its own fixed `seg` pair; otherwise the joining-segment directions
-    are recomputed from the current centres each round.
+    `simplex` is the side of the initial Nelder-Mead simplex in pixels, on the centre's
+    OFFSET (trap 8). `max_move` raises if a centre walks further than that from its seed;
+    `None` disables it (trap 9). A window may carry its own fixed `seg` pair; otherwise the
+    joining-segment directions are recomputed from the current centres each round.
     """
     centre = CENTRE_CURVE if centre is None else centre
     template = TEMPLATE_CURVE if template is None else template
@@ -212,7 +166,7 @@ def fit_glyphs(
                 ),
             )
             C[i] = c0 + r.x
-            # from the seed, not per round: four 10 px rounds used to pass a 40 px walk
+            # from the seed, not per round: four 10 px rounds would pass a 40 px walk
             walked = float(np.hypot(*(C[i] - seed[i])))
             if max_move is not None and walked > max_move:
                 raise AssertionError(f"marker {i} moved {walked:.1f} px from its seed -- bad seed?")
@@ -243,9 +197,8 @@ def fit_glyphs(
 def glyph_only_windows(ink, C, tpl, rad, mask_fn=None):
     """The same windows, with the joining polyline's own pixels excluded from scoring.
 
-    One of the honest variations the uncertainty budget is built from: if the fitted centre
-    barely moves when the line it sits on is hidden rather than modelled, the model of the
-    line is not carrying the answer.
+    A variation for the uncertainty budget: if the centre barely moves when the line it sits
+    on is hidden rather than modelled, the line model is not carrying the answer.
     """
     W = windows(ink, C, rad, mask_fn=mask_fn)
     for i, w in enumerate(W):
@@ -267,10 +220,9 @@ def glyph_only_windows(ink, C, tpl, rad, mask_fn=None):
 def hide_segments(W, C, lines, half=6.0, reach=6.0):
     """Drop the joining polyline from the score instead of modelling it.
 
-    The native family's independent check, written identically in `digitize_a2`,
-    `digitize_a7` and `digitize_a9`. `lines[j, 2:4]` is the unit direction of segment `j`;
-    segment `i-1` arrives at marker `i` and segment `i` leaves it, so the arriving one is
-    walked backwards.
+    The native family's independent check. `lines[j, 2:4]` is the unit direction of segment
+    `j`; segment `i-1` arrives at marker `i` and segment `i` leaves it, so the arriving one
+    is walked backwards.
     """
     n = len(C)
     for i, w in enumerate(W):
@@ -291,7 +243,7 @@ def seeds_from_lattice(cur, to_sv, targets, fixed):
     `cur` is the curve's own ink (`curve_component`); its centreline column by column is
     carried into the unit square by `to_sv`, and the column nearest each `targets` value of
     s is the seed. `fixed` maps a marker index to a seed given by hand -- a marker sitting ON
-    a frame line is not in `cur`. The native family's, from A2 and A9.
+    a frame line is not in `cur`. Used by A2 and A9.
     """
     Y = np.mgrid[0 : cur.shape[0], 0 : cur.shape[1]][0]
     cnt = cur.sum(0)

@@ -1,36 +1,17 @@
 """The printed tick lattice, and which printed value each tick carries.
 
-The ticks are the only calibration the page offers, so how many of them a tool finds sets
-how good its axis map can be. Two detectors live here, and the difference between them is
-not a style choice -- it is a factor of ten in the data the axis map is fitted on:
+Two detectors:
 
-* **`protrusion` + `pick_majors`** finds the interior MAJOR ticks by probing inward from
-  the frame at a fixed offset and matching each candidate to its predicted lattice slot.
-  Four to seventeen ticks per edge. What `digitize_single_curve` used for thirteen figures.
-* **`edge_run` + `find_ticks` + `label_*`** measures the length of the ink run *through*
-  the edge and removes the frame's own width as a rolling median, so a frame line that
-  thickens or thins along the page cannot masquerade as a tick -- which is exactly what a
-  fixed inward probe lets happen. It finds the MINOR lattice too: 131 y-minors on A7's
-  left edge, every slot filled once, and 141 on A9. What `digitize_a7` established.
+* `protrusion` + `pick_majors` probes inward from the frame and matches each candidate to
+  its predicted lattice slot: the interior MAJOR ticks only.
+* `edge_run` + `find_ticks` + `label_*` measures the ink run through the edge, with the
+  frame's own width removed as a rolling median, so a frame line that thickens along the
+  page cannot pass for a tick. It finds the MINOR lattice too (recipe, trap 11).
 
-A7's docstring puts the consequence plainly: the minor lattice is "ten times the data the
-long ticks give, and enough to fit and *test* an order-5 axis map instead of guessing
-between order 2 and order 4 on twelve ticks."
-
-## Two rules, both learned the hard way
-
-**Match ticks to values by lattice SLOT, never by a protrusion-length threshold.** A
-marker sitting on a frame line out-protrudes a major tick (A6, A8 and A10 each print one),
-A6's flat data line protrudes the full scan length, and A10's lowest left-edge major
-protrudes only as far as a minor.
-
-**Assert on structure, not on count -- and a count that matches is not a check.** A run of
-the A2 y detector returned exactly 189 minor ticks, the exactly correct number, while
-holding one spurious tick and missing one real one. The off-by-one labelling moved the
-axis by 0.03 in T3/T2, and every count-based check passed.
-
-This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
-`src/t700/`.
+Match ticks to values by lattice slot, never by protrusion length: a marker on a frame line
+out-protrudes a major tick, and A10's lowest left-edge major protrudes only as far as a
+minor. And assert on structure, not on count: a count that matches is not a check (see the
+recipe).
 """
 
 from __future__ import annotations
@@ -43,15 +24,14 @@ from .frame import corners as frame_corners
 # --------------------------------------------------------------------------- the lattice
 
 MAX_TICK_WIDTH_PX = 10
-"""Widest protrusion run accepted as a major tick. Measured 2026-10-12 over 797 matched
-majors on the thirteen single-curve figures: median 4 px, 99th percentile 5. The rejects
-are C25's right edge -- a 129 px run where ticks merge with a thickened frame, whose
-centroid sat 32 px off the y = 11 tick, and the marker printed on the frame at y = 0."""
+"""Widest protrusion run accepted as a major tick. Matched majors are 4 px wide at the
+median, 5 at the 99th percentile; wider runs are ticks merged into a thickened frame (C25's
+right edge) or a marker printed on the frame."""
 
 SLOT_TOL = 0.1
 """How far from its predicted slot a major may be matched, as a fraction of the major step.
-Correct matches sit within 0.05. The 0.25 used before let a minor tick stand in for a major
-hidden under a marker: A11 and C26 under the straight frame took one 4 and 2 minors away."""
+Correct matches sit within 0.05; at 0.25 a minor tick could stand in for a major hidden
+under a marker (A11, C26)."""
 
 MINOR_RATIO_TOL = 0.02
 """Largest departure of major/minor spacing from a whole number, relative. Worst 1.7 %."""
@@ -76,12 +56,10 @@ def major_step(ax):
 
 
 def major_values(ax):
-    """Interior major-tick values of an axis.
+    """Interior major-tick values of an axis: `majors` if given, else `lo + step*(k+1)`.
 
-    Defaults to `lo + step*(k+1)`, which is right whenever the lattice is anchored on the
-    low frame. Figure A4 is not: its frame is at WA2c = 3.0 while its majors are printed at
-    4, 6, 8, 10, so they are neither at `lo + k*step` nor evenly spaced between the frames.
-    Such an axis gives `majors` explicitly.
+    The default assumes a lattice anchored on the low frame. Figure A4's is not (frame at
+    WA2c = 3.0, majors printed at 4, 6, 8, 10), so such an axis lists `majors` explicitly.
     """
     if "majors" in ax:
         return np.asarray(ax["majors"], float)
@@ -94,12 +72,9 @@ def major_values(ax):
 def protrusion(ink, edge, along, sign, lo, hi, maxlen=60):
     """Contiguous ink growing inward from a frame edge, per position along it.
 
-    `edge` is a polynomial in the along-edge coordinate, **highest power first**, the way
-    `np.polyfit` returns one -- so the arc model works here too, and an order-1 edge gives
-    `b*t + a`, which is the straight-edge form exactly (float addition is commutative, so
-    nothing moves). A caller holding an `(intercept, slope)` pair must reverse it; passing
-    it unreversed silently probes a line with the slope and intercept exchanged, which on
-    Figure A1 walked the probe a million rows off the page.
+    `edge` is a polynomial in the along-edge coordinate, highest power first as `np.polyfit`
+    returns it, so arc edges work too. A caller holding an `(intercept, slope)` pair must
+    reverse it (recipe, trap 12).
     """
     out = np.zeros(hi - lo, int)
     for j, t in enumerate(range(lo, hi)):
@@ -117,10 +92,7 @@ def protrusion(ink, edge, along, sign, lo, hi, maxlen=60):
 
 def index_groups(idx, gap):
     """Split ascending indices into runs whose consecutive members are at most `gap` apart.
-
-    One implementation for the three places that grouped this way until 2026-10-12:
-    `groups`, `find_ticks` and `rectify_page.long_lines`. `idx` must not be empty.
-    """
+    `idx` must not be empty."""
     out, cur = [], [int(idx[0])]
     for v in idx[1:]:
         if v - cur[-1] <= gap:
@@ -148,15 +120,10 @@ def groups(p, lo, thresh, gap=3):
 def pick_majors(cands, t0, t1, frac, name, max_missing=2, verbose=True):
     """Match interior major ticks to their printed values by predicted lattice slot.
 
-    Returns one centre per entry of `frac`, in printing order, where `frac` is each major's
-    fractional position between the two frames -- not necessarily evenly spaced, because
-    Figure A4's majors are not.
-
-    A marker printed ON a frame hides the tick underneath it -- A11's first marker sits at
-    y = 4.00 on the left frame, and A7 records the same thing. A hidden major is recorded
-    as NaN and dropped from the fit rather than failing the extraction; the axis map is
-    fitted on the majors that ARE visible, and the held-out frame test still judges it.
-    Losing more than `max_missing` of them is a real failure and still raises.
+    `frac` is each major's fractional position between the two frames (not necessarily even:
+    A4). Returns `(centres, major tick length)`, one centre per entry of `frac` in printing
+    order. A major hidden under a marker printed on the frame is NaN, to be dropped from the
+    fit; more than `max_missing` of them raises.
     """
     n = len(frac)
     slots = [t0 + (t1 - t0) * f for f in frac]
@@ -205,9 +172,7 @@ def pick_majors(cands, t0, t1, frac, name, max_missing=2, verbose=True):
 def majors_all_edges(ink, fc, cfg, verbose=True, order=None):
     """Every printed major on all four edges, plus every tick of any length (for masks).
 
-    Works for either frame model: the probe follows the fitted edge polynomial, and the
-    corners come from whichever formula that model admits. Returns
-    `(majors, candidates, corners)`.
+    Works for either frame model. Returns `(majors, candidates, corners)`.
     """
     order = len(next(iter(fc.values()))) - 1 if order is None else order
     TL, TR, BR, BL = frame_corners(fc, order=order)
@@ -236,17 +201,16 @@ def majors_all_edges(ink, fc, cfg, verbose=True, order=None):
 
 
 OUTWARD_CAP_PX = 6
-"""How far outside the fitted edge the run may extend. Measured 2026-10-12 over 207,113
-samples on the thirteen single-curve figures: median 2 px, 99.9th percentile 6, max 11."""
+"""How far outside the fitted edge the run may extend: the frame's own ink reaches 2 px out
+at the median and 6 at the 99.9th percentile."""
 
 
 def edge_run(ink, edge_poly, along, sign, lo, hi):
     """Length of the ink run through the frame edge, per position along it.
 
-    A tick lengthens the run. The frame's own width need not be known: it is removed
-    afterwards as a rolling median, so a line that thickens or thins along the page cannot
-    masquerade as a tick. The inward side (`sign`) is followed to its end; the outward side
-    stops at `OUTWARD_CAP_PX`, so ink touching the frame from outside is not a tick.
+    A tick lengthens the run; the frame's own width is removed afterwards as a rolling
+    median. The inward side (`sign`) is followed to its end; the outward side stops at
+    `OUTWARD_CAP_PX`, so ink touching the frame from outside is not a tick.
     """
     n = hi - lo
     ln = np.zeros(n)
@@ -335,10 +299,9 @@ def label_ticks(w, w_lo, w_hi, val_lo, val_hi, step, tol=0.30):
 def label_by_map(t, poly, step, tol=0.30):
     """Label a fine tick lattice through a coarse-lattice fit, not through a straight line.
 
-    The straight line between the two frame corners is off by several pixels in mid-page --
-    that is the whole point of this exercise -- which on a 16.7 px minor lattice throws away
-    a contiguous block of perfectly good ticks (29 of A9's 141), and would throw away the
-    wrong ones if the tolerance were widened instead.
+    The straight line between the frame corners is several pixels out in mid-page, which on
+    a minor lattice discards a contiguous block of good ticks (recipe, trap 11); widening the
+    tolerance instead discards different ones.
     """
     return _dedupe(np.asarray(t, float), np.polyval(poly, t), step, tol)
 
@@ -346,10 +309,9 @@ def label_by_map(t, poly, step, tol=0.30):
 def paired(maj, name, vals, descending):
     """Tick positions and their printed values, dropping any major hidden by a marker.
 
-    `pick_majors` returns slot order -- low edge to high edge -- so slot k carries `vals[k]`
-    on the x edges and `vals[-1-k]` on the y edges, where pixel order runs opposite to value
-    order. Pairing by INDEX rather than by sorting keeps a NaN attached to the value it
-    belongs to, so dropping it drops both.
+    `pick_majors` returns slot order, so slot k carries `vals[k]` on the x edges and
+    `vals[-1-k]` on the y edges (`descending`). Pairing by INDEX rather than by sorting keeps
+    a NaN attached to its value, so dropping it drops both.
     """
     pos = np.asarray(maj[name], float)
     v = np.asarray(vals, float)[::-1] if descending else np.asarray(vals, float)
@@ -362,20 +324,10 @@ def paired(maj, name, vals, descending):
 def minors_per_major(pos, major_px):
     """How many minor intervals the page prints per major, measured from the ticks.
 
-    Reading "five minors per major" off a 1988 scan by eye is the kind of transcription
-    this project forbids, and it is unnecessary: the lattice states its own step. Sort the
-    detected ticks, take the median gap, and divide the major spacing by it. The result
-    must be an integer -- a printed lattice has a whole number of minor intervals per major
-    -- and how far it had to be rounded is the first check on the measurement. Across the
-    thirteen single-curve figures the worst departure is 1.7 %, and the values that come
-    out are 5, 10 and 20.
-
-    Returns `(n, ratio, minor_px)`, or None if the edge carries too few ticks to tell.
-
-    Verified against the printed page on A8 (x, 5 per major) and A11 (y, 20). A11 is the
-    cautionary one: it prints a THREE-level lattice -- a minor, a longer tick every ten
-    minors at the half-major, and the major -- and read by eye the half-major ticks pass
-    for majors and give 10.
+    The major spacing over the median tick gap, which must come out a whole number; how far
+    it had to be rounded is the first check. Never read it off the page by eye: A11's
+    half-major ticks pass for majors (recipe, trap 11). Returns `(n, ratio, minor_px)`, or
+    None if the edge carries too few ticks to tell.
     """
     pos = np.sort(np.asarray(pos, float))
     if pos.size < 4:
@@ -394,13 +346,7 @@ def fine_lattice(ink, edge_poly, along, sign, lo, hi, to_u, coarse, major_px, st
     """Every printed tick on one edge, labelled with its value through the COARSE fit.
 
     `to_u` maps pixel positions along the edge to the normalized plot coordinate; `coarse`
-    is a polynomial in that coordinate fitted to the MAJORS alone. Labelling through it
-    rather than through the straight line between the frame corners is the whole trick: the
-    straight line is several pixels out in mid-page -- that is the page bow, the thing being
-    measured -- and on a 13 px minor lattice it discards a contiguous block of perfectly
-    good ticks. A9 lost 29 of its 141 that way, and widening the tolerance instead only
-    discards different ones.
-
+    is a polynomial in that coordinate fitted to the majors alone (see `label_by_map`).
     Returns `(u, values, n_per_major, n_detected)` or None if no lattice resolves.
     """
     raw = find_ticks(ink, edge_poly, along, sign, lo, hi, thresh)
@@ -421,8 +367,8 @@ def coarse_lattice(maj, cfg, tick_u):
     """Each edge's interior majors as `(coordinate, value)`, any hidden by a marker dropped.
 
     `tick_u(name, positions)` maps positions along an edge to the normalized plot coordinate
-    under whichever frame model the caller chose. This is the lattice `fine_lattice_all`
-    labels the fine ticks through, and its fallback where none resolves.
+    under the caller's frame model. `fine_lattice_all` labels through this, and falls back
+    to it.
     """
     xv, yv = major_values(cfg["x"]), major_values(cfg["y"])
     out = {}
@@ -440,10 +386,8 @@ def coarse_lattice(maj, cfg, tick_u):
 def fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of, verbose=True):
     """The minor lattice on all four edges, falling back to the majors where none resolves.
 
-    `coarse_of[name]` is the `(coordinate, value)` pair from the interior majors, which is
-    both the fallback and the fit the fine ticks are labelled through. `tick_u(name, pos)`
-    maps positions along an edge to the normalized plot coordinate under whichever frame
-    model the caller chose.
+    `coarse_of` is `coarse_lattice`'s output, which the fine ticks are labelled through;
+    `tick_u` is as there, and `span` is `frame.edge_spans`'s.
     """
     out = {}
     for nm in ("bottom", "top", "left", "right"):
@@ -487,19 +431,14 @@ def fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of, verbose=True):
 def native_lattice(
     ink, fc, to_sv, edges, guess, xedges, yedges, fine=True, tol=0.15, verbose=False
 ):
-    """Every printed tick on the four edges, labelled, frame-edge ticks removed -- the native
+    """Every printed tick on the four edges, labelled, frame-edge ticks removed: the native
     family's lattice (A2, A7, A9), in the form `axis.axis_values` reads.
 
     `edges[name]` is `(along, sign, lo, hi, long-tick threshold, all-tick threshold, coarse
     step, fine step)`, `guess` the seeds for the four arc corners keyed `TL`, `TR`, `BL`,
-    `BR`, and `xedges`/`yedges` the frame values. `fine=False` keeps the long ticks alone,
-    which is all A2 uses.
-
-    Labelling is `label_ticks` on the long ticks (a discrete slot choice from the two frame
-    values, so it cannot leak into the continuous fit that is later tested against them),
-    then `label_by_map` for the fine lattice through a cubic fitted to the long ticks --
-    never through the straight line between the corners, which is several pixels out
-    mid-page and would silently discard a block of good minor ticks.
+    `BR`, and `xedges`/`yedges` the frame values. `fine=False` keeps the long ticks alone
+    (A2). Long ticks are labelled by `label_ticks`, the fine lattice by `label_by_map`
+    through a cubic on the long ticks.
     """
     at = edge_at(fc, to_sv)
     TL = corner_arc(fc, "top", "left", guess["TL"])
@@ -529,9 +468,8 @@ def native_lattice(
             t, val = tc, vc
             n_raw, n_kept = coarse.size, int(keep_c.sum())
         step = step_f if fine else step_c
-        # how many steps does the frame span, by a STRAIGHT line through the lattice?
-        # This is the free check that fixes the unlabelled frame: it only has to pick an
-        # integer, so the bow's leak into it (~0.03 steps on A7) cannot reach the answer.
+        # the frame's span in steps, by a straight line through the lattice, fixes an
+        # unlabelled frame; it only picks an integer, so the bow (~0.03 steps on A7) cannot leak in
         cl = np.polyfit(t, val, 1)
         span = np.polyval(cl, 1.0) - np.polyval(cl, 0.0)
         P["_span"][nm] = (float(span / step_c), float(span / step_f) if fine else None)

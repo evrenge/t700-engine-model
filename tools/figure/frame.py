@@ -1,37 +1,14 @@
 """The four printed frame edges, and the map from pixels to plot coordinates.
 
-Everything downstream rests on this: a frame located wrongly moves every value on the
-page, and it does it without disturbing any of the checks that look only at the data. A11
-once acquired a bottom frame 192 px too low, which put every digitized value 0.3 too high
-while the tick lattice still appeared to close.
+A frame located wrongly moves every value on the page without disturbing any check that
+looks only at the data. Two geometry models (recipe, trap 7):
 
-## The two geometry models, and why both are still here
+* order 1 -- straight edges, plot coordinates by `homography` between the four corners;
+* order 2 -- each edge an arc, plot coordinates by `make_sv`'s curvilinear blend.
 
-A printed straight edge does not image straight on this scan. Fitted as a quadratic, the
-frame edges of these pages carry sagittae of 0.3 to 1.8 px -- p.62's are -0.44, -0.75,
--0.38 and -0.14 px -- which is the same size as the errors the whole exercise is chasing.
-The paper's shape, not perspective: on a flatbed there is nothing to keystone.
-
-So there are two models, and until 2026-09-16 they lived in two different files with two
-different sets of figures behind them:
-
-* **order 1** -- straight edges, plot coordinates by `homography` between the four
-  corners. What `digitize_single_curve` used for thirteen figures, and `digitize_a1` for
-  Figure A1.
-* **order 2** -- each edge an arc, plot coordinates the curvilinear blend between the four
-  arcs (`make_sv`). What `digitize_a7` established and A2 and A9 followed. Recipe trap 7
-  once called it the right one; measured, it is right for two of the thirteen single-curve
-  figures.
-
-Both stay reachable because choosing between them per figure is a measurement, not a
-refactor: it moves published numbers, so it is made deliberately, with the movement
-recorded, rather than as a side effect of deleting a duplicate.
-
-**Nothing here resamples the page.** Rotation, tilt and bow are carried as a map applied
-to the measured points. Warping pixels needs interpolation, and interpolation invents ink.
-
-This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
-`src/t700/`.
+The single-curve figures choose between them by their own held-out frame test; A1 uses
+order 1, and A2, A7 and A9 order 2. Nothing here resamples the page: tilt and bow are carried
+as a map applied to the measured points.
 """
 
 from __future__ import annotations
@@ -98,12 +75,9 @@ def robust_keep(t, v, tol=2.0, it=8):
 def fit_edges(ink, spec, order=1, verbose=True):
     """Each frame edge as a polynomial in the coordinate along it, highest power first.
 
-    `spec` is a list of `(name, along, xlo, xhi, tlo, thi)` windows -- see
-    `auto_frame_spec`. Returns `(coeffs, diag)`.
-
-    The sagitta reported for order 2 is the whole reason that order exists: it is a
-    *printed straight line* imaging as an arc, so it measures the page distortion
-    directly, with no reliance on the tick lattice.
+    `spec` is a list of `(name, along, xlo, xhi, tlo, thi)` windows (see `auto_frame_spec`).
+    Returns `(coeffs, diag)`. The order-2 sagitta in `diag` measures the page distortion
+    directly, since the ink is a printed straight line.
     """
     out, diag = {}, {}
     for nm, along, xlo, xhi, tlo, thi in spec:
@@ -128,16 +102,11 @@ def fit_edges(ink, spec, order=1, verbose=True):
 
 
 def as_lines(fc, span=None):
-    """Each edge as an `(intercept, slope)` pair -- what the masks and the seed search want.
+    """Each edge as an `(intercept, slope)` pair, for the masks and the seed search.
 
-    Those consumers do not care about a 2 px bow; they need a line lying along the ink. For
-    an order-1 fit the pair is exact. For a higher order it must be the best straight line
-    **over the edge's own span**, which is what `span` supplies as `(t0, t1)` per edge.
-
-    Without the span the only available answer is the polynomial's tangent at t = 0, and on
-    these pages t is a pixel row running to 2600, so that tangent leaves the ink entirely.
-    It put A10's frame far enough out that the marker search found no ink at all and raised
-    "opening found nothing". Pass the span unless you know the fit is order 1.
+    Exact for an order-1 fit. For a higher order pass `span`, `(t0, t1)` per edge, to get
+    the best straight line over the edge: without it the pair is the tangent at t = 0, and
+    with t a pixel row running to 2600 that tangent leaves the ink entirely.
     """
     out = {}
     for nm, c in fc.items():
@@ -185,9 +154,7 @@ def corners(fc, order=1):
             corner_line(fr["bottom"], fr["right"]),
             corner_line(fr["bottom"], fr["left"]),
         )
-    # Seed the fixed-point iteration from the straight-line intersection of the same
-    # edges' linear parts. The arcs depart from those lines by a pixel or two, so the seed
-    # is already inside the basin and the iteration is only polishing.
+    # seeded from the intersection of the edges' linear parts, a pixel or two off the arcs
     lin = {nm: (float(c[-1]), float(c[-2])) for nm, c in fc.items()}
     return tuple(
         corner_arc(fc, h, v, corner_line(lin[h], lin[v]))
@@ -238,12 +205,11 @@ def apply_h(H, px, py):
 
 
 def make_sv(fc):
-    """Curvilinear plot coordinates from the four fitted frame arcs.
+    """Curvilinear plot coordinates from the four fitted frame arcs, as `(to_sv, to_px)`.
 
-    `s` is 0 on the left edge and 1 on the right, `v` is 0 on the bottom and 1 on the top
-    -- exactly, by construction -- with a linear blend between. This is the curved-edge
-    generalisation of the homography, and where it is used it is the only piece of
-    geometry ever applied to a datum.
+    `s` is 0 on the left edge and 1 on the right, `v` 0 on the bottom and 1 on the top,
+    exactly by construction, with a linear blend between: the curved-edge generalisation of
+    the homography.
     """
 
     def to_sv(px, py):
@@ -286,9 +252,8 @@ def dist(edge, X, Y, vertical=True):
 def blocked_mask(fr, allt, framew=3.6, tickpad=4.5, tickext=5.0):
     """A `mask_fn` excluding frame lines and tick marks, SYMMETRICALLY about each edge.
 
-    Symmetry matters, and it is trap 10: the ticks all protrude inward, so masking only the
-    inward side strips ink from one half of a marker sitting on a frame line and pulls its
-    fitted centre outward.
+    Ticks protrude inward only, so masking just the inward side would strip half of a marker
+    on a frame line and pull its fitted centre outward (recipe, trap 10).
     """
 
     def mask_fn(X, Y):
@@ -351,14 +316,10 @@ def _sheared_row_profile(sub, slope):
 def find_frame_box(ink, margin=150, sep_frac=0.25, slopes=None):
     """Locate the printed plot box as (left, right, top, bottom) pixel centres.
 
-    The horizontal frames on these scans are **tilted and broken**, and that combination
-    defeats every row-wise measure. A11's bottom frame descends ten rows across the plot
-    -- 0.36 degrees -- so no single row holds more than about half of it, and simple row
-    sums pick the x-axis label band or a caption rule instead.
-
-    So the rows are summed **after shearing** the page by a trial slope, and the slope that
-    maximises the response is the one the line actually has. Verticals need no such
-    treatment: they are solid, and their own tilt is small over the page width.
+    The horizontal frames are tilted and broken: A11's bottom frame descends ten rows across
+    the plot, so no single row holds half of it. Rows are therefore summed after shearing the
+    page by a trial slope, keeping the slope with the strongest response. Verticals are solid
+    and need no shear. See recipe traps 3 and 4.
     """
     if slopes is None:
         slopes = np.arange(-14, 15) * 0.001
@@ -383,14 +344,9 @@ def find_frame_box(ink, margin=150, sep_frac=0.25, slopes=None):
     def outermost(prof, cover):
         """Extreme rows that span the plot, not the strongest rows.
 
-        Two failures shaped this. Taking the two *strongest* rows picks Figure A6's flat
-        combustor-efficiency curve instead of its top frame, because that curve is solid
-        while the frame is broken. Taking the extreme rows above a fraction of the *max*
-        then drops A6's top frame entirely, for the same reason.
-
-        Thresholding on coverage of the plot WIDTH fixes both: a footer rule is too short
-        to qualify, a data line qualifies but lies inside, and a frame -- however broken --
-        still spans the plot once the shear has been undone.
+        A6's solid flat curve outscores its broken top frame on row strength. Thresholding
+        on coverage of the plot WIDTH works: a footer rule is too short to qualify, a data
+        line qualifies but lies inside, and a frame still spans the plot once unsheared.
         """
         q = prof.astype(float).copy()
         q[:margin] = 0.0
@@ -430,10 +386,9 @@ def auto_frame_spec(page, pad=45, inset=15):
 def curve_component(ink, fc, band=4.0, margin=30.0, close=0):
     """The joining polyline and its markers, as one 8-connected blob with the frame off.
 
-    `close` bridges a joining line the scan broke -- A9's is 1 px wide over its flat run
-    and comes apart in a dozen places, which splits the curve into fragments and makes
-    "largest component" pick a fragment. Closing decides *membership* only; the returned
-    mask is the original ink.
+    `close` bridges a joining line the scan broke (A9's is 1 px wide), so that "largest
+    component" does not pick a fragment. Closing decides membership only; the returned mask
+    is the original ink.
     """
     m = plot_ink(ink, fc, band, margin)
     g = ndimage.binary_closing(m, np.ones((close, close))) if close else m
@@ -446,9 +401,8 @@ def segment_lines(curve_pts, seeds, clear=24.0, band=4.5, extra=None):
     """The joining polyline, segment by segment, total least squares, clear of markers.
 
     Returns one row per segment: `[cx, cy, dx, dy, length, n, rms]`, where `(dx, dy)` is the
-    unit direction from this marker to the next. The glyph model needs those directions --
-    the printed line runs through every marker, so a fit that does not model it is fitting
-    the line as well as the glyph.
+    unit direction from this marker to the next -- the glyph model needs it, because the
+    printed line runs through every marker.
     """
     lines = []
     for i in range(len(seeds) - 1):
@@ -557,12 +511,11 @@ def unit_square(fc, order):
     `tick_u(name, positions)` for ticks along one edge, as the along-edge coordinate.
 
     Order 1 maps the four straight edges by the homography between their corners; order 2
-    is `make_sv`'s curvilinear blend between the four arcs. Written four times until
-    2026-10-12 -- in `axis.axis_values`, `calibrate_under` and twice in `compare_models`.
+    is `make_sv`'s curvilinear blend between the four arcs.
     """
     if order == 1:
-        # four straight edges map by the homography, as everywhere else in the package;
-        # `make_sv` on straight edges differs from it by up to 1.1e-3 of the unit square
+        # the homography, not `make_sv`: on straight edges they differ by up to 1.1e-3 of
+        # the unit square, and every order-1 figure is calibrated through the homography
         cs = corners(fc, order=1)
         H, Hinv = homography(cs, UNIT), homography(UNIT, cs)
 

@@ -1,45 +1,17 @@
-"""The axis map: pixels to printed values, with the model chosen by a held-out test.
+"""The axis map: pixels to printed values, its order chosen by a held-out test.
 
-A linear axis map cannot fit these scans. The page bows along the scan direction -- A7's y
-major spacing runs 181 -> 177 -> 180.5 px top to bottom, a smooth 2 % swing worth +-4 px
-against a straight line -- and that bow is a fittable, checkable polynomial rather than
-noise. The question is which order, and the figures answer it themselves:
+The page bows along the scan direction, so the map is a polynomial (recipe, trap 5). `choose`
+picks the order: the lowest held-out frame error -- fit the interior ticks without a printed
+frame value, then predict it -- among orders whose leave-one-tick-out error is within 1.2x of
+the best (trap 6). `tail_cv` is a third check that needs no printed frame value.
 
-* **The held-out frame test.** Where a figure prints a value at a frame edge, fit the
-  interior ticks *excluding* that value and predict it. Whichever order predicts the
-  printed number best is the right model. That is a held-out test, not a fit statistic.
-* **Leave-one-tick-out, as the guard.** The frame test alone over-fits: on A10's x the
-  quartic wins the frame test (1.11 per-mille against linear's 1.94) while its
-  leave-one-tick-out error is 40 % worse. So the winner is chosen only among orders whose
-  LOO error is within 1.2x of the best, ties within 1.25x going to the lower order.
-* **Tail cross-validation**, which needs no printed frame value at all: fit the middle of
-  the lattice and predict the two ends.
+The final fit adds the printed frame values, by one of three rules; switching a figure
+between them moves its published values, so all three stay:
 
-`choose` is that rule, written once. It was written twice before -- `digitize_a7.
-choose_order` and the inline block in `digitize_single_curve.calibrate_axis` -- with the
-same constants and the same comment.
-
-## Anchoring: the one place the two families still disagree
-
-Once the order is chosen, the final map is fitted to the ticks *and* the printed frame
-values. How those values enter is not a detail:
-
-* `fit_anchored` -- **hard**. Fits `lo + (hi-lo)t + t(1-t)q(t)`, which is exact at both
-  ends by construction. A7's reasoning: the frame value is *known*, and its pixel position
-  comes from a ~1900-row fit of the frame line, so it is the best-determined datum on the
-  axis -- while two copies among 76 ticks give it 2.6 % of the weight. "With the soft
-  anchor the order-3 x map misses the left frame by 2.0 px, and marker 1 *sits on that
-  frame*, so the miss lands straight in the CSV."
-* `soft_anchor` -- **soft**. Appends the frame value twice among the ticks and fits an
-  ordinary polynomial. What `digitize_single_curve` uses for its thirteen figures.
-
-`digitize_fig678.bow_fit` arrived at the hard anchor independently, for the same reason,
-which makes two of the five families that found it and one that did not. Both are here
-because switching a figure from one to the other moves its published values, and that is a
-measurement to be made and recorded per figure, not a refactor.
-
-This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
-`src/t700/`.
+* `fit_anchored` -- hard, exact at both frames (A7 by default);
+* `soft_anchor` / `fit_soft_anchored` -- each frame value entered twice among the ticks
+  (the single-curve figures, A1);
+* `blend_axis` -- each entered once, per edge (A2, A9).
 """
 
 from __future__ import annotations
@@ -78,7 +50,7 @@ def choose(errs, loos, loo_tol=1.20, tie=1.25):
     """Minimise the held-out frame error among orders that also interpolate the ticks well.
 
     `errs` is the worst held-out frame error per order, `loos` the leave-one-tick-out error
-    per order. Both are held out; neither is a fit statistic on the fitted data.
+    per order. Ties within `tie` of the best go to the lower order.
     """
     lbest = min(loos.values())
     ok = [o for o in sorted(errs) if loos[o] <= loo_tol * lbest]
@@ -92,8 +64,8 @@ def choose(errs, loos, loo_tol=1.20, tie=1.25):
 def parity(t, val, scale, deg=6):
     """Legendre coefficients of the value function, with standard errors, in page pixels.
 
-    Even degrees are an even distortion about mid-axis, odd degrees an odd one. This is the
-    test one printed frame value cannot run and a lattice of 129 minor ticks can.
+    Even degrees are an even distortion about mid-axis, odd degrees an odd one: a test a
+    fine tick lattice can run and one printed frame value cannot.
     """
     u = 2 * t - 1
     A = np.polynomial.legendre.legvander(u, deg)
@@ -119,7 +91,8 @@ def fit_anchored(t, val, order, lo, hi):
     """Least squares through the ticks that passes EXACTLY through both frame values.
 
     `lo + (hi-lo)t + t(1-t)q(t)`: exact at both ends by construction, leaving order-1 free
-    parameters for the bow.
+    parameters for the bow. The reason: the frame's pixel position comes from a fit of the
+    whole frame line, so it is the best-determined datum on the axis.
     """
     base = lo + (hi - lo) * t
     if order < 2:
@@ -133,7 +106,7 @@ def fit_anchored(t, val, order, lo, hi):
 
 
 def soft_anchor(t, val, sides, at, printed):
-    """The ticks plus two copies of each anchored frame value. See the module docstring."""
+    """The ticks plus two copies of each anchored frame value."""
     ta, va = list(t), list(val)
     for side in sides:
         ta += [at[side]] * 2
@@ -142,11 +115,10 @@ def soft_anchor(t, val, sides, at, printed):
 
 
 def blend_axis(t_lo, v_lo, t_hi, v_hi, order, edge0, edge1):
-    """Two opposite edges calibrated separately, each softly anchored on its frame values.
+    """Two opposite edges calibrated separately, each with both frame values entered once.
 
-    Returned as a pair of polynomials; the caller blends them across the plot. Fitting the
-    two edges *together* averages away a real difference: on A2 the top and bottom x
-    lattices disagree by 0.026 at the left frame.
+    Returned as a pair for `blend_value`. Fitting the two edges together would average away
+    a real difference: on A2 the top and bottom x lattices disagree by 0.026 at the left frame.
     """
     p_lo = np.polyfit(
         np.concatenate([t_lo, [0.0, 1.0]]), np.concatenate([v_lo, [edge0, edge1]]), order
@@ -160,14 +132,9 @@ def blend_axis(t_lo, v_lo, t_hi, v_hi, order, edge0, edge1):
 def blend_value(edgec, t, across):
     """The axis value at normalized coordinate `t`, blending the two ticked edges.
 
-    `across` runs 0 at the low-side edge to 1 at the high-side edge, so the map used at a
-    point is the one its own end of the plot measured. The pooled fit -- what
-    `digitize_single_curve` did until 2026-09-16 -- is the average everywhere, so the two
-    agree mid-plot and diverge toward the edges, by up to half the edge disagreement.
-
-    That term stays in the uncertainty budget: blending fixes the central value but says
-    nothing about how the lattice varies BETWEEN the edges, which linear interpolation only
-    assumes.
+    `across` runs 0 at the low-side edge to 1 at the high-side edge, so each point uses the
+    map its own end of the plot measured. The edge disagreement stays in the uncertainty
+    budget: the linear blend only assumes how the lattice varies between the edges.
     """
     lo = np.polyval(edgec[0], t)
     hi = np.polyval(edgec[1], t)
@@ -178,13 +145,11 @@ def blend_value(edgec, t, across):
 
 
 def calibrate(t_lo_edge, t_hi_edge, spec, label, orders=(1, 2, 3, 4), verbose=True):
-    """Pick the order by the held-out frame test, then fit -- the single-curve family's path.
+    """Pick the order by the held-out frame test, then fit: the single-curve family's path.
 
-    `t_lo_edge` / `t_hi_edge` are (coordinate, value) for the interior ticks read off each
-    of the two edges that carry ticks for this axis -- the majors alone, or the full minor
-    lattice where the page resolves one. Coordinate is u (x axis) or v (y axis);
-    0 at the low-side frame, 1 at the high-side frame. The printed frame values are NOT in
-    the fit used for the test -- that is the point.
+    `t_lo_edge` / `t_hi_edge` are `(coordinate, value)` for the interior ticks of the two
+    ticked edges; the coordinate is u (x axis) or v (y axis), 0 at the low-side frame and 1
+    at the high-side. The printed frame values are NOT in the fit used for the test.
     """
     from .ticks import major_step
 
@@ -227,10 +192,9 @@ def calibrate(t_lo_edge, t_hi_edge, spec, label, orders=(1, 2, 3, 4), verbose=Tr
                 row.append(f"{side} -> {float(p):.6g} ({float(p) - printed[side]:+.3g})")
             print(f"    {nm} alone, order {order}: " + " | ".join(row))
 
-    # How many major steps does the frame span, measured by the ticks alone? On the four
-    # axes where BOTH frame values are printed it comes out within 0.01 of an integer every
-    # time, so on the two where one frame is unlabelled (A8 x, A10 y) the integer count
-    # fixes that frame's value and it is used as an anchor -- derived, not printed.
+    # The frame's span in major steps, by the ticks alone, is within 0.01 of an integer where
+    # both frame values are printed; where one is not (A8 x, A10 y) that integer fixes it,
+    # and it is used as a derived anchor.
     c1 = np.polyfit(tt, vv, 1)
     span = (np.polyval(c1, 1.0) - np.polyval(c1, 0.0)) / major_step(spec)
     anchors = spec.get("anchor", spec["printed"])
@@ -277,13 +241,10 @@ def calibrate(t_lo_edge, t_hi_edge, spec, label, orders=(1, 2, 3, 4), verbose=Tr
 def calibrate_under(ink, fspec, cfg, forder, verbose=True):
     """Everything from the frame lines to the two axis maps, under one frame model.
 
-    `forder` 1 is four straight edges mapped by a homography; 2 is four fitted arcs and the
-    curvilinear blend between them. `digitize_single_curve.run` calls this twice and keeps
-    the model the figure's own held-out frame test prefers, so the returned `score` -- the
-    summed held-out frame error of both axes, in per-mille of their ranges -- is what that
-    choice is made on. `digitize_multi_curve` and `digitize_c30` call it once, straight.
-
-    It was written three times until 2026-10-12: here, and inline in those two tools.
+    `forder` 1 is four straight edges and a homography; 2 is four fitted arcs and the
+    curvilinear blend. `digitize_single_curve.run` calls this for both and keeps the model
+    with the lower `score`, the summed held-out frame error of both axes in per-mille of
+    their ranges.
     """
     from .frame import as_lines, edge_spans, fit_edges, unit_square
     from .frame import corners as frame_corners
@@ -308,12 +269,7 @@ def calibrate_under(ink, fspec, cfg, forder, verbose=True):
     xs, ys = cfg["x"], cfg["y"]
     coarse_of = coarse_lattice(maj, cfg, tick_u)
 
-    # ---- the MINOR lattice, which until 2026-09-16 this path printed and ignored.
-    # The axis map was fitted on the interior majors alone, four to thirty-four per axis,
-    # while the page prints five, ten or twenty times as many ticks. A7 calibrates on the
-    # fine lattice and says what it buys: enough data "to fit and *test* an order-5 axis
-    # map instead of guessing between order 2 and order 4 on twelve ticks". Nothing about
-    # these thirteen pages made them different; the machinery simply never reached them.
+    # the minor lattice, five to twenty-five times the majors' data (recipe, trap 11)
     if verbose:
         print("fine lattice:")
     fine = fine_lattice_all(ink, fc, cfg, tick_u, span, coarse_of, verbose)
@@ -347,14 +303,9 @@ def calibrate_under(ink, fspec, cfg, forder, verbose=True):
 def axis_values(ink, spec, tickspec, C, frame_order, x_order, y_order, blend=True):
     """Data values for a set of pixel centres under one complete calibration model.
 
-    Exists so the *model* can be varied -- frame edges straight or curved, each axis linear
-    or cubic, opposite edges blended or pooled -- and the spread over defensible variants
-    carried into the uncertainty as a systematic, instead of a single model's formal error
-    being quoted as if the model were certain.
-
-    This is the mechanism the whole package is built to make general: choosing between two
-    geometry models, or two anchoring rules, is answered by running both and measuring the
-    difference, not by argument.
+    Lets the model be varied -- frame straight or curved, each axis's order, opposite edges
+    blended or pooled -- so the spread over defensible variants enters the uncertainty as a
+    systematic.
     """
     from .frame import fit_edges, unit_square
 
@@ -442,11 +393,7 @@ def point_sigma(P, fc, C, s, v, px, py, x_order, y_order, glyph_px, mx, my):
 def fit_soft_anchored(t, val, order, lo, hi):
     """Ordinary least squares with each printed frame value entered TWICE among the ticks.
 
-    The weight is not a detail. `blend_axis` enters each frame value ONCE and this enters
-    it twice, so the same ticks and the same order give different maps; `fit_anchored`
-    gives the frame value infinite weight by making the fit exact there. All three are in
-    use, on different figures, and which is right is the question B5 in the consolidation
-    notes asks per figure.
+    Not the same map as `blend_axis` (once) or `fit_anchored` (exact) on the same ticks.
     """
     return np.polyfit(
         *soft_anchor(t, val, ("lo", "hi"), {"lo": 0.0, "hi": 1.0}, {"lo": lo, "hi": hi}), order
@@ -454,35 +401,12 @@ def fit_soft_anchored(t, val, order, lo, hi):
 
 
 def pick_lattice(lo_maj, hi_maj, lo_fine, hi_fine, spec, label, verbose=True):
-    """Majors alone or the full minor lattice? Let the figure's own held-out test say.
+    """Majors alone or the full minor lattice? The figure's own held-out frame test decides.
 
-    The fine lattice is five to twenty-five times the data, and on twenty-one of the
-    twenty-six axes here it predicts the printed frame value better -- A6's x by a factor
-    of 44, C28's y by 9.4, C24's x by 7.8. On five it predicts it WORSE, C27's y by a factor
-    of five, because more ticks also means more chances to mislabel one and those edges are
-    the dirtiest on the page.
-
-    So the choice is not made once for all thirteen figures, and it is not made by hand
-    either. It is made by the same held-out frame test this project already uses to choose
-    the polynomial order (trap 6): fit without the printed frame value, predict it, keep
-    whichever model predicts it better. Ties go to the fine lattice, because more data is
-    the better default when nothing distinguishes them.
-
-    The weakness, stated: that test rests on one or two held-out numbers per axis. It is the
-    strongest thing the page offers and it is not strong. What makes it bearable is that it
-    is the SAME rule everywhere, applied by the tool rather than chosen per figure by
-    whoever is reading the output.
-
-    **A second weakness, which this choice is also the answer to.** Trap 6's guard on the
-    polynomial order -- admit only orders whose leave-one-tick-out error is within 1.2x of
-    the best -- goes inert on a fine lattice. With two hundred ticks the LOO error is set by
-    the scatter of individual ticks and barely moves with order: on A6's x axis it runs
-    0.899, 0.910, 0.906, 0.925 per-mille for orders 1 to 4, so every order clears the guard
-    and the frame test alone decides. That would be a real hole if the frame test were a fit
-    statistic, but it is held out, so an order that bought the interior with noise predicts
-    the frame worse and loses. The five axes where the fine lattice does predict the frame
-    worse -- C24 y, C27 y, C29 y, A11 x, A11 y (2026-10-12; the set moves with each
-    figure's frame model) -- are exactly the ones this function sends back to their majors.
+    The fine lattice usually predicts the printed frame value better; on the dirtiest edges
+    more ticks means more chances to mislabel one, and it predicts worse. Ties go to the
+    fine lattice. The test rests on one or two held-out numbers per axis, but it is the same
+    rule everywhere. On a fine lattice the LOO guard goes inert (recipe, trap 6).
     """
     maj = calibrate(lo_maj, hi_maj, spec, label, verbose=False)
     fine = calibrate(lo_fine, hi_fine, spec, label, verbose=False)

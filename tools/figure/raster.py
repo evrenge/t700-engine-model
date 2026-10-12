@@ -1,22 +1,9 @@
-"""The page raster. One cache, one answer, no resampling.
+"""The page raster: one cache, and no resampling.
 
-Every digitizer starts by turning a page of the scan into an ink mask, and until
-2026-09-16 four of them carried their own copy of the six lines that do it -- each with
-its own cache directory, so the same page was rastered up to four times and the four
-copies could in principle disagree about what ink is.
-
-## Why `pdfimages` and not `pdftoppm`
-
-`pdfimages -list` shows the figure pages of TM-100991 are each a single 300 dpi 1-bit
-CCITT image. That bitmap *is* the document: a `pdftoppm` render at any dpi is a resample
-of it, and a resample at 600 dpi is an upsample that invents intermediate greys. Sub-pixel
-centroids are fine on an upsample; geometry is not. So the rule the whole package follows
-is that nothing resamples the page -- rotation, keystone and page bow are carried as a
-*map applied to the measured points*, never as a warp applied to the pixels.
-
-`render()` exists for the one tool that needs a higher-dpi raster for a different reason
-(Figure A1, whose eleven speed lines have to be separated as connected components), and it
-says so at the call site.
+`pdfimages -list` shows each figure page of TM-100991 is a single 300 dpi 1-bit CCITT image.
+That bitmap is the document; a `pdftoppm` render is a resample of it and invents greys. So
+nothing resamples the page: rotation, keystone and bow are carried as a map applied to the
+measured points (recipe, trap 7). `render()` is the one exception, for Figure A1.
 """
 
 from __future__ import annotations
@@ -30,26 +17,15 @@ from PIL import Image, ImageDraw
 PDF = Path("docs/ballin-tm100991.pdf")
 
 CACHE = Path("validation/out/digitize/pages")
-"""One cache for every tool, keyed by page.
-
-Previously `digitize_native` wrote `<caller's dir>/native-000.png`, `digitize_single_curve`
-wrote `a6810/p{page}-000.png`, `digitize_a1` wrote its own, and `check_straightness` a
-fourth. Sharing one directory means a page is rastered once per clone rather than once per
-tool. It is under the gitignored `validation/out/`, and it is produced here rather than by
-hand, which is what `tests/test_reproducibility_gate.py` requires of any input a tool reads
-from there.
-"""
+"""One page cache for every tool. It is under the gitignored `validation/out/` and filled
+here, as `tests/test_reproducibility_gate.py` requires of any input read from there."""
 
 
 def native_bitmap(page: int) -> np.ndarray:
-    """The page's own 300 dpi 1-bit image, as an ink mask. No render, no resample.
+    """The page's own 300 dpi 1-bit image as an ink mask, True is ink. No resample.
 
-    True is ink.
-
-    The `convert("1")` is a no-op on the 1-bit PNGs `pdfimages` writes for these pages --
-    PIL returns a copy when the mode already matches -- and it is here so that a page that
-    ever came back as greyscale would be thresholded rather than bitwise-inverted into
-    nonsense.
+    `convert("1")` is a no-op on the 1-bit PNGs `pdfimages` writes; it is there so that a
+    page that came back greyscale is thresholded rather than bitwise-inverted into nonsense.
     """
     CACHE.mkdir(parents=True, exist_ok=True)
     stem = CACHE / f"p{page}"
@@ -66,10 +42,8 @@ def native_bitmap(page: int) -> np.ndarray:
 def render(page: int, dpi: int, stem: Path) -> Path:
     """A `pdftoppm` raster of the page at `dpi`, cached by page and dpi. **This resamples.**
 
-    Only Figure A1 uses it, and not for geometry: at 600 dpi each of its eleven speed
-    lines is a single 8-connected ink component, which is what separates a family of
-    curves that cross and crowd. A1's axes are calibrated on `native_bitmap` like every
-    other figure's.
+    Only Figure A1 uses it, and not for geometry: at 600 dpi each of its eleven speed lines
+    is one 8-connected ink component. A1's axes are calibrated on `native_bitmap`.
     """
     stem = stem.parent / f"{stem.name}-{dpi}dpi"
     stem.parent.mkdir(parents=True, exist_ok=True)
@@ -103,8 +77,7 @@ def overlay(ink, to_px, C, grid, crops, n=20001):
 
     `grid` is `((x_map, x_values), (y_map, y_values))`: each axis map as a polynomial in the
     unit-square coordinate, and the printed values to draw a line at. `crops` is a list of
-    `(box, size, path)`, each a region of the page saved at `size`. A picture to check by
-    eye, not data: nothing reads it back, which is why it may resize.
+    `(box, size, path)`. A picture to check by eye; nothing reads it back, so it may resize.
     """
     im = Image.fromarray((~ink * 255).astype(np.uint8)).convert("RGB")
     d = ImageDraw.Draw(im)

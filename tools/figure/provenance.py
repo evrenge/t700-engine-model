@@ -1,41 +1,15 @@
-"""The CSV header: one format, written once and read once.
+"""The CSV header: one format, written and read in one place.
 
-Every digitized file carries its provenance in `#` comment lines -- which page, which
-figure, how the numbers were obtained, and the full calibration that produced them. That
-header is not decoration. `tools/check_straightness.py` reads the frame model and the axis
-maps back out of it and re-derives the figure's coordinates from them, so the header is a
-**machine interface**, and it was being written by four different pieces of hand-rolled
-f-string formatting and parsed by one set of regexes that had to cope with all of them.
+Every digitized file carries its provenance and full calibration in `#` lines.
+`tools/check_straightness.py` reads the frame model and axis maps back out of it, so the
+header is a machine interface; the formatter and the parser live together here.
 
-It showed. Two of the eleven engine maps -- `f2` and `f9` -- were excluded from the
-straightness audit for no reason except that their hand-written headers omitted the frame
-polynomials, while `f7`, written by hand in the same family on the same day, included them.
-Since 2026-10-12 they publish them: `calibration_lines` writes the text and the two tools
-run `check_calibration` on it.
-And the parser carries a scar: an earlier, sloppier test for the axis variable matched the
-trailing `s` of the word "samples" in a parenthetical comment, which made every frame line
-look like an axis map.
+Two conventions, both load-bearing:
 
-So the formatter and the parser live here, next to each other, where a change to one that
-breaks the other is visible in a single file.
+    #   left   x = 589.107 +0.006047 y   (...)      frame edge: constant FIRST
+    #   left   y = -0.0067 v^3 ... -0.0200          axis map: constant LAST, descending
 
-## The two conventions, which are both load-bearing
-
-A **frame line** writes its constant FIRST, because it is read as "this edge sits at x =
-589.107, sloping by +0.006047 per row":
-
-    #   left   x = 589.107 +0.006047 y   (+0.346 deg, 2295 samples, rms 0.31 px)
-
-An **axis map** writes its constant LAST, in descending powers, because it is a polynomial
-in the normalized plot coordinate:
-
-    #   left   y = -0.0067 v^3 +0.0103 v^2 +0.1364 v -0.0200
-
-`parse_poly` classifies terms by whether they carry the variable, never by position, so it
-reads both.
-
-This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
-`src/t700/`.
+`parse_poly` classifies terms by whether they carry the variable, so it reads both.
 """
 
 from __future__ import annotations
@@ -62,19 +36,14 @@ def poly_str(c, var="t"):
 def edge_str(name, coeffs, var, along):
     """One frame edge as printed text: constant first, then the terms in `along`.
 
-    `coeffs` is highest-power-first, as `np.polyfit` returns. Order 1 prints
-    `x = 589.107 +0.006047 y`; order 2 adds `-1.23456789e-06 y^2`, which is how the arc
-    model publishes itself -- and publishing it is what lets `check_straightness` audit the
-    figure at all.
-
-    **Nine significant figures on the non-constant terms, not six decimal places.** A
-    quadratic coefficient here is of order 1e-6 and multiplies a pixel coordinate squared,
-    so `%.6f` rounds it to one digit and reconstructs the edge two pixels out -- which is
-    larger than the bow the term exists to describe.
+    `coeffs` is highest power first, as `np.polyfit` returns. Nine significant figures on
+    the non-constant terms, not `%.6f`: a quadratic coefficient is ~1e-6, and `%.6f` rounds
+    it to one digit and reconstructs the edge two pixels out.
     """
     c = np.atleast_1d(np.asarray(coeffs, float))
     if c.size > 1 and abs(c[-2]) > 0.1:
         # frames are within a degree of square; a large slope is an (intercept, slope) pair
+        # (recipe, trap 12)
         raise ValueError(f"{name}: slope {c[-2]:.4g} -- coefficients not highest power first?")
     terms = [f"{c[-1]:.3f}"]
     for p in range(1, len(c)):
@@ -85,12 +54,11 @@ def edge_str(name, coeffs, var, along):
 
 
 def calibration_lines(fc, px, py, xvar="s", yvar="v"):
-    """A figure's frame edges and its two blended axis maps, as the header lines
-    `parse_calibration` reads back.
+    """The frame edges and the two blended axis maps, as header lines `parse_calibration` reads.
 
     `px` and `py` are `(low-side edge, high-side edge)` polynomial pairs -- bottom then top
-    for x, left then right for y -- and that order is printed, because the blend reads the
-    first as the side where the cross coordinate is 0.
+    for x, left then right for y -- printed in that order, because the blend reads the first
+    as the side where the cross coordinate is 0.
     """
     lines = [
         edge_str(nm, fc[nm], *(("x", "y") if nm in ("left", "right") else ("y", "x")))
@@ -117,15 +85,13 @@ def header(path) -> str:
 def parse_poly(expr: str, var: str) -> np.ndarray:
     """Parse a printed polynomial into numpy coefficients, highest power first.
 
-    Copes with both conventions in the module docstring by classifying each term on
-    whether it carries the variable, never on where it sits. The parenthetical comment is
-    stripped first: it carries words like "samples" whose letters would otherwise be read
-    as the variable.
+    Terms are classified by whether they carry the variable, not by position. The
+    parenthetical comment is stripped first: its words ("samples") would read as the variable.
     """
     expr = expr.split("(")[0].strip()
     foreign = set(re.findall(r"(?<![\d.])[A-Za-z_]+", expr)) - {var}
     if foreign:
-        # parsing `0.55 u + 0.30` for `y` used to sum the two into a constant, silently
+        # else `0.55 u + 0.30` parsed for `y` sums to a constant, silently
         raise ValueError(f"{expr!r} names {sorted(foreign)}, expected only {var!r}")
     c: dict[int, float] = {}
     pattern = rf"([-+]?\s*[\d.]+(?:[eE][-+]?\d+)?)\s*(?:\*\s*)?({var}(?:\^(\d+))?)?"
@@ -197,27 +163,10 @@ def _calibration_of(txt: str):
 
 
 def check_against_csv(csv_path, columns, label=""):
-    """Compare computed columns against a **hand-maintained** CSV. 0 if identical, 1 if not.
+    """Compare computed columns with a hand-maintained CSV (f2, f7, f9). 0 if equal, 1 if not.
 
-    Three of the eleven engine maps -- `f2` (Figure A2), `f7` (Figure A7) and `f9` (Figure
-    A9) -- have CSVs whose header and rows are written by hand, because the header carries
-    a provenance narrative no generator produces. Their tools printed the rows and said
-    "compare the rows above", which means a human eye was the only thing between the
-    extraction and the committed data.
-
-    **That made `tools/reproduce_all.sh` vacuous for those three maps**, and it was
-    demonstrated rather than argued by the 2026-09-13 accuracy audit: corrupt a value in
-    `f9_pt_mass_flow.csv`, commit it so `data/` is clean, run the gate, and it prints
-    "VERDICT: every data file reproduces byte for byte" and exits 0. `f9` is the map
-    Eq. 80's whole repelling-fixed-point story rests on.
-
-    So the tools compare instead of printing, and return non-zero on any difference. The
-    CSVs stay hand-maintained; what changes is that the numbers in them are checked against
-    the extraction on every gate run.
-
-    `columns` maps CSV column name -> (values, format), where the format is the one that
-    reproduces that column's printed precision. The comparison is on the formatted text, so
-    it is exactly the check a writer would perform.
+    `columns` maps column name -> (values, printf format). The comparison is on the formatted
+    text, which is exactly the check a writer would perform.
     """
     path = Path(csv_path)
     lines = [ln.rstrip("\n") for ln in path.read_text().splitlines()]
@@ -258,12 +207,11 @@ def check_against_csv(csv_path, columns, label=""):
 
 
 def check_calibration(csv_path, lines, label=""):
-    """The calibration a **hand-maintained** header publishes, against the tool's own.
+    """The calibration a hand-maintained header publishes, against the tool's own.
 
-    `lines` is `calibration_lines(...)` for what the tool computed today. What is compared
-    is what `parse_calibration` reads out of the header -- the thing `check_straightness`
-    uses -- so a stale line, a missing one, or a second line for the same edge that the
-    parser would take first all fail. 0 if identical, 1 if not.
+    `lines` is `calibration_lines(...)` as computed today. The header is compared as
+    `parse_calibration` reads it, so a stale line, a missing one, or a duplicate the parser
+    would read first all fail. 0 if identical, 1 if not.
     """
     got = parse_calibration(csv_path)
     want = _calibration_of("".join(f"#   {ln}\n" for ln in lines) + "# pdf p.0\n")
