@@ -152,6 +152,11 @@ def test_reduced_five_ng_mode_against_table_1_column_5(trim_no: int):
 # --------------------------------------------------------- element-wise, the two gaps
 
 
+TWO_DOF_A = (0.70, 1.20)
+TWO_DOF_B_TOL_PCT = 6.0
+"""2-DOF against B1/B3/B5: `A` as a ratio to the printed value, `b` as a deviation."""
+
+
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
 def test_two_dof_elements_against_b1_b3_b5(trim_no: int):
     """Six printed numbers per trim, never compared until now.
@@ -163,7 +168,7 @@ def test_two_dof_elements_against_b1_b3_b5(trim_no: int):
     m = _model(DOF.TWO, trim_no)
     ref = ab.find(2, trim_no)
     for i in range(2):
-        assert abs(m.b[i] - ref.b[i]) / abs(ref.b[i]) < 0.06, (
+        assert abs(m.b[i] - ref.b[i]) / abs(ref.b[i]) * 100.0 < TWO_DOF_B_TOL_PCT, (
             f"{TRIM[trim_no]} b({ref.states[i]}): {m.b[i]:.4g} vs {ref.b[i]:.4g}"
         )
     for i in range(2):
@@ -175,9 +180,15 @@ def test_two_dof_elements_against_b1_b3_b5(trim_no: int):
             # Widened from 1.10 to 1.20 on 2026-09-13 with the f1 interpolation change,
             # which took level's A(NG,NG) from 1.06 to 1.117 and descent's elements the
             # other way. Open question #43: the ambiguity moved, it did not go.
-            assert 0.70 < r < 1.20, (
+            assert TWO_DOF_A[0] < r < TWO_DOF_A[1], (
                 f"{TRIM[trim_no]} A({ref.states[i]},{ref.states[j]}) ratio {r:.3f}"
             )
+
+
+THREE_DOF_T41_COLUMN = (0.88, 1.12)
+THREE_DOF_FEEDTHROUGH_TOL_PCT = 3.0
+"""3-DOF against B7/B9/B11: the T41 column of `A` as a ratio, the T41 feedthrough `d` as a
+deviation. Measured worst 1.083 (T41 row, level) and 2.3 %."""
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
@@ -195,9 +206,12 @@ def test_three_dof_elements_against_b7_b9_b11(trim_no: int):
         if ref.A[i, t41] == 0.0:
             continue
         r = m.A[i, t41] / ref.A[i, t41]
-        assert 0.88 < r < 1.12, f"{TRIM[trim_no]} A({ref.states[i]},T41) ratio {r:.3f}"
+        assert THREE_DOF_T41_COLUMN[0] < r < THREE_DOF_T41_COLUMN[1], (
+            f"{TRIM[trim_no]} A({ref.states[i]},T41) ratio {r:.3f}"
+        )
     assert m.d is not None and ref.d is not None
-    assert abs(m.d[t41] / ref.d[t41] - 1.0) < 0.03, "feedthrough should agree to 3 %"
+    dev = abs(m.d[t41] / ref.d[t41] - 1.0) * 100.0
+    assert dev < THREE_DOF_FEEDTHROUGH_TOL_PCT, f"{TRIM[trim_no]} feedthrough {dev:.2f} %"
 
 
 DESCENT_T41_NG = (0.6, 1.0)

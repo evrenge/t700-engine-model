@@ -733,6 +733,11 @@ def test_the_control_volumes_cannot_be_constrained_by_any_transient_panel():
     Found by the 2026-09-14 validation-quality audit, which mutated 30 constants and
     measured which tests noticed. This test exists so the four that cannot be noticed here
     are on record as such, rather than appearing to be covered.
+
+    **`f4` belongs on the same record** (measured 2026-10-12, not asserted here): +10 % on
+    Figure A4 moves no comparison against the report. It trips only characterizations of
+    our own model -- eigenvalue step independence and three closed-loop responses. Only
+    `tools/reproduce_all.sh` ties it to the figure.
     """
     base = {}
     for fig in STEPS:

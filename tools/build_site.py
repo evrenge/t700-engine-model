@@ -4,6 +4,7 @@ The site is a **generated artifact**. Edit `site/template.html` and rerun:
 
     PYTHONPATH=src python validation/report.py   # figures + report.json
     python tools/build_site.py                   # index.html
+    python tools/build_site.py --check           # is the committed index.html current?
 
 Every number in the page comes out of `site/assets/report.json`, which `validation/report.py`
 recomputes from the model. Nothing is typed into the template that a run could contradict.
@@ -20,6 +21,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -102,6 +104,20 @@ OPEN_SUMMARY = {
         "it. Nothing is tuned; what the row asks for is how much of the 0.900 % is the "
         "sparse interpolation on Figure&nbsp;7 rather than the model.",
     ),
+    73: (
+        "Descent <code>A(T41,NG)</code> depends on how <code>f1</code> is read",
+        "One 3-DOF Appendix&nbsp;B element moves from 0.88 to 0.70&ndash;0.76 of its printed "
+        "value across four treatments of the compressor map, while the trim state moves "
+        "under 0.06&nbsp;%. A derivative across speed lines, not along one; which reading "
+        "is right is not settled.",
+    ),
+    74: (
+        "Figure&nbsp;A1&rsquo;s speed lines do not form a smooth family",
+        "No smooth surface fits all eleven digitized lines: the best joint fit reaches "
+        "&chi;&sup2;/dof 4.67, and adjacent lines differ by up to 11&nbsp;&sigma;. Either our "
+        "read error understates the cross-line error 2&ndash;4&times;, or the printed figure "
+        "is not internally consistent.",
+    ),
 }
 
 
@@ -175,6 +191,7 @@ SCH_WHAT = {
 }
 
 D = json.loads((ASSETS / "report.json").read_text())
+_B1W = max(D["table_b1"]["rows"], key=lambda r: abs(r["dev_pct"]))
 
 # ---------------------------------------------------------------- headline table
 head = [
@@ -184,7 +201,8 @@ head = [
         D["table_b1"],
         "rms",
         "%",
-        "worst SHP &minus;0.90 % at descent",
+        f"worst {_B1W['quantity']} {'&minus;' if _B1W['dev_pct'] < 0 else '+'}"
+        f"{abs(_B1W['dev_pct']):.2f} % at {_B1W['trim'].split()[0]}",
     ),
     (
         "Table 1, printed eigenvalues",
@@ -480,10 +498,14 @@ html = (
 )
 
 out = SITE / "index.html"
-out.write_text(html)
 left = re.findall(r"\{\{[a-z0-9_-]+\}\}", html)
 if left:
     raise SystemExit(f"unresolved template placeholders: {sorted(set(left))}")
+if "--check" in sys.argv:
+    if out.read_text() != html:
+        raise SystemExit(f"{out.relative_to(ROOT)} is stale -- run tools/build_site.py")
+    raise SystemExit(0)
+out.write_text(html)
 print(
     f"wrote {out.relative_to(ROOT)}  {out.stat().st_size / 1e3:.0f} kB"
     f"  +  {len(list(ASSETS.glob('*.png')))} plots"

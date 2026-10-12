@@ -21,6 +21,8 @@ that the script still does.
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -92,11 +94,14 @@ def test_no_asset_is_referenced_that_is_not_committed():
 
 
 def test_the_build_is_current():
-    """`index.html` must not be older than the template it is generated from."""
-    tpl = SITE / "template.html"
-    assert INDEX.stat().st_mtime >= tpl.stat().st_mtime - 1, (
-        "site/template.html is newer than site/index.html -- run tools/build_site.py"
-    )
+    """`index.html` is exactly what `build_site.py` makes from the tree as it stands.
+
+    This compared file mtimes until 2026-10-12. Git does not keep mtimes, so on a fresh
+    clone it passed unconditionally -- and it passed while the build refused to run at all.
+    """
+    tool = SITE.parent / "tools" / "build_site.py"
+    run = subprocess.run([sys.executable, str(tool), "--check"], capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
 
 
 # ------------------------------------------------------- navigation, added 2026-09-14

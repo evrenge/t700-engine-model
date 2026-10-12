@@ -19,6 +19,12 @@ code-quality audit.
 
 from __future__ import annotations
 
+import hashlib
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import numpy as np
 
 from t700 import constants as c
@@ -109,20 +115,50 @@ def test_a_trim_is_bit_identical_across_an_intervening_solve():
     assert first == second, f"{first}\n{second}"
 
 
+def _closed_loop():
+    r = trim.solve(WF0, c.NP_DES, AMB)
+    f = frame(r.state, WF0, AMB)
+    pilot = loop.Pilot(xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=100.0)
+    s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
+    out = []
+    for _ in range(400):
+        s, _e, h, fr = loop.step(s, pilot, AMB, dt=0.007, load=f.q_pt_ftlbf, heat_sink=True)
+        out.append((s.engine.ng_rpm, s.engine.np_rpm, h.wf_pph, fr.t41_degR))
+    return out
+
+
 def test_the_closed_loop_is_bit_identical_to_itself():
     """The control carries 22 continuous states and 4 memory elements, and three of the
     blocks are path-dependent (backlash). If anything in the core reads a clock, a run
     this long is where it shows."""
+    assert _closed_loop() == _closed_loop(), "the closed loop is not reproducible"
 
-    def go():
-        r = trim.solve(WF0, c.NP_DES, AMB)
-        f = frame(r.state, WF0, AMB)
-        pilot = loop.Pilot(xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=100.0)
-        s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
-        out = []
-        for _ in range(400):
-            s, _e, h, fr = loop.step(s, pilot, AMB, dt=0.007, load=f.q_pt_ftlbf, heat_sink=True)
-            out.append((s.engine.ng_rpm, s.engine.np_rpm, h.wf_pph, fr.t41_degR))
-        return out
 
-    assert go() == go(), "the closed loop is not reproducible"
+def _digest() -> str:
+    """SHA-256 over the bits of a trim, a real-time transient and a closed-loop run."""
+    h = hashlib.sha256()
+    h.update(repr(trim.solve(WF0, c.NP_DES, AMB).state).encode())
+    trace = _figure_9_trace()
+    for key in sorted(trace):
+        h.update(key.encode())
+        h.update(np.ascontiguousarray(trace[key], dtype=np.float64).tobytes())
+    h.update(np.array(_closed_loop(), dtype=np.float64).tobytes())
+    return h.hexdigest()
+
+
+def test_output_is_bit_identical_across_processes():
+    """Every test above runs both trials in one process, where `hash()` and set order are
+    fixed. A planted `hash()`-dependent factor gave three different NG values in three
+    processes with this file green (audit, 2026-09-19). Two fresh interpreters with
+    different hash seeds must match this one."""
+    root = Path(__file__).resolve().parent.parent
+    code = "import test_determinism as t; print(t._digest())"
+    digests = {"this process": _digest()}
+    for seed in ("0", "4242"):
+        env = {**os.environ, "PYTHONHASHSEED": seed}
+        env["PYTHONPATH"] = os.pathsep.join([str(root / "src"), str(root / "tests")])
+        out = subprocess.run(
+            [sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True
+        )
+        digests[f"PYTHONHASHSEED={seed}"] = out.stdout.strip()
+    assert len(set(digests.values())) == 1, f"output depends on the process: {digests}"

@@ -33,6 +33,12 @@ ways for a bound to escape:
 * **The headline tolerance table named no symbols at all**, so the four bounds a reader most
   likely takes as "our declared accuracy" -- NG, gas path, fuel flow, torque -- were
   enforced by nothing. They carry references now and are checked like the rest.
+
+## The fourth, closed 2026-10-12
+
+A row naming *no* symbol was dropped silently: seven Appendix B rows named a test function,
+and SCOPE.md advertised +/-99.5 % against an asserted 0.2 % with the suite green. Rows are
+now read per tolerance table, and a row in one that names no symbol fails.
 """
 
 from __future__ import annotations
@@ -58,21 +64,39 @@ a symbol holding `(-56.0, -50.0)` failed against a document that printed it corr
 which is this test wrong about the code rather than the code wrong about the document."""
 
 
-def _table_rows() -> list[tuple[str, str, str]]:
-    """Every `| comparison | tolerance | basis |` row that names a code symbol."""
-    out = []
+_TOLERANCE_HEADERS = {"tolerance", "bound", "steady state"}
+"""The second header cell of each tolerance table in SCOPE.md, lowercased."""
+
+EXPECTED_TABLES = 3
+EXPECTED_ROWS = 35
+
+
+def _parse() -> tuple[list[tuple[str, str, str]], list[str], int]:
+    """Rows of every tolerance table, the rows among them naming no symbol, and the table
+    count. A row whose Tolerance cell starts with "see" points elsewhere and is skipped."""
+    rows: list[tuple[str, str, str]] = []
+    unnamed: list[str] = []
+    tables = 0
+    in_table = in_tolerance = False
     for line in SCOPE.read_text().splitlines():
         if not line.startswith("|"):
+            in_table = False
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) not in (3, 4) or cells[0].startswith("---"):
+        if not in_table:  # a header row
+            in_table = True
+            in_tolerance = len(cells) > 1 and cells[1].lower() in _TOLERANCE_HEADERS
+            tables += in_tolerance
             continue
-        if _REF.search(cells[2]):
-            out.append((cells[0], cells[1], cells[2]))
-        elif len(cells) == 4 and _REF.search(cells[3]):
-            # the headline table is | quantity | steady | transient | basis |
-            out.append((cells[0], " ".join(cells[1:3]), cells[3]))
-    return out
+        if not in_tolerance or cells[0].startswith("---"):
+            continue
+        # the headline table is | quantity | steady | transient | basis |
+        tolerance = " ".join(cells[1:-1])
+        if _REF.search(cells[-1]):
+            rows.append((cells[0], tolerance, cells[-1]))
+        elif not tolerance.lower().startswith("see"):
+            unnamed.append(cells[0])
+    return rows, unnamed, tables
 
 
 def _load(module: str):
@@ -98,11 +122,22 @@ def _numbers(value) -> set[float]:
     return {float(value)}
 
 
-ROWS = _table_rows()
+ROWS, UNNAMED, TABLES = _parse()
 
 
-def test_the_tolerance_table_was_found():
-    assert len(ROWS) >= 8, f"only {len(ROWS)} SCOPE.md tolerance rows name a symbol"
+def test_the_tolerance_tables_were_found():
+    assert TABLES == EXPECTED_TABLES, f"found {TABLES} SCOPE.md tolerance tables"
+    assert len(ROWS) == EXPECTED_ROWS, (
+        f"SCOPE.md's tolerance tables have {len(ROWS)} checked rows, expected "
+        f"{EXPECTED_ROWS}. Update EXPECTED_ROWS only if a row was added or removed on purpose."
+    )
+
+
+def test_every_tolerance_row_names_a_symbol():
+    assert not UNNAMED, (
+        f"SCOPE.md tolerance rows naming no `module.SYMBOL`, so nothing checks them: "
+        f"{UNNAMED}. Hoist the bound into a named constant and name it in the row."
+    )
 
 
 @pytest.mark.parametrize("row", ROWS, ids=[r[0][:40] for r in ROWS])

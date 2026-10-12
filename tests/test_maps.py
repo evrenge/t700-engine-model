@@ -379,6 +379,54 @@ def test_f1_cross_line_ordering_holds_as_digitized():
         assert np.all(np.diff(flows) >= 0.0), f"speed lines cross at Ps3/P2 = {pr:.4f}"
 
 
+F1_MARKER_TOL_PCT = 1.0
+F1_MARKER_BIAS_PCT = 0.15
+
+
+def test_the_printed_f1_markers_lie_on_the_traced_map():
+    """`f1_compressor_mass_flow.csv` against the beta map traced off the same figure.
+
+    The beta map is fitted mostly to the traced line, so the two are near-independent reads
+    of Figure A1. Measured worst 0.67 % at one marker, mean +0.038 % over all 77. Until
+    2026-10-12 nothing in pytest read the seven-point file: +5 % on its whole wa2c column
+    failed no test.
+    """
+    raw, traced = maps.f1_as_printed(), maps.f1()
+    assert raw.params.tolist() == traced.params.tolist()
+    devs = []
+    for lr, lt in zip(raw.lines, traced.lines, strict=True):
+        dev = (lr.y - np.interp(lr.x, lt.x, lt.y)) / lr.y * 100.0
+        assert np.abs(dev).max() < F1_MARKER_TOL_PCT, f"{lr.name}: {np.round(dev, 2)} %"
+        devs.append(dev)
+    bias = float(np.concatenate(devs).mean())
+    assert abs(bias) < F1_MARKER_BIAS_PCT, f"mean marker deviation {bias:+.3f} %"
+
+
+def test_blending_at_the_printed_beta_values_is_exact():
+    """Resampling every line onto a finer beta grid that keeps the knots changes nothing.
+
+    Both coordinates are piecewise linear in beta with shared breakpoints, so the blended
+    line is the same polyline either way. Cited by `maps.SpeedMap`'s docstring.
+    """
+    raw = maps.f1_as_printed()
+    beta = np.linspace(0.0, 1.0, raw.lines[0].x.size)
+    fine = np.union1d(np.linspace(0.0, 1.0, 50), beta)
+    dense = maps.SpeedMap(
+        name=raw.name,
+        params=raw.params.copy(),
+        lines=[
+            maps.Curve(name=ln.name, x=np.interp(fine, beta, ln.x), y=np.interp(fine, beta, ln.y))
+            for ln in raw.lines
+        ],
+    )
+    worst = 0.0
+    with maps.clamp_scope():
+        for pq in np.linspace(65.0, 100.0, 71):
+            for xq in np.linspace(1.0, 16.0, 61):
+                worst = max(worst, abs(raw(xq, pq) - dense(xq, pq)))
+    assert worst < 1e-12, f"resampled blend differs by {worst:.2e}"
+
+
 # --------------------------------------------------------------------------------------
 # The 2026-09-13 audits. Each of these is a hole that existed rather than a property that
 # was in doubt: the model was clean on all of them, and the mechanisms were not.

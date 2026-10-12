@@ -80,6 +80,10 @@ def test_the_zero_structure_matches_exactly(trim_no: int):
     assert ref.b[2] == 0.0 and ours.b[2] == 0.0, "fuel does not enter the P3 volume directly"
 
 
+PRESSURE_BLOCK_TOL_PCT = 1.5
+"""The 5-DOF P3/P41 block, per element. Measured worst 0.72 %."""
+
+
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
 def test_the_pressure_block_agrees_closely(trim_no: int):
     """The P3 and P41 volume equations are right to under 1 % at every trim.
@@ -94,12 +98,16 @@ def test_the_pressure_block_agrees_closely(trim_no: int):
         if (si, sj) in NG_COLUMN:
             continue
         dev = (ours.A[i, j] - ref.A[i, j]) / abs(ref.A[i, j]) * 100.0
-        assert abs(dev) < 1.5, f"trim {trim_no} d({si})/d({sj}): {dev:+.2f} %"
+        assert abs(dev) < PRESSURE_BLOCK_TOL_PCT, f"trim {trim_no} d({si})/d({sj}): {dev:+.2f} %"
+
+
+FUEL_COLUMN_TOL_PCT = 0.2
+"""The 5-DOF `b` into NG, P41 and P45. Measured worst 0.123 %."""
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
 def test_the_fuel_column_is_essentially_exact(trim_no: int):
-    """`b` matches to 0.1 % everywhere the load inertia does not enter.
+    """`b` matches to 0.13 % everywhere the load inertia does not enter.
 
     This is what makes the NP-row diagnosis airtight: the fuel derivative into NG, P41 and
     P45 is right to a part in a thousand, so `b(NP)`'s factor of ten cannot be the fuel
@@ -109,7 +117,7 @@ def test_the_fuel_column_is_essentially_exact(trim_no: int):
     for s in ("NG", "P41", "P45"):
         i = S.index(s)
         dev = (ours.b[i] - ref.b[i]) / abs(ref.b[i]) * 100.0
-        assert abs(dev) < 0.2, f"trim {trim_no} b({s}): {dev:+.3f} %"
+        assert abs(dev) < FUEL_COLUMN_TOL_PCT, f"trim {trim_no} b({s}): {dev:+.3f} %"
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
@@ -172,6 +180,10 @@ def test_the_np_diagonal_still_needs_the_load_torque_slope():
     )
 
 
+F7_GROUP_TOL_PCT = {1: 26.0, 2: 16.0, 3: 9.0}
+"""Per trim, the four `f7`-driven elements of the 5-DOF `A`."""
+
+
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
 def test_the_f7_group_is_characterized_by_trim(trim_no: int):
     """The four `f7`-driven elements, recorded with their power dependence.
@@ -180,7 +192,7 @@ def test_the_f7_group_is_characterized_by_trim(trim_no: int):
     a shallow one). Bounds are per trim and deliberately just wide enough to hold today's
     values; the monotone ordering is asserted separately because it is the actual evidence.
     """
-    bound = {1: 26.0, 2: 16.0, 3: 9.0}[trim_no]
+    bound = F7_GROUP_TOL_PCT[trim_no]
     ours, ref = _pair(trim_no)
     for si, sj in F7_DRIVEN:
         i, j = S.index(si), S.index(sj)
@@ -353,6 +365,10 @@ def test_feedthrough_is_nonzero_only_on_the_t41_row(dof: DOF, trim_no: int):
     assert np.abs(np.delete(ref.d, t41)).max() == 0.0
 
 
+SIX_DOF_T41_COLUMN_TOL_PCT = 1.0
+"""The 6-DOF T41 column, per element."""
+
+
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
 def test_six_dof_t41_column_is_close(trim_no: int):
     """How the five engine equations respond to T41 -- the new physics in the 6-DOF model.
@@ -367,7 +383,7 @@ def test_six_dof_t41_column_is_close(trim_no: int):
         if s == "T41" or ref.A[i, t41] == 0.0:
             continue
         dev = (ours.A[i, t41] - ref.A[i, t41]) / abs(ref.A[i, t41]) * 100.0
-        assert abs(dev) < 1.0, f"trim {trim_no} d({s})/d(T41): {dev:+.2f} %"
+        assert abs(dev) < SIX_DOF_T41_COLUMN_TOL_PCT, f"trim {trim_no} d({s})/d(T41): {dev:+.2f} %"
 
 
 def test_the_six_dof_loses_the_p3_to_np_coupling_the_five_dof_has():
@@ -383,6 +399,11 @@ def test_the_six_dof_loses_the_p3_to_np_coupling_the_five_dof_has():
         ours, ref = _hs_pair(DOF.SIX, trim_no)
         assert ref.A[1, 2] == 0.0, "B8/B10/B12 should print zero for d(NP)/d(P3)"
         assert ours.A[1, 2] == 0.0, f"trim {trim_no}: we still couple P3 to NP directly"
+
+
+T41_ROW = (0.90, 0.96)
+T41_ROW_SPREAD_PCT = 1.0
+"""The 6-DOF T41 row less its NG element: ratio band, and max-min spread over the mean."""
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
@@ -412,9 +433,11 @@ def test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio(trim_no: int):
         for j in range(len(ours.states))
         if ref.A[t41, j] != 0.0 and j != ng
     ]
-    assert all(0.90 < r < 0.96 for r in ratios), f"T41 row ratios moved: {ratios}"
+    assert all(T41_ROW[0] < r < T41_ROW[1] for r in ratios), f"T41 row ratios moved: {ratios}"
     spread = (max(ratios) - min(ratios)) / np.mean(ratios) * 100.0
-    assert spread < 1.0, f"the row is no longer uniformly scaled: spread {spread:.2f} %"
+    assert spread < T41_ROW_SPREAD_PCT, (
+        f"the row is no longer uniformly scaled: spread {spread:.2f} %"
+    )
 
 
 @pytest.mark.parametrize("trim_no", [1, 2, 3])

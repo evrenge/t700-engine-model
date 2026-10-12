@@ -239,19 +239,20 @@ distinction matters when a number from one is quoted as a result.
 
 ### Appendix B, element by element
 
-There is no single per-element tolerance. Fifteen distinct bounds exist across
+There is no single per-element tolerance. Seventeen distinct bounds exist across
 `test_appendix_b_elements.py` and `test_all_dof_models.py`, and they differ by two orders of
 magnitude because the printed elements do:
 
 | block | bound | test |
 |---|---|---|
-| `b`, the fuel column, 5-DOF | +/-0.2 % | `test_the_fuel_column_is_essentially_exact` |
-| 6-DOF T41 column | +/-1.0 % | `test_six_dof_t41_column_is_close` |
-| P3 / P41 pressure block, 5-DOF | +/-1.5 % | `test_the_pressure_block_agrees_closely` |
+| `b`, the fuel column, 5-DOF | +/-0.2 % | `test_appendix_b_elements.FUEL_COLUMN_TOL_PCT` |
+| 6-DOF T41 column | +/-1.0 % | `test_appendix_b_elements.SIX_DOF_T41_COLUMN_TOL_PCT` |
+| P3 / P41 pressure block, 5-DOF | +/-1.5 % | `test_appendix_b_elements.PRESSURE_BLOCK_TOL_PCT` |
 | P3 / P41 pressure block, 6-DOF | ratio 0.99-1.01 | `test_appendix_b_elements.SIX_DOF_PRESSURE` |
 | P3 column outside that block, 5-DOF | +/-3.0 % | `test_appendix_b_elements.P3_COLUMN_TOL_PCT` |
-| T41 row | ratio 0.90-0.96 | `test_the_t41_row_is_uniformly_low_by_the_lead_lag_ratio` |
-| 3-DOF T41 column, NP row | +/-12 % | `test_three_dof_elements_against_b7_b9_b11` |
+| T41 row | ratio 0.90-0.96, spread under 1.0 % | `test_appendix_b_elements.T41_ROW` and `test_appendix_b_elements.T41_ROW_SPREAD_PCT` |
+| 3-DOF T41 column | ratio 0.88-1.12 | `test_all_dof_models.THREE_DOF_T41_COLUMN` |
+| 3-DOF T41 feedthrough `d` | +/-3.0 % | `test_all_dof_models.THREE_DOF_FEEDTHROUGH_TOL_PCT` |
 | 3-DOF NG column, less descent `A(T41,NG)` | ratio 0.80-1.12 | `test_appendix_b_elements.THREE_DOF_NG_COLUMN` |
 | descent `A(T41,NG)`, 3-DOF | ratio 0.6-1.0 | `test_all_dof_models.DESCENT_T41_NG` |
 | 3-DOF `b` | ratio 0.86-1.02 | `test_appendix_b_elements.THREE_DOF_B` |
@@ -259,8 +260,8 @@ magnitude because the printed elements do:
 | 6-DOF `b`, T41 | ratio 0.87-0.9 | `test_appendix_b_elements.SIX_DOF_B_T41` |
 | rest of the 6-DOF `A` | ratio 0.8-1.26 | `test_appendix_b_elements.SIX_DOF_REST` |
 | `A(NP,NP)` without dQreq/dNP | -56 to -50 % | `test_appendix_b_elements.NP_DIAGONAL_RESIDUAL_PCT` |
-| f7 group, by trim | +/-26 / 16 / 9 % | `test_the_f7_group_is_characterized_by_trim` |
-| 2-DOF elements | ratio 0.70-1.20 | `test_two_dof_elements_against_b1_b3_b5` |
+| f7 group, by trim | +/-26 / 16 / 9 % | `test_appendix_b_elements.F7_GROUP_TOL_PCT` |
+| 2-DOF elements | ratio 0.70-1.20 `A`, +/-6.0 % `b` | `test_all_dof_models.TWO_DOF_A` and `test_all_dof_models.TWO_DOF_B_TOL_PCT` |
 
 
 **Coverage: 297 printed elements, 206 of them non-zero, and all 206 carry a numeric

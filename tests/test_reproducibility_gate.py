@@ -20,6 +20,7 @@ failure to run them can no longer be reported as success.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -73,16 +74,39 @@ def test_every_data_tool_either_writes_its_file_or_checks_it():
     the only such path was inside the "maintained by hand" message.
     """
     for name in sorted(data_tools()):
-        text = (TOOLS / f"{name}.py").read_text()
-        writes = bool(
-            re.search(r"\.write\(|\.write_text\(|writerow|to_csv|np\.save|open\([^)]*[\"']w", text)
-        )
-        checks = "check_against_csv" in text
+        writes, checks = _writes_and_checks((TOOLS / f"{name}.py").read_text())
         assert writes or checks, (
             f"tools/{name}.py names a path under data/ but neither writes it nor checks "
             f"it against the extraction. The reproducibility gate will run it, it will "
             f"succeed, and it will prove nothing about that file."
         )
+
+
+_WRITES = {"write", "write_text", "writerow", "writerows", "to_csv", "write_csv"}
+
+
+def _writes_and_checks(source: str) -> tuple[bool, bool]:
+    """Whether the tool *calls* a writer, and whether it calls `check_against_csv`.
+
+    Read from the syntax tree. Until 2026-10-12 this was a substring match, which a comment
+    or a docstring mentioning `check_against_csv` satisfied.
+    """
+    writes = checks = False
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+        if name == "check_against_csv":
+            checks = True
+        elif name in _WRITES or (name == "save" and getattr(f.value, "id", "") == "np"):
+            writes = True
+        elif name == "open":
+            pos = 0 if isinstance(f, ast.Attribute) else 1  # path.open(mode) vs open(p, mode)
+            mode = node.args[pos] if len(node.args) > pos else None
+            mode = next((k.value for k in node.keywords if k.arg == "mode"), mode)
+            writes |= isinstance(mode, ast.Constant) and "w" in str(mode.value)
+    return writes, checks
 
 
 @pytest.fixture(scope="module")
