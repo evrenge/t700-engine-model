@@ -88,9 +88,9 @@
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
 #        bottom y = +2.4916891 v^4 -4.6652388 v^3 +2.2295496 v^2 +37.445452 v +74.99527
-#        top    y = +4.0934508 v^4 -7.7463883 v^3 +3.9915603 v^2 +37.185376 v +74.968559
+#        top    y = +4.0937925 v^4 -7.7470453 v^3 +3.9919475 v^2 +37.1853 v +74.968562
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
-#      difference; the pooled map was y = +3.2921552 v^4 -6.2067086 v^3 +3.1093571 v^2 +37.318014 v +74.981087
+#      difference; the pooled map was y = +3.2923312 v^4 -6.207048 v^3 +3.1095582 v^2 +37.317975 v +74.981088
 #      Fitted on 293 interior ticks (fine lattice, 146 per edge) plus the frame
 #      value(s) bottom = 75, top = 112.5;
 #      residual rms 0.0147, i.e. 0.39 per-mille of the axis range.
@@ -107,13 +107,13 @@
 #                             hi frame printed 112.5 -> 112.447 (-0.0533)
 #                             leave-one-tick-out 0.558 per-mille of range
 #        order 4 (quartic  ): lo frame printed 75 -> 74.9767 (-0.0233)
-#                             hi frame printed 112.5 -> 112.492 (-0.00805)
+#                             hi frame printed 112.5 -> 112.492 (-0.00806)
 #                             leave-one-tick-out 0.399 per-mille of range
 #      -> order 4 wins the held-out test among the orders that also interpolate the
 #         ticks as well as the best one does; ties within 1.25x go to the lower order.
 #   Independent bow-free cross-check: linear interpolation between the two majors that
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
-#   model to 0.0765 in x and 0.031 in y, worst point.
+#   model to 0.0765 in x and 0.0312 in y, worst point.
 #
 # MARKERS. 11 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
@@ -140,7 +140,7 @@
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0812.)
 #   y: tick-fit residual 0.0147 | calibration order spread (deg 1-4) 0.043 mean, 0.0639 max |
-#      the two ticked edges calibrated separately, half their disagreement 0.00937 mean, 0.0183 max |
+#      the two ticked edges calibrated separately, half their disagreement 0.00938 mean, 0.0183 max |
 #      glyph centre 0.0026 mean, 0.00694 max.  Total 1 sigma 0.0494 mean, 0.0659 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.0223.)
@@ -169,12 +169,12 @@
 x,y,sigma_x,sigma_y
 -0.0429,80.11733,0.1963,0.03553
 9.9291,83.82301,0.1691,0.02249
-19.9405,87.29020,0.1688,0.04273
+19.9405,87.29020,0.1688,0.04274
 29.9764,90.62873,0.1757,0.06167
 40.0718,93.44376,0.1837,0.06593
 50.0516,95.77409,0.1905,0.05924
-60.0715,98.77962,0.1995,0.03836
+60.0715,98.77961,0.1995,0.03836
 70.0775,102.24738,0.2083,0.02920
-80.0511,107.30356,0.2202,0.05994
-90.0719,107.30226,0.2198,0.06284
-100.1416,107.30959,0.2612,0.06588
+80.0511,107.30356,0.2202,0.05995
+90.0719,107.30225,0.2198,0.06285
+100.1416,107.30958,0.2612,0.06588

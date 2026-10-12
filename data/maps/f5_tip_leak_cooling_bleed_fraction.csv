@@ -80,10 +80,10 @@
 #   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = -0.00064095567 v^4 +0.0011166242 v^3 -0.00045262698 v^2 +0.00897111 v +0.077001199
+#        bottom y = -0.00064099941 v^4 +0.0011167155 v^3 -0.00045268445 v^2 +0.0089711218 v +0.077001198
 #        top    y = -0.00061696923 v^4 +0.0012054347 v^3 -0.00060887001 v^2 +0.0090231083 v +0.076997554
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
-#      difference; the pooled map was y = -0.00071646435 v^4 +0.0012893485 v^3 -0.00058021483 v^2 +0.0090027596 v +0.076999199
+#      difference; the pooled map was y = -0.0007164873 v^4 +0.0012893976 v^3 -0.00058024573 v^2 +0.0090027659 v +0.076999199
 #      Fitted on 283 interior ticks (fine lattice, 141 per edge) plus the frame
 #      value(s) bottom = 0.077, top = 0.086;
 #      residual rms 3.075e-06, i.e. 0.34 per-mille of the axis range.
@@ -130,7 +130,7 @@
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.00694.)
 #   y: tick-fit residual 3.08e-06 | calibration order spread (deg 1-4) 1.24e-05 mean, 1.35e-05 max |
-#      the two ticked edges calibrated separately, half their disagreement 1.41e-06 mean, 2.73e-06 max |
+#      the two ticked edges calibrated separately, half their disagreement 1.42e-06 mean, 2.73e-06 max |
 #      glyph centre 2e-07 mean, 5.07e-07 max.  Total 1 sigma 1.23e-05 mean, 1.44e-05 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 5.54e-06.)

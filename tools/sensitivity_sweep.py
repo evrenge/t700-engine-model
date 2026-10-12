@@ -25,7 +25,7 @@ and it is the column that stops the table lying about dynamic-only quantities. `
 heat-sink time constant that does no work at equilibrium, so it costs exactly 0.000 % at
 every trim however wrong it is, and shows up only in the transient.
 
-    python3 tools/sensitivity_sweep.py                 # every map, both axes
+    python3 tools/sensitivity_sweep.py                 # every map with a sigma (not f1)
     python3 tools/sensitivity_sweep.py --keep          # leave the worktree for inspection
 """
 
@@ -48,6 +48,7 @@ CASES = [
     ("f4", "maps/f4_pt_balance_bleed_fraction.csv", "sigma_x", "sigma_y"),
     ("f5", "maps/f5_tip_leak_cooling_bleed_fraction.csv", "sigma_x", "sigma_y"),
     ("f6", "maps/f6_combustor_efficiency.csv", "sigma_x", "sigma_y"),
+    ("f7", "maps/f7_gg_turbine_energy.csv", "sx", "sy"),
     ("f8", "maps/f8_pt_energy.csv", "sigma_x", "sigma_y"),
     ("f9", "maps/f9_pt_mass_flow.csv", "sx", "sy"),
     ("f10", "maps/f10_exhaust_pressure_loss.csv", "sigma_x", "sigma_y"),

@@ -288,10 +288,18 @@ def axis_values(ink, spec, tickspec, C, frame_order, x_order, y_order, blend=Tru
     geometry models, or two anchoring rules, is answered by running both and measuring the
     difference, not by argument.
     """
-    from .frame import fit_edges, make_sv
+    from .frame import apply_h, corners, fit_edges, homography, make_sv
 
     fc, _ = fit_edges(ink, spec, order=frame_order, verbose=False)
-    to_sv, _ = make_sv(fc)
+    if frame_order == 1:
+        # four straight edges map by the homography, as everywhere else in the package;
+        # `make_sv` on straight edges differs from it by up to 1.1e-3 of the unit square
+        H = homography(corners(fc, order=1), [(0, 1), (1, 1), (1, 0), (0, 0)])
+
+        def to_sv(x, y):
+            return apply_h(H, x, y)
+    else:
+        to_sv, _ = make_sv(fc)
     P = tickspec(fc, to_sv)
     s, v = to_sv(C[:, 0], C[:, 1])
     out = []

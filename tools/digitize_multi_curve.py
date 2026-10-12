@@ -72,7 +72,7 @@ FIGS = {
         knot_tol=0.30,
         run_gap=5,
         open_sz=5,
-        legend=dict(x=(0.42, 1.0), y=(0.0, 0.22)),
+        legend=dict(x=(0.42, 1.0), y=(0.78, 1.0)),  # top right; v = 0 at the bottom
     ),
     "c30": dict(
         page=101,
@@ -131,7 +131,7 @@ def blobs(ink, fr, cfg):
     lo_x, hi_x = _dist(fr["left"], cx, cy), -_dist(fr["right"], cx, cy)
     u = lo_x / (lo_x + hi_x)
     lo_y, hi_y = _dist(fr["top"], cx, cy, False), -_dist(fr["bottom"], cx, cy, False)
-    v = lo_y / (lo_y + hi_y)
+    v = 1.0 - lo_y / (lo_y + hi_y)  # v = 0 at the BOTTOM, as everywhere else in the package
     lg = cfg["legend"]
     in_legend = (u > lg["x"][0]) & (u < lg["x"][1]) & (v > lg["y"][0]) & (v < lg["y"][1])
     keep = ~in_legend
@@ -166,7 +166,7 @@ def trace(ink, fr, cfg, ncur, step=4, halfwidth=2):
     lo_x, hi_x = _dist(fr["left"], X, Y), -_dist(fr["right"], X, Y)
     u = lo_x / (lo_x + hi_x)
     lo_y, hi_y = _dist(fr["top"], X, Y, False), -_dist(fr["bottom"], X, Y, False)
-    v = lo_y / (lo_y + hi_y)
+    v = 1.0 - lo_y / (lo_y + hi_y)  # v = 0 at the bottom
     in_legend = (u > lg["x"][0]) & (u < lg["x"][1]) & (v > lg["y"][0]) & (v < lg["y"][1])
     plot = ink & inside & ~in_legend
 

@@ -185,6 +185,7 @@ def fit_glyphs(
     centre = CENTRE_CURVE if centre is None else centre
     template = TEMPLATE_CURVE if template is None else template
     C = np.asarray(C0, float).copy()
+    seed = C.copy()
     tpl = np.array(TPL0 if tpl0 is None else tpl0, float)
     cur = np.nan
 
@@ -210,7 +211,6 @@ def fit_glyphs(
                     method="Nelder-Mead",
                     options=dict(centre),
                 )
-                moved = np.hypot(*(r.x - c0))
                 C[i] = r.x
             else:
                 r = minimize(
@@ -226,10 +226,11 @@ def fit_glyphs(
                         **centre,
                     ),
                 )
-                moved = np.hypot(*r.x)
                 C[i] = c0 + r.x
-            if max_move is not None and moved > max_move:
-                raise AssertionError(f"marker {i} moved {moved:.1f} px -- bad seed?")
+            # from the seed, not per round: four 10 px rounds used to pass a 40 px walk
+            walked = float(np.hypot(*(C[i] - seed[i])))
+            if max_move is not None and walked > max_move:
+                raise AssertionError(f"marker {i} moved {walked:.1f} px from its seed -- bad seed?")
             cur = r.fun
         if fit_template:
             D = [seg_for(i) for i in range(len(C))]

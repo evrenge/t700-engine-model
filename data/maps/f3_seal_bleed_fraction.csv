@@ -51,7 +51,7 @@
 # frame value it was never shown. Both numbers are printed, so the choice is visible.
 #   x: fine lattice, 69 ticks, predicting the printed frame to 0.105 per-mille
 #      against 0.242 per-mille for the other choice.
-#   y: fine lattice, 257 ticks, predicting the printed frame to 0.612 per-mille
+#   y: fine lattice, 257 ticks, predicting the printed frame to 0.613 per-mille
 #      against 1.711 per-mille for the other choice.
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
@@ -79,10 +79,10 @@
 #   y axis: CUBIC in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = -0.006337054 v^3 +0.0095472991 v^2 +0.13670777 v -0.019919477
-#        top    y = -0.0074293525 v^3 +0.011458125 v^2 +0.1357914 v -0.01994457
+#        bottom y = -0.0063370263 v^3 +0.0095472834 v^2 +0.13670777 v -0.019919476
+#        top    y = -0.0074289863 v^3 +0.01145765 v^2 +0.13579149 v -0.019944535
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
-#      difference; the pooled map was y = -0.0068728533 v^3 +0.010484824 v^2 +0.13624921 v -0.019926134
+#      difference; the pooled map was y = -0.0068726767 v^3 +0.010484616 v^2 +0.13624924 v -0.019926115
 #      Fitted on 257 interior ticks (fine lattice, 128 per edge) plus the frame
 #      value(s) bottom = -0.02, top = 0.12;
 #      residual rms 0.0001182, i.e. 0.84 per-mille of the axis range.
@@ -95,7 +95,7 @@
 #        order 2 (quadratic): lo frame printed -0.02 -> -0.0202842 (-0.000284)
 #                             hi frame printed 0.12 -> 0.120266 (+0.000266)
 #                             leave-one-tick-out 1.278 per-mille of range
-#        order 3 (cubic    ): lo frame printed -0.02 -> -0.0199143 (+8.57e-05)
+#        order 3 (cubic    ): lo frame printed -0.02 -> -0.0199142 (+8.58e-05)
 #                             hi frame printed 0.12 -> 0.119924 (-7.56e-05)
 #                             leave-one-tick-out 0.860 per-mille of range
 #        order 4 (quartic  ): lo frame printed -0.02 -> -0.0200058 (-5.76e-06)
