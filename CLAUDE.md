@@ -160,10 +160,10 @@ Two typesetting traps the OCR layer cannot show, both load-bearing:
   Read `docs/notes/digitizing-recipe.md` first — twelve traps, each of which cost a wrong
   CSV that looked right. Never add a second copy of something already in there; a test
   fails if you do.
-- Three audit tools that write nothing and are worth running before believing a map:
+- Two audit tools that write nothing and are worth running before believing a map:
   `check_straightness.py` (is the printed curve straight between its markers, measured in
-  data space), `compare_models.py` (what the frame model and the anchoring rule cost, per
-  figure), `minor_lattice.py` (what tick lattice each edge resolves, and how cleanly).
+  data space) and `compare_models.py` (what the frame model and the anchoring rule cost, per
+  figure).
 - `constant_sweep.py` audits the tests rather than a map: it moves each model constant by
   ±5 % in a scratch worktree and reports which ones no test notices. It reruns the whole
   suite once per constant, so it is a long job.

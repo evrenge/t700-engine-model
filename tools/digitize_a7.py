@@ -650,27 +650,15 @@ def main() -> int:
 
     overlay(ink, to_px, C, px, py)
 
-    old = np.array(
-        [
-            [0.199937, 48.2815],
-            [0.214923, 40.3985],
-            [0.219917, 39.1268],
-            [0.224969, 38.3672],
-            [0.229970, 37.5898],
-            [0.350096, 24.6064],
-        ]
-    )
     print(
         "\n   k  px_x     px_y       x          y      1s_x    1s_y  |  cal_x glyph_x model_x |"
-        "  cal_y glyph_y model_y |   dx      dy    (sigma)"
+        "  cal_y glyph_y model_y"
     )
     for i in range(N):
         print(
             f"  {i + 1:2d} {C[i, 0]:8.2f} {C[i, 1]:8.2f} {X[i]:9.6f} {Y[i]:8.4f} "
             f"{sx[i]:7.5f} {sy[i]:6.4f} | {cal_x[i]:6.5f} {glyph_px[i] * dXdpx[i]:7.5f} "
-            f"{mx[i]:7.5f} | {cal_y[i]:6.4f} {glyph_px[i] * dYdpx[i]:7.4f} {my[i]:7.4f} | "
-            f"{X[i] - old[i, 0]:+.6f} {Y[i] - old[i, 1]:+7.4f} "
-            f"({(X[i] - old[i, 0]) / sx[i]:+.1f}, {(Y[i] - old[i, 1]) / sy[i]:+.1f})"
+            f"{mx[i]:7.5f} | {cal_y[i]:6.4f} {glyph_px[i] * dYdpx[i]:7.4f} {my[i]:7.4f}"
         )
     # The CSV is maintained by hand; these values are not. See `check_against_csv`.
     return check_against_csv(

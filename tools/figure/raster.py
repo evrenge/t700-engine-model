@@ -41,21 +41,19 @@ from there.
 """
 
 
-def native_bitmap(page: int, out: Path | None = None) -> np.ndarray:
+def native_bitmap(page: int) -> np.ndarray:
     """The page's own 300 dpi 1-bit image, as an ink mask. No render, no resample.
 
-    True is ink. `out` overrides the shared cache for a caller that wants the file
-    somewhere specific; nothing about the returned array depends on it.
+    True is ink.
 
     The `convert("1")` is a no-op on the 1-bit PNGs `pdfimages` writes for these pages --
     PIL returns a copy when the mode already matches -- and it is here so that a page that
     ever came back as greyscale would be thresholded rather than bitwise-inverted into
     nonsense.
     """
-    out = CACHE if out is None else out
-    out.mkdir(parents=True, exist_ok=True)
-    stem = out / f"p{page}"
-    png = out / f"p{page}-000.png"
+    CACHE.mkdir(parents=True, exist_ok=True)
+    stem = CACHE / f"p{page}"
+    png = CACHE / f"p{page}-000.png"
     if not png.exists():
         subprocess.run(
             ["pdfimages", "-f", str(page), "-l", str(page), "-png", str(PDF), str(stem)],

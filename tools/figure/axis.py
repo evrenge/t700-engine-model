@@ -270,8 +270,6 @@ def calibrate(t_lo_edge, t_hi_edge, spec, label, orders=(1, 2, 3, 4), verbose=Tr
         errs=errs,
         loos=loos,
         pred=pred,
-        tt=tt,
-        vv=vv,
         n=int(tt.size),
     )
 

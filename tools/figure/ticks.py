@@ -201,7 +201,7 @@ def majors_all_edges(ink, fc, cfg, verbose=True, order=None):
     `(majors, candidates, corners)`.
     """
     order = len(next(iter(fc.values()))) - 1 if order is None else order
-    TL, TR, BR, BL = frame_corners(fc, order=order, guess=cfg.get("corner_guess"))
+    TL, TR, BR, BL = frame_corners(fc, order=order)
     span = {
         "left": (TL[1], BL[1]),
         "right": (TR[1], BR[1]),

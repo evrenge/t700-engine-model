@@ -77,10 +77,8 @@ from figure.frame import make_sv
 from figure.provenance import header, parse_calibration
 from figure.raster import native_bitmap
 
-PDF = Path("docs/ballin-tm100991.pdf")
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
-WORK = ROOT / "validation" / "out" / "digitize" / "straightness"
 
 # Figures are DISCOVERED, not listed. Two reasons. A hardcoded list is what let
 # `digitize_multi_curve` sit outside the reproducibility gate, and

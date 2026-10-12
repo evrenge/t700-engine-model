@@ -41,12 +41,11 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from digitize_single_curve import FIGS, run  # noqa: E402
-from figure.axis import blend_value, choose, fit_anchored, loo, soft_anchor  # noqa: E402
+from figure.axis import blend_value, fit_anchored, soft_anchor  # noqa: E402
 from figure.frame import (  # noqa: E402  # noqa: E402  # noqa: E402
     EDGE,
     apply_h,
     as_lines,
-    auto_frame_spec,
     corners,
     edge_at,
     edge_at_straight,
@@ -55,7 +54,6 @@ from figure.frame import (  # noqa: E402  # noqa: E402  # noqa: E402
     homography,
     make_sv,
 )
-from figure.raster import native_bitmap  # noqa: E402
 from figure.ticks import (  # noqa: E402  # noqa: E402
     fine_lattice,
     major_step,
@@ -79,11 +77,11 @@ def plot_coords(ink, spec, C, order):
     return fc, s, v
 
 
-def edge_positions(ink, fc, cfg, order, fine=True):
+def edge_positions(ink, fc, cfg, order):
     """Where each printed tick sits along its edge, in the unit square.
 
-    `fine=True` uses the minor lattice on every edge where one resolves. That is not quite
-    what ships: `digitize_single_curve` sends five axes back to their majors (`pick_lattice`),
+    Uses the minor lattice on every edge where one resolves. That is not quite what
+    ships: `digitize_single_curve` sends five axes back to their majors (`pick_lattice`),
     so these numbers describe a slightly different calibration. On 2026-09-19 it changed no
     frame-model choice.
     """
@@ -113,8 +111,6 @@ def edge_positions(ink, fc, cfg, order, fine=True):
         pos, val = paired(maj, nm, vals, desc)
         u = np.asarray(at(nm, pos), float)
         out[nm] = (u, val)
-        if not fine:
-            continue
         along, sign = EDGE[nm]
         a, b = span[nm]
         lo, hi = int(min(a, b)) + 3, int(max(a, b)) - 2
@@ -214,8 +210,6 @@ def compare(key):
 
 def main(argv):
     keys = [a for a in argv if a in FIGS] or list(FIGS)
-    if "--verdict" in argv:
-        return verdict(keys)
     print("\n" + "=" * 92)
     print("CALIBRATION MODEL COMPARISON -- glyph centres held fixed, calibration varied")
     print("=" * 92)
@@ -235,80 +229,6 @@ def main(argv):
                 continue
             flag = "  <-- above the read error" if max(rx, ry) > 1.0 else ""
             print(f"{'':>7} {label:>22} {dx:11.3e} {dy:11.3e} {rx:9.2f} {ry:9.2f}{flag}")
-    return 0
-
-
-def held_out_under(ink, spec_frame, cfg, frame_order):
-    """The figure's own verdict on a frame model: how well it predicts its printed frames.
-
-    This is the test that makes the choice a measurement rather than an argument. Each
-    figure prints a value at one or both frame edges. Fit the axis map on the INTERIOR
-    majors alone -- the fit never sees the frame value -- and predict it. A frame model
-    that describes the page better puts the interior ticks in more nearly the right
-    places, so it predicts the number it was not given more accurately.
-
-    It is the same test `figure.axis.calibrate` already uses to choose the polynomial
-    order, asked one level up.
-    """
-    fc, _ = fit_edges(ink, spec_frame, order=frame_order, verbose=False)
-    P = edge_positions(ink, fc, cfg, frame_order)
-    edges = ("left", "right", "top", "bottom")
-    sag = {nm: _sagitta(ink, spec_frame, nm, frame_order) for nm in edges}
-    out = {}
-    for ax, (lo_nm, hi_nm) in (("x", ("bottom", "top")), ("y", ("left", "right"))):
-        spec = cfg[ax]
-        t = np.concatenate([P[lo_nm][0], P[hi_nm][0]])
-        val = np.concatenate([P[lo_nm][1], P[hi_nm][1]])
-        rng = spec["hi"] - spec["lo"]
-        errs, loos = {}, {}
-        for order in (1, 2, 3, 4):
-            worst = 0.0
-            for side in spec["printed"]:
-                at = 0.0 if side == "lo" else 1.0
-                pred = float(np.polyval(np.polyfit(t, val, order), at))
-                worst = max(worst, abs(pred - spec[side]))
-            errs[order] = worst
-            loos[order] = loo(t, val, order)
-        # Each frame model is judged at ITS OWN best order, chosen by the same rule
-        # `figure.axis.calibrate` uses -- otherwise the comparison is rigged by whichever
-        # model's order is imposed on the other.
-        order, _ok = choose(errs, loos)
-        out[ax] = (order, errs[order], rng)
-    return out, sag
-
-
-def _sagitta(ink, spec_frame, name, order):
-    _fc, diag = fit_edges(ink, spec_frame, order=max(order, 2), verbose=False)
-    return diag[name]["sagitta"]
-
-
-def verdict(keys):
-    print("\n" + "=" * 92)
-    print("WHICH FRAME MODEL DOES THE FIGURE ITSELF PREFER?")
-    print("Held-out frame-edge error: fit the interior majors alone, predict the printed")
-    print("frame value. Lower is better. `sagitta` is the measured bow of each printed")
-    print("straight edge, in pixels -- the physical quantity trap 7 started from.")
-    print("=" * 92)
-    print(
-        f"\n{'figure':>7} {'axis':>4} {'ord s/a':>9} {'straight':>12} {'arcs':>12} "
-        f"{'better':>9}   sagittae L/R/T/B (px)"
-    )
-    for key in keys:
-        cfg = FIGS[key]
-        ink = native_bitmap(cfg["page"])
-        fspec = cfg.get("frame_spec") or auto_frame_spec(cfg["page"])
-        h1, sag = held_out_under(ink, fspec, cfg, 1)
-        h2, _ = held_out_under(ink, fspec, cfg, 2)
-        sg = "  ".join(f"{sag[n]:+.2f}" for n in ("left", "right", "top", "bottom"))
-        for ax in ("x", "y"):
-            (o1, e1, rng), (o2, e2, _) = h1[ax], h2[ax]
-            who = "arcs" if e2 < e1 else "straight"
-            ratio = max(e1, e2) / min(e1, e2) if min(e1, e2) else float("inf")
-            print(
-                f"{cfg['fig']:>7} {ax:>4} {o1:>4}/{o2:<4} {e1 / rng * 1000:9.3f} pm "
-                f"{e2 / rng * 1000:9.3f} pm {who:>9} ({ratio:.2f}x)"
-                + (f"   {sg}" if ax == "x" else "")
-            )
     return 0
 
 

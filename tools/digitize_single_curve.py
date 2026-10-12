@@ -54,7 +54,6 @@ src/t700/.
 
 from __future__ import annotations
 
-import pickle
 import sys
 from pathlib import Path
 
@@ -86,13 +85,10 @@ from figure.ticks import paired as _paired
 FRAME_MARGIN = 0.90
 """Arcs replace straight edges only if they predict the printed frames 10 % better."""
 
-PDF = Path("docs/ballin-tm100991.pdf")
 OUT = Path("validation/out/digitize/a6810")
 
 # --------------------------------------------------------------------------- figure table
 #
-# `frame_spec`  windows in which to trace each frame line: (name, along, xlo, xhi, tlo, thi)
-#               `along=0` traces a vertical line (one ink run per row), `along=1` horizontal.
 # `x` / `y`     (value at the low-side frame, value at the high-side frame, major step,
 #               number of INTERIOR majors, which frame values are PRINTED on the page)
 #               low side = left frame / bottom frame; high side = right frame / top frame.
@@ -512,7 +508,7 @@ def run(key):
     cfg = FIGS[key]
     print(f"\n================ {cfg['fig']}  (pdf p.{cfg['page']})")
     ink = native_bitmap(cfg["page"])
-    fspec = cfg.get("frame_spec") or auto_frame_spec(cfg["page"])
+    fspec = auto_frame_spec(cfg["page"])
 
     # ---- straight edges or arcs? The figure decides, by the same held-out frame test.
     #
@@ -541,8 +537,8 @@ def run(key):
     cal = _calibrate_under(ink, fspec, cfg, forder, verbose=True)
     fc, frdiag, fr = cal["fc"], cal["frdiag"], cal["fr"]
     TL, TR, BR, BL = cal["corners"]
-    H, to_uv, to_px = cal["H"], cal["to_uv"], cal["to_px"]
-    maj, allt = cal["maj"], cal["allt"]
+    to_uv, to_px = cal["to_uv"], cal["to_px"]
+    allt = cal["allt"]
     CX, CY = cal["CX"], cal["CY"]
     xs, ys = cfg["x"], cfg["y"]
     cx, cy = CX["c"], CY["c"]
@@ -555,9 +551,7 @@ def run(key):
         cfg.get("open_sz", 7),
         cfg.get("rail", -14.0),
         cfg.get("min_size", 0),
-        cfg.get("merge", 12.0),
-        cfg.get("rail_min_size", 0),
-        cfg.get("rail_zone", 12.0),
+        rail_min_size=cfg.get("rail_min_size", 0),
     )
     W = windows(ink, C0, cfg["rad"], mask_fn=blocked_mask(fr, allt))
     C, tpl = fit_glyphs(W, C0, rounds=4)
@@ -566,7 +560,7 @@ def run(key):
     C, tpl = fit_glyphs(W, C, rounds=3, tpl0=tpl)
 
     print("checks:")
-    extras, sag = segment_check(ink, fr, C)
+    _, sag = segment_check(ink, fr, C)
     u, v = to_uv(C[:, 0], C[:, 1])
     Xd, Yd = blend_value(CX["edgec"], u, v), blend_value(CY["edgec"], v, u)
 
@@ -653,36 +647,28 @@ def run(key):
     overlay(ink, to_px, (TL, TR, BR, BL), C, cx, cy, cfg, key)
     return dict(
         cfg=cfg,
-        key=key,
-        fr=fr,
         fc=fc,
-        allt=allt,
         fspec=fspec,
         ink=ink,
         frdiag=frdiag,
-        extras=extras,
         sag=sag,
         varmax={k2: float(np.abs(v2).max()) for k2, v2 in var.items()},
         corners=(TL, TR, BR, BL),
-        maj=maj,
         CX=CX,
         CY=CY,
         cx=cx,
         cy=cy,
         C=C,
-        C0=C0,
         tpl=tpl,
         u=u,
         v=v,
         X=Xd,
         Y=Yd,
         dpx=dpx,
-        var=var,
         sig=sig,
         loc=twotick,
-        H=H,
         # the local map scale per marker, evaluated here because the map itself is a
-        # closure over the chosen frame model and this dict gets pickled
+        # closure over the chosen frame model
         dudp={"x": _pixel_to_unit(to_uv, C, 0), "y": _pixel_to_unit(to_uv, C, 1)},
         forder=cal["forder"],
         frame_scores={fo: t["score"] for fo, t in trials.items()},
@@ -1293,13 +1279,7 @@ def main(argv=None) -> int:
     # run rewrote the provenance line in three files and left those ten untouched.
     keys = [a for a in argv if a in FIGS] or list(FIGS)
     for k in keys:
-        if "--csv-only" in argv:
-            with (OUT / f"{k}_result.pkl").open("rb") as fh:
-                r = pickle.load(fh)
-        else:
-            r = run(k)
-            with (OUT / f"{k}_result.pkl").open("wb") as fh:
-                pickle.dump(r, fh)
+        r = run(k)
         print("\n  x, y, sigma_x, sigma_y")
         for i in range(len(r["X"])):
             print(

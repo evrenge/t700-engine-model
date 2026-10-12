@@ -4,7 +4,8 @@
 C23 and C30 are the two Appendix C functions with more than one curve. **This tool
 extracts C23 and refuses C30**, by design: the method below separates curves by rank in y,
 and C30's curves cross. `digitize_c30.py` tracks those through the crossings instead. Ask
-for c30 here and it says so rather than emitting something plausible.
+for c30 here and it is refused as an unknown figure rather than emitting something
+plausible.
 
 Neither fits the single-curve path in `digitize_single_curve`, for two reasons:
 
@@ -27,7 +28,6 @@ frame calibration and the axis polynomials -- is imported from `digitize_single_
 so these two figures are calibrated exactly as the other thirteen are.
 
     python3 tools/digitize_multi_curve.py c23
-    python3 tools/digitize_multi_curve.py --probe c23
 """
 
 from __future__ import annotations
@@ -37,7 +37,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -71,71 +70,9 @@ FIGS = {
         knots=[1.0, 2.5, 6.5, 10.0, 15.0],
         knot_tol=0.30,
         run_gap=5,
-        open_sz=5,
         legend=dict(x=(0.42, 1.0), y=(0.78, 1.0)),  # top right; v = 0 at the bottom
     ),
-    "c30": dict(
-        page=101,
-        fig="C30",
-        func="F_HM7",
-        title=(
-            "HMU maximum fuel-parameter limit during acceleration"
-            " (Fig. C21, pdf p.93: WFPAC = F_HM7(T2, PCNGHL))"
-        ),
-        xcol="pcnghl_pct",
-        ycol="wfpac",
-        xdesc="PCNGHL sensed gas turbine speed, percent",
-        ydesc="WFPAC fuel flow acceleration limit parameter, nondimensional",
-        csv=Path("data/schedules/fhm7_accel_limit.csv"),
-        x=dict(lo=50.0, hi=110.0, step=10.0, n=5, printed=("lo", "hi")),
-        y=dict(lo=0.0, hi=5.0, step=1.0, n=4, printed=("lo", "hi")),
-        curves=[395.0, 430.0, 460.0, 480.0, 519.0, 555.0, 590.0],
-        param="T2",
-        param_unit="deg R",
-        # NOT EXTRACTED. C30's seven curves CROSS, around PCNGHL 88-92, where curve 4 runs
-        # above 5, 6 and 7. Rank in y is therefore not identity there, and the measurement
-        # says so: only 70 of 410 sampled columns resolve seven separate runs at all, and
-        # the ones that do are outside the bundle. Each curve also drops steeply to WFPAC
-        # = 1 at its own speed, so the knot abscissae differ per curve and a shared `knots`
-        # list cannot describe them.
-        #
-        # What this figure needs is per-curve TRACKING -- following each line through the
-        # crossings by direction rather than by order -- with the printed digits used to
-        # seed and to check the identities. That is a different algorithm from the one
-        # here, not a parameter of it.
-        knots=None,
-        knot_tol=0.40,
-        open_sz=4,
-        legend=dict(x=(0.0, 0.45), y=(0.0, 0.30)),
-    ),
 }
-
-
-def blobs(ink, fr, cfg):
-    """Digit-marker centroids inside the plot, with the legend block excluded."""
-    Y, X = np.mgrid[0 : ink.shape[0], 0 : ink.shape[1]]
-    inside = (
-        (_dist(fr["left"], X, Y) > 6)
-        & (_dist(fr["right"], X, Y) < -6)
-        & (_dist(fr["top"], X, Y, False) > 6)
-        & (_dist(fr["bottom"], X, Y, False) < -6)
-    )
-    op = ndimage.binary_opening(inside & ink, structure=np.ones((cfg["open_sz"],) * 2, bool))
-    lab, n = ndimage.label(op, structure=np.ones((3, 3)))
-    if n == 0:
-        raise AssertionError("no marker candidates")
-    com = np.array(ndimage.center_of_mass(op, lab, range(1, n + 1)))
-    sz = np.array(ndimage.sum(op, lab, range(1, n + 1)))
-    cy, cx = com[:, 0], com[:, 1]
-
-    lo_x, hi_x = _dist(fr["left"], cx, cy), -_dist(fr["right"], cx, cy)
-    u = lo_x / (lo_x + hi_x)
-    lo_y, hi_y = _dist(fr["top"], cx, cy, False), -_dist(fr["bottom"], cx, cy, False)
-    v = 1.0 - lo_y / (lo_y + hi_y)  # v = 0 at the BOTTOM, as everywhere else in the package
-    lg = cfg["legend"]
-    in_legend = (u > lg["x"][0]) & (u < lg["x"][1]) & (v > lg["y"][0]) & (v < lg["y"][1])
-    keep = ~in_legend
-    return cx[keep], cy[keep], sz[keep], u[keep], v[keep]
 
 
 def trace(ink, fr, cfg, ncur, step=4, halfwidth=2):
@@ -155,7 +92,7 @@ def trace(ink, fr, cfg, ncur, step=4, halfwidth=2):
     # tick is an ink run like any other. At C23's x = 10 and x = 15 knots -- both tick
     # columns -- a bottom tick was being counted as the fourth curve, putting TAU45 at 1.02
     # where the figure shows 1.87.
-    pad = cfg.get("frame_pad", 18)
+    pad = 18
     inside = (
         (_dist(fr["left"], X, Y) > pad)
         & (_dist(fr["right"], X, Y) < -pad)
@@ -187,7 +124,6 @@ def trace(ink, fr, cfg, ncur, step=4, halfwidth=2):
 
 def write_csv(cfg, rows, CX, CY, nok, ntot):
     """Three columns -- parameter, x, y -- the same shape `maps.load_speed_map` reads."""
-    ax, ay = cfg["x"], cfg["y"]
     L = [
         f"# source: TM-100991 pdf p.{cfg['page']}, Figure {cfg['fig']}",
         f"# quantity: {cfg['func']} -- {cfg['title']}",
@@ -231,20 +167,13 @@ def write_csv(cfg, rows, CX, CY, nok, ntot):
         L.append(f"{pval:g},{x:.4f},{y:.5f}")
     cfg["csv"].write_text("\n".join(L) + "\n")
     print(f"  wrote {cfg['csv']}  ({len(L)} lines)")
-    assert ax and ay
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("key", choices=sorted(FIGS))
-    ap.add_argument("--probe", action="store_true", help="report candidates and stop")
     a = ap.parse_args(argv)
     cfg = FIGS[a.key]
-    if cfg["knots"] is None and not a.probe:
-        raise SystemExit(
-            f"{cfg['fig']} is not extracted: its curves cross, so rank in y is not "
-            f"identity. See the note in FIGS[{a.key!r}]."
-        )
 
     ink = native_bitmap(cfg["page"])
     fc, _ = fit_edges(ink, auto_frame_spec(cfg["page"]), order=1)
@@ -252,23 +181,6 @@ def main(argv=None):
     print(f"\n================ {cfg['fig']} {cfg['func']} (pdf p.{cfg['page']})")
     maj, allt, corners = majors_all_edges(ink, fc, cfg)
 
-    cx, cy, sz, u, v = blobs(ink, fr, cfg)
-    order = np.argsort(cx)
-    print(f"markers: {cx.size} candidates after excluding the legend block")
-    if a.probe:
-        for i in np.argsort(u):
-            print(
-                f"   u={u[i]:.4f} v={v[i]:.4f} size={sz[i]:5.0f} "
-                f"x_px={cx[i]:7.1f} y_px={cy[i]:7.1f}"
-            )
-        return 0
-    if False:
-        for i in order:
-            print(
-                f"   x_px={cx[i]:8.1f} y_px={cy[i]:8.1f} size={sz[i]:5.0f} "
-                f"u={u[i]:.4f} v={v[i]:.4f}"
-            )
-        return 0
     # ---- calibration, exactly as the single-curve tool does it --------------------
     TL = corner(fr["top"], fr["left"])
     TR = corner(fr["top"], fr["right"])

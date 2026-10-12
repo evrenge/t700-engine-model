@@ -172,7 +172,7 @@ def corner_arc(fc, hor, ver, guess):
     return float(x), float(y)
 
 
-def corners(fc, order=1, guess=None):
+def corners(fc, order=1):
     """The four corners as (TL, TR, BR, BL), by whichever formula the model admits."""
     if order == 1:
         if any(np.atleast_1d(c).size > 2 for c in fc.values()):
@@ -189,9 +189,8 @@ def corners(fc, order=1, guess=None):
     # edges' linear parts. The arcs depart from those lines by a pixel or two, so the seed
     # is already inside the basin and the iteration is only polishing.
     lin = {nm: (float(c[-1]), float(c[-2])) for nm, c in fc.items()}
-    g = guess or {}
     return tuple(
-        corner_arc(fc, h, v, g.get((h, v)) or corner_line(lin[h], lin[v]))
+        corner_arc(fc, h, v, corner_line(lin[h], lin[v]))
         for h, v in (("top", "left"), ("top", "right"), ("bottom", "right"), ("bottom", "left"))
     )
 

@@ -31,9 +31,8 @@ own script. Four things make it different:
    value at both frame lines (0/20 in x, 2/12 in y), so a fit made on the interior ticks
    alone can be asked to predict four numbers it was never told. See `calibrate`.
 
-Run from the repo root; writes data/maps/f1_compressor_mass_flow.csv, its beta-gridded
-derivative, and per-curve CSVs under validation/out (their consumer, `digitize.py verify`,
-no longer exists). Inputs:
+Run from the repo root; writes data/maps/f1_compressor_mass_flow.csv and its beta-gridded
+derivative. Inputs:
 
     pdfimages -f 56 -l 56 -png docs/ballin-tm100991.pdf validation/out/digitize/a1redo/native
     pdftoppm -f 56 -l 56 -r 600 -png docs/ballin-tm100991.pdf validation/out/digitize/a1-600dpi
@@ -86,7 +85,6 @@ if __name__ != "__main__":
         "instead -- `python3 tools/digitize_a1.py` -- from the repository root."
     )
 
-SP = os.environ.get("A1_WORK", "validation/out/digitize")  # intermediate .npy arrays
 NAT = Path("validation/out/digitize/a1redo")
 PAGE_NO = 56
 PAGE = Path("validation/out/digitize/a1r_600-056.png")
@@ -393,8 +391,6 @@ for lbl in LABELS:
         f"curve {lbl:2d}: horizontal fit slope {p[0]:+.5f}  y@1075={np.polyval(p, XV):8.2f} "
         f" x=[{xa},{xb}]  rms {HFIT[lbl][3]:.2f} px  n={len(pts)}"
     )
-np.save(SP + "/crossdots_r.npy", CROSSDOTS)
-np.save(SP + "/frame.npy", np.array(RFRAME))
 
 
 # ---------------------------------------------------------------- 4. glyph seeds
@@ -412,15 +408,10 @@ def density_peaks(lbl, win=33, sep=27, thr=0.30, xcut=None):
     return sorted((p[1] + X0, p[0] + Y0) for p in c)
 
 
-def vstrokes(lbl, L=33, region=None):
-    if region is None:
-        cid, cx, cy = CURVE[lbl]
-        m = np.zeros((Y1 - Y0, X1 - X0), bool)
-        m[cy - Y0, cx - X0] = True
-    else:
-        xa, ya, xb, yb = region
-        m = np.zeros((Y1 - Y0, X1 - X0), bool)
-        m[ya - Y0 : yb - Y0, xa - X0 : xb - X0] = INK[ya:yb, xa:xb]
+def vstrokes(lbl, L=33):
+    cid, cx, cy = CURVE[lbl]
+    m = np.zeros((Y1 - Y0, X1 - X0), bool)
+    m[cy - Y0, cx - X0] = True
     op = ndimage.binary_opening(m, structure=np.ones((L, 1)))
     pl_, pn = ndimage.label(op, structure=np.ones((3, 3)))
     o = []
@@ -472,24 +463,7 @@ SEEDS[1] = [(x, y) for x, y, h in vstrokes(1) if x > 1300]  # six '1' strokes
 h10 = [p for p in holes(10) if p[0] > 3400]  # six '0' bowls
 OFF10 = np.mean([p[0] for p in holes(10) if p[0] < 1200]) - XV
 SEEDS[10] = [(x - OFF10, y) for x, y in h10]
-v11 = [p for p in vstrokes(11, region=(3600, 1560, 4050, 1820)) if p[0] > 3600]
-pairs, cure = [], []
-for x, y, _h in v11:
-    if cure and x - cure[-1][0] < 40:
-        cure.append((x, y))
-    else:
-        if cure:
-            pairs.append(cure)
-        cure = [(x, y)]
-pairs.append(cure)
-SEEDS[11] = [(np.mean([p[0] for p in g]), np.mean([p[1] for p in g])) for g in pairs]
 print(f"\ncurve 10 '0'-bowl offset from the string centre: {OFF10:.1f} px")
-print("curve 11 strokes:", [(round(x), round(y)) for x, y, h in v11])
-for lbl in LABELS:
-    print(
-        f"seeds curve {lbl:2d}: n={len(SEEDS[lbl])} "
-        + " ".join(f"({x:.0f},{y:.0f})" for x, y in SEEDS[lbl])
-    )
 
 
 # ---- curve 11: split the stroke blob where two '1's merged vertically, then pair by y
@@ -524,45 +498,21 @@ grp.append(g)
 SEEDS[11] = [(np.mean([p[0] for p in q]), np.mean([p[1] for p in q])) for q in grp]
 print("\ncurve 11 strokes after split:", [(round(x), round(y)) for x, y in st])
 print("curve 11 glyph centres:", [(round(x, 1), round(y, 1)) for x, y in SEEDS[11]])
+for lbl in LABELS:
+    print(
+        f"seeds curve {lbl:2d}: n={len(SEEDS[lbl])} "
+        + " ".join(f"({x:.0f},{y:.0f})" for x, y in SEEDS[lbl])
+    )
 
 
 # ---------------------------------------------------------------- 5. refine + assemble
-def bbox_centre(x0, y0, gap=4, half=36, ext=18, rows=30):
-    xs0 = int(round(x0)) - half
-    ys0 = int(round(y0)) - rows
-    w = INK[ys0 : ys0 + 2 * rows + 1, xs0 : xs0 + 2 * half + 1]
-    tall = [
-        j
-        for j in range(w.shape[1])
-        if np.flatnonzero(w[:, j]).size
-        and (np.flatnonzero(w[:, j]).max() - np.flatnonzero(w[:, j]).min() + 1) >= ext
-    ]
-    if not tall:
-        return None
-    tall = np.array(tall)
-    k = int(np.argmin(np.abs(tall - half)))
-    lo = hi = k
-    while lo > 0 and tall[lo] - tall[lo - 1] <= gap:
-        lo -= 1
-    while hi < len(tall) - 1 and tall[hi + 1] - tall[hi] <= gap:
-        hi += 1
-    cols = tall[lo : hi + 1]
-    rmin = min(np.flatnonzero(w[:, j]).min() for j in cols)
-    rmax = max(np.flatnonzero(w[:, j]).max() for j in cols)
-    return xs0 + (cols.min() + cols.max()) / 2.0, ys0 + (rmin + rmax) / 2.0
-
-
 # The bounding-box refinement was validated on the eleven left endpoints (isolated glyphs)
 # but does NOT generalise to the sloped runs: where two markers are within a glyph width it
 # merges or clips their column runs and moves them by up to 10 px, wrecking the spacing.
 # Structural seeds are used unrefined.
-REFINE = {lbl: (False, 0) for lbl in range(1, 12)}
 PX = {}
 for lbl in LABELS:
-    ok, gap = REFINE[lbl]
-    pts = []
-    for sx, sy in SEEDS[lbl]:
-        pts.append(bbox_centre(sx, sy, gap=gap) if ok else (sx, sy))
+    pts = list(SEEDS[lbl])
     p, xa, xb, rms = HFIT[lbl]
     left = (XV, float(np.polyval(p, XV)))
     knee = (pts[0][0], float(np.polyval(p, pts[0][0])))  # knee y == the flat level
@@ -743,12 +693,6 @@ for lbl in LABELS:
     for k, (a, b) in enumerate(DATA[lbl]):
         sx, sy = SIG[lbl][k]
         print(f"  {NGC[lbl]:3d} {k:2d}  {a:8.3f} {b:9.4f}   {sx:6.3f} {sy:7.4f}")
-np.save(
-    SP + "/px_r.npy", np.array([[NGC[lbl], k, *PX[lbl][k]] for lbl in LABELS for k in range(7)])
-)
-np.save(
-    SP + "/data_r.npy", np.array([[NGC[lbl], k, *DATA[lbl][k]] for lbl in LABELS for k in range(7)])
-)
 
 
 # ---- verify overlay: the calibration grid drawn back onto the scan, markers ringed
@@ -1384,14 +1328,3 @@ if "--raw-only" not in sys.argv:
                 y = float(np.interp(x, knots, values))
                 w.writerow([NGC[lbl], f"{b:.6f}", f"{x:.4f}", f"{y:.5f}", lbl])
     print(f"wrote {dense_out}  (fit rms {POOLED_RMS:.2f} px, polyline chord {chord:.2e} lbm/sec)")
-
-
-# per-curve two-column CSVs, written for `digitize.py verify`, which no longer exists
-for lbl in LABELS:
-    p = f"validation/out/digitize/a1_curve{lbl:02d}.csv"
-    with open(p, "w", newline="") as fh:
-        fh.write(f"# Figure A1 speed line SYMBOL {lbl} = {NGC[lbl]}% NGC -- for verify only\n")
-        w = csv.writer(fh)
-        w.writerow(["x", "y"])
-        for a, b in DATA[lbl]:
-            w.writerow([f"{a:.3f}", f"{b:.4f}"])

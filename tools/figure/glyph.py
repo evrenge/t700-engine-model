@@ -172,9 +172,7 @@ def fit_glyphs(
     """Coordinate descent: each centre against its own window, then the shared template.
 
     `simplex` is the side of the initial Nelder-Mead simplex in PIXELS, and the centre is
-    optimised as an OFFSET from its current value. `simplex=None` restores SciPy's default
-    simplex on the ABSOLUTE coordinate, which is trap 8 and is never what you want -- it
-    exists so that the two callers that still depend on it can say so explicitly.
+    optimised as an OFFSET from its current value.
 
     `max_move` raises if a centre moves further than that from its seed. `None` disables
     the check, which is trap 9.
@@ -202,31 +200,18 @@ def fit_glyphs(
             if not withline:
                 pin = pout = None
             c0 = C[i].copy()
-            if simplex is None:
-                r = minimize(
-                    lambda c, i=i, pin=pin, pout=pout, tpl=tpl: cost(
-                        W[i], c, tpl, pin, pout, seglen, withline
-                    ),
-                    c0,
-                    method="Nelder-Mead",
-                    options=dict(centre),
-                )
-                C[i] = r.x
-            else:
-                r = minimize(
-                    lambda dc, i=i, pin=pin, pout=pout, c0=c0, tpl=tpl: cost(
-                        W[i], c0 + dc, tpl, pin, pout, seglen, withline
-                    ),
-                    np.zeros(2),
-                    method="Nelder-Mead",
-                    options=dict(
-                        initial_simplex=np.array(
-                            [[0.0, 0.0], [simplex, 0.0], [0.0, simplex]], float
-                        ),
-                        **centre,
-                    ),
-                )
-                C[i] = c0 + r.x
+            r = minimize(
+                lambda dc, i=i, pin=pin, pout=pout, c0=c0, tpl=tpl: cost(
+                    W[i], c0 + dc, tpl, pin, pout, seglen, withline
+                ),
+                np.zeros(2),
+                method="Nelder-Mead",
+                options=dict(
+                    initial_simplex=np.array([[0.0, 0.0], [simplex, 0.0], [0.0, simplex]], float),
+                    **centre,
+                ),
+            )
+            C[i] = c0 + r.x
             # from the seed, not per round: four 10 px rounds used to pass a 40 px walk
             walked = float(np.hypot(*(C[i] - seed[i])))
             if max_move is not None and walked > max_move:

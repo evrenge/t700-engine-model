@@ -299,20 +299,17 @@ def main() -> int:
     sx = np.sqrt(cal_x**2 + (glyph_px * dXdpx) ** 2 + mx**2)
     sy = np.sqrt(cal_y**2 + (glyph_px * dYdpx) ** 2 + my**2)
 
-    py1 = blend_axis(P["left"][0], P["left"][1], P["right"][0], P["right"][1], 1, Y0, Y1)
-    Ylin = (1 - s) * np.polyval(py1[0], v) + s * np.polyval(py1[1], v)
-
     overlay(ink, to_px, C, px, py)
 
     print(
         "\n   k       x          y       1s_x    1s_y   | cal_x  glyph_x model_x |"
-        "  cal_y   glyph_y model_y | y(linear)"
+        "  cal_y   glyph_y model_y"
     )
     for i in range(N):
         print(
             f"  {i + 1:2d} {X[i]:9.5f} {Y[i]:9.6f} {sx[i]:7.5f} {sy[i]:7.6f} | "
             f"{cal_x[i]:6.5f} {glyph_px[i] * dXdpx[i]:7.5f} {mx[i]:7.5f} | "
-            f"{cal_y[i]:7.6f} {glyph_px[i] * dYdpx[i]:7.6f} {my[i]:7.6f} | {Ylin[i]:9.6f}"
+            f"{cal_y[i]:7.6f} {glyph_px[i] * dYdpx[i]:7.6f} {my[i]:7.6f}"
         )
     # The CSV is maintained by hand; these values are not. See `check_against_csv`.
     rows = check_against_csv(

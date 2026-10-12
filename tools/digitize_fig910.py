@@ -146,12 +146,6 @@ class Panel:
     The panel's width is per-panel too, for the same reason: 1658.9 px on Figure 9's WFPH
     against the shared 1671, a 0.75 percent stretch worth 37 ms over the 5 s record."""
 
-    def left_at(self, y: float) -> float:
-        return self.left_at_top + self.left_slope * (y - self.top)
-
-    def right_at(self, y: float) -> float:
-        return self.right_at_top + self.right_slope * (y - self.top)
-
     def top_at(self, x: float) -> float:
         """Row of the upper frame at column `x`."""
         return self.top + self.top_slope * (x - self.left)

@@ -239,7 +239,6 @@ against each tool's own output paths rather than from memory.
 | `rectify_page.py` | — | squares up a page for A1's component labelling. **Resamples**, which nothing else does |
 | `check_straightness.py` | — | audit: is each printed curve straight between its markers, measured in data space |
 | `compare_models.py` | — | audit: what the frame model and the anchoring rule cost, figure by figure |
-| `minor_lattice.py` | — | audit: what minor lattice each edge resolves, and how cleanly |
 | `sensitivity_sweep.py` | — | audit: what each map's read error is worth, pushed through the model |
 
 `f2`, `f7` and `f9` are the three whose CSVs are hand-maintained rather than generated —

@@ -18,7 +18,6 @@ cannot quietly disagree with the ledger about what is still open.
 
 from __future__ import annotations
 
-import base64
 import json
 import re
 import sys
@@ -65,10 +64,6 @@ def ledger_rows() -> list[tuple[int, str]]:
                     out.append((int(cells[1].strip()), verdict))
                 break
     return sorted(out)
-
-
-def img(name: str) -> str:
-    return base64.b64encode((ASSETS / name).read_bytes()).decode()
 
 
 def num(v: float, d: int = 3) -> str:
