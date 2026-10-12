@@ -33,24 +33,11 @@ _SPLIT = re.compile(r"(?<!\\)\|")
 
 # Curated one-line summaries. The row number and verdict are verified against the ledger.
 OPEN_SUMMARY = {
-    31: (
-        "Heat-sink time constants &tau;&#8321; and &tau;&#8322;",
-        "Not printed anywhere and trim-dependent by definition. Appendix&nbsp;B&rsquo;s "
-        "3- and 6-DOF blocks agree on them, and through Eqs.&nbsp;51&ndash;53 they need "
-        "TC<sub>T41</sub>&nbsp;=&nbsp;0.32 where the report prints 0.29. We replicate the "
-        "printed value; the inconsistency is the report&rsquo;s.",
-    ),
     43: (
         "Interpolation scheme for the function tables",
         "The body calls them &ldquo;function table lookups&rdquo; and never says linear or "
         "spline, which changes every value between knots. Implemented as linear by "
         "decision. The mechanism is established; there is no cure in the source.",
-    ),
-    47: (
-        "Transient speed and the T4.1 spike",
-        "Was the largest open defect in the project. The causal chain is now closed and the "
-        "residual sits at the reference figures&rsquo; own read error &mdash; the last "
-        "number quoted against it turned out to be a comparison-window artefact of ours.",
     ),
     59: (
         "Integrator anti-windup",
