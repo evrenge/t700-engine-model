@@ -53,11 +53,11 @@ printed page and scores a 10.2 px maximum against a true sagitta of 0.61 px.
 
 ## Coverage
 
-Runs on every figure whose CSV header publishes its frame model and axis maps, which is 15
-of the 19. The other four -- f1's raw table, f2, f9, F_EC1 and F_HM7 -- carry their own
-stronger checks and say so in their headers (f2's 20 abscissae land on the integer lattice
-to 0.0155 without the fit being told to expect integers; F_HM7 requires every segment
-between consecutive knots to lie on ink, mean coverage 0.9800).
+Runs on every figure whose CSV header publishes its frame model and axis maps. The rest --
+f1's raw table and the beta grid derived from it, F_EC1 and F_HM7 -- carry their own
+stronger checks and say so in their headers (F_HM7 requires every segment between
+consecutive knots to lie on ink, mean coverage 0.9800). f2 and f9 joined on 2026-10-12, when
+their hand-maintained headers began publishing the calibration their tools check.
 
 This module lives in tools/ and may use SciPy and PIL. Nothing here is imported by
 src/t700/.
@@ -91,10 +91,6 @@ SKIP_STEMS = {
     "f1_compressor_mass_flow": "raw seven-point table; the beta map is what the model "
     "loads, and tools/digitize_a1.py reports its own fit residual per speed line",
     "f1_compressor_mass_flow_beta": "derived from the raw table, not traced from a figure",
-    "f2_compressor_temperature": "header does not publish the frame arcs; validated by the "
-    "free integer-lattice check, 0.0155 max over 20 abscissae",
-    "f9_pt_mass_flow": "header does not publish the frame arcs; validated by the tool's "
-    "own verification overlay",
     "fec1_thermocouple_tau": "traced multi-curve; validated by the gap-threshold sweep, "
     "<=0.05 in y",
     "fhm7_accel_limit": "vertices, not a trace; validated by segment ink coverage, mean "

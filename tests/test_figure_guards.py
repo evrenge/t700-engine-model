@@ -49,6 +49,34 @@ def test_edge_str_refuses_an_intercept_slope_pair():
         provenance.edge_str("left", (466.717, 0.000854), "x", "y")
 
 
+def test_a_hand_maintained_header_is_held_to_its_tools_calibration(tmp_path):
+    """f2 and f9 publish the calibration their tools check (2026-10-12). The check passes on
+    the tool's own lines and fails on a changed coefficient, or on a stale line that the
+    parser would read before the right one."""
+    fc = {
+        "left": np.array([8.9e-07, -0.00094, 590.344]),
+        "right": np.array([1.1e-06, -0.0024, 2256.353]),
+        "top": np.array([1.5e-06, -0.0014, 292.242]),
+        "bottom": np.array([-8.1e-07, 0.0083, 2625.895]),
+    }
+    px = (np.array([-0.24, 0.27, 19.96, 0.015]), np.array([-0.29, 0.39, 19.89, 0.0034]))
+    py = (np.array([-0.055, 0.075, 1.88, 1.0998]), np.array([-0.066, 0.098, 1.87, 1.0995]))
+    lines = provenance.calibration_lines(fc, px, py)
+
+    def csv(block):
+        path = tmp_path / "f.csv"
+        body = "".join(f"#   {ln}\n" for ln in block)
+        path.write_text(f"# source: TM-100991 pdf p.57\n{body}x,y\n1,2\n")
+        return path
+
+    assert provenance.check_calibration(csv(lines), lines) == 0
+    changed = [ln.replace("+19.96 s", "+19.97 s") for ln in lines]
+    assert changed != lines
+    assert provenance.check_calibration(csv(changed), lines) == 1
+    stale = [lines[0].replace("590.344", "591.000"), *lines]
+    assert provenance.check_calibration(csv(stale), lines) == 1
+
+
 @pytest.mark.parametrize("ax", [{"majors": [10.0, 8.0, 6.0]}, {"step": -2.0}])
 def test_a_descending_lattice_is_refused(ax):
     with pytest.raises(AssertionError, match="ascending"):

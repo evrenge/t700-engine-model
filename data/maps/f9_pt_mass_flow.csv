@@ -26,6 +26,18 @@
 #   is several pixels out mid-page, which silently discards a contiguous block of 29 good minor ticks.
 #   Each edge is fitted ALONE as a CUBIC in its own normalized coordinate and opposite edges are
 #   blended across the plot.
+# calibration-maps: the frame arcs and the two blended axis maps above, as numbers. s runs 0
+#   at the left frame to 1 at the right and v 0 at the bottom to 1 at the top; x blends its
+#   bottom and top maps across v, y its left and right maps across s. tools/check_straightness.py
+#   reads these back, and tools/digitize_a9.py checks them against its own fit on every run.
+#   left   x = 470.361 -0.00195288434 y +3.85822101e-07 y^2
+#   right  x = 2132.349 -0.00435817357 y +6.70929406e-07 y^2
+#   top    y = 310.249 +0.00304845443 x +1.1229503e-06 x^2
+#   bottom y = 2638.821 +0.0121388233 x -6.75174515e-07 x^2
+#   bottom x = -0.0072555399 s^3 +0.010023769 s^2 +0.54658966 s +0.3005662
+#   top    x = -0.011214933 s^3 +0.017860447 s^2 +0.54281546 s +0.30050145
+#   left   y = -0.0071017303 v^3 +0.010458339 v^2 +0.13636537 v +0.25016984
+#   right  y = -0.0061079456 v^3 +0.0090274534 v^2 +0.13686375 v +0.2500816
 # calibration-model-choice: HELD-OUT TEST. y prints a value at BOTH frame edges (0.25, 0.39) and x at
 #   the right edge only (0.85); each axis was fitted on interior ticks alone and asked to predict the
 #   printed edge it was never given.

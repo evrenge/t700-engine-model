@@ -7,9 +7,11 @@ maps back out of it and re-derives the figure's coordinates from them, so the he
 **machine interface**, and it was being written by four different pieces of hand-rolled
 f-string formatting and parsed by one set of regexes that had to cope with all of them.
 
-It showed. Two of the eleven engine maps -- `f2` and `f9` -- are excluded from the
-straightness audit for no reason except that their hand-written headers omit the frame
-polynomials, while `f7`, written by hand in the same family on the same day, includes them.
+It showed. Two of the eleven engine maps -- `f2` and `f9` -- were excluded from the
+straightness audit for no reason except that their hand-written headers omitted the frame
+polynomials, while `f7`, written by hand in the same family on the same day, included them.
+Since 2026-10-12 they publish them: `calibration_lines` writes the text and the two tools
+run `check_calibration` on it.
 And the parser carries a scar: an earlier, sloppier test for the axis variable matched the
 trailing `s` of the word "samples" in a parenthetical comment, which made every frame line
 look like an axis map.
@@ -82,6 +84,28 @@ def edge_str(name, coeffs, var, along):
     return f"{name:6s} {var} = " + " ".join(terms)
 
 
+def calibration_lines(fc, px, py, xvar="s", yvar="v"):
+    """A figure's frame edges and its two blended axis maps, as the header lines
+    `parse_calibration` reads back.
+
+    `px` and `py` are `(low-side edge, high-side edge)` polynomial pairs -- bottom then top
+    for x, left then right for y -- and that order is printed, because the blend reads the
+    first as the side where the cross coordinate is 0.
+    """
+    lines = [
+        edge_str(nm, fc[nm], *(("x", "y") if nm in ("left", "right") else ("y", "x")))
+        for nm in ("left", "right", "top", "bottom")
+    ]
+    for axis, var, sides, polys in (
+        ("x", xvar, ("bottom", "top"), px),
+        ("y", yvar, ("left", "right"), py),
+    ):
+        lines += [
+            f"{nm:6s} {axis} = {poly_str(c, var)}" for nm, c in zip(sides, polys, strict=True)
+        ]
+    return lines
+
+
 # --------------------------------------------------------------------------- reading
 
 
@@ -132,7 +156,10 @@ def parse_calibration(path):
     calibration. `axes[a]` is `("blend", [poly_lo, poly_hi])` where the two ticked edges
     were fitted separately, or `("pooled", [poly])` where one map covers the plot.
     """
-    txt = header(path)
+    return _calibration_of(header(path))
+
+
+def _calibration_of(txt: str):
     frame = {}
     for name in ("left", "right", "top", "bottom"):
         # the axis maps share this prefix (`left x = ... u`); take the line in the frame's
@@ -227,4 +254,36 @@ def check_against_csv(csv_path, columns, label=""):
         )
         return 1
     print(f"ok  {label}: all {len(rows)} rows of {path} match the extraction")
+    return 0
+
+
+def check_calibration(csv_path, lines, label=""):
+    """The calibration a **hand-maintained** header publishes, against the tool's own.
+
+    `lines` is `calibration_lines(...)` for what the tool computed today. What is compared
+    is what `parse_calibration` reads out of the header -- the thing `check_straightness`
+    uses -- so a stale line, a missing one, or a second line for the same edge that the
+    parser would take first all fail. 0 if identical, 1 if not.
+    """
+    got = parse_calibration(csv_path)
+    want = _calibration_of("".join(f"#   {ln}\n" for ln in lines) + "# pdf p.0\n")
+    same = (
+        got is not None
+        and all(np.array_equal(got[0][nm], want[0][nm]) for nm in want[0])
+        and all(
+            got[1][a][0] == want[1][a][0]
+            and len(got[1][a][1]) == len(want[1][a][1])
+            and all(np.array_equal(p, q) for p, q in zip(got[1][a][1], want[1][a][1], strict=True))
+            for a in ("x", "y")
+        )
+    )
+    if not same:
+        print(
+            f"FAIL {label}: the calibration {csv_path}'s header publishes is not the one the "
+            f"tool computes today. The header is maintained by hand; the tool's lines are:"
+        )
+        for ln in lines:
+            print(f"#   {ln}")
+        return 1
+    print(f"ok  {label}: the header publishes the tool's frame arcs and axis maps")
     return 0

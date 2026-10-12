@@ -23,6 +23,18 @@
 #   the left edge and 20 on the right. Each edge is fitted ALONE as a CUBIC in its own normalized
 #   coordinate and the two opposite edges are blended across the plot -- pooling them would average
 #   away a real difference (top and bottom x lattices disagree by 0.026 at the left frame).
+# calibration-maps: the frame arcs and the two blended axis maps above, as numbers. s runs 0
+#   at the left frame to 1 at the right and v 0 at the bottom to 1 at the top; x blends its
+#   bottom and top maps across v, y its left and right maps across s. tools/check_straightness.py
+#   reads these back, and tools/digitize_a2.py checks them against its own fit on every run.
+#   left   x = 590.344 -0.000936947544 y +8.86650635e-07 y^2
+#   right  x = 2256.353 -0.00244309842 y +1.08482665e-06 y^2
+#   top    y = 292.242 -0.00141887045 x +1.51151527e-06 x^2
+#   bottom y = 2625.895 +0.00830141925 x -8.07433468e-07 x^2
+#   bottom x = -0.23987941 s^3 +0.26775819 s^2 +19.957792 s +0.014949802
+#   top    x = -0.28690505 s^3 +0.39282179 s^2 +19.886841 s +0.0034261965
+#   left   y = -0.055307589 v^3 +0.074831582 v^2 +1.8793817 v +1.0997674
+#   right  y = -0.066256002 v^3 +0.09757887 v^2 +1.867552 v +1.0995154
 # calibration-model-choice: HELD-OUT TEST. A2 prints a value at all four frame edges, so each axis
 #   fit was made on the interior ticks alone and asked to predict the printed edge value it was never
 #   given. y, left edge: linear -> 1.09809 / 3.00303 against printed 1.1 / 3.0 (miss 0.0019/0.0030);

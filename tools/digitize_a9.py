@@ -36,7 +36,7 @@ from PIL import Image, ImageDraw
 from figure.axis import axis_values, blend_axis, held_out, poly_se, tail_cv_report
 from figure.frame import corner_arc, curve_component, edge_at, fit_edges, make_sv, segment_lines
 from figure.glyph import CENTRE_NATIVE, TEMPLATE_NATIVE, fit_glyphs, hide_segments, windows
-from figure.provenance import check_against_csv
+from figure.provenance import calibration_lines, check_against_csv, check_calibration
 from figure.raster import native_bitmap
 from figure.ticks import find_ticks, label_by_map, label_ticks
 
@@ -315,7 +315,7 @@ def main() -> int:
             f"{cal_y[i]:7.6f} {glyph_px[i] * dYdpx[i]:7.6f} {my[i]:7.6f} | {Ylin[i]:9.6f}"
         )
     # The CSV is maintained by hand; these values are not. See `check_against_csv`.
-    return check_against_csv(
+    rows = check_against_csv(
         CSV,
         {
             "x": (X, "%.5f"),
@@ -325,6 +325,9 @@ def main() -> int:
         },
         label="f9 (Figure A9)",
     )
+    # Nor is the calibration its header publishes, which `check_straightness` reads back.
+    cal = check_calibration(CSV, calibration_lines(fc, px, py), label="f9 (Figure A9)")
+    return max(rows, cal)
 
 
 if __name__ == "__main__":
