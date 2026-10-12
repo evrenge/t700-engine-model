@@ -7,6 +7,8 @@ paired against each other's rows. Both were caught by re-deriving rather than re
 
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 import pytest
 
@@ -14,18 +16,21 @@ from t700 import trim
 from t700.engine import Ambient
 from t700.linear import DOF, STATES, extract
 from t700.units import wf_pps_from_pph
+from test_appendix_b import TABLE_1_5DOF
 
 AMB = Ambient(14.696, 518.67)
 NP_RPM = 20895.0
 
-# Table B.1 [pdf p.67] fuel flows; Table 1 [pdf p.31] eigenvalues by mode.
+# Table B.1 [pdf p.67] fuel flows; Table 1 [pdf p.31] eigenvalues by mode, transcribed once
+# in `test_appendix_b.py`.
 TRIMS = {
-    "hover": (476.3, dict(NG=-2.66, NP=-0.565, P3=-51.6, P41=-4900.0, P45=-3060.0)),
-    "level": (349.3, dict(NG=-2.08, NP=-0.446, P3=-52.2, P41=-4640.0, P45=-4040.0)),
-    "descent": (267.7, dict(NG=-1.75, NP=-0.357, P3=-52.6, P41=-4430.0, P45=-4530.0)),
+    "hover": (476.3, TABLE_1_5DOF[1]),
+    "level": (349.3, TABLE_1_5DOF[2]),
+    "descent": (267.7, TABLE_1_5DOF[3]),
 }
 
 
+@functools.cache
 def _model(name: str, dof: DOF = DOF.FIVE, rel_step: float = 1e-5):
     wf = wf_pps_from_pph(TRIMS[name][0])
     r = trim.solve(wf, NP_RPM, AMB)

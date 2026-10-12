@@ -18,12 +18,11 @@ from t700 import appendix_b as ab
 
 # Table 1 [pdf p.31], by trim and mode. Blank cells are blank in the original.
 TABLE_1_5DOF = {
-    1: [-4900.0, -3060.0, -51.6, -2.66, -0.565],
-    2: [-4640.0, -4040.0, -52.2, -2.08, -0.446],
-    3: [-4530.0, -4430.0, -52.6, -1.75, -0.357],
+    1: dict(NG=-2.66, NP=-0.565, P3=-51.6, P41=-4900.0, P45=-3060.0),
+    2: dict(NG=-2.08, NP=-0.446, P3=-52.2, P41=-4640.0, P45=-4040.0),
+    3: dict(NG=-1.75, NP=-0.357, P3=-52.6, P41=-4430.0, P45=-4530.0),
 }
 TABLE_1_2DOF = {1: [-2.69, -0.565], 2: [-2.23, -0.446], 3: [-1.82, -0.357]}
-TABLE_1_NP = {1: -0.565, 2: -0.446, 3: -0.357}
 
 
 def test_all_twelve_load():
@@ -47,7 +46,7 @@ def test_five_dof_eigenvalues_reproduce_table_1(trim: int):
     is why the bound is 4e-3 and not 2e-3.
     """
     ev = np.sort(np.linalg.eigvals(ab.find(5, trim).A).real)
-    want = np.array(sorted(TABLE_1_5DOF[trim]))
+    want = np.array(sorted(TABLE_1_5DOF[trim].values()))
     for got, exp in zip(ev, want, strict=True):
         assert abs(got - exp) / abs(exp) < 4e-3, (
             f"trim {trim}: {got:.5f} against Table 1's {exp:.4g}"
@@ -92,7 +91,8 @@ def test_the_np_eigenvalue_is_identical_across_all_four_variants(trim: int):
     vals = [ab.find(dof, trim).A[1, 1] for dof in (2, 3, 5, 6)]
     assert len(set(vals)) == 1, f"trim {trim}: A(2,2) differs across variants: {vals}"
     # Appendix B prints 4 figures (-0.3567), Table 1 prints 3 (-0.357).
-    assert abs(vals[0] - TABLE_1_NP[trim]) / abs(TABLE_1_NP[trim]) < 3e-3
+    np_mode = TABLE_1_5DOF[trim]["NP"]
+    assert abs(vals[0] - np_mode) / abs(np_mode) < 3e-3
 
 
 @pytest.mark.parametrize("fig", [7, 8, 9, 10, 11, 12])

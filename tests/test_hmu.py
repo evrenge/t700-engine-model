@@ -11,6 +11,8 @@ number, and a wrong picture does not announce itself. That is what these are for
 
 from __future__ import annotations
 
+import functools
+
 import pytest
 
 from t700 import constants as engine_c
@@ -177,6 +179,7 @@ def _idle_hold(ng_pct, n=200, **over):
     return o
 
 
+@functools.cache
 def _idle_edge(kind, **over):
     """Bisect for the NG at which the cascade's selection changes to or from `idle`."""
     lo, hi = (30.0, 50.0) if kind == "low" else (50.0, 70.0)

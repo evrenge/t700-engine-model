@@ -35,12 +35,22 @@ AMB = Ambient(14.696, 518.67)
 TRIMS_PPH = (300.0, 400.0, 500.0, 600.0)
 
 
-def _seed(wf_pph: float):
+def _run(wf_pph: float, fuel_of_t, duration_s: float, heat_sink: bool):
+    """Run from the trim at `wf_pph` with NP held; `fuel_of_t(t, wf)` is the fuel flow,
+    given the trim's own `wf` in lbm/sec."""
     wf = wf_pps_from_pph(wf_pph)
     r = trim.solve(wf, c.NP_DES, AMB)
     assert r.trustworthy, f"trim at {wf_pph} lbm/hr is not on data; fix the fixture"
-    f = r.frame
-    return wf, r, f
+    return realtime.run(
+        realtime.from_trim(r),
+        lambda t: fuel_of_t(t, wf),
+        AMB,
+        duration_s=duration_s,
+        dt=0.007,
+        q_req_ftlbf=r.frame.q_pt_ftlbf,
+        integrate_np=False,
+        heat_sink=heat_sink,
+    )
 
 
 # --------------------------------------------------------------- the transfer function
@@ -95,21 +105,7 @@ def test_heat_sink_is_inert_at_steady_state(wf_pph: float):
     Measured, not asserted from theory: this is what proves no trim comparison in this
     repository can be improved -- or broken -- by flipping the switch.
     """
-    wf, r, f = _seed(wf_pph)
-    out = {}
-    for hs in (False, True):
-        st = realtime.from_trim(r)
-        tr = realtime.run(
-            st,
-            lambda _t: wf,
-            AMB,
-            duration_s=8.0,
-            dt=0.007,
-            q_req_ftlbf=f.q_pt_ftlbf,
-            integrate_np=False,
-            heat_sink=hs,
-        )
-        out[hs] = tr
+    out = {hs: _run(wf_pph, lambda _t, wf: wf, 8.0, hs) for hs in (False, True)}
     for key in ("t41", "ng", "p3", "p41", "p45", "t45"):
         a, b = out[False][key][-1], out[True][key][-1]
         assert b == pytest.approx(a, rel=1e-9), f"{key} differs at steady state: {a} vs {b}"
@@ -118,35 +114,13 @@ def test_heat_sink_is_inert_at_steady_state(wf_pph: float):
 @pytest.mark.parametrize("wf_pph", TRIMS_PPH)
 def test_switch_off_reproduces_t41_ns_exactly(wf_pph: float):
     """With the switch off, T41 is T41_ns identically [Eq. 23, pdf p.23]."""
-    wf, r, f = _seed(wf_pph)
-    st = realtime.from_trim(r)
-    tr = realtime.run(
-        st,
-        lambda t: wf if t < 0.5 else wf * 1.3,
-        AMB,
-        duration_s=2.0,
-        dt=0.007,
-        q_req_ftlbf=f.q_pt_ftlbf,
-        integrate_np=False,
-        heat_sink=False,
-    )
+    tr = _run(wf_pph, lambda t, wf: wf if t < 0.5 else wf * 1.3, 2.0, False)
     assert np.array_equal(tr["t41"], tr["t41_ns"])
 
 
 def test_switch_on_separates_t41_from_t41_ns_only_in_transient():
     """On, T41 departs from T41_ns during the step and rejoins it after."""
-    wf, r, f = _seed(400.0)
-    st = realtime.from_trim(r)
-    tr = realtime.run(
-        st,
-        lambda t: wf if t < 0.5 else wf * 1.4,
-        AMB,
-        duration_s=12.0,
-        dt=0.007,
-        q_req_ftlbf=f.q_pt_ftlbf,
-        integrate_np=False,
-        heat_sink=True,
-    )
+    tr = _run(400.0, lambda t, wf: wf if t < 0.5 else wf * 1.4, 12.0, True)
     gap = tr["t41"] - tr["t41_ns"]
     during = np.abs(gap[(tr["t"] > 0.5) & (tr["t"] < 1.5)]).max()
     after = abs(gap[-1])

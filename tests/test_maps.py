@@ -7,7 +7,6 @@ which is the only place they can be checked.
 
 from __future__ import annotations
 
-import csv
 import re
 
 import numpy as np
@@ -110,13 +109,9 @@ def test_f6_is_loaded_as_the_constant_figure_a6_draws():
     # the CSV still carries the ink as measured: the conditioning is what makes it
     # constant, so the chain back to the page is unbroken and the reproducibility gate
     # still has something to reproduce.
-    raw = [
-        ln.split(",")
-        for ln in (DATA_ROOT / "maps" / "f6_combustor_efficiency.csv").read_text().splitlines()
-        if ln and not ln.startswith("#") and not ln.startswith("x,")
-    ]
-    ys = [float(r[1]) for r in raw]
-    sy = [float(r[3]) for r in raw]
+    cols, _, _ = maps._read_csv(DATA_ROOT / "maps" / "f6_combustor_efficiency.csv")
+    ys = cols["y"].tolist()
+    sy = cols["sigma_y"].tolist()
     assert len(set(ys)) == 2, f"the f6 CSV should still hold the two measured points: {ys}"
     # the value is the mean of the two measured endpoints, not either one of them
     assert c.y[0] == pytest.approx(0.5 * (ys[0] + ys[1]), abs=1e-12), c.y[0]
@@ -243,16 +238,14 @@ def _read_error(name: str) -> float | None:
     for sub in ("maps", "schedules"):
         for stem in stems:
             for path in (DATA_ROOT / sub).glob(f"{stem}_*.csv"):
-                rows = [
-                    r for r in csv.DictReader(ln for ln in open(path) if not ln.startswith("#"))
-                ]
-                col = [c for c in rows[0] if c in ("sigma_y", "sy")]
+                cols, header, _ = maps._read_csv(path)
+                col = [c for c in cols if c in ("sigma_y", "sy")]
                 if col:
-                    return float(np.mean([float(r[col[0]]) for r in rows]))
+                    return float(np.mean(cols[col[0]]))
                 # `f1` quotes its read error as a table in the header rather than as
                 # columns, because it varies by marker index and speed line rather than by
                 # point. Take the largest, which is the class the conditioning acts on.
-                head = "".join(ln for ln in open(path) if ln.startswith("#"))
+                head = "\n".join(header)
                 quoted = re.findall(r"^#\s+k=\S[^\n]*?(\d+\.\d+)\s*$", head, re.M)
                 if quoted:
                     return max(float(q) for q in quoted)
@@ -305,13 +298,8 @@ def test_conditioning_leaves_the_csv_alone():
     Conditioning happens at load. If someone ever 'fixes' the data files instead, the
     chain back to the printed figure is lost and this test fails.
     """
-    import csv as _csv
-    from pathlib import Path
-
-    path = Path(maps.DATA_DIR) / "f3_seal_bleed_fraction.csv"
-    with path.open() as fh:
-        rows = list(_csv.DictReader(ln for ln in fh if not ln.startswith("#")))
-    raw = [float(r["y"]) for r in rows]
+    cols, _, _ = maps._read_csv(maps.DATA_DIR / "f3_seal_bleed_fraction.csv")
+    raw = cols["y"].tolist()
     assert min(raw) < 0.0, (
         "the CSV should still carry the raw digitized value, including its negative "
         "excursion -- conditioning belongs at load, not in data/"

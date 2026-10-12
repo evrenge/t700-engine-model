@@ -11,6 +11,8 @@ maximum error selector (which path is governing), and the nonlinear NP loop gain
 
 from __future__ import annotations
 
+import functools
+
 import pytest
 
 from t700 import constants as engine_c
@@ -109,6 +111,7 @@ every input is a literal. So the only things that can move this number are Appen
 own constants and `F_EC1`, which is what lets the band be this tight."""
 
 
+@functools.cache
 def _overtemp(t45_hot=OVERTEMP_DEGR, n=1500, at=300):
     """Hold the hover trim's sensed state, then step T4.5 into the limiter."""
     base = dict(

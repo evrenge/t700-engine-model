@@ -186,18 +186,7 @@ def bare_calls(path: Path) -> set[str]:
 
 def top_level_imports(path: Path) -> set[str]:
     """Every top-level package name imported by one module."""
-    tree = ast.parse(path.read_text(), filename=str(path))
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                names.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.level:  # relative import, stays inside the package
-                continue
-            if node.module:
-                names.add(node.module.split(".")[0])
-    return names
+    return {n.split(".")[0] for n in dotted_imports(path)}
 
 
 def test_core_has_files():
@@ -290,10 +279,10 @@ def test_each_detector_fires_on_source_that_should_trip_it(tmp_path, source, kin
 def test_every_banned_entry_is_owned_by_a_detector_that_can_see_it():
     """The sibling check for the other three sets, and it was missing.
 
-    `test_no_banned_name_is_unreachable_by_construction` parametrized over all four sets
-    and asserted nothing for three of them -- 8 of its 15 cases ran an empty body,
-    including the `FORBIDDEN_ATTRIBUTES` half its own docstring claimed to check. Found by
-    the 2026-09-13 code-quality audit.
+    It replaced `test_no_banned_name_is_unreachable_by_construction`, which parametrized
+    over all four sets and asserted nothing for three of them -- 8 of its 15 cases ran an
+    empty body, including the `FORBIDDEN_ATTRIBUTES` half its own docstring claimed to
+    check. Found by the 2026-09-13 code-quality audit.
     """
     for a, b in FORBIDDEN_ATTRIBUTES:
         assert "." not in a and "." not in b, (
@@ -308,6 +297,16 @@ def test_every_banned_entry_is_owned_by_a_detector_that_can_see_it():
         )
     for name in FORBIDDEN_MODULES:
         assert name and not name.startswith("."), f"bad FORBIDDEN_MODULES entry {name!r}"
+
+
+def _declares_or_evaluates_gas_properties(path: Path) -> bool:
+    """`constants.py` declares the fit values and `thermo/` is the door; both are exempt."""
+    rel = path.relative_to(SRC)
+    # `rel.name == "constants.py"` was the test until 2026-09-13, which also exempted
+    # `control/constants.py` -- a file in a different appendix that has no business
+    # naming a gas-property fit. The exemption is for the one file that declares the
+    # values, so it names that one file.
+    return rel.parts[0] == "thermo" or rel == Path("constants.py")
 
 
 GAS_PROPERTY_CONSTANTS = (
@@ -341,12 +340,7 @@ def test_gas_properties_only_inside_thermo(path: Path):
     `constants.py` is exempt: it is where the values are declared. `thermo/` is exempt:
     it is the door.
     """
-    rel = path.relative_to(SRC)
-    # `rel.name == "constants.py"` was the test until 2026-09-13, which also exempted
-    # `control/constants.py` -- a file in a different appendix that has no business
-    # naming a gas-property fit. The exemption is for the one file that declares the
-    # values, so it names that one file.
-    if rel.parts[0] == "thermo" or rel == Path("constants.py"):
+    if _declares_or_evaluates_gas_properties(path):
         return
 
     source = path.read_text()
@@ -388,8 +382,7 @@ def test_gas_property_constants_are_not_inlined_as_literals(path: Path):
     is a second layer, not a proof. Both layers together are still weaker than the reading
     CLAUDE.md asks for, which is why the gas-property rule stays worth challenging on sight.
     """
-    rel = path.relative_to(SRC)
-    if rel.parts[0] == "thermo" or rel == Path("constants.py"):
+    if _declares_or_evaluates_gas_properties(path):
         return
 
     values = _gas_property_values()

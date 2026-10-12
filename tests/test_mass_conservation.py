@@ -33,6 +33,8 @@ leaves; the station 2.4 bleed leaves entirely.
 
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 import pytest
 
@@ -53,13 +55,29 @@ CLOSURE_TOL = 1e-9
 the only thing between them and zero is floating point; the measured worst is ~7e-13."""
 
 
-def _streams(wf_pph: float, real_time: bool = False) -> dict[str, float]:
+@functools.cache
+def _trimmed(wf_pph: float):
+    """`(wf, trim, frame)` at the last trustworthy rung of a continuation sweep up to
+    `wf_pph`, the frame loaded at the trim's own torque. Cached: no caller mutates it."""
     wf = wf_pps_from_pph(wf_pph)
     sweep = trim.sweep(list(range(130, int(wf_pph) + 1, 5)) + [wf_pph])
     trims = [r for r in sweep if r.trustworthy]
     assert trims, f"no trustworthy trim at {wf_pph} lbm/hr"
     r = trims[-1]
-    f = frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
+    return wf, r, frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
+
+
+def _balances(f, wf: float) -> tuple[float, float, float]:
+    """The net mass flow into each volume, Eqs. 42-44, lbm/s: zero at equilibrium."""
+    return (
+        f.wa3_pps - f.wa2_pps * (f.b3 + c.K_B3) - f.wa31_pps,  # (42)
+        f.wa31_pps + wf - f.w41_pps,  # (43)
+        f.w41_pps - f.w45_pps + f.b3 * c.K_BL * f.wa2_pps,  # (44)
+    )
+
+
+def _streams(wf_pph: float, real_time: bool = False) -> dict[str, float]:
+    wf, r, f = _trimmed(wf_pph)
 
     if real_time:
         st = realtime.from_trim(r)
@@ -76,11 +94,12 @@ def _streams(wf_pph: float, real_time: bool = False) -> dict[str, float]:
         f = frame(s, wf, AMB, q_req_ftlbf=f.q_pt_ftlbf, t41_degR=tr["t41"][-1])
 
     lost = f.wa2_pps * (f.b1 + f.b2 + c.K_B3 + f.b3 * (1.0 - c.K_BL))
+    eq42, eq43, eq44 = _balances(f, wf)
     return {
         "wa2": f.wa2_pps,
-        "eq42": f.wa3_pps - f.wa2_pps * (f.b3 + c.K_B3) - f.wa31_pps,
-        "eq43": f.wa31_pps + wf - f.w41_pps,
-        "eq44": f.w41_pps - f.w45_pps + f.b3 * c.K_BL * f.wa2_pps,
+        "eq42": eq42,
+        "eq43": eq43,
+        "eq44": eq44,
         "global": (f.wa2_pps + wf) - f.w45_pps - lost,
         "lost_frac": lost / f.wa2_pps,
         "ngc_pct": f.ngc_pct,
@@ -188,11 +207,8 @@ def test_the_balances_open_during_a_transient_and_close_again():
         wf = wf0 if t[i] < 0.5 else wf_pps_from_pph(600.0)
         s = State(tr["ng"][i], tr["np"][i], tr["p3"][i], tr["p41"][i], tr["p45"][i])
         f = frame(s, wf, AMB, q_req_ftlbf=f0.q_pt_ftlbf, t41_degR=tr["t41"][i])
-        return (
-            abs(f.wa3_pps - f.wa2_pps * (f.b3 + c.K_B3) - f.wa31_pps) / f.wa2_pps,
-            abs(f.wa31_pps + wf - f.w41_pps) / f.wa2_pps,
-            abs(f.w41_pps - f.w45_pps + f.b3 * c.K_BL * f.wa2_pps) / f.wa2_pps,
-        )
+        b42, b43, b44 = _balances(f, wf)
+        return abs(b42) / f.wa2_pps, abs(b43) / f.wa2_pps, abs(b44) / f.wa2_pps
 
     before = residuals(int(np.argmin(np.abs(t - 0.40))))
     assert max(before) < CLOSURE_TOL, f"the balances should be closed before the step; got {before}"
@@ -234,10 +250,7 @@ def test_eq_39_is_an_exact_two_stream_work_balance(wf_pph: float):
     compressor discharge -- which works out at 36-49 % of the enthalpy RISE above inlet,
     increasing with power. Verified here to 5e-13.
     """
-    wf = wf_pps_from_pph(wf_pph)
-    sweep = trim.sweep(list(range(130, int(wf_pph) + 1, 5)) + [wf_pph])
-    r = [q for q in sweep if q.trustworthy][-1]
-    f = frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
+    _, _, f = _trimmed(wf_pph)
 
     w24 = f.wa2_pps * (f.b1 + f.b2)
     h24 = c.K_QC_1 * f.h3
@@ -261,10 +274,7 @@ def test_the_combustor_energy_balance_closes(wf_pph: float):
     `WA31*(1 + FAR) = WA31 + Wf = W41` recovers the balance, so this checks that our FAR
     and the station 4.1 mass balance are mutually consistent, not just the algebra.
     """
-    wf = wf_pps_from_pph(wf_pph)
-    sweep = trim.sweep(list(range(130, int(wf_pph) + 1, 5)) + [wf_pph])
-    r = [q for q in sweep if q.trustworthy][-1]
-    f = frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
+    wf, _, f = _trimmed(wf_pph)
 
     into = f.wa31_pps * f.h3 + f.eta_b * wf * c.HVF
     out = f.w41_pps * f.h41_ns
@@ -293,10 +303,7 @@ def test_station_4_5_mixing_loses_energy_as_the_report_specifies(wf_pph: float):
     `K_H45`. It affects only the power turbine -- h45 feeds T45, theta45, dH_PT and W45 --
     so it does not touch the gas generator dynamics of open question #47.
     """
-    wf = wf_pps_from_pph(wf_pph)
-    sweep = trim.sweep(list(range(130, int(wf_pph) + 1, 5)) + [wf_pph])
-    r = [q for q in sweep if q.trustworthy][-1]
-    f = frame(r.state, wf, AMB, q_req_ftlbf=r.q_req_ftlbf)
+    _, _, f = _trimmed(wf_pph)
 
     returned = f.b3 * c.K_BL * f.wa2_pps
     h45_mixed = (f.w41_pps * f.h44 + returned * f.h3) / f.w45_pps
