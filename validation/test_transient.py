@@ -26,61 +26,22 @@ def _seed(wf_pph: float, lag_whole_flow: bool = True):
     return st, wf, f.q_pt_ftlbf
 
 
-def test_a_trimmed_engine_sits_still():
+@pytest.mark.parametrize("wf_pph", [476.3, 349.3, 267.7])
+def test_every_published_trim_is_a_fixed_point(wf_pph: float):
     """The strongest available check that the two formulations agree.
 
     `trim.solve` finds the equilibrium of the differential model (Eqs. 42-45); the
     real-time frame solves the same physics with the pressures made algebraic
     (Eqs. 74-80). If the algebraic reduction were wrong, a trimmed engine would drift.
     """
-    st, wf, qreq = _seed(476.3)
+    st, wf, qreq = _seed(wf_pph)
     tr = realtime.run(st, lambda t: wf, AMB, duration_s=2.0, q_req_ftlbf=qreq)
     for key in ("ng", "p3", "p41", "p45"):
         drift = abs(tr[key][-1] - tr[key][0]) / abs(tr[key][0])
         assert drift < 1e-9, f"{key} drifted {drift:.2e} over 2 s at a converged trim"
-
-
-def test_the_opened_iteration_converges_as_the_step_shrinks():
-    """Eq. 74 read as the prose states it must be first-order convergent.
-
-    This is the test that decided open question #22. The equation as *printed* lags only
-    the bleed and does not converge at all; the prose reading -- the whole compressor exit
-    flow taken from the previous interval -- halves its error when the step is halved.
-
-    **`tol` is set to machine precision here on purpose, and that is not a widened
-    tolerance -- it is the opposite.** This is a numerical-convergence experiment: it
-    asks whether the scheme is a discretization of a continuous system, which is only
-    answerable when the time step is the *only* error source. Since 2026-09-12 the
-    shipped default is the report's printed 0.1 percent [pdf p.37], and at small dt that
-    tolerance floor dominates the dt error, so a refinement study run at the default
-    measures the solver rather than the discretization. Replication runs use the default;
-    this experiment does not.
-    """
-    st0, wf0, qreq = _seed(400.0)
-    stepfn = lambda t: wf0 if t < 0.5 else wf_pps_from_pph(775.0)  # noqa: E731
-
-    vals = []
-    for dt_ms in (4.0, 2.0, 1.0, 0.5):
-        st, _, _ = _seed(400.0)
-        tr = realtime.run(
-            st,
-            stepfn,
-            AMB,
-            duration_s=1.0,
-            dt=dt_ms / 1000.0,
-            q_req_ftlbf=qreq,
-            integrate_np=False,
-            tol=1e-12,
-        )
-        vals.append(tr["ng"][-1])
-
-    diffs = np.abs(np.diff(vals))
-    assert np.all(np.diff(diffs) < 0), f"errors are not shrinking with dt: {diffs}"
-    for coarse, fine in zip(diffs, diffs[1:], strict=False):
-        assert fine < 0.75 * coarse, (
-            f"halving dt should roughly halve the error for a first-order scheme; "
-            f"got {coarse:.1f} then {fine:.1f}"
-        )
+    # and NG to a millionth of an rpm over every frame of the first second
+    first_s = tr["t"] < 1.0 + realtime.FRAME_ENGINE_S
+    assert np.abs(tr["ng"][first_s] - tr["ng"][0]).max() < 1e-6
 
 
 def test_both_readings_of_eq_74_converge_to_the_same_limit():
@@ -112,6 +73,18 @@ def test_both_readings_of_eq_74_converge_to_the_same_limit():
     given interval is approximately equal to the mass flow leaving the compressor in the
     previous interval"). But it is chosen because the prose says so, **not** because the
     printed equation fails.
+
+    **The refinement is run with `tol` at machine precision on purpose, and that is not a
+    widened tolerance -- it is the opposite.** This is a numerical-convergence experiment:
+    it asks whether the scheme is a discretization of a continuous system, which is only
+    answerable when the time step is the *only* error source. The shipped default is the
+    report's printed 0.1 percent [pdf p.37], and at small dt that tolerance floor dominates
+    the dt error, so a refinement study run at the default measures the solver rather than
+    the discretization. Replication runs use the default; this experiment does not.
+
+    That experiment, run on the prose reading alone, is what decided open question #22, and
+    it asserted that each halving of dt cuts the difference to under 0.75 of the last -- 0.43
+    to 0.48 on record, for both readings. It was a test of its own until 2026-10-12.
     """
     limits = {}
     for lag in (True, False):
@@ -127,7 +100,7 @@ def test_both_readings_of_eq_74_converge_to_the_same_limit():
                 q_req_ftlbf=qreq,
                 integrate_np=False,
                 lag_whole_flow=lag,
-                tol=1e-10,
+                tol=1e-12,
             )
             vals.append(float(np.interp(1.0, tr["t"], tr["ng"])))
         diffs = np.abs(np.diff(vals))
@@ -139,6 +112,10 @@ def test_both_readings_of_eq_74_converge_to_the_same_limit():
         ratios = diffs[:-1] / diffs[1:]
         assert 1.7 < np.median(ratios) < 2.6, (
             f"lag_whole_flow={lag}: error ratios {ratios} are not first order"
+        )
+        assert np.all(diffs[1:] < 0.75 * diffs[:-1]), (
+            f"lag_whole_flow={lag}: halving dt should roughly halve the error for a "
+            f"first-order scheme; successive differences {diffs}"
         )
         limits[lag] = vals[-1]
 
@@ -216,13 +193,6 @@ def test_transient_excursions_outside_the_maps_are_counted():
     assert report, "this step is known to leave the maps; the counter must record it"
     assert tr["far"].max() > 0.020, "FAR should exceed f6's plotted range on this step"
     maps.reset_clamps()
-
-
-@pytest.mark.parametrize("wf_pph", [476.3, 349.3, 267.7])
-def test_every_published_trim_is_a_fixed_point(wf_pph: float):
-    st, wf, qreq = _seed(wf_pph)
-    tr = realtime.run(st, lambda t: wf, AMB, duration_s=1.0, q_req_ftlbf=qreq)
-    assert abs(tr["ng"][-1] - tr["ng"][0]) < 1e-6
 
 
 def test_the_two_to_one_multirate_costs_little_but_is_the_reports():

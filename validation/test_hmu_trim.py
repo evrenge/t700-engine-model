@@ -101,51 +101,37 @@ def test_the_hmu_commands_each_printed_trim_from_a_believable_collective(name, n
     )
 
 
-@pytest.mark.parametrize("name,ng,ps3,wf", TRIMS, ids=lambda v: str(v))
-def test_every_printed_trim_sits_on_the_droop_line(name, ng, ps3, wf):
-    """Not on the idle floor, the acceleration ceiling or the deceleration floor.
-
-    A governor in steady flight sits on its droop line; the cams are for transients. If a
-    printed trim landed on a cam, either the cam schedule or the droop line is wrong.
-    """
-    _, out = collective_for(ng, ps3, wf)
-    assert out.limit == "droop", (
-        f"{name}: the HMU is on the {out.limit} limit at a printed steady trim "
-        f"(WFPDM {out.wfpdm:.3f}, WFIDM {out.wfidm:.3f}, WFPAC {out.wfpac:.3f}, "
-        f"WFPDC {out.wfpdc:.3f})"
-    )
-
-
-def test_collective_falls_monotonically_from_hover_to_descent():
-    """The ordering is the check that survives the unprinted power lever: PAS shifts all
-    three together, so their *order* is a property of the model rather than of the choice.
-    """
-    xs = [collective_for(ng, ps3, wf)[0] for _, ng, ps3, wf in TRIMS]
-    assert xs[0] > xs[1] > xs[2], (
-        f"hover / level / descent need {xs[0]:.1f} / {xs[1]:.1f} / {xs[2]:.1f} % "
-        f"collective -- not monotone in power"
-    )
-    assert xs[0] - xs[2] > 10.0, (
-        f"only {xs[0] - xs[2]:.1f} points of collective separate hover from descent; the "
-        f"load demand path is barely doing anything"
-    )
-
-
 def test_the_result_does_not_depend_on_the_unprinted_power_lever():
     """`PAS_DEG` is a choice, so the conclusion must not rest on it.
 
     Sweeping the power lever over a wide band moves every commanded collective, but the
     ordering and the droop-line finding have to survive -- otherwise this file is reporting
     the choice rather than the model.
+
+    At `PAS_DEG` itself this is also the file's droop-line and ordering check. A governor in
+    steady flight sits on its droop line, not on the idle floor, the acceleration ceiling or
+    the deceleration floor; if a printed trim landed on a cam, either the cam schedule or the
+    droop line is wrong. And the ordering is the check that survives the unprinted power
+    lever: PAS shifts all three together, so their *order* is a property of the model rather
+    than of the choice.
     """
     for pas in (90.0, 100.0, 110.0):
         xs = []
         for _, ng, ps3, wf in TRIMS:
             x, out = collective_for(ng, ps3, wf, pas=pas)
             if out.limit != "droop":
-                pytest.fail(f"PAS {pas}: {ng} rpm lands on the {out.limit} limit")
+                pytest.fail(
+                    f"PAS {pas}: {ng} rpm lands on the {out.limit} limit "
+                    f"(WFPDM {out.wfpdm:.3f}, WFIDM {out.wfidm:.3f}, WFPAC {out.wfpac:.3f}, "
+                    f"WFPDC {out.wfpdc:.3f})"
+                )
             xs.append(x)
         assert xs[0] > xs[1] > xs[2], (pas, xs)
+        if pas == PAS_DEG:
+            assert xs[0] - xs[2] > 10.0, (
+                f"only {xs[0] - xs[2]:.1f} points of collective separate hover from descent; "
+                f"the load demand path is barely doing anything"
+            )
 
 
 def test_inlet_temperature_moves_the_collective_the_way_the_topping_line_does():

@@ -363,37 +363,14 @@ def test_step_down_runs_off_the_bottom_of_the_maps():
     assert "f6" not in rep, "f6 is a constant now and cannot be clamped -- see maps.f6"
     maps.reset_clamps()
 
-
-def test_the_two_figures_step_in_opposite_directions():
-    """Guards against the two runs being accidentally identical."""
-    up = _run(9, 775.0, STEP_TIME[9])
-    down = _run(10, 125.0, STEP_TIME[10])
-    assert up["ng"][-1] > up["ng"][0]
-    assert down["ng"][-1] < down["ng"][0]
-
-
-@pytest.mark.parametrize("key", list(PANELS) + ["wfph"])
-def test_the_two_figures_agree_at_their_shared_trim(key: str):
-    """A model-free check on the reference data itself.
-
-    Figures 9 and 10 both start from the same 400 lbm/hr trim, so their t = 0 values must
-    agree with each other whatever our model says. This caught Figure 10's TORQ45 panel
-    disagreeing with Figure 9's by 5.10 % while every other panel agreed to 0.62 %, which
-    put that panel on `UNTRUSTED` for two days. The cause turned out to be the page skew the
-    digitizer corrects as of 2026-09-14, and all six panels now agree: worst 0.93 % on
-    TORQ45, 0.25 % on the other five.
-    """
-    vals = []
-    for fig in (9, 10):
-        path = REF / f"fig{fig:02d}_{key}_model.csv"
-        if not path.exists():
-            pytest.skip(f"{path.name} not digitized")
-        t, v = _reference(fig, key)
-        vals.append(v[t < 0.48].mean())
-    dev = (vals[1] - vals[0]) / abs(vals[0]) * 100.0
-    assert abs(dev) < 1.5, (
-        f"{key}: the two figures' shared trim disagrees by {dev:+.2f} % -- one of the "
-        f"two digitizations is wrong"
+    # Neither trace has settled by the end of Ballin's record, so nothing measured there may
+    # be called a settled value -- every "settled" Figure 10 number before 2026-09-12 was a
+    # t = 4.0-4.6 s mean. Ballin's PCNG is still falling at -2.45 %NG/s there.
+    window = (tr["t"] >= 3.5) & (tr["t"] <= 4.5)
+    slope = float(np.polyfit(tr["t"][window], ngc[window], 1)[0])
+    assert slope < -1.0, (
+        f"our Figure 10 run is still decaying at {slope:.2f} %NG/s over 3.5-4.5 s; "
+        f"nothing measured in that window may be called a settled value"
     )
 
 

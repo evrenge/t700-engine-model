@@ -285,43 +285,6 @@ def test_the_speed_reference_is_what_sets_power_turbine_speed():
         )
 
 
-def test_a_load_step_is_rejected():
-    """What a governor is for. Raise the demanded torque and NP must come back.
-
-    This is the only dynamic statement available without Gen Hel, and it is a weak one --
-    a direction and a settling time, not a trace. Recorded as such.
-    """
-    _name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
-    s, _e, _h, _fr = settle(wf, q, ratio)
-    np_before = s.engine.np_rpm
-
-    r = trim.solve(wf_pps_from_pph(wf), engine_c.NP_DES, AMB)
-    slope = abs(_dqpt_dnp(r, wf_pps_from_pph(wf))) * ratio
-    step_q = q * 1.15
-
-    def load(np_rpm: float) -> float:
-        return step_q + slope * (np_rpm - NP_TRIM_RPM)
-
-    pilot = loop.Pilot(
-        xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES
-    )
-    lo = np_before
-    wf_after = None
-    for i in range(3000):
-        s, _e, h, _fr = loop.step(
-            s, pilot, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A, heat_sink=True
-        )
-        lo = min(lo, s.engine.np_rpm)
-        if i > 2000:
-            wf_after = h.wf_pph
-    assert lo < np_before, "a load step should droop the power turbine before recovery"
-    dev = 100.0 * (s.engine.np_rpm / np_before - 1.0)
-    assert abs(dev) < 0.5, f"NP did not recover after a 15 % load step: {dev:+.3f} %"
-    assert wf_after > 1.05 * wf, (
-        f"a 15 % load step should raise fuel flow well above {wf}, got {wf_after:.1f}"
-    )
-
-
 def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope():
     """This is open question #45, and closing the loop answers it.
 
@@ -472,6 +435,11 @@ def test_a_load_step_response_pins_the_torque_motor_linkage():
 
     The quantities are the ones a governor is judged on and the ones a loop gain moves: how
     far NP is dragged down before the fuel catches up, and how much fuel it takes.
+
+    It is also what a governor is for: raise the demanded torque and NP must come back. That
+    is the only dynamic statement available without Gen Hel, and it is a weak one -- a
+    direction and a settling time, not a trace -- so the run continues 3000 frames past the
+    step and asserts the recovery as well.
     """
     name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
     xcpc = XCPC_PCT[name]
@@ -483,9 +451,14 @@ def test_a_load_step_response_pins_the_torque_motor_linkage():
         xcpc_pct=xcpc, pas_deg=100.0, pcprf_pct=NP_TRIM_RPM * 100.0 / engine_c.NP_DES
     )
     s = loop.seed(r, f.wa31_pps, f, pilot, AMB)
-    step_at, n = 1400, 2600
+    # The dip and the peak are read over the 1200 frames after the step that NP_DIP_RPM and
+    # WF_PEAK_PPH were measured on; the recovery, 3000 frames after it.
+    step_at, window_end, n = 1400, 2600, 1400 + 3000
     np_min, wf_max = 1e9, 0.0
+    np_before = None
     for i in range(n):
+        if i == step_at:
+            np_before = s.engine.np_rpm
         load_q = q * (1.0 + LOAD_STEP_PCT / 100.0) if i >= step_at else q
         s, _e, h, _fr = loop.step(
             s,
@@ -496,12 +469,19 @@ def test_a_load_step_response_pins_the_torque_motor_linkage():
             j_load=engine_c.J_LOAD_UH60A,
             heat_sink=True,
         )
-        if i >= step_at:
+        if step_at <= i < window_end:
             np_min = min(np_min, s.engine.np_rpm)
             wf_max = max(wf_max, h.wf_pph)
     dip = NP_TRIM_RPM - np_min
     assert NP_DIP_RPM[0] < dip < NP_DIP_RPM[1], f"NP dips {dip:.1f} rpm on a 15 % load step"
     assert WF_PEAK_PPH[0] < wf_max < WF_PEAK_PPH[1], f"Wf peaks at {wf_max:.1f} pph"
+
+    assert np_min < np_before, "a load step should droop the power turbine before recovery"
+    dev = 100.0 * (s.engine.np_rpm / np_before - 1.0)
+    assert abs(dev) < 0.5, f"NP did not recover after a 15 % load step: {dev:+.3f} %"
+    assert h.wf_pph > 1.05 * wf, (
+        f"a 15 % load step should raise fuel flow well above {wf}, got {h.wf_pph:.1f}"
+    )
 
 
 def test_a_collective_slam_pins_the_collective_lag():

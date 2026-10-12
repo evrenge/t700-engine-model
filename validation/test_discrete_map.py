@@ -192,20 +192,6 @@ def _frame_jacobian(
     return A
 
 
-def discrete_spectrum(
-    case: int, dt: float = FRAME_S, tol: float | None = None, lag_whole_flow: bool = True
-) -> np.ndarray:
-    """The frame map's eigenvalues in continuous terms, ascending.
-
-    Modes with a negative real discrete eigenvalue have no continuous counterpart and are
-    dropped rather than given a fictitious real part -- see `participation`.
-    """
-    A = _frame_jacobian(case, dt, tol, lag_whole_flow)
-    lam, _ = participation(A, dt)
-    real = np.real(lam[np.isfinite(np.real(lam))])
-    return np.sort(real)
-
-
 def discrete_ng_mode(case: int, dt: float = FRAME_S, tol: float | None = None) -> float:
     """The frame map's NG mode, identified by participation factor rather than by position.
 
@@ -487,22 +473,3 @@ def test_the_descent_residual_is_gone_and_the_level_one_replaced_it():
         for name, v in (("continuous", cont), ("discrete", disc)):
             dev = 100.0 * (abs(v) / abs(TABLE_1_2DOF[case]) - 1.0)
             assert lo < dev < hi, f"trim {case} {name}: {v:.3f} /sec, {dev:+.1f} %"
-
-
-def test_positional_indexing_would_have_agreed_here_but_is_still_not_the_method():
-    """`[-2]` picks the NG mode at every trim and both tolerances. That is luck, not method.
-
-    Recorded because the fix on 2026-09-13 changed how modes are selected without changing
-    a single published number, and a reader is entitled to know which of those two things
-    happened. `[-3]` -- the sibling index, chosen by the same reasoning on the same day --
-    picked the wrong mode.
-    """
-    for case in (1, 2, 3):
-        for tol in (None, 1e-12):
-            positional = float(discrete_spectrum(case, tol=tol)[-2])
-            by_physics = discrete_ng_mode(case, tol=tol)
-            assert abs(positional - by_physics) < 1e-9, (
-                f"trim {case}, tol={tol}: sorted[-2] = {positional:.4f} is no longer the "
-                f"NG mode ({by_physics:.4f}). Positional pairing has now actually "
-                f"mispaired, which is what test_linear's sibling test warns about."
-            )

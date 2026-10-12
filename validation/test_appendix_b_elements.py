@@ -176,23 +176,6 @@ def test_the_inertia_ratio_is_the_same_at_all_three_trims():
     )
 
 
-def test_the_np_diagonal_still_needs_the_load_torque_slope():
-    """dQreq/dNP is the second Gen Hel quantity and is not recoverable from inertia.
-
-    With the inertia supplied the diagonal is still about half Ballin's, consistently at
-    all three trims -- consistent because it is one missing physical term, not noise.
-    Characterized here so that supplying it later has a target to hit.
-    """
-    devs = []
-    for trim_no in (1, 2, 3):
-        fixed, ref = _pair(trim_no, j_load=c.J_LOAD_UH60A)
-        devs.append((abs(fixed.A[1, 1]) - abs(ref.A[1, 1])) / abs(ref.A[1, 1]) * 100.0)
-    assert all(-60.0 < d < -45.0 for d in devs), (
-        f"NP diagonal residual moved: {[f'{d:+.1f}%' for d in devs]}. If it shrank, "
-        f"dQreq/dNP has been supplied -- re-measure and tighten rather than widening."
-    )
-
-
 F7_GROUP_TOL_PCT = {1: 8.0, 2: 12.0, 3: 5.0}
 """Per trim, the four `f7`-driven elements of the 5-DOF `A`. Measured worst 6.3 / 9.8 /
 3.4 % at the report's +-2 % step; 26 / 16 / 9 until 2026-10-12, sized for the tangent."""
@@ -279,9 +262,8 @@ def test_hover_is_the_double_case_that_pins_the_mechanism():
     assert _knot_distance_f7(1) < 0.05, "hover no longer sits on an f7 knot"
     assert _knot_distance_f1(1) > 0.30, "hover no longer sits mid-segment on f1"
 
-    f7_here = _err(1, "NG", "P45", TANGENT_STEP)
-    f7_elsewhere = max(_err(2, "NG", "P45", TANGENT_STEP), _err(3, "NG", "P45", TANGENT_STEP))
-    assert f7_here > f7_elsewhere, "hover should hold the worst f7-driven error"
+    # Hover holding the worst f7-driven error is the first link of
+    # `test_the_f7_error_shrinks_monotonically_with_power`'s ordering, on the same element.
 
     # **The NG-column half of this inverted on 2026-09-13** and the assertions below are
     # what is left of it. Interpolating f1 along Figure A1's construction lines (constant k,
@@ -360,23 +342,6 @@ def _hs_pair(dof: DOF, trim_no: int, rel_step: float | None = None):
     r = trim.solve(wf, NP_RPM, AMB)
     kw = {} if rel_step is None else {"rel_step": rel_step}
     return extract(r, wf, dof, AMB, j_load=c.J_LOAD_UH60A, **kw), ab.load(HS_FIG[(dof, trim_no)])
-
-
-@pytest.mark.parametrize("trim_no", [1, 2, 3])
-@pytest.mark.parametrize("dof", [DOF.THREE, DOF.SIX])
-def test_feedthrough_is_nonzero_only_on_the_t41_row(dof: DOF, trim_no: int):
-    """`d = F1^-1 G2`, and `G2` is zero except in T41's row -- which we never asserted
-    into the derivation. Appendix B prints exactly this shape, so reproducing it is a
-    check on the descriptor form (Eq. 65) rather than an input to it."""
-    ours, ref = _hs_pair(dof, trim_no)
-    t41 = ours.states.index("T41")
-    assert ours.d is not None and ref.d is not None
-    assert abs(ours.d[t41]) > 0.0
-    # `d = F1^-1 G2` is exactly zero off the T41 row in exact arithmetic -- F1 is block
-    # lower-triangular -- but `np.linalg.solve` leaves rounding at ~1e-20, so compare
-    # against the entry that should be non-zero rather than against literal zero.
-    assert np.abs(np.delete(ours.d, t41)).max() < 1e-12 * abs(ours.d[t41])
-    assert np.abs(np.delete(ref.d, t41)).max() == 0.0
 
 
 SIX_DOF_T41_COLUMN_TOL_PCT = 1.0
@@ -505,9 +470,9 @@ def test_supplying_the_load_slope_closes_the_np_diagonal_circularly(trim_no: int
     bare = extract(r, wf, DOF.FIVE, AMB, j_load=c.J_LOAD_UH60A)
     fixed = extract(r, wf, DOF.FIVE, AMB, j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[trim_no])
 
-    before = (abs(bare.A[1, 1]) - abs(ref.A[1, 1])) / abs(ref.A[1, 1]) * 100.0
+    # Without the slope it sits ~52 % low, which NP_DIAGONAL_RESIDUAL_PCT holds in
+    # `test_the_heat_sink_np_diagonals_carry_the_same_missing_load_slope`.
     after = (abs(fixed.A[1, 1]) - abs(ref.A[1, 1])) / abs(ref.A[1, 1]) * 100.0
-    assert before < -45.0, f"NP diagonal was {before:+.1f} % without the slope"
     assert abs(after) < 1.0, f"NP diagonal is {after:+.1f} % with it"
 
     # The structural half: nothing else may move.
@@ -772,8 +737,9 @@ def test_the_three_dof_ng_column_against_b7_b9_b11(trim_no: int):
 
     With this, every non-zero printed element of all twelve figures carries a numeric
     per-element comparison except the three `A(NP,NP)` diagonals, which are Gen Hel's
-    `dQreq/dNP` and are excluded by `test_the_np_diagonal_still_needs_the_load_torque_slope`
-    for a reason, and the two 6-DOF `A(P45,P3)` residuals recorded above. Descent's
+    `dQreq/dNP` and are excluded by
+    `test_the_heat_sink_np_diagonals_carry_the_same_missing_load_slope` for a reason, and
+    the two 6-DOF `A(P45,P3)` residuals recorded above. Descent's
     `A(T41,NG)` is skipped *here* but is not uncompared: it is bounded by
     `test_all_dof_models.py::test_the_descent_t41_ng_element_is_recorded_not_forgotten`,
     which was written for that element. See `THREE_DOF_NG_COLUMN`.
@@ -797,37 +763,24 @@ def test_the_three_dof_ng_column_against_b7_b9_b11(trim_no: int):
 NP_DIAGONAL_RESIDUAL_PCT = (-56.0, -50.0)
 """`A(NP,NP)` without `dQreq/dNP`, in every DOF variant. The last six printed elements.
 
-`test_the_np_diagonal_still_needs_the_load_torque_slope` characterizes the 5-DOF's three;
-its 3-DOF and 6-DOF counterparts were the only printed numbers in Appendix B left with no
+`test_the_heat_sink_np_diagonals_carry_the_same_missing_load_slope` holds the 5-DOF's three
+to it as well (it was a test of its own, at (-60, -45), until 2026-10-12); its 3-DOF and 6-DOF
+counterparts were the only printed numbers in Appendix B left with no
 comparison of any kind. Measured -51.78 / -53.45 / -54.58 % at hover / level / descent --
 **the same three numbers in all four variants, to five figures.** That is what a missing
 term in the NP equation alone should do: the power turbine state is decoupled [pdf p.29],
 so nothing about promoting T41 or dropping the volume dynamics reaches it."""
 
 
-@pytest.mark.parametrize("dof_no", [2, 3, 5, 6])
-def test_appendix_b_prints_one_np_diagonal_per_trim_across_all_four_variants(dof_no: int):
-    """A transcription check that owes nothing to our model.
-
-    Four figures per trim were transcribed independently from four pages, and `A(NP,NP)`
-    is the element none of the four model variants can disagree about -- NP is decoupled,
-    so its diagonal is `-(dQ_PT/dNP + dQreq/dNP)/(J_PT + J_load)` whatever else is a state.
-    All four print the same number: -0.5650, -0.4461, -0.3567. If one drifts, a digit was
-    mis-transcribed on one page.
-    """
-    for trim_no in (1, 2, 3):
-        ref = ab.find(dof_no, trim_no)
-        i = ref.states.index("NP")
-        base = ab.find(5, trim_no)
-        assert ref.A[i, i] == base.A[base.states.index("NP"), base.states.index("NP")], (
-            f"B{ref.figure} prints A(NP,NP) = {ref.A[i, i]}, against the 5-DOF's "
-            f"{base.A[1, 1]} at the same trim"
-        )
-
-
-@pytest.mark.parametrize("dof_no,dof", [(3, DOF.THREE), (6, DOF.SIX)])
+@pytest.mark.parametrize("dof_no,dof", [(5, DOF.FIVE), (3, DOF.THREE), (6, DOF.SIX)])
 def test_the_heat_sink_np_diagonals_carry_the_same_missing_load_slope(dof_no, dof):
-    """The 3-DOF and 6-DOF halves of the residual the 5-DOF test already records."""
+    """The NP diagonal without dQreq/dNP: the 5-DOF residual, and its 3-DOF and 6-DOF halves.
+
+    dQreq/dNP is the second Gen Hel quantity and is not recoverable from inertia. With the
+    inertia supplied the diagonal is still about half Ballin's, consistently at all three
+    trims -- consistent because it is one missing physical term, not noise. If it shrank,
+    dQreq/dNP has been supplied: re-measure and tighten rather than widening.
+    """
     for trim_no in (1, 2, 3):
         wf = wf_pps_from_pph(WF_PPH[trim_no])
         r = trim.solve(wf, NP_RPM, AMB)

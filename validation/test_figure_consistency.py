@@ -40,9 +40,8 @@ AMB = Ambient(14.696, 518.67)
 
 PHASE_PLANE_TOL_PCT = 2.5
 BOTH_SIDES_TOL_PCT = 0.5
-SHARED_TRIM_TOL_PCT = 1.5
 READ_ERROR_CEILING_PCT_FS = 0.6
-"""All four declared in `SCOPE.md`; none is derived from the report, which states no
+"""All three declared in `SCOPE.md`; none is derived from the report, which states no
 transient tolerance at all.
 
 The last one is expressed **as a fraction of each panel's full scale**, which is the only
@@ -68,14 +67,14 @@ T2_WF_PPH = np.array([140.1, 297.2, 372.0, 458.4, 560.6, 694.4])
 T2_P2_PSIA = np.array([14.37, 14.17, 14.16, 14.09, 14.02, 13.92])
 T2_T2_DEGR = np.array([516.7, 515.6, 508.3, 508.0, 507.2, 507.2])
 
-PRE_STEP_KEYS = ("pcng", "ps3", "t41", "t45", "torq45")
+PRE_STEP_KEYS = ("pcng", "ps3", "t41", "t45", "torq45", "wfph")
 """Ballin's pre-step plateau is **measured from the files**, not transcribed into this
 module.
 
 It used to be a literal dict. That went stale the moment the digitizer changed: the frame
 deskew of 2026-09-14 moved every one of the ten numbers, and two tests went on comparing
 the new WFPH panels against the old plateaus without failing, because the plateaus were
-constants. Measuring them here costs ten CSV reads and cannot go stale.
+constants. Measuring them here costs twelve CSV reads and cannot go stale.
 
 For the record, the values this file asserted against until then, and what they read now:
 
@@ -191,6 +190,7 @@ def test_the_two_figures_read_one_state_to_within_a_pixel():
     | t41 | +2.12 degR | 0.21 | 0.097 |
     | t45 | +2.11 degR | 0.21 | 0.136 |
     | torq45 | +1.61 ft*lbf | 0.40 | 0.929 |
+    | wfph | -2.21 lbm/hr | 0.29 | 0.551 |
 
     Before the deskew those five ran 0.33 %NG, 0.59 psia, 5.2 degR, 8.3 degR and 8.9
     ft*lbf -- the last of which had been written up as a defect in Figure 10's TORQ45 panel
@@ -206,27 +206,6 @@ def test_the_two_figures_read_one_state_to_within_a_pixel():
             f"disagree by more than the read error, so either the digitizer has drifted or "
             f"the floor in SCOPE.md is too tight."
         )
-
-
-def test_figures_9_and_10_share_one_trim_and_agree_on_it():
-    """Both figures start at 400 lbm/hr, so their pre-step states must agree.
-
-    The same data as the test above, asserted in percent of value rather than of full
-    scale, because that is the currency every other tolerance in this project is quoted in.
-
-    **`torq45` is no longer excluded.** It used to be, on the evidence that Figure 10's
-    panel disagreed with Figure 9's by 5.10 % while the other five agreed to 0.62 %, and
-    this test asserted the disagreement was still there so the exclusion could not quietly
-    become permanent. That assertion fired on 2026-09-14, which is what it was for: the
-    disagreement was page skew, not the panel. It is now 0.93 %.
-    """
-    a, b = _pre_step(9), _pre_step(10)
-    worst = 0.0
-    for key in PRE_STEP_KEYS:
-        dev = abs(100.0 * (a[key] / b[key] - 1.0))
-        worst = max(worst, dev)
-        assert dev < SHARED_TRIM_TOL_PCT, f"{key}: fig 9 {a[key]} vs fig 10 {b[key]}, {dev:.2f} %"
-    assert worst < SHARED_TRIM_TOL_PCT
 
 
 def test_ballins_own_cross_reference_between_figures_9_and_6_holds():

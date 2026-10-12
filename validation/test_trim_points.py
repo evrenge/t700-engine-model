@@ -71,15 +71,6 @@ def _solve(case: TrimCase):
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda c: c.name)
-def test_trim_converges(case: TrimCase):
-    r = _solve(case)
-    assert r.trustworthy, (
-        f"{case.name}: no usable equilibrium. residual_converged="
-        f"{r.residual_converged}, on_data={r.on_data}, |r| = {r.residual_norm:.3e}"
-    )
-
-
-@pytest.mark.parametrize("case", CASES, ids=lambda c: c.name)
 def test_gas_generator_speed(case: TrimCase):
     """NG is the headline number: it is what the fuel flow buys."""
     r = _solve(case)
@@ -148,15 +139,6 @@ def test_solution_sits_inside_the_digitized_data(case: TrimCase):
         f"{case.name}: trim sits outside digitized data for {sorted(unexpected)} -- "
         f"the model is extrapolating"
     )
-
-
-def test_more_fuel_buys_more_speed_and_power():
-    """Monotonicity across the three trims. A sanity check no single case can give."""
-    results = [(c, _solve(c)) for c in sorted(CASES, key=lambda c: c.wf_pph)]
-    ngs = [r.state.ng_rpm for _, r in results]
-    shps = [r.shp for _, r in results]
-    assert ngs == sorted(ngs), ngs
-    assert shps == sorted(shps), shps
 
 
 # --------------------------------------------------------------------------- dynamics

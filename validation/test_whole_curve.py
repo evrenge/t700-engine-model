@@ -291,36 +291,6 @@ def test_whole_curve_error_does_not_regress(fig: int, key: str):
     )
 
 
-def test_figure_10_has_not_settled_by_the_end_of_its_record():
-    """A guard against calling a mid-transient value a settled one, which we did.
-
-    Every "settled" number reported for Figure 10 before 2026-09-12 was measured over
-    t = 4.0-4.6 s. Neither trace is settled there: Ballin's PCNG is still falling at
-    -2.45 %NG/s and ours at -1.46 %NG/s.
-    """
-    r0 = trim.solve(WF0, c.NP_DES, AMB)
-    f0 = frame(r0.state, WF0, AMB)
-    st = realtime.from_trim(r0, f0.wa31_pps, f0)
-    tr = realtime.run(
-        st,
-        lambda t: WF0 if t < CHOP_STEP else wf_pps_from_pph(125.0),
-        AMB,
-        duration_s=6.0,
-        dt=0.007,
-        q_req_ftlbf=f0.q_pt_ftlbf,
-        integrate_np=False,
-        heat_sink=True,
-    )
-    t = np.asarray(tr["t"])
-    pcng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
-    window = (t >= 3.5) & (t <= 4.5)
-    slope = float(np.polyfit(t[window], pcng[window], 1)[0])
-    assert slope < -1.0, (
-        f"our Figure 10 run is still decaying at {slope:.2f} %NG/s over 3.5-4.5 s; "
-        f"nothing measured in that window may be called a settled value"
-    )
-
-
 def test_eq_80s_fixed_point_is_repelling_below_flight_idle_and_the_frame_reaches_it_anyway():
     """Open question #45, closed 2026-09-13, and its recorded mechanism was wrong twice.
 

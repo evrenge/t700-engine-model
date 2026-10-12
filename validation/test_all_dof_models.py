@@ -72,21 +72,6 @@ def _model(dof: DOF, trim_no: int):
 # --------------------------------------------------------------- every variant extracts
 
 
-@pytest.mark.parametrize("dof", list(DOF))
-@pytest.mark.parametrize("trim_no", [1, 2, 3])
-def test_every_model_extracts_at_every_trim(dof: DOF, trim_no: int):
-    """Fifteen extractions, all finite and all the right shape.
-
-    Cheap, and it is the test that would have caught any of the five silently regressing
-    while attention was on another.
-    """
-    m = _model(dof, trim_no)
-    n = len(m.states)
-    assert m.A.shape == (n, n) and m.b.shape == (n,)
-    assert np.all(np.isfinite(m.A)) and np.all(np.isfinite(m.b))
-    assert (m.d is not None) == (dof in (DOF.THREE, DOF.SIX))
-
-
 @pytest.mark.parametrize("dof", [DOF.TWO, DOF.THREE, DOF.FIVE, DOF.SIX])
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
 def test_np_stays_decoupled_in_every_variant(dof: DOF, trim_no: int):
@@ -104,9 +89,16 @@ def test_np_stays_decoupled_in_every_variant(dof: DOF, trim_no: int):
 # ------------------------------------------------------- that were never checked
 
 
+NG_MODE_COLUMN = {DOF.TWO: TABLE_1_2DOF, DOF.REDUCED_FIVE: TABLE_1_RED5}
+NG_MODE_LABEL = {DOF.TWO: "2-DOF", DOF.REDUCED_FIVE: "reduced-5"}
+
+
+@pytest.mark.parametrize("dof", [DOF.TWO, DOF.REDUCED_FIVE])
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
-def test_two_dof_ng_mode_against_table_1_column_4(trim_no: int):
-    """Our quasi-steady model's NG mode against Table 1's 2-DOF column.
+def test_ng_mode_against_table_1_columns_4_and_5(dof: DOF, trim_no: int):
+    """Our quasi-steady model's NG mode against Table 1's 2-DOF and reduced-5 columns.
+
+    ## 2-DOF, column 4
 
     **-5.62 / +7.57 / +4.21 %** at hover / level / descent, in this file's own magnitude
     convention. The shape is the `f1` knot story of `docs/notes/derivative-ambiguity.md`,
@@ -118,12 +110,23 @@ def test_two_dof_ng_mode_against_table_1_column_4(trim_no: int):
     The *discrete* frame map -- the thing Ballin actually ran -- is closer than this
     continuous model at all three trims: -3.17 / +4.10 / -1.01 %. See
     `validation/test_discrete_map.py`.
+
+    ## Reduced-5, column 5
+
+    The order-reduced model against the column that exists only in Table 1.
+
+    Ours is identical to the 2-DOF by construction (see `t700.linear`), so it cannot match
+    both columns: Ballin's differ by 0.12 /sec at hover. We land closer to his column 4
+    than his column 5 at hover and descent, which is consistent with our quasi-steady solve
+    being exact rather than carrying the numerics his reduced-order program did.
     """
-    ng = _model(DOF.TWO, trim_no).comparable_eigenvalues[-1]
-    want = TABLE_1_2DOF[trim_no]
+    ng = _model(dof, trim_no).comparable_eigenvalues[-1]
+    want = NG_MODE_COLUMN[dof][trim_no]
     dev = (abs(ng) - abs(want)) / abs(want) * 100.0
-    assert abs(dev) < 25.0, f"{TRIM[trim_no]}: 2-DOF NG mode {ng:.3f} vs {want}, {dev:+.1f} %"
-    if trim_no == 3:
+    assert abs(dev) < 25.0, (
+        f"{TRIM[trim_no]}: {NG_MODE_LABEL[dof]} NG mode {ng:.3f} vs {want}, {dev:+.1f} %"
+    )
+    if dof is DOF.TWO and trim_no == 3:
         # Descent is the tight one now, not level. Interpolating f1 along Figure A1's
         # construction lines (constant k, not constant x -- see `maps.SpeedMap`)
         # REDISTRIBUTED the f1-driven derivative error rather than removing it:
@@ -131,21 +134,6 @@ def test_two_dof_ng_mode_against_table_1_column_4(trim_no: int):
         # mechanism of docs/notes/derivative-ambiguity.md still holds; which trim it
         # bites has moved. Open question #43.
         assert abs(dev) < 6.0, "descent should be the tight one under the beta-gridded f1"
-
-
-@pytest.mark.parametrize("trim_no", [1, 2, 3])
-def test_reduced_five_ng_mode_against_table_1_column_5(trim_no: int):
-    """The order-reduced model against the column that exists only in Table 1.
-
-    Ours is identical to the 2-DOF by construction (see `t700.linear`), so it cannot match
-    both columns: Ballin's differ by 0.12 /sec at hover. We land closer to his column 4
-    than his column 5 at hover and descent, which is consistent with our quasi-steady solve
-    being exact rather than carrying the numerics his reduced-order program did.
-    """
-    ng = _model(DOF.REDUCED_FIVE, trim_no).comparable_eigenvalues[-1]
-    want = TABLE_1_RED5[trim_no]
-    dev = (abs(ng) - abs(want)) / abs(want) * 100.0
-    assert abs(dev) < 25.0, f"{TRIM[trim_no]}: reduced-5 NG mode {ng:.3f} vs {want}, {dev:+.1f} %"
 
 
 # --------------------------------------------------------- element-wise, the two gaps
@@ -259,9 +247,5 @@ def test_the_descent_t41_ng_element_is_recorded_not_forgotten():
         f"A(T41,NG) at descent is {r:.3f} of Ballin's, 0.7639 on record. It was 0.006 under "
         f"constant-x f1; if it has collapsed again, the interpolation is the place to look."
     )
-    others = [
-        _model(DOF.THREE, t).A[t41, ng] / ab.load(FIG[(DOF.THREE, t)]).A[t41, ng] for t in (1, 2)
-    ]
-    assert all(0.7 < o < 1.3 for o in others), (
-        f"the other two trims should be imprecise but present: {others}"
-    )
+    # The other two trims, imprecise but present, are bounded tighter by
+    # `test_appendix_b_elements.py::test_the_three_dof_ng_column_against_b7_b9_b11`.

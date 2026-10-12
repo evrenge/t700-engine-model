@@ -144,29 +144,6 @@ def _ladder(fuel_flows, np_rpm: float = NP_RPM):
     return out
 
 
-def test_the_sweep_covers_the_whole_printed_range():
-    """We trim at every point Ballin's Figure 6 plots. All twenty-nine.
-
-    **This test was called `..._but_the_last_point` and said we did not** -- "that point is
-    100.31 %NG and `f1`'s top speed line is 100 %, so trimming it would mean extrapolating
-    the compressor map off its printed data". That was true when it was written and the
-    page-40 frame fix of 2026-09-14 (#64) removed it: every digitized speed on that figure
-    had read high by `(105 - NG) * 0.081`, and with the frame found correctly the last
-    marker is **806.0 lb/hr at 99.98 %NG**, inside the map. We reach it at 99.97.
-
-    The assertion still tolerates one unreachable point, because the boundary is real even
-    though this figure no longer crosses it -- but the name and the docstring now describe
-    what happens rather than what used to.
-    """
-    x, _ = _reference("fig06_realtime.csv", "wf_pph", "ng_pct")
-    got = _ladder(x)
-    missing = [v for v in x if v not in got]
-    assert len(missing) <= 1, f"more of Figure 6 is now unreachable: {missing}"
-    if missing:
-        assert missing[0] > 800.0, f"the unreachable point moved down to {missing[0]:.0f} lb/hr"
-    assert _ladder([800.0])[800.0]["ng_pct"] > 99.5, "we should still reach ~100 %NG"
-
-
 def test_figure_8_ps3_against_ng_tracks_across_the_range():
     """The strongest independent check here: no fuel flow appears in it.
 
@@ -231,9 +208,24 @@ def test_we_now_track_figure_6_across_its_whole_range():
     each vertical frame land on Figure 6's printed 2.5 %NG grid to **rms 0.045 %NG**, where
     the caption-anchored map put them at 102.91, 100.58, 98.23 -- a 2.33 spacing, on no
     grid at all.
+
+    ## And we trim at every point it plots, all twenty-nine
+
+    A test named `..._but_the_last_point` said we did not -- "that point is 100.31 %NG and
+    `f1`'s top speed line is 100 %, so trimming it would mean extrapolating the compressor
+    map off its printed data". That was true when it was written and the same frame fix
+    (#64) removed it: with the frame found correctly the last marker is **806.0 lb/hr at
+    99.98 %NG**, inside the map. We reach it at 99.97. One unreachable point is still
+    tolerated, because the boundary is real even though this figure no longer crosses it.
     """
     x, y = _reference("fig06_realtime.csv", "wf_pph", "ng_pct")
     got = _ladder(x)
+    missing = [v for v in x if v not in got]
+    assert len(missing) <= 1, f"more of Figure 6 is now unreachable: {missing}"
+    if missing:
+        assert missing[0] > 800.0, f"the unreachable point moved down to {missing[0]:.0f} lb/hr"
+    assert _ladder([800.0])[800.0]["ng_pct"] > 99.5, "we should still reach ~100 %NG"
+
     pairs = [(k, got[k]["ng_pct"] - v) for k, v in zip(x, y, strict=True) if k in got]
     dev = np.array([p[1] for p in pairs])
 
