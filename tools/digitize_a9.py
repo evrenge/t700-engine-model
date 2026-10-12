@@ -1,19 +1,12 @@
 """Re-extract Figure A9 (`f9`, power turbine corrected mass flow) from TM-100991 pdf p.64.
 
-Why this figure was redone.  `f9` is the highest-leverage map in the engine: a sensitivity
-sweep of the trimmed model gives +2.30 % NG and +7.46 % SHP per +1 % on `f9` at hover, so
-a 0.2 % calibration error is worth 1.5 % of shaft power.  The 2026-09-10 extraction used a
-per-axis *linear* map on a perspective-rectified render, and A7 later showed that a linear
-axis map cannot fit these scans.
-
-Method, following `tools/digitize_a7.py`; see `tools/figure/` for the machinery.
+The CSV is hand-maintained: this tool recomputes its rows and its calibration header and
+checks them, returning non-zero on any difference. Method as in `tools/digitize_a7.py`.
 What is specific to this page:
 
-*   `x` prints a value only at the RIGHT frame (0.85).  The left frame is unlabelled, so
-    it is a *prediction*: the cubic tick fits, told nothing about it, put it at 0.30076 and
-    0.30068 (all ticks, bottom and top edges) and 0.30050 / 0.30028 (long ticks alone).
-    That is the first independent measurement of the 0.30 the 2026-09-10 header inferred
-    from a tick-count argument, and it lands inside two pixels of it.
+*   `x` prints a value only at the RIGHT frame (0.85). The left frame's 0.30 is inferred
+    from the tick count; the cubic tick fits, told nothing about it, predict it to within
+    two pixels.
 *   Both `y` frame edges are printed (0.25, 0.39), so `y` gets the full two-ended
     held-out test.
 *   The joining polyline is 1 px wide over the flat run and the scan has broken it in a
@@ -121,11 +114,8 @@ def glyph_pass(ink, fc, seeds, lines, mask_line=False):
         # The masks mark what to KEEP; `windows` takes what to EXCLUDE.
         {0: lambda X, Y: ~left_mask(X, Y), N - 1: lambda X, Y: ~right_mask(X, Y)},
         mask_line=mask_line,
-        # Trap 8's guard, adopted 2026-09-16 after measuring it. A9's own free check --
-        # its abscissae fall on a 0.025 lattice the tool is never told about -- comes out
-        # consistently better guarded, on the worst point at every order: 2.18 -> 2.10 px,
-        # 1.99 -> 1.91, 1.51 -> 1.44 at the chosen order 3, with sd unchanged. Small, and
-        # in the right direction on the map SCOPE.md puts at +7.46 % SHP per +1 %.
+        # Recipe traps 8-9: an explicit 2 px simplex on the offset, and no centre more than
+        # 10 px from its seed.
         max_move=10.0,
     )
 
