@@ -53,34 +53,25 @@ def _cells(line: str) -> int:
 
 
 @pytest.mark.parametrize("doc", DOCS, ids=lambda p: str(p.relative_to(ROOT)))
-def test_every_table_has_a_separator_row(doc: Path):
+def test_every_table_has_a_separator_and_rows_that_match_its_header(doc: Path):
     if not doc.exists():
         pytest.skip(f"{doc.name} not present")
-    bad = []
+    no_sep, bad = [], []
     for run in _blocks(doc.read_text()):
         if len(run) < 2:
             continue  # a lone piped line is prose, not a table
         if not _SEP.match(run[1][1]):
-            bad.append((run[0][0], run[0][1][:70]))
-    assert not bad, (
-        f"{doc.name}: table header not followed by a `|---|---|` separator, so it renders "
-        f"as raw pipes: {bad}"
-    )
-
-
-@pytest.mark.parametrize("doc", DOCS, ids=lambda p: str(p.relative_to(ROOT)))
-def test_every_table_row_matches_its_header(doc: Path):
-    if not doc.exists():
-        pytest.skip(f"{doc.name} not present")
-    bad = []
-    for run in _blocks(doc.read_text()):
-        if len(run) < 2 or not _SEP.match(run[1][1]):
+            no_sep.append((run[0][0], run[0][1][:70]))
             continue
         want = _cells(run[0][1])
         for n, line in run[2:]:
             got = _cells(line)
             if got != want:
                 bad.append((n, got, want))
+    assert not no_sep, (
+        f"{doc.name}: table header not followed by a `|---|---|` separator, so it renders "
+        f"as raw pipes: {no_sep}"
+    )
     assert not bad, (
         f"{doc.name}: rows whose cell count differs from the header (line, got, expected): {bad}"
     )

@@ -91,29 +91,20 @@ def _streams(wf_pph: float, real_time: bool = False) -> dict[str, float]:
 @pytest.mark.parametrize("wf_pph", TRIMS_PPH)
 @pytest.mark.parametrize("real_time", [False, True], ids=["differential", "real-time"])
 def test_every_volume_balance_closes_at_steady_state(wf_pph: float, real_time: bool):
+    """The three volume equations, then the engine overall: in minus out minus overboard,
+    which no individual volume equation states."""
     s = _streams(wf_pph, real_time)
     for key, label in (
         ("eq42", "station 3, Eq. 42"),
         ("eq43", "station 4.1, Eq. 43"),
         ("eq44", "station 4.5, Eq. 44"),
+        ("global", "the global balance (WA2 + Wf) - W45 - lost"),
     ):
         rel = abs(s[key]) / s["wa2"]
         assert rel < CLOSURE_TOL, (
             f"{label} does not close at {wf_pph} lbm/hr: residual {s[key]:.3e} lbm/s, "
             f"{rel:.3e} of WA2"
         )
-
-
-@pytest.mark.parametrize("wf_pph", TRIMS_PPH)
-@pytest.mark.parametrize("real_time", [False, True], ids=["differential", "real-time"])
-def test_the_engine_conserves_mass_overall(wf_pph: float, real_time: bool):
-    """In minus out minus overboard, which no individual volume equation states."""
-    s = _streams(wf_pph, real_time)
-    rel = abs(s["global"]) / s["wa2"]
-    assert rel < CLOSURE_TOL, (
-        f"global balance fails at {wf_pph} lbm/hr: (WA2 + Wf) - W45 - lost = "
-        f"{s['global']:.3e} lbm/s, {rel:.3e} of WA2"
-    )
 
 
 def test_the_overboard_bleed_is_only_exercised_below_the_printed_trims():

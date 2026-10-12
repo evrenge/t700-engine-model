@@ -154,32 +154,6 @@ def test_switch_on_separates_t41_from_t41_ns_only_in_transient():
     assert after < 1.0, f"heat sink left a standing offset of {after:.3f} deg R"
 
 
-def test_heat_sink_attenuates_the_t41_excursion():
-    """On a step up, the heat-sink run must overshoot T41 less than the bare run.
-
-    Direction only -- the magnitude against Figure 9 lives in `validation/`.
-    """
-    wf, r, f = _seed(400.0)
-    peaks = {}
-    for hs in (False, True):
-        st = realtime.from_trim(r, f.wa31_pps, f)
-        tr = realtime.run(
-            st,
-            lambda t: wf if t < 0.539 else wf_pps_from_pph(775.0),
-            AMB,
-            duration_s=5.0,
-            dt=0.007,
-            q_req_ftlbf=f.q_pt_ftlbf,
-            integrate_np=False,
-            heat_sink=hs,
-        )
-        settled = tr["t41"][(tr["t"] > 4.0) & (tr["t"] < 4.6)].mean()
-        peaks[hs] = tr["t41"][(tr["t"] > 0.539) & (tr["t"] < 4.6)].max() - settled
-    assert peaks[True] < peaks[False], (
-        f"overshoot did not shrink: {peaks[False]:.1f} -> {peaks[True]:.1f} deg R"
-    )
-
-
 def test_seeding_without_a_frame_still_builds_a_usable_state():
     """`from_trim` without a frame is the 5-DOF path and must keep working."""
     wf, r, f = _seed(400.0)

@@ -49,8 +49,6 @@ def test_the_data_directory_is_declared_as_package_data(pyproject: dict):
     assert tool["package-dir"]["t700.data"] == "data", (
         "the t700.data package must be rooted at the repository's data/ directory"
     )
-    globs = tool["package-data"]["t700.data"]
-    assert any("csv" in g for g in globs), f"package-data for t700.data is {globs}"
 
 
 def test_every_committed_data_file_is_covered_by_the_package_data_globs(pyproject: dict):

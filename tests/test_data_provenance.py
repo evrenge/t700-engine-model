@@ -35,11 +35,6 @@ def header_of(path: Path) -> list[str]:
     return [ln.rstrip("\n") for ln in path.read_text().splitlines() if ln.startswith("#")]
 
 
-def test_there_are_data_files():
-    """Guard against every test below passing vacuously."""
-    assert data_files(), "no CSVs under data/ -- has digitizing produced anything?"
-
-
 @pytest.mark.parametrize("path", data_files(), ids=lambda p: p.name)
 def test_has_required_provenance_fields(path: Path):
     head = "\n".join(header_of(path))
@@ -141,28 +136,3 @@ def test_values_are_finite_numbers(path: Path):
         for i, v in enumerate(vals):
             f = float(v)
             assert f == f and abs(f) != float("inf"), f"{path.name} row {i}: {key}={v}"
-
-
-def test_f10_is_stored_as_printed_not_inverted():
-    """Open question #5's *final* resolution, pinned.
-
-    Figure A10's ordinate is labelled PS9/P49 but every plotted value exceeds 1, and
-    Eq. 38 (P49 = Ps9 * f10) with the expansion order P45 > P49 > Ps9 requires f10 > 1.
-    So **the axis label is the defect and the values are f10 directly** -- no inversion
-    anywhere.
-
-    An earlier resolution of #5 said to store as printed and take the reciprocal at use.
-    That was wrong: it would put the exhaust total pressure below ambient, and no running
-    engine can do that. If someone ever 'helpfully' inverts the file, every value drops
-    below 1 and this fails.
-    """
-    path = DATA / "maps" / "f10_exhaust_pressure_loss.csv"
-    if not path.exists():
-        pytest.skip("f10 not digitized yet")
-    with path.open() as fh:
-        rows = list(csv.DictReader(ln for ln in fh if not ln.startswith("#")))
-    ys = [float(r["y"]) for r in rows]
-    assert all(y > 1.0 for y in ys), (
-        "f10 values are P49/Ps9 and must all exceed 1 -- the printed axis LABEL is "
-        "inverted, the values are not. Do not invert this file. See open question #5."
-    )

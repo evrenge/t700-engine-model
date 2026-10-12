@@ -49,6 +49,8 @@ import hashlib
 from collections import defaultdict
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 FOLDERS = ("tools", "validation", "tests", "src")
 
@@ -143,48 +145,50 @@ def test_no_function_body_appears_twice_in_the_project():
     )
 
 
-def test_the_detector_finds_a_copy_it_is_shown():
-    """A decoy, because a checker that cannot fail proves nothing.
-
-    The same body, spelled with different local names in two notional files, must still
-    collide -- that is the case a name-sensitive fingerprint missed.
-    """
-    a = ast.parse(
+FINGERPRINT_DECOYS = [
+    # the same body, spelled with different local names in two notional files, must still
+    # collide -- that is the case a name-sensitive fingerprint missed
+    (
         "def f(pos, vals):\n"
         "    out = []\n"
         "    for k in pos:\n"
         "        out.append(vals[k])\n"
-        "    return out\n"
-    ).body[0]
-    b = ast.parse(
+        "    return out\n",
         "def g(positions, values):\n"
         "    acc = []\n"
         "    for j in positions:\n"
         "        acc.append(values[j])\n"
-        "    return acc\n"
-    ).body[0]
-    na, ka = _fingerprint(a)
-    nb, kb = _fingerprint(b)
-    assert na >= MIN_STATEMENTS and ka == kb, (
-        "the duplicate detector no longer sees through a rename, so a copied function "
-        "with tidied variable names would pass unnoticed"
+        "    return acc\n",
+        True,
+    ),
+    # the other way a checker fails: flagging everything
+    (
+        "def f(x):\n    y = x + 1\n    z = y * 2\n    return z\n",
+        "def g(x):\n    y = x - 1\n    z = y / 2\n    return z\n",
+        False,
+    ),
+    # the blind spot that hid the two `_rungs` in `validation/`: a `-> type` annotation on
+    # one of two copies made them look different again
+    (
+        "def f(x) -> float:\n    y = x + 1\n    return y\n",
+        "def g(x):\n    y = x + 1\n    return y\n",
+        True,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "src_a, src_b, same", FINGERPRINT_DECOYS, ids=["rename", "logic", "annotation"]
+)
+def test_the_fingerprint_sees_through_spelling_and_not_through_logic(src_a, src_b, same):
+    """Decoys, because a checker that cannot fail proves nothing."""
+    na, ka = _fingerprint(ast.parse(src_a).body[0])
+    _, kb = _fingerprint(ast.parse(src_b).body[0])
+    assert (ka == kb) == same, (
+        f"the fingerprint {'no longer sees' if same else 'now invents'} a copy in:\n"
+        f"{src_a}\n{src_b}"
     )
-
-
-def test_the_detector_does_not_call_two_different_functions_a_copy():
-    """The other way a checker fails: flagging everything."""
-    a = ast.parse("def f(x):\n    y = x + 1\n    z = y * 2\n    return z\n").body[0]
-    b = ast.parse("def g(x):\n    y = x - 1\n    z = y / 2\n    return z\n").body[0]
-    assert _fingerprint(a)[1] != _fingerprint(b)[1]
-
-
-def test_a_return_annotation_does_not_hide_a_copy():
-    """Decoy for the blind spot that hid the two `_rungs` in `validation/`."""
-    a = ast.parse("def f(x) -> float:\n    y = x + 1\n    return y\n").body[0]
-    b = ast.parse("def g(x):\n    y = x + 1\n    return y\n").body[0]
-    assert _fingerprint(a)[1] == _fingerprint(b)[1], (
-        "a `-> type` annotation on one of two copies makes them look different again"
-    )
+    assert na >= MIN_STATEMENTS or not same, f"{na} statements is below the copy threshold"
 
 
 def test_a_two_line_copy_inside_one_file_is_found():

@@ -73,11 +73,6 @@ def test_the_toggle_drives_the_picture_source_and_not_the_img():
     assert not re.search(r"\bimg\.src\s*=", script), (
         "img.src assignment is the defect this test exists for"
     )
-
-
-def test_the_stamp_is_removed_when_the_reader_returns_to_system():
-    script = html()
-    script = script[script.index("<script>") : script.index("</script>")]
     assert "removeAttribute" in script, (
         "apply(null) must clear data-theme, or the page can never follow the system again"
     )

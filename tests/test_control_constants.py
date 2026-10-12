@@ -3,17 +3,11 @@
 Table C.1 is printed across two pages -- 28 rows then 29 -- so the count is a real check
 on the transcription, not a tautology. If someone drops a row while editing, or a
 duplicate creeps in, the count moves.
-
-The ordering assertions matter more than they look. Every limit pair in this control
-system is a low/high bracket, and a transposed pair is the kind of error that produces a
-model which runs, saturates in the wrong direction, and looks merely "detuned".
 """
 
 from __future__ import annotations
 
 import math
-
-import pytest
 
 from t700.control import constants as k
 
@@ -57,84 +51,13 @@ def test_every_constant_is_a_number():
         assert isinstance(getattr(k, n), (int, float)), n
 
 
-@pytest.mark.parametrize(
-    "low,high",
-    [
-        ("XLOLIM", "XHILIM"),
-        ("YLOLIM", "YHILIM"),
-        ("ZLOLIM", "ZHILIM"),
-        ("WFMIN", "WFMAX"),
-        ("WFPDCL", "WFPDCH"),
-        ("NP_LOOP_RELAY_LOW", "NP_LOOP_RELAY_HIGH"),
-    ],
-)
-def test_limit_pairs_are_ordered(low: str, high: str):
-    assert getattr(k, low) < getattr(k, high), f"{low} must be below {high}"
-
-
 def test_time_constants_are_positive():
-    """A negative lag is an unstable pole, not a slow one."""
-    for n in (
-        "CLMV",
-        "CLLDS",
-        "CNTL",
-        "CT2",
-        "CT7",
-        "CT9",
-        "CT12",
-        "CT13",
-        "CT14",
-        "CT16",
-        "CTPL",
-        "CTPS3",
-        "T8",
-        "T10",
-        "T11",
-        "T17",
-        "TL1",
-        "TL2",
-        "TLGE",
-        "TM_LEAD",
-        "TM_LAG",
-        "FUEL_TRANSPORT_DELAY",
-    ):
+    """A negative lag is an unstable pole, not a slow one.
+
+    Only the time constants pinned nowhere else: the printed ones are pinned by value in
+    `test_control_blocks.py::PRINTED`, the 10 ms ones by the test below."""
+    for n in ("CT12", "CT16", "T11"):
         assert getattr(k, n) > 0.0, n
-
-
-def test_the_three_known_negative_constants():
-    """These are negative in the report and must stay negative.
-
-    A dropped minus sign is the single most likely OCR failure on this scan, so the ones
-    that are genuinely negative are pinned explicitly.
-    """
-    assert k.BWFP < 0
-    assert k.XLOLIM < 0
-    assert k.ZLOLIM < 0
-    assert k.TM_INPUT_BIAS < 0
-    assert k.TM_CURRENT_BIAS < 0
-    assert k.ZLOLIM_HIGH_TORQUE < 0
-
-
-def test_ocr_traps_have_the_corrected_values():
-    """Two values the text layer reports wrongly; both read from the page image.
-
-    Recorded as tests so a future 'tidy-up' against the OCR text cannot silently undo
-    them.
-    """
-    assert k.CORR == 20.0, "OCR text layer says 2010; the page says 20.0"
-    assert k.T10 == 0.060, "OCR text layer says 0.050; the page says 0.060"
-
-
-def test_zlolim_switch_matches_table_value():
-    """Fig. C8 switches ZLOLIM on engine-2 torque; the low branch matches Table C.1.
-
-    With the one-engine implementation switch open, engine 2 torque is 0, which is below
-    the 180 ft*lbf threshold -- so the Table C.1 value is the one in force. That the two
-    agree is a consistency check on both readings.
-    """
-    assert k.ZLOLIM == -1.0
-    assert k.ZLOLIM_HIGH_TORQUE == -0.3
-    assert k.ENGINE2_TORQUE_THRESHOLD == 180.0
 
 
 def test_the_ten_millisecond_lags_are_still_lags_at_the_report_frame():

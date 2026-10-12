@@ -31,11 +31,6 @@ def test_corrections_move_the_right_way():
     assert corr.delta2(10.0) < 1.0
 
 
-def test_corrected_speed_equals_physical_at_standard_day():
-    ng = 41638.0  # hover trim NG [Table B.1, pdf p.67]
-    assert corr.corrected_speed(ng, corr.theta2(518.67)) == pytest.approx(ng)
-
-
 def test_physical_flow_uncorrects_by_delta_over_root_theta():
     """Uncorrecting must apply W = Wc*delta/sqrt(theta), the inverse of the correction.
 

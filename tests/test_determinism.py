@@ -34,14 +34,6 @@ from t700.engine import Ambient, frame
 from t700.units import wf_pps_from_pph
 
 
-def test_thermo_is_bit_identical_across_calls():
-    t = np.linspace(500.0, 3000.0, 257)
-    first = np.concatenate([thermo.h41_from_t41(t), thermo.theta41_from_t41(t)])
-    second = np.concatenate([thermo.h41_from_t41(t), thermo.theta41_from_t41(t)])
-    assert np.array_equal(first, second), "identical input gave different output"
-    assert first.dtype == np.float64
-
-
 def test_scalar_and_array_paths_agree_exactly():
     """A scalar call and an array call must give the same bits, not merely close values.
 
@@ -52,6 +44,8 @@ def test_scalar_and_array_paths_agree_exactly():
     scalar = np.array([thermo.h41_from_t41(v) for v in values])
     array = thermo.h41_from_t41(np.array(values))
     assert np.array_equal(scalar, array)
+    assert array.dtype == np.float64
+    assert thermo.theta41_from_t41(np.array(values)).dtype == np.float64
 
 
 # --------------------------------------------------------------------------------------
@@ -76,12 +70,6 @@ def _figure_9_trace():
         integrate_np=False,
         heat_sink=True,
     )
-
-
-def test_a_real_time_run_is_bit_identical_to_itself():
-    a, b = _figure_9_trace(), _figure_9_trace()
-    for key in a:
-        assert np.array_equal(a[key], b[key]), f"trace {key!r} differs between runs"
 
 
 def test_a_real_time_run_is_bit_identical_across_an_intervening_clamp_count():

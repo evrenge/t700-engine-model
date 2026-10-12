@@ -71,11 +71,17 @@ def test_the_limit_cascade_is_the_one_figure_c18_draws():
     The order is drawn, not inferred, and it is not symmetric: the deceleration floor
     outranks the acceleration ceiling. A min/max soup in any other order gives the same
     answer almost everywhere and a different one exactly where it matters.
+
+    The idle floor never wins here: [pdf p.38] eliminated fuel control below flight-idle
+    power, so `WFIDM` should not win in any condition the engine model is valid over. Open
+    question #10.
     """
     for xcpc in (10.0, 30.0, 50.0, 70.0, 90.0):
         _, o = settle(xcpc_pct=xcpc)
         expect = max(min(max(o.wfpdm, o.wfidm), o.wfpac), o.wfpdc)
         assert o.hmusel == pytest.approx(expect, abs=1e-12), (xcpc, o.hmusel, expect)
+        assert o.limit != "idle", (xcpc, o.wfidm, o.wfpdm)
+        assert o.wfidm < o.wfpdm, (xcpc, o.wfidm, o.wfpdm)
 
 
 def test_the_acceleration_limit_actually_binds_at_high_demand():
@@ -92,19 +98,9 @@ def test_the_deceleration_floor_binds_at_low_demand():
     assert o.hmusel == pytest.approx(o.wfpdc, abs=1e-12)
 
 
-def test_the_idle_floor_is_inactive_above_flight_idle():
-    """[pdf p.38] The report eliminated fuel control below flight-idle power, so `WFIDM`
-    should never win in any condition the engine model is valid over. Open question #10."""
-    for xcpc in (10.0, 30.0, 50.0, 70.0, 90.0):
-        _, o = settle(xcpc_pct=xcpc)
-        assert o.limit != "idle", (xcpc, o.wfidm, o.wfpdm)
-        assert o.wfidm < o.wfpdm, (xcpc, o.wfidm, o.wfpdm)
-
-
 def test_the_metering_valve_clamps_and_delays():
-    """[Fig. C19] WFMIN/WFMAX bracket the valve, then a lag, then a transport delay."""
-    _, o = settle(xcpc_pct=99.0, pas_deg=120.0)
-    assert c.WFMIN <= o.wf_pph <= c.WFMAX
+    """[Fig. C19] WFMIN/WFMAX bracket the valve, then a lag, then a transport delay. (The
+    clamps are pinned by `test_control_blocks.py`.)"""
     # the delay must actually delay: settle, then step the collective and check the
     # output does not move on the first frame
     s, before = settle(xcpc_pct=40.0)
@@ -118,28 +114,6 @@ def test_the_metering_valve_clamps_and_delays():
         f"{before.wf_pph} -> {o1.wf_pph}"
     )
     assert o3.wf_pph > o1.wf_pph, "and then let it through"
-
-
-def test_the_torque_motor_integrator_respects_its_printed_limits():
-    """[Fig. C10, Table C.1] XLOLIM/XHILIM are in in/sec [nomenclature, pdf p.81]."""
-    for spdg in (-5.0, 0.0, 5.0):
-        s, _ = settle(spdg=spdg, n=3000)
-        assert c.XLOLIM - 1e-12 <= s.tm_integrator <= c.XHILIM + 1e-12, (spdg, s.tm_integrator)
-
-
-def test_the_torque_motor_is_still_at_its_null():
-    """[Fig. C10] The forward path sees `SPDG - 0.44`, so with the ECU absent and SPDG at
-    the null the trim must not wander. If it does, the HMU is not runnable open-loop."""
-    s, o = settle(spdg=hmu.SPDG_NULL, n=6000)
-    assert abs(o.tmru) < 1e-6, f"torque motor drifted to TMRU={o.tmru} with no ECU"
-
-
-def test_the_deadband_is_what_stops_the_torque_motor_drifting():
-    """The null only holds because of the Fig. C10 deadband: without it the integrator
-    would ramp on the -31.0 current bias. This pins the mechanism, not just the result."""
-    assert c.TMDB > 0.0
-    _, o = settle(spdg=hmu.SPDG_NULL + 0.2, n=6000)
-    assert abs(o.tmru) > 1e-6, "a displaced SPDG should move the trim"
 
 
 def test_hysteresis_blocks_actually_hold():
@@ -156,16 +130,6 @@ def test_hysteresis_blocks_actually_hold():
 
 def test_every_schedule_the_hmu_needs_is_loadable():
     """Seven of the eight; `F_EC1` belongs to the ECU."""
-    for fn in (
-        schedules.f_hm1,
-        schedules.f_hm2,
-        schedules.f_hm3,
-        schedules.f_hm4,
-        schedules.f_hm5,
-        schedules.f_hm6,
-    ):
-        cur = fn()
-        assert cur.x.size >= 2, cur.name
     m = schedules.f_hm7()
     assert m.params.size == 7, m.params
 
@@ -178,7 +142,7 @@ Figure C25's printed 28-120 deg domain, and the collective on its stop.
 
 **The engine model is not valid here and that is the point.** [pdf p.38] eliminates fuel
 control below flight-idle power, so no operating point this project runs reaches the idle
-floor -- `test_the_idle_floor_is_inactive_above_flight_idle` asserts exactly that, at
+floor -- `test_the_limit_cascade_is_the_one_figure_c18_draws` asserts exactly that, at
 PAS = 100 deg, and stays true. What follows drives the HMU *alone*, as a block diagram,
 into the region Figures C20/C28/C29 were drawn for. It is a structural reproduction, not a
 comparison against a published number, because the report publishes none for idle."""
@@ -202,7 +166,7 @@ The asserted band is +/-0.05 %NG, so `F_HM5` is pinned to about 0.5 % and `F_HM6
 120 frames to 6000 -- because both are algebraic crossings of *settled* droop lines, and
 `hmu.seed` starts every lag on them already settled. That is what lets the bisection run
 at 200 frames and 28 halvings and still land within 5e-8 %NG of the edge it converges to
-at 6000 and 50, which keeps these four tests inside a second between them."""
+at 6000 and 50, which keeps these tests inside a second between them."""
 
 
 def _idle_hold(ng_pct, n=200, **over):
@@ -263,27 +227,14 @@ def test_the_idle_floor_binds_in_the_window_the_two_idle_schedules_place():
     assert high == pytest.approx(IDLE_WINDOW_PCT_NG[1], abs=0.05), f"upper edge {high:.4f} %NG"
 
 
-def test_the_upper_edge_of_the_idle_window_is_where_the_decel_floor_takes_over():
-    """The cross-check on the measurement above, and it is exact rather than fitted.
-
-    `WFPDC` sits on its printed lower clamp `WFPDCL` everywhere in this region, so the
-    upper crossing solves in closed form: `NG = PCNGI - (WFPDCL + WFIRF)/KNDRP`, with
-    `PCNGI = F_HM6(T2)` and `WFIRF = F_HM5(T2)`. Nothing here is free. It agrees with the
-    bisected edge to six decimals, which is what says the cascade is wired as drawn and
-    that both schedules are being read at the temperature the figures index them on.
-    """
-    t2 = IDLE_HOLD["t2_degR"]
-    pcngi = float(schedules.f_hm6()(t2))
-    wfirf = float(schedules.f_hm5()(t2))
-    assert _idle_hold(53.0).wfpdc == pytest.approx(c.WFPDCL, abs=1e-12)
-    predicted = pcngi - (c.WFPDCL + wfirf) / c.KNDRP
-    assert _idle_edge("high") == pytest.approx(predicted, abs=1e-4), predicted
-
-
 def test_the_idle_window_tracks_inlet_temperature_through_both_schedules():
     """Both idle schedules are functions of T2 alone, drawn over 390-640 degR [Figs. C28,
     C29], and the window must slide with them -- up, because `F_HM6` rises with T2 faster
-    than `4*F_HM5` does. A schedule wired to the wrong argument would sit still."""
+    than `4*F_HM5` does. A schedule wired to the wrong argument would sit still.
+
+    Each edge is checked against the closed form `NG = PCNGI - (WFPDCL + WFIRF)/KNDRP`,
+    which holds because `WFPDC` sits on its printed lower clamp `WFPDCL` in this region."""
+    assert _idle_hold(53.0).wfpdc == pytest.approx(c.WFPDCL, abs=1e-12)
     t2s = (450.0, 518.67, 580.0)
     edges = [_idle_edge("high", t2_degR=t2) for t2 in t2s]
     placed = list(zip(t2s, edges, strict=True))

@@ -46,6 +46,15 @@ PRINTED = {
 }  # fmt: skip
 P = PRINTED
 
+
+def test_every_printed_value_is_the_constant():
+    """`PRINTED` was read off the page images independently of the constants module, so
+    agreement is a check on both readings. This is what pins each value; the block tests
+    below pin where it acts."""
+    wrong = {n: (v, getattr(c, n, None)) for n, v in PRINTED.items() if getattr(c, n, None) != v}
+    assert not wrong, f"constant differs from the printed value, as (printed, module): {wrong}"
+
+
 UNCONSTRAINED = {
     "CT9": "10 ms sensor lag; at dt/tau = 0.7 its whole effect is under 0.1 % (_blocks.lag)",
     "CTPL": "10 ms sensor lag, as CT9",

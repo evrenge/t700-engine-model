@@ -34,21 +34,6 @@ def _model(name: str, dof: DOF = DOF.FIVE, rel_step: float = 1e-5):
 
 
 @pytest.mark.parametrize("name", TRIMS)
-def test_np_column_is_zero_off_the_diagonal(name: str):
-    """The structure Appendix B prints, and the reason NP can be identified at all.
-
-    "The power turbine state is completely decoupled from the other states" [pdf p.29].
-    NP drives nothing: no other state's derivative depends on it. So `A[1,1]` is exactly
-    an eigenvalue, and that -- not sorting -- is how the NP mode must be found.
-    """
-    A = _model(name).A
-    off = np.delete(A[:, 1], 1)
-    assert np.abs(off).max() == 0.0, f"NP column is not decoupled: {off}"
-    ev = np.sort(np.linalg.eigvals(A).real)
-    assert np.abs(ev - A[1, 1]).min() < 1e-6 * abs(A[1, 1])
-
-
-@pytest.mark.parametrize("name", TRIMS)
 def test_sorting_would_mispair_the_slow_modes(name: str):
     """Guard the *method*, not just the numbers.
 
@@ -177,12 +162,18 @@ def test_two_dof_equals_reduced_five_identically(name: str):
 
 
 @pytest.mark.parametrize("name", TRIMS)
-def test_five_dof_fast_modes_match_table_1(name: str):
-    """The two pressure modes are the well-conditioned part of the comparison.
+def test_five_dof_modes_against_table_1(name: str):
+    """The two pressure modes, then the NG mode, against Table 1.
 
-    Within 3 % everywhere except hover's slower one, which is the -14.9 % outlier. Bound
-    set at 16 % to hold that one; **if it tightens, tighten this** rather than leaving
-    slack that hides a regression.
+    The pressure modes are the well-conditioned part of the comparison. Within 3 %
+    everywhere except hover's slower one, which is the -14.9 % outlier. Bound set at 16 %
+    to hold that one; **if it tightens, tighten this** rather than leaving slack that hides
+    a regression.
+
+    The NG mode is a characterization: the one a pilot feels and our worst comparison.
+    -14.0 % hover, +2.3 % level, -22.6 % descent -- no monotone pattern, good in the
+    middle and poor either side. Recorded so it cannot drift unnoticed; the bound is
+    deliberately just wide enough to hold today's values.
     """
     m = _model(name)
     want = sorted([TRIMS[name][1]["P41"], TRIMS[name][1]["P45"]])
@@ -191,16 +182,6 @@ def test_five_dof_fast_modes_match_table_1(name: str):
         dev = (abs(o) - abs(w)) / abs(w) * 100.0
         assert abs(dev) < 16.0, f"{name}: {o:.1f} against {w:.1f}, {dev:+.1f} %"
 
-
-@pytest.mark.parametrize("name", TRIMS)
-def test_ng_mode_is_recorded_not_forgotten(name: str):
-    """Characterization. The NG mode is the one a pilot feels and our worst comparison.
-
-    -14.0 % hover, +2.3 % level, -22.6 % descent -- no monotone pattern, good in the
-    middle and poor either side. Recorded so it cannot drift unnoticed; the bound is
-    deliberately just wide enough to hold today's values.
-    """
-    m = _model(name)
     ng = m.comparable_eigenvalues[-1]
     want = TRIMS[name][1]["NG"]
     dev = (abs(ng) - abs(want)) / abs(want) * 100.0

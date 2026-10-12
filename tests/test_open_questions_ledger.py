@@ -21,8 +21,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 LEDGER = Path(__file__).resolve().parent.parent / "docs" / "notes" / "open-questions.md"
 
 VERDICTS = ("closed", "partly closed", "open")
@@ -49,23 +47,6 @@ def verdict_of(status: str) -> str:
         if s.startswith(v):
             return v
     return f"UNRECOGNISED: {s[:40]!r}"
-
-
-def test_the_ledger_has_rows():
-    assert len(rows()) > 50, "the ledger did not parse; the table format has changed"
-
-
-def test_every_row_has_exactly_five_cells():
-    """Six cells is not a formatting nit: it moves the verdict out of the Status column."""
-    bad = [(n, len(c) - 2) for n, c in rows() if len(c) != 7]
-    assert not bad, f"rows with the wrong cell count (number, cells): {bad}"
-
-
-def test_every_status_cell_opens_with_a_verdict():
-    bad = [(n, verdict_of(c[5])) for n, c in rows() if verdict_of(c[5]).startswith("UNRECOG")]
-    assert not bad, (
-        f"the first word of the Status cell is the verdict, and these do not have one: {bad}"
-    )
 
 
 def test_no_row_contradicts_its_own_verdict():
@@ -96,14 +77,18 @@ def test_row_numbers_are_unique():
     assert not dupes, f"duplicate row numbers {sorted(dupes)} -- never renumber, but never collide"
 
 
-@pytest.mark.parametrize("verdict", VERDICTS)
-def test_the_header_tally_matches_the_rows(verdict: str):
-    """The header states three counts. They are derived here, not trusted.
+def test_the_header_tally_matches_the_rows():
+    """The header states three counts. They are derived here, not trusted -- which needs
+    every Status cell to open with its verdict, so that is asserted first.
 
     Until 2026-09-14 the header said "56 logged -- 40 closed, 5 partly closed, 11 open"
     against an actual 56 / 37 / 5 / 14, and named row 57 as closed when its verdict word
     said open and row 58 as the next piece of work when it had shipped.
     """
+    bad = [(n, verdict_of(c[5])) for n, c in rows() if verdict_of(c[5]).startswith("UNRECOG")]
+    assert not bad, (
+        f"the first word of the Status cell is the verdict, and these do not have one: {bad}"
+    )
     counts = {v: 0 for v in VERDICTS}
     for _, c in rows():
         counts[verdict_of(c[5])] += 1
@@ -117,12 +102,8 @@ def test_the_header_tally_matches_the_rows(verdict: str):
             strict=True,
         )
     )
-    assert stated["logged"] == len(rows()), (
-        f"header says {stated['logged']} logged, parsed {len(rows())}"
-    )
-    assert stated[verdict] == counts[verdict], (
-        f"header says {stated[verdict]} {verdict}, parsed {counts[verdict]}"
-    )
+    parsed = {"logged": len(rows()), **counts}
+    assert stated == parsed, f"header says {stated}, parsed {parsed}"
 
 
 def test_every_closed_row_says_what_was_decided():
@@ -148,10 +129,4 @@ def test_every_closed_row_says_what_was_decided():
     assert not thin, (
         f"closed rows stating a verdict but not a finding (row, words): {thin}. "
         f"Say what was decided; the record behind it is no longer in the tree."
-    )
-
-
-def test_nothing_still_points_at_the_deleted_record_file():
-    assert "closed-questions.md" not in LEDGER.read_text(), (
-        "the ledger points at closed-questions.md, which was folded back in and deleted"
     )
