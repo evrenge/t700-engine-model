@@ -57,8 +57,8 @@
 #   x axis: QUARTIC in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        left   x = +0.00011832087 u^4 -0.00032135854 u^3 +0.00027990784 u^2 +0.0099176955 u +0.0099973589
-#        right  x = -0.00023111209 u^4 +0.00032889669 u^3 -9.1911783e-05 u^2 +0.009997681 u +0.010003058
+#        bottom x = +0.00011832087 u^4 -0.00032135854 u^3 +0.00027990784 u^2 +0.0099176955 u +0.0099973589
+#        top    x = -0.00023111209 u^4 +0.00032889669 u^3 -9.1911783e-05 u^2 +0.009997681 u +0.010003058
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was x = -4.6841861e-05 u^4 -8.267383e-06 u^3 +9.6169389e-05 u^2 +0.0099590372 u +0.0099999322
 #      Fitted on 100 interior ticks (fine lattice, 50 per edge) plus the frame
@@ -84,8 +84,8 @@
 #   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = +0.020853273 v^4 -0.043190259 v^3 +0.025979094 v^2 +0.21632044 v +0.87997927
-#        top    y = +0.020998066 v^4 -0.044900511 v^3 +0.027837077 v^2 +0.21605065 v +0.87994605
+#        left   y = +0.020853273 v^4 -0.043190259 v^3 +0.025979094 v^2 +0.21632044 v +0.87997927
+#        right  y = +0.020998066 v^4 -0.044900511 v^3 +0.027837077 v^2 +0.21605065 v +0.87994605
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was y = +0.020465854 v^4 -0.043152321 v^3 +0.02632981 v^2 +0.21632658 v +0.87995296
 #      Fitted on 215 interior ticks (fine lattice, 107 per edge) plus the frame

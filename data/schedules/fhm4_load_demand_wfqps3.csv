@@ -58,8 +58,8 @@
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        left   x = +99.940921 u -0.07824225
-#        right  x = +100.15696 u +0.012737593
+#        bottom x = +99.940921 u -0.07824225
+#        top    x = +100.15696 u +0.012737593
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was x = +100.05267 u -0.034778682
 #      Fitted on 198 interior ticks (fine lattice, 99 per edge) plus the frame
@@ -85,8 +85,8 @@
 #   y axis: LINEAR in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = +1.598218 v +2.1020173
-#        top    y = +1.6007006 v +2.0997767
+#        left   y = +1.598218 v +2.1020173
+#        right  y = +1.6007006 v +2.0997767
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was y = +1.5991671 v +2.1011827
 #      Fitted on 14 interior ticks (majors lattice, 7 per edge) plus the frame
@@ -113,7 +113,7 @@
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
 #   model to 0.0821 in x and 0.00241 in y, worst point.
 #
-# MARKERS. 11 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
+# MARKERS. 11 'x' glyphs. Seeds come from a 6x6 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
 # not -- which is independent of density and needs no threshold sweep. Each centre is
 # then fitted with a generative model of the local ink: (stroke1 U stroke2 U incoming

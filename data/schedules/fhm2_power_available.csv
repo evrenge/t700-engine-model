@@ -58,8 +58,8 @@
 #   x axis: CUBIC in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        left   x = -1.1516344 u^3 +1.8526507 u^2 +99.130456 u +20.063158
-#        right  x = -2.3120642 u^3 +3.5178626 u^2 +98.96042 u +20.105618
+#        bottom x = -1.1516344 u^3 +1.8526507 u^2 +99.130456 u +20.063158
+#        top    x = -2.3120642 u^3 +3.5178626 u^2 +98.96042 u +20.105618
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was x = -1.6831936 u^3 +2.6711143 u^2 +99.018676 u +20.092593
 #      Fitted on 199 interior ticks (fine lattice, 99 per edge) plus the frame
@@ -85,8 +85,8 @@
 #   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = +1.2075471 v^4 -2.2274404 v^3 +1.1757102 v^2 +13.843045 v -1.9974287
-#        top    y = +1.5097259 v^4 -2.7170321 v^3 +1.3892645 v^2 +13.811234 v -1.9996764
+#        left   y = +1.2075471 v^4 -2.2274404 v^3 +1.1757102 v^2 +13.843045 v -1.9974287
+#        right  y = +1.5097259 v^4 -2.7170321 v^3 +1.3892645 v^2 +13.811234 v -1.9996764
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was y = +1.4034963 v^4 -2.5491421 v^3 +1.3255742 v^2 +13.818437 v -1.998073
 #      Fitted on 268 interior ticks (fine lattice, 134 per edge) plus the frame
@@ -113,7 +113,7 @@
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
 #   model to 0.134 in x and 0.0075 in y, worst point.
 #
-# MARKERS. 11 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
+# MARKERS. 11 'x' glyphs. Seeds come from a 6x6 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
 # not -- which is independent of density and needs no threshold sweep. Each centre is
 # then fitted with a generative model of the local ink: (stroke1 U stroke2 U incoming

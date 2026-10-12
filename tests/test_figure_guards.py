@@ -5,6 +5,7 @@ Each case is one the library used to accept and carry on from with a wrong numbe
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -30,7 +31,7 @@ def test_the_frame_is_read_from_its_own_lines_whatever_the_header_order(tmp_path
     src = ROOT / "data" / "maps" / "f3_seal_bleed_fraction.csv"
     lines = src.read_text().splitlines(keepends=True)
     first_frame = next(i for i, ln in enumerate(lines) if ln.startswith("#   left   x = "))
-    axis_maps = [i for i, ln in enumerate(lines) if ln.startswith("#        left   x = ")]
+    axis_maps = [i for i, ln in enumerate(lines) if re.match(r"#\s{8}\w+\s+[xy] = .*[uv]", ln)]
     assert axis_maps, "the fixture header has changed shape"
     rest = [ln for i, ln in enumerate(lines) if i not in axis_maps]
     moved = rest[:first_frame] + [lines[i] for i in axis_maps] + rest[first_frame:]

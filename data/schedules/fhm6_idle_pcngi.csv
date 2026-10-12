@@ -57,8 +57,8 @@
 #   x axis: CUBIC in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        left   x = -1.8971223 u^3 +3.3177558 u^2 +248.42542 u +390.03706
-#        right  x = -3.870574 u^3 +7.1142418 u^2 +246.72455 u +390.04479
+#        bottom x = -1.8971223 u^3 +3.3177558 u^2 +248.42542 u +390.03706
+#        top    x = -3.870574 u^3 +7.1142418 u^2 +246.72455 u +390.04479
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was x = -3.3378048 u^3 +5.8519807 u^2 +247.32351 u +390.0662
 #      Fitted on 47 interior ticks (fine lattice, 23 per edge) plus the frame
@@ -84,8 +84,8 @@
 #   y axis: CUBIC in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = -0.46130926 v^3 +0.69230998 v^2 +12.766565 v +61.999402
-#        top    y = -0.47372235 v^3 +0.71659478 v^2 +12.753893 v +61.99843
+#        left   y = -0.46130926 v^3 +0.69230998 v^2 +12.766565 v +61.999402
+#        right  y = -0.47372235 v^3 +0.71659478 v^2 +12.753893 v +61.99843
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was y = -0.48401609 v^3 +0.72018045 v^2 +12.758886 v +61.998173
 #      Fitted on 12 interior ticks (majors lattice, 6 per edge) plus the frame
@@ -108,7 +108,7 @@
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
 #   model to 0.0107 in x and 0.00985 in y, worst point.
 #
-# MARKERS. 2 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
+# MARKERS. 2 'x' glyphs. Seeds come from a 6x6 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
 # not -- which is independent of density and needs no threshold sweep. Each centre is
 # then fitted with a generative model of the local ink: (stroke1 U stroke2 U incoming

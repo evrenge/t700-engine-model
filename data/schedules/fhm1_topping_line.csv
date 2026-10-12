@@ -58,8 +58,8 @@
 #   x axis: QUARTIC in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        left   x = +3.3031064 u^4 -8.4988874 u^3 +6.8673431 u^2 +248.26312 u +389.90967
-#        right  x = -7.0261646 u^4 +10.823144 u^3 -4.3540278 u^2 +250.60593 u +390.08503
+#        bottom x = +3.3031064 u^4 -8.4988874 u^3 +6.8673431 u^2 +248.26312 u +389.90967
+#        top    x = -7.0261646 u^4 +10.823144 u^3 -4.3540278 u^2 +250.60593 u +390.08503
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was x = -1.7446574 u^4 +1.2340242 u^3 +0.95517593 u^2 +249.59203 u +389.9781
 #      Fitted on 50 interior ticks (fine lattice, 25 per edge) plus the frame
@@ -85,8 +85,8 @@
 #   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = +0.49896309 v^4 -1.0395051 v^3 +0.63595953 v^2 +4.4043281 v -0.499833
-#        top    y = +0.63306081 v^4 -1.3258818 v^3 +0.84520662 v^2 +4.3472427 v -0.49987576
+#        left   y = +0.49896309 v^4 -1.0395051 v^3 +0.63595953 v^2 +4.4043281 v -0.499833
+#        right  y = +0.63306081 v^4 -1.3258818 v^3 +0.84520662 v^2 +4.3472427 v -0.49987576
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was y = +0.56550164 v^4 -1.1835587 v^3 +0.74274436 v^2 +4.3747112 v -0.49971998
 #      Fitted on 16 interior ticks (majors lattice, 8 per edge) plus the frame
@@ -113,7 +113,7 @@
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
 #   model to 0.0852 in x and 0.00103 in y, worst point.
 #
-# MARKERS. 9 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
+# MARKERS. 9 'x' glyphs. Seeds come from a 6x6 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
 # not -- which is independent of density and needs no threshold sweep. Each centre is
 # then fitted with a generative model of the local ink: (stroke1 U stroke2 U incoming

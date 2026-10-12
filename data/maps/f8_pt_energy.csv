@@ -61,8 +61,8 @@
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        left   x = +0.5503129 u +0.29944711
-#        right  x = +0.55047159 u +0.29966863
+#        bottom x = +0.5503129 u +0.29944711
+#        top    x = +0.55047159 u +0.29966863
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was x = +0.55042959 u +0.29953085
 #      Fitted on 110 interior ticks (fine lattice, 55 per edge) plus the frame
@@ -84,8 +84,8 @@
 #   y axis: QUARTIC in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = +1.6220538 v^4 -4.5442058 v^3 +3.8763166 v^2 +44.049014 v -4.9819175
-#        top    y = +2.028616 v^4 -5.8416463 v^3 +4.9262905 v^2 +43.871885 v -4.9979653
+#        left   y = +1.6220538 v^4 -4.5442058 v^3 +3.8763166 v^2 +44.049014 v -4.9819175
+#        right  y = +2.028616 v^4 -5.8416463 v^3 +4.9262905 v^2 +43.871885 v -4.9979653
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was y = +1.9045621 v^4 -5.3506303 v^3 +4.5063476 v^2 +43.933421 v -4.9877358
 #      Fitted on 353 interior ticks (fine lattice, 176 per edge) plus the frame

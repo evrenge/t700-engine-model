@@ -56,8 +56,8 @@
 #   x axis: LINEAR in u, where u = 0 at the left frame and 1 at the right frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        left   x = +34.986733 u +65.027882
-#        right  x = +35.006216 u +64.972068
+#        bottom x = +34.986733 u +65.027882
+#        top    x = +35.006216 u +64.972068
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was x = +34.997836 u +64.99883
 #      Fitted on 69 interior ticks (fine lattice, 34 per edge) plus the frame
@@ -79,8 +79,8 @@
 #   y axis: CUBIC in v, where v = 0 at the bottom frame and 1 at the top frame.
 #      The two ticked edges are fitted SEPARATELY and blended across the plot;
 #      the value at a point is the map its own end of the plot measured.
-#        bottom y = -0.0063370263 v^3 +0.0095472834 v^2 +0.13670777 v -0.019919476
-#        top    y = -0.0074289863 v^3 +0.01145765 v^2 +0.13579149 v -0.019944535
+#        left   y = -0.0063370263 v^3 +0.0095472834 v^2 +0.13670777 v -0.019919476
+#        right  y = -0.0074289863 v^3 +0.01145765 v^2 +0.13579149 v -0.019944535
 #      Pooling them, which this tool did until 2026-09-16, averages away a real
 #      difference; the pooled map was y = -0.0068726767 v^3 +0.010484616 v^2 +0.13624924 v -0.019926115
 #      Fitted on 257 interior ticks (fine lattice, 128 per edge) plus the frame
@@ -107,7 +107,7 @@
 #   bracket each point, done on each ticked edge and averaged, agrees with the chosen
 #   model to 0.0278 in x and 0.000157 in y, worst point.
 #
-# MARKERS. 13 'x' glyphs. Seeds come from a 7x7 morphological OPENING of the
+# MARKERS. 13 'x' glyphs. Seeds come from a 6x6 morphological OPENING of the
 # ink -- the joining line is ~4 px wide and vanishes, the crossing of two strokes does
 # not -- which is independent of density and needs no threshold sweep. Each centre is
 # then fitted with a generative model of the local ink: (stroke1 U stroke2 U incoming
