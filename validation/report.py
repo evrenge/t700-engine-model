@@ -777,6 +777,38 @@ def table_b1_plot(b1: dict, cl: dict) -> None:
     save(fig, "table-b1")
 
 
+def table_3() -> dict:
+    """Table 3 [pdf p.44]: the NASA-Lewis test engine, Ballin's model and ours, at Table 2's
+    conditions. A characterization: his column ran the test engine's own maps (#34)."""
+    import test_table_3 as t3
+
+    rows, stats = [], {}
+    for n in sorted(t3.TABLE_2):
+        ours = t3.run(n)
+        for k, q in enumerate(t3.QUANTITIES):
+            e, b = t3.TABLE_3["engine"][n][k], t3.TABLE_3["ballin"][n][k]
+            o = ours.values[k]
+            rows.append(
+                {
+                    "case": n,
+                    "quantity": q,
+                    "engine": e,
+                    "ballin": b,
+                    "ours": float(o),
+                    "ours_vs_ballin_pct": float(100.0 * (o - b) / abs(b)),
+                    "ballin_vs_engine_pct": float(100.0 * (b - e) / abs(e)),
+                    "ours_vs_engine_pct": float(100.0 * (o - e) / abs(e)),
+                }
+            )
+    for q in t3.QUANTITIES:
+        sel = [r for r in rows if r["quantity"] == q and r["case"] in t3.CHARACTERIZED]
+        stats[q] = {
+            k: _stats(np.array([r[k] for r in sel]))
+            for k in ("ours_vs_ballin_pct", "ballin_vs_engine_pct", "ours_vs_engine_pct")
+        }
+    return {"rows": rows, "stats_cases_2_6": stats}
+
+
 def _render(data: dict) -> None:
     print("figures 6-8 ...", flush=True)
     data["steady"] = steady_sweeps()
@@ -810,6 +842,8 @@ def _render(data: dict) -> None:
     data["engine_maps"] = sheet_engine_maps()
     print("fuel overestimate ...", flush=True)
     data["fuel_overestimate"] = fuel_overestimate()
+    print("table 3 ...", flush=True)
+    data["table_3"] = table_3()
 
 
 # ============================================ the model's own behaviour, with no reference

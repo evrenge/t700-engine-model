@@ -456,7 +456,7 @@ def step(
         st.p3_psia, st.p41_psia, cp.t3, theta41, wa31, wf_pps, tol=tol
     )
 
-    ps9 = ambient.p_amb_psia  # (37)
+    ps9 = ambient.exhaust_psia  # (37)
     p49 = ps9 * float(maps.f10()(cp.ngc_pct))  # (38)
 
     dh_gt, _, w41, _, t45, theta45 = gg_turbine_and_station45(

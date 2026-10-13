@@ -40,6 +40,16 @@ class Ambient:
 
     p_amb_psia: float = corrections.P_STD_PSIA
     t_amb_degR: float = corrections.T_STD_DEGR
+    ps9_psia: float | None = None
+    """Exhaust static pressure, Eq. 37's ambient at the nozzle exit. `None` in flight, where
+    inlet and exhaust share one ambient. A test cell sets its own: Table 2 prints the exhaust
+    condition apart from the inlet's [pdf p.43], and "the inlet and exhaust conditions, fuel
+    flow, and load conditions were specified" [pdf p.39]."""
+
+    @property
+    def exhaust_psia(self) -> float:
+        """Ps9 [Eq. 37]."""
+        return self.p_amb_psia if self.ps9_psia is None else self.ps9_psia
 
 
 STANDARD_DAY = Ambient()
@@ -335,7 +345,7 @@ def frame(
     dh_gt, h44, w41, h45, t45, theta45 = gg_turbine_and_station45(h41, theta41, p41, p45)
 
     # --- exhaust first, Eqs. 37-38: P49 sets the power turbine's back pressure ---------
-    ps9 = ambient.p_amb_psia  # (37)
+    ps9 = ambient.exhaust_psia  # (37)
     p49 = ps9 * float(maps.f10()(cp.ngc_pct))  # (38)  f10 > 1; see maps.f10 and question #5
 
     # --- power turbine, Eqs. 32-36 ----------------------------------------------------

@@ -163,6 +163,7 @@ report, so never quote one as a result.
 | **Table 1 eigenvalues** | **+/-6 %** | `test_trim_points.EIGENVALUE_TOL_PCT`. **A characterization, not an accuracy claim**: a regression detector set a quarter above today's **4.70 %<!--rj:eigenvalues.notes.table_1_stats.worst-->** worst over all 27<!--rj:eigenvalues.notes.table_1_stats.n--> printed modes (rms 1.94 %<!--rj:eigenvalues.notes.table_1_stats.rms-->), each paired by dominant state and asserted by `test_all_dof_models.test_every_printed_table_1_mode` at Table B.1's 20895 rpm, with the report's ±2 % extraction step [pdf p.28]. Ballin calls a 4 % mismatch "good agreement" for his own comparison [pdf p.29]; ours is not that, and this row keeps the difference visible |
 | Fuel overestimate, 81-86 %NG, vs the report's own claim | +/-8 % | `test_steady_sweeps.FUEL_OVERESTIMATE_CEILING_PCT`. The report's sharpest printed steady-state claim about itself: the real-time model tends to "overestimate fuel consumption by as much as five percent" [pdf p.39]. A ceiling above our measured 6.34 %<!--rj:fuel_overestimate.ours_peak_pct-->, against Ballin's own line's 5.98 %<!--rj:fuel_overestimate.ballin_peak_pct-->: ours exceeds his claim, and that is the finding |
 | Table 1 NG mode, each model against its own column | +/-2 % (full), +/-6 % (quasi-steady), +/-3 % (reduced) | `test_all_dof_models.NG_MODE_TOL_PCT`. A characterization set a quarter above today's measurement: each of our three linear models, made the way Ballin made his [pdf pp.27-28], against its own column (#49) |
+| Table 3, ours against Ballin's model column, cases 2-6 | 4, 10, 17, 14, 4, 11 % | `test_table_3.TABLE_3_CHAR_PCT`, in the order NG, NP, WA2, P3, T3, T45, at Table 2's conditions [pdf p.43] with NP free. **A characterization, not an accuracy claim**: his column ran the NASA-Lewis test engine's own maps, printed nowhere [pdf p.39], and ours the standard ones, which describe a stronger engine (`test_table_3.test_the_standard_maps_make_a_stronger_engine_than_the_prototype`). Case 1 is reported, not bounded: below the power turbine speeds the model is valid for [pdf p.39] |
 | What the 7 ms frame costs the NG mode | under 16 % (hover), 5 % (level), 2 % (descent) | `test_discrete_map.FRAME_COST_TOL_PCT`. Our real-time map against our continuous model, both with the pressure iterations converged; set a quarter above today's measurement. A characterization of our frame, not a comparison with Table 1 (see "What the real-time approximation costs") |
 
 ### Appendix B, element by element
@@ -238,7 +239,7 @@ something did.
 | 5 | **Figures 6–8** | 40–42 | ~70 markers | ours | steady behaviour across the **whole operating range** rather than three points, so a map error shows as a trend in a region instead of one unattributable number |
 | 6 | **Table 1 eigenvalues** | 31 | 27 modes, all compared | none | *nothing the rows above do not already carry.* The modes are an aggregation of Appendix B's matrices at Table B.1's trims, and they cover only the 2-DOF, 5-DOF and reduced-5 models — the 3-DOF and 6-DOF print no eigenvalues at all |
 | — | Figures 11–15 | 48–53 | — | — | **not reproducible**: they need Gen Hel |
-| — | Table 3 | 44 | 6 cases | — | **not a target**; see below |
+| — | Table 3 | 44 | 6 cases | none | **compared, never a target**: see below |
 
 The ordering is **not** a ranking of how hard each comparison is to pass — the loosest bound
 in the project sits on row 6 and one of the tightest on row 1 — and **not** an instruction to
@@ -248,11 +249,12 @@ lower one is recorded rather than tuned away (as in #73).
 
 ### Two things not to do
 
-- **Table 3 (pdf p.44) is not a validation target.** It looks like the best steady-state
-  benchmark in the report, six hardware test cases, but its model column was produced with
-  compressor and turbine functions from the *NASA-Lewis prototype engine*, used in place of
-  the standard ones and printed nowhere [pdf p.39]. Use it as evidence of method, never as
-  pass/fail.
+- **Table 3 (pdf p.44) is compared, never tuned toward.** It looks like the best
+  steady-state benchmark in the report, six hardware test cases, but its model column was
+  produced with compressor and turbine functions from the *NASA-Lewis prototype engine*,
+  used in place of the standard ones and printed nowhere [pdf p.39]. `test_table_3` runs ours,
+  on the standard maps, at Table 2's conditions: the gap to his column measures the prototype
+  against the specification engine, not our model against his (#34).
 - **Do not fix the T41/T45 trim bias.** Ballin's model underestimates turbine temperature at
   trim, "a characteristic of the real-time model which was found for all validation cases"
   [pdf pp.39, 47]. A replication reproduces that bias with the same sign; one that matches

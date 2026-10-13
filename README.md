@@ -29,6 +29,7 @@ re-running the model, together with the comparison figures in `results/`;
 | Figure 8, Ps3 vs NG | mean +0.07 %<!--rj:steady.figure_8.mean-->, rms 0.26 %<!--rj:steady.figure_8.rms-->, worst +0.64<!--rj:steady.figure_8.worst--> over 27<!--rj:steady.figure_8.n--> of 27<!--rj:steady.figure_8.printed_points--> |
 | Figures 9 and 10, fuel transients | whole-curve rms **0.62<!--rj:whole_curve_summary.min-->–3.80 %<!--rj:whole_curve_summary.max-->** of each panel's excursion, mean 1.64 %<!--rj:whole_curve_summary.mean--> over ten panels |
 | The report's own claim about Figure 6 | reproduced: in the 81–86 %NG band the report names, we overestimate fuel by **+6.34 %<!--rj:fuel_overestimate.ours_peak_pct-->**, against its own line's +5.98 %<!--rj:fuel_overestimate.ballin_peak_pct--> and its printed "as much as five percent" [pdf p.39] |
+| Table 3, the NASA-Lewis test engine | a characterization, not a target (#34): on the standard maps, at Table 2's conditions, ours passes +12.0 %<!--rj:table_3.stats_cases_2_6.WA2.ours_vs_ballin_pct.mean--> more air and runs a −7.5 %<!--rj:table_3.stats_cases_2_6.T45.ours_vs_ballin_pct.mean--> cooler T45 than Ballin's model (means, cases 2-6), which ran the test engine's own maps [pdf p.39] |
 | Frame cost | tens of microseconds per frame, against the report's 10 ms budget |
 
 ## What is in here
@@ -80,7 +81,7 @@ blade-element simulation, which the report consumes and does not contain; Table 
 produced with functions from a different engine and is evidence of method, never pass/fail;
 and nothing above 100 %NG is claimed, because Ballin claims nothing there either [pdf p.39].
 
-As of 2026-10-13, `docs/notes/open-questions.md` has logged 74 questions: 72 closed, 2 open
+As of 2026-10-13, `docs/notes/open-questions.md` has logged 75 questions: 73 closed, 2 open
 (#60, #74). Each row states what was asked and what was decided.
 
 ## Running it
