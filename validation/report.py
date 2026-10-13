@@ -921,7 +921,7 @@ def gen_hel() -> dict:
             ("torque", "total torque, % of trim", ""),
             ("ng", "gas generator speed, %", ""),
             ("fuel", "vehicle fuel flow, % of trim", ""),
-            ("nr", "main rotor speed, %", "his Gen Hel rotor speed is our NP input"),
+            ("nr", "main rotor speed, %", ""),
         )
         for ax, (key, ylabel, title) in zip(axes, rows, strict=True):
             for line, sty, colr, lab in (
@@ -958,6 +958,15 @@ def gen_hel() -> dict:
                     "rotor speed"
                 )
                 ax.text(0.01, 0.88, note, transform=ax.transAxes, fontsize=7, color=MUTED)
+            if key == "nr":
+                ax.text(
+                    0.01,
+                    0.88,
+                    "his Gen Hel rotor speed: our NP input",
+                    transform=ax.transAxes,
+                    fontsize=7,
+                    color=MUTED,
+                )
             _style(ax, "time, s" if key == "nr" else "", ylabel, title)
         handles, labels = axes[2].get_legend_handles_labels()
         fig.legend(
