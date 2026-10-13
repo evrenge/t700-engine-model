@@ -31,7 +31,7 @@ import numpy as np
 from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from figure.frame import band_line, longest_run_columns, make_sv  # noqa: E402
+from figure.frame import band_line, fit_edges, longest_run_columns, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
 from figure.ticks import find_ticks  # noqa: E402
 
@@ -274,16 +274,35 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     out = []
     for t, (key, label, lo, hi) in zip(tops, ranges, strict=True):
         t0, b0 = int(round(t)), int(round(t + height))
-        ts, ty, _ = frame_tilt(ink, t0, left, right)
-        bs, by, _ = frame_tilt(ink, b0, left, right)
+        hb, vb = FRAME_HALF_BAND_PX, VFRAME_HALF_BAND_PX
+        fc, diag = fit_edges(
+            ink,
+            [
+                ("top", 1, t0 - hb, t0 + hb + 1, left + 5, right - 4),
+                ("bottom", 1, b0 - hb, b0 + hb + 1, left + 5, right - 4),
+                ("left", 0, left - vb, left + vb + 1, t0 + 4, b0 - 3),
+                ("right", 0, right - vb, right + vb + 1, t0 + 4, b0 - 3),
+            ],
+            verbose=False,
+        )
+
+        def line(nm, nominal, at, min_n, fc=fc, diag=diag):
+            """`(slope, position at `at`)`, or level at the nominal one if too few samples."""
+            if diag[nm]["n"] < min_n:
+                return 0.0, float(nominal)
+            a, b = fc[nm]
+            return float(a), float(a * at + b)
+
+        ts, ty = line("top", t0, left, FRAME_MIN_COLUMNS)
+        bs, by = line("bottom", b0, left, FRAME_MIN_COLUMNS)
         # A frame the fit could not reach falls back to the other one rather than to zero:
         # the two frames of a panel are parallel to well under a pixel across the width.
         if ts == 0.0:
             ts = bs
         if bs == 0.0:
             bs = ts
-        ls, lx, _ = vframe_fit(ink, left, t0, b0)
-        rs, rx, _ = vframe_fit(ink, right, t0, b0)
+        ls, lx = line("left", left, t0, VFRAME_MIN_ROWS)
+        rs, rx = line("right", right, t0, VFRAME_MIN_ROWS)
         # The vertical frames are referenced to the panel's own top row, `ty`, not to the
         # row the fit was anchored at.
         lx += ls * (ty - t0)
