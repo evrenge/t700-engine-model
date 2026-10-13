@@ -24,7 +24,7 @@ units).
 | PDF | Printed | Content |
 |---|---|---|
 | 15 | 1 | Title block (*A HIGH FIDELITY REAL-TIME SIMULATION OF A SMALL TURBOSHAFT ENGINE*, Mark G. Ballin, Ames Research Center). **SUMMARY** (one paragraph). **INTRODUCTION** begins — motivation, rotorcraft handling qualities, why partial-derivative engine models are inadequate. No equations. |
-| 16 | 2 | **Figure 1**, full page: *Modal frequencies of interest in engine and fuel-control design and modeling (ref. 3).* Frequency axis 0.1–50 Hz, log. Bars above the axis = airframe/rotor modes, hatched bars below = drive-system modes. Spans labelled HELICOPTER MANUFACTURER, PERFORMANCE, HANDLING QUALITIES, AUTOMATIC FLIGHT CONTROLS, DYNAMICS, ENGINE MANUFACTURER. **This is the figure the errata sheet (pdf p.6) corrects**: printed `GAS INDUCED FLAP REGRESSIVE` should read `CONTROL-SYSTEM-INDUCED FLAP REGRESSIVE`. No equations. |
+| 16 | 2 | **Figure 1**, full page: *Modal frequencies of interest in engine and fuel-control design and modeling (ref. 3).* Frequency axis 0.1–50 Hz, log. Bars above the axis = airframe/rotor modes, hatched bars below = drive-system modes. Spans labelled HELICOPTER MANUFACTURER, PERFORMANCE, HANDLING QUALITIES, AUTOMATIC FLIGHT CONTROLS, DYNAMICS, ENGINE MANUFACTURER. **This is the figure the errata sheet (pdf p.5) corrects**: printed `GAS INDUCED FLAP REGRESSIVE` should read `CONTROL-SYSTEM-INDUCED FLAP REGRESSIVE`. No equations. |
 | 17 | 3 | Introduction continues (component-type modelling as the alternative; Gen Hel / UH-60A / GE T700 selection). Acknowledgements paragraph (R. T. N. Chen, R. McFarland, D. Gilmore of GE). **ENGINE AND FUEL CONTROL SYSTEM** section begins — physical description of the T700-GE-700. No equations. |
 | 18 | 4 | **Figure 2**, full page: *General Electric T700-GE-700 engine. (From ref. 6.)* Two cutaway drawings; lower one labels COMPRESSOR STATOR, COMPRESSOR, COMBUSTOR, POWER TURBINE, GAS GENERATOR, POWER TURBINE SHAFT, COMPRESSOR ANTI-ICING AND START BLEED MANIFOLD. Carries the NASA "ORIGINAL PAGE IS OF POOR QUALITY" stamp. No equations. |
 | 19 | 5 | Fuel control system description — HMU (vane pump + mechanical cams: acceleration, deceleration, topping, idle schedules vs inlet temperature and NG; collective feed-forward; variable geometry) and ECU (isochronous NP governing, overtemperature protection, load sharing; torque motor adjusts HMU demand **downward** so electrical failure gives maximum power). Drive train and overrunning clutch. **ENGINE MODEL** section begins — general free-turbine turboshaft description, control volumes, inputs. No equations. |
@@ -111,7 +111,8 @@ P_s3 = K_Ps3 · P3
 | P3 | station 3 total pressure, lb_f/in² — **a model state** | yes |
 
 Typesetting: the report prints `P` with a small lowered `s` then a full-size `3` —
-`P_s3`, "static pressure at station 3". Same pattern as `P_s9`.
+`P_s3`, "static pressure at station 3" [pdf p.22] (the nomenclature, pdf p.11, reads
+"station 3 static pressure"). Same pattern as `P_s9`.
 
 Preceding text for (5)–(6): *"The gas-generator turbine speed is corrected by the square
 root of a nondimensional temperature parameter."*
@@ -989,7 +990,7 @@ One sentence, pdf p.25, immediately above Eq. 42:
 And the framing on pdf p.19:
 
 > *"The four major components are separated by fluid mixing volumes, each of which is
-> associated with flow passages within the engine where thermodynamic states of the gas are
+> associated with flow passages within the engine where thermodynamic states are
 > quantifiable. States of the gas in each control volume are expressed in terms of pressure,
 > temperature, and mass flow. … Conservation of mass is used to determine the values of mass
 > flows into and out of each control volume."*
@@ -1078,9 +1079,9 @@ NG = ----- · │ ------------ dt
   interstage bleed: the `WA2` term carries the full inlet flow at a reduced enthalpy
   weighting, the `WA3` term adds the post-bleed flow at the complementary weighting.
   Prose confirms: *"Effects of the compressor interstage bleed flows are accounted for with
-  an empirically determined function."*
+  an empirically determined function."* [pdf p.25]
 - **Inertia**: `J_GT` = 0.0445 ft·lb_f·sec² — *"the rigid mass which represents the gas
-  generator, compressor, and the associated shafting"*.
+  generator, compressor, and the associated shafting"* [pdf p.9].
 - **No external load, no damping term.** The gas generator spool sees only turbine minus
   compressor.
 
@@ -1097,10 +1098,10 @@ NP = ----- · │ -------------- dt
 - **Driving torque**: `Q_PT`, Eq. 41, which is the power-turbine work term **minus a speed
   damping term** `K_damp · (2π/60) · (NP − NP_des)`. The damping term is proportional to
   the *displacement of NP from design speed*, not to `dNP/dt`, despite the prose calling it
-  *"a damping factor based on change of power turbine speed"*. Reproduce the equation, not
-  the prose.
+  *"a damping factor based on change of power turbine speed"* [pdf p.25]. Reproduce the
+  equation, not the prose.
 - **Resisting torque**: `Q_req`, *"torque required by external load with respect to power
-  turbine speed"*. Per pdf p.28, Eq. 56, `Q_req = Q_mr + Q_tr + Q_acc + Q_damp` — main
+  turbine speed"* [pdf p.12]. Per pdf p.28, Eq. 56, `Q_req = Q_mr + Q_tr + Q_acc + Q_damp` — main
   rotor, tail rotor, accessories, gearbox damping — all of which come from the **Gen Hel
   UH-60A blade-element simulation**, an external program. `Q_req` is an input boundary
   condition to this model, not something it computes.
@@ -1108,7 +1109,7 @@ NP = ----- · │ -------------- dt
   no value anywhere in the report** — like `Q_req` it is presumed to be a Gen Hel quantity
   (open question #6).
 - The nomenclature also defines `J` on its own as *"moment of inertia of all mass rigidly
-  attached to the engine output shaft"*, which is exactly what Eq. 46 constructs.
+  attached to the engine output shaft"* [pdf p.9], which is exactly what Eq. 46 constructs.
 
 ### 5.3 What is asymmetric between the two
 

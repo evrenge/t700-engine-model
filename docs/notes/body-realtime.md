@@ -537,8 +537,10 @@ with row 6 printed as
  s₆₃ = (1/τ₂)(∂T41_ns/∂P3)
 ```
 
-> Column 6 of `F₂` differentiates with respect to `T41_ns`, **not** `T41` — the `ns`
-> subscript is present on all six entries and was re-read at 600 dpi. `F₂(6,6) = −1/τ₂`.
+> Column 6 of `F₂` is labelled with respect to `T41_ns`, **not** `T41` — the `ns`
+> subscript is present on the first five entries and was re-read at 600 dpi. The sixth,
+> `F₂(6,6) = −1/τ₂`, is the coefficient of ΔT41 in Eq. 64, so the column contradicts
+> itself (ledger #76, open).
 
 ```
         ⎡ ∂ṄG/∂W_f            ⎤
@@ -766,7 +768,7 @@ distinct constructions, and only one of them is an order reduction:
 |---|---|---|
 | **5-DOF** | Extracted from *the complete nonlinear digital simulation* (full volume dynamics) | Table 1 col. 3; Figs. B2, B4, B6 |
 | **2-DOF** | **Extracted** from *a reduced-order nonlinear simulation which contains the volume dynamics approximation* [p.27] — a different nonlinear model, not a reduction of the linear one | Table 1 col. 4; Figs. B1, B3, B5 |
-| **Reduced-order 5-DOF** | **Order-reduced** from the 5-DOF linear model: "Order reduction was performed by setting the state derivatives `Ṗ3`, `P̈41`, and `Ṗ45` to zero and solving the equations for the remaining two states." [p.28] | Table 1 col. 5 **only** — it is *not* in Appendix B |
+| **Reduced-order 5-DOF** | **Order-reduced** from the 5-DOF linear model: "Order reduction was performed by setting the state derivatives `Ṗ3`, `Ṗ41`, and `Ṗ45` to zero and solving the equations for the remaining two states." [p.28] | Table 1 col. 5 **only** — it is *not* in Appendix B |
 
 [p.27, closing line] "The model containing the nonlinear volume dynamics approximation is
 represented by the two turbine-speed degrees-of-freedom."
@@ -904,7 +906,7 @@ These are the statements that can replace guessed tolerances. Quoted exactly, wi
 | 3 | "For the T700 implementation, a restriction on time step to a maximum value of **10 msec** was established based on a **maximum allowable error of 0.1 percent between time steps**." | p.38 | The opened outer loop. Frame-to-frame. This is the one that sets Δt |
 | 4 | "This outer loop proved to be **strongly convergent**. This was verified by examining the value of the Lipschitz constant for extreme transient operating cases. With a sufficiently small time step, one iteration of the outer loop produces **near-equilibrium results**." | p.37 | Qualitative; no number given for `L` |
 | 5 | "The reduced-order linear model response is **nearly identical** to that of the extracted linear models." | p.29 | Qualitative — Fig. 4 |
-| 6 | "Both the complete five-degree-of-freedom and the two-degree-of-freedom perturbation models are **good representations** of engine response. **Errors associated with changes in trim are small**, and transient responses of internal engine states are **reproduced well**." | p.29 | Qualitative — Fig. 4 |
+| 6 | "Both the complete five-degree-of-freedom and the two-degree-of-freedom perturbation models are **good represenions [sic]** of engine response. **Errors associated with changes in trim are small**, and transient responses of internal engine states are **reproduced well**." | p.29 | Qualitative — Fig. 4 |
 | 7 | "the reduced-order two-state model eigenvalues are seen to be **in good agreement** with those of the extracted two-state model" | p.29 | Qualitative — Table 1. Numerically this is 4 %, 3 % and 0.5 % on the NG mode at trims 1/2/3, and exact on the NP mode |
 | 8 | (about **ref. 11's** method, not Ballin's) "When applied to a large turbofan engine, the difference from a full iteration method was **less than one percent** for severe ramp inputs" | p.36 | Not a claim about this model. Do not adopt |
 

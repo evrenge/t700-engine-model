@@ -21,17 +21,18 @@ that appears to work.
 
 **Page images are the primary source. The text layer is an index, not a source.**
 
-This is a 1988 document typeset on a phototypesetter and scanned in 2009. Its text layer
-is a lossy guess at the ink. Use `grep` over `docs/extracted/*.txt` to find *which page*
-holds a thing; then read that page's rendered image to find out *what it says*. Numbers,
-symbols, subscripts, and every table cell come from the image. Never from the text.
+This is a 1988 document typeset on a phototypesetter; the PDF is a scan (modification date
+2003, see `docs/notes/environment.md`). Its text layer is a lossy guess at the ink. Use
+`grep` over `docs/extracted/*.txt` to find *which page* holds a thing; then read that
+page's rendered image to find out *what it says*. Numbers, symbols, subscripts, and every
+table cell come from the image. Never from the text.
 
 ```bash
 # locate: which page holds a term (text layer, one file per PDF page)
 grep -rin "power turbine governor" docs/extracted/
 
-# read: PDF page NN is docs/extracted/p-0NN.png -- already rendered at 200 dpi for
-# pp.8-15 (nomenclature) and pp.55-101 (Appendices A, B, C)
+# read: PDF page NN is docs/extracted/p-0NN.png, rendered for pdf pp.8-101. The PNGs are
+# gitignored: a fresh clone or worktree has none, so render the page as below.
 ls docs/extracted/p-055.png
 
 # render any other page, or the same page larger when digits are ambiguous:
@@ -55,7 +56,9 @@ candidates are — do not pick the prettier one.
 For every value:
 
 - the value, exactly as printed, in the units printed
-- the citation: `[TM-100991 p.NN, Table 3]` / `[p.NN, Eq. 12]` / `[p.NN, Fig. 8]`
+- the citation, as a PDF page: `[TM-100991 pdf p.NN, Table 3]` / `[pdf p.NN, Eq. 12]` /
+  `[pdf p.NN, Fig. 8]`. Printed page numbers differ (printed = pdf − 14 in the appendices);
+  never cite them
 - how you got it: transcribed from text, read from a rendered page image, or read off a
   figure axis (say so — figure reads carry error)
 - your confidence, and specifically whether OCR could have corrupted it
@@ -66,8 +69,9 @@ the nomenclature section rather than assuming a symbol means what it usually mea
 For graphical data (component maps, schedules), do not attempt to eyeball a whole curve.
 Report which figure holds it, its page, its axes and their ranges and units, what the
 parameter lines are and how many, whether gridlines are present, and how legible the
-curves are at 200 dpi. That description is what sizes the digitizing job, which is a
-separate deliberate step with its own tooling.
+curves are on the rendered page. That description is what sizes the digitizing job, which
+is a separate deliberate step with its own tooling (`tools/figure/`, and
+`docs/notes/digitizing-recipe.md`).
 
 ## Boundaries
 

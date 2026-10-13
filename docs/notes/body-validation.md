@@ -21,7 +21,7 @@ was used only to locate strings.
 3. **Of the ten result figures, five are reproducible from this report alone**
    (Figs. 6, 7, 8, 9, 10) and **five are not** (Figs. 11–15 all require the external Gen
    Hel UH-60A blade-element helicopter simulation).
-4. **Table 3 is a trap.** Its "Real-time model" column was produced with
+4. **Table 3 is a trap.** Its "Real-time model" rows [pdf p.44] were produced with
    *compressor-mass-flow and turbine-energy functions derived from the NASA-Lewis test
    engine, supplied by NASA Lewis* — **not** the Appendix A functions [pdf p.39]. A model
    built from Appendix A cannot reproduce Table 3 and must not be tuned toward it.
@@ -35,7 +35,7 @@ was used only to locate strings.
 
 | PDF p. | Printed p. | Content |
 |---|---|---|
-| 38 | 24 | End of "Pressure Function Table Solution" (time-step / 0.1 % error statement carries over from p.37); **§ Pressure Function Table Solution**; **§ FUEL CONTROL SYSTEM MODEL** (one paragraph); **§ VALIDATION** (one paragraph); **§ Static Trim** begins |
+| 38 | 24 | End of "Real-Time Iteration Solution" (heading p.36; the time-step / 0.1 % error statement carries over from p.37); **§ Pressure Function Table Solution**; **§ FUEL CONTROL SYSTEM MODEL** (one paragraph); **§ VALIDATION** (one paragraph); **§ Static Trim** begins |
 | 39 | 25 | Static Trim continued — discussion of Figs. 6–8 and of Tables 2–3; **§ Dynamic Response** begins; discussion of Figs. 9–10 begins |
 | 40 | 26 | **Figure 6** — NG vs fuel flow, three simulation models |
 | 41 | 27 | **Figure 7** — shaft horsepower vs fuel flow, three simulation models |
@@ -200,8 +200,8 @@ resolves every overprinted marker cluster I checked.
   caption: `WFPH` = fuel flow, lbm/hr (**inferred** — WFPH is *not* in the Appendix C
   nomenclature; the caption's "400 to 775 lbm per hour" and the panel's 400→775 step fix
   it); `PS3` = station 3 static pressure, psia; `PCNG` = "rotational speed of compressor
-  and gas generator in percent" [pdf p.78]; `T41`, `T45` = deg R; `TORQ45` = "power
-  turbine torque (identical to QPT), ft·lbf" [pdf p.80].
+  and gas generator in percent of design speed, percent NG" [pdf p.78]; `T41`, `T45` =
+  deg R; `TORQ45` = "power turbine torque (identical to QPT), ft·lbf" [pdf p.80].
 
 ---
 
@@ -392,7 +392,7 @@ resolves every overprinted marker cluster I checked.
 Both transcribed **cell by cell from 600 dpi page images**. Every cell below was read
 individually; none is OCR-derived.
 
-**Table 2 caption, exactly as printed:**
+**Table 2 caption, exactly as printed [pdf p.43]:**
 > Table 2: Test conditions for NASA-Lewis experimental test engine.
 
 | Test Case | W<sub>f</sub><br>lb<sub>m</sub>/hr | P2<br>PSIA | T2<br>°R | P49<br>PSIA | Load Torque<br>ft − lb<sub>f</sub> |
@@ -410,7 +410,7 @@ header row. Note **P49 is the *exhaust* boundary condition** — the report says
 and exhaust conditions, fuel flow, and load conditions were specified so that internal
 states could be compared" [p.39].
 
-**Table 3 caption, exactly as printed:**
+**Table 3 caption, exactly as printed [pdf p.44]:**
 > Table 3: Comparison of real-time model steady-state operation with NASA-Lewis test article. This does not represent specification T700 performance.
 
 | Test Case | Data Type | NG<br>% | NP<br>% | WA2<br>lb<sub>m</sub>/sec | P3<br>PSIA | T3<br>°R | T45<br>°R |
@@ -448,7 +448,7 @@ Those substitute functions are **nowhere in the report**. Table 3 is therefore e
 about the *modelling method*, not a reproducible benchmark for a model built from
 Appendix A. It should not appear in `validation/` as a pass/fail target, and no constant
 may ever be tuned toward it. (The caption's own second sentence — "This does not
-represent specification T700 performance" — is saying the same thing.)
+represent specification T700 performance" [pdf p.44] — is saying the same thing.)
 
 ---
 
@@ -538,10 +538,11 @@ Everything the report quantifies about itself, gathered:
 | NG overestimate, open-loop step | **1 to 2 %** | Fig. 9 | 39 |
 | rotor speed agreement, closed loop | **within 0.2 %** | Fig. 12 only | 50 |
 
-Everything else is qualitative: "acceptable", "fair agreement", "agree very well",
-"good agreement", "accurately represented", "close agreement", "slightly underestimated",
-"trends … reproduced well". **The report states no percentage tolerance for pressures,
-temperatures, torque, or fuel flow anywhere.** So the provisional table in `SCOPE.md`
+Everything else is qualitative: "acceptable", "fair agreement", "agree very well" and
+"close agreement" [pdf p.39]; "accurately represented" and "slightly underestimated"
+[pdf p.47]; "trends … reproduced well" [pdf p.50]; "good agreement" [pdf pp.29, 47, 50].
+**The report states no percentage tolerance for pressures, temperatures, torque, or fuel
+flow anywhere.** So the provisional table in `SCOPE.md`
 cannot be wholly replaced — only these six rows are the report's own numbers, and they
 are mostly *deviations the report accepted*, not tolerances it met.
 
@@ -623,8 +624,8 @@ one seen in the preceding range is Eq. 65 area, pdf p.32) and do not resume.
 4. **Heat-sink constants are direction-independent** — the same constants are used for
    increasing and decreasing power, which is a *simplifying assumption* he flags twice
    (p.47 and p.50) and which he identifies as the cause of the sluggish initial response
-   in Fig. 10. Replicate as written; the Conclusions' "heat-sink model constants which are
-   a function of increasing and decreasing power" is future work, not this model.
+   in Fig. 10. Replicate as written; p.50's "heat-sink model constants which are a
+   function of increasing and decreasing power" is future work, not this model.
 5. **No T45 heat-sink model** — "A small effective lag may be added with the inclusion of
    a T45 heat-sink model" [p.50]. Only station 4.1 has one.
 6. **No variable-geometry inlet-guide-vane dynamics** [p.38, p.50].

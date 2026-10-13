@@ -503,8 +503,8 @@ appended to `open-questions.md`:
    CR is ft·lbf and YLOLIM/YHILIM are ft·lbf·sec. Use the printed *numbers*; ignore that
    units column for these four.
 3. **B4 has no value in Table C.1** — correctly so, since it is computed (Fig. C3), but
-   worth stating: the nomenclature calls it a "discrete switch" and the figure makes it
-   {0, 1}.
+   worth stating: the nomenclature calls it a "discrete switch" [pdf p.77] and the figure
+   makes it {0, 1}.
 4. **NGDES is used but never defined in Appendix C** (Fig. C15, the `100/NGDES` gain).
    Presumably an Appendix A constant.
 5. **F_HM3 / F_HM4 argument** — Fig. C17 feeds them XLDSH (post-hysteresis), but the
