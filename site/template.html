@@ -288,11 +288,13 @@ picture{display:block}
   </table></div>
 
   <div class="keyed"><h3>Two features of that line worth naming</h3>
-  <p><strong>Shaft power goes negative below 75.25 %NG.</strong> That is not a defect: at
+  <p><strong>Shaft power goes negative below
+  {{rj:engine_steady.shp_zero_crossing_ng|.2f}} %NG.</strong> That is not a defect: at
   very low fuel the free turbine absorbs rather than delivers, and the report explicitly
   eliminates fuel control below flight-idle power. It is also why the SFC panel starts at
   50 hp &mdash; plotting Wf/SHP through a sign change is meaningless.</p>
-  <p style="margin-bottom:0"><strong>Bleed falls from 20.7 % of inlet flow to 9.3 %.</strong>
+  <p style="margin-bottom:0"><strong>Bleed falls from
+  {{rj:engine_steady.bleed_pct_range.1|.1f}} % of inlet flow to {{rj:engine_steady.bleed_pct_range.0|.1f}} %.</strong>
   Three bleed paths are modelled separately (Eqs.&nbsp;12&ndash;17): seal pressurization
   <code>B1</code> against corrected speed, power-turbine balance <code>B2</code> and
   tip-leak plus turbine cooling <code>B3</code>, both against corrected inlet flow. The
@@ -375,7 +377,8 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   digitized plots, and <strong>neither half knows the other exists</strong>. Close the loop,
   hold the printed shaft torque, set the speed reference, and the model must find Table
   B.1&rsquo;s printed state with fuel flow as an <em>output</em>.</p>
-  <p style="margin-bottom:0">It does, to <strong>0.34 %</strong> worst over fifteen numbers
+  <p style="margin-bottom:0">It does, to <strong>{{rj:closed_loop.worst|.2f}} %</strong> worst over
+  fifteen numbers
   &mdash; NG, NP, Wf, Ps3 and shaft power at three trims.</p></div>
 
   <figure><img src="{{closed-loop-response}}"
@@ -394,7 +397,8 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   </table></div>
   <div class="note-box"><h3>The loop settles to a cycle, not a point</h3>
   <p>The NG speed sensor carries a printed 0.05 %NG hysteresis band, and that band sustains
-  a limit cycle: NP oscillates 7.5 to 16.7&nbsp;rpm peak to peak at the three trims and does
+  a limit cycle: NP oscillates {{rj:closed_loop.rows.1.cycle_ptp|.1f}} to
+  {{rj:closed_loop.rows.11.cycle_ptp|.1f}}&nbsp;rpm peak to peak at the three trims and does
   not decay. Every closed-loop number quoted here is therefore a <strong>mean over whole
   cycles</strong>, not a terminal sample &mdash; the terminal sample depends on where the
   run happens to stop and moves the headline figure by a factor of two and a half.</p></div>

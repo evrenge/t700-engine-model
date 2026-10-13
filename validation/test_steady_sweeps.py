@@ -328,11 +328,9 @@ def _wf_at(series, ng: float) -> float:
     return float(np.interp(ng, n, w))
 
 
-def test_the_printed_fuel_overestimate_band_is_reproduced():
-    """We overestimate fuel consumption in 81-86 %NG against GE status-81, the standard the
-    sentence is about, with a peak within 2 points of Ballin's own line. The same
-    disagreement as open question #46, in the report's own currency.
-    """
+def fuel_overestimate() -> tuple[np.ndarray, np.ndarray]:
+    """Fuel flow over GE status-81's, in %, ours and Ballin's real-time line, every 0.5 %NG
+    across `FUEL_OVERESTIMATE_BAND`. `validation/report.py` exports both peaks from this."""
     s = _fig6_series()
     lo, hi = FUEL_OVERESTIMATE_BAND
     ngs = np.arange(lo, hi + 0.01, 0.5)
@@ -342,6 +340,15 @@ def test_the_printed_fuel_overestimate_band_is_reproduced():
     theirs = np.array(
         [100.0 * (_wf_at(s["realtime"], g) / _wf_at(s["ge_status81"], g) - 1.0) for g in ngs]
     )
+    return ours, theirs
+
+
+def test_the_printed_fuel_overestimate_band_is_reproduced():
+    """We overestimate fuel consumption in 81-86 %NG against GE status-81, the standard the
+    sentence is about, with a peak within 2 points of Ballin's own line. The same
+    disagreement as open question #46, in the report's own currency.
+    """
+    ours, theirs = fuel_overestimate()
 
     assert ours.max() > 3.0, f"no overestimate in the printed band: peak {ours.max():+.2f} %"
     assert ours.max() < FUEL_OVERESTIMATE_CEILING_PCT, (

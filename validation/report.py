@@ -326,6 +326,17 @@ def whole_curve() -> dict:
     return out
 
 
+def whole_curve_summary(wc: dict) -> dict:
+    """Range and mean of the whole-curve rms over every scored panel, as README quotes them."""
+    v = np.array(list(wc.values()))
+    return {
+        "n": int(v.size),
+        "min": float(v.min()),
+        "max": float(v.max()),
+        "mean": float(v.mean()),
+    }
+
+
 # ================================================================== Table B.1, pdf p.67
 
 
@@ -681,10 +692,16 @@ def closed_loop() -> dict:
     return {"rows": rows, **_stats(np.array(devs))}
 
 
-def phase_plane() -> None:
-    """Ps3 against NG -- the comparison that discards the time axis, and with it #37."""
+def phase_plane() -> dict:
+    """Ps3 against NG -- the comparison that discards the time axis, and with it #37.
+
+    Returns, per figure, the statistics of our deviation at the points
+    `test_figure_consistency.phase_plane` compares, which are the ones the test asserts.
+    """
+    import test_figure_consistency as tfc
     import test_fuel_step as tfs
 
+    out = {}
     fig, axes = plt.subplots(1, 2, figsize=fs(13.5, 5.4))
     for ax, (no, wf_hi) in zip(axes, ((9, 775.0), (10, 125.0)), strict=True):
         tr = tfs._run(wf_hi, tfs.STEP_TIME[no], True)
@@ -706,8 +723,26 @@ def phase_plane() -> None:
             f"Figure {no} in the phase plane -- no time axis",
         )
         ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
+        out[f"figure_{no}"] = _stats(
+            [dev for *_, dev in tfc.phase_plane(no, wf_hi, tfs.STEP_TIME[no])]
+        )
     fig.tight_layout()
     save(fig, "phase-plane")
+    return out
+
+
+def fuel_overestimate() -> dict:
+    """The report's own claim about Figure 6 [pdf p.39]: fuel overestimated in 81-86 %NG
+    against GE status-81. Both peaks, ours and Ballin's real-time line, as
+    `test_steady_sweeps.fuel_overestimate` measures them."""
+    import test_steady_sweeps as tss
+
+    ours, theirs = tss.fuel_overestimate()
+    return {
+        "band_ng_pct": list(tss.FUEL_OVERESTIMATE_BAND),
+        "ours_peak_pct": float(ours.max()),
+        "ballin_peak_pct": float(theirs.max()),
+    }
 
 
 def table_b1_plot(b1: dict, cl: dict) -> None:
@@ -760,8 +795,9 @@ def _render(data: dict) -> None:
     data["transient"] = transients()
     print("whole curve ...", flush=True)
     data["whole_curve"] = whole_curve()
+    data["whole_curve_summary"] = whole_curve_summary(data["whole_curve"])
     print("phase plane ...", flush=True)
-    phase_plane()
+    data["phase_plane"] = phase_plane()
     print("table B.1 ...", flush=True)
     data["table_b1"] = table_b1()
     print("closed loop ...", flush=True)
@@ -783,6 +819,8 @@ def _render(data: dict) -> None:
     data["schedules"] = sheet_schedules()
     print("engine maps ...", flush=True)
     data["engine_maps"] = sheet_engine_maps()
+    print("fuel overestimate ...", flush=True)
+    data["fuel_overestimate"] = fuel_overestimate()
 
 
 # ============================================ the model's own behaviour, with no reference

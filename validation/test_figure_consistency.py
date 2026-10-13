@@ -184,22 +184,16 @@ def _ballin_phase_plane(fig: int, t_step: float) -> tuple[np.ndarray, np.ndarray
     return bn, bp
 
 
-@pytest.mark.parametrize(
-    "fig,wf_hi,t_step,grid",
-    [
-        (9, 775.0, tfs.STEP_TIME[9], (92.0, 94.0, 96.0, 98.0)),
-        (10, 125.0, tfs.STEP_TIME[10], (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0)),
-    ],
-)
-def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
-    """Ps3 against NG -- the comparison that discards the time axis, and with it the
-    unprinted step time (#37).
+PHASE_PLANE_GRID = {
+    9: (92.0, 94.0, 96.0, 98.0),
+    10: (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0),
+}
+"""The %NG points each figure's phase plane is compared at, inside its NG excursion."""
 
-    Only Figure 10's panel is evidence: Figure 9's Ps3(NG) is nearly a straight chord between
-    the two trims (see `test_the_phase_plane_is_not_a_degenerate_comparison`). The metric is
-    blind to the volume constants `K_V3` and `K_V41`, which drop out of the algebraic
-    pressure solve, and on Figure 9 it is not converged in dt.
-    """
+
+def phase_plane(fig: int, wf_hi: float, t_step: float) -> list[tuple[float, float, float, float]]:
+    """Ps3 against NG at each `PHASE_PLANE_GRID` point: (NG, ours, Ballin's, our deviation
+    in %). `validation/report.py` exports the deviations' statistics from this."""
     bn, bp = _ballin_phase_plane(fig, t_step)
     tr = tfs._run(wf_hi, t_step, True)
     our_n = 100.0 * tr["ng"] / c.NG_DES
@@ -210,10 +204,27 @@ def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step, grid):
     if fig == 10:  # NG falls, so reverse for interpolation
         on, op = on[::-1], op[::-1]
 
-    for n in grid:
+    out = []
+    for n in PHASE_PLANE_GRID[fig]:
         b = float(np.interp(n, bn, bp))
         o = float(np.interp(n, on, op))
-        dev = 100.0 * (o / b - 1.0)
+        out.append((n, o, b, 100.0 * (o / b - 1.0)))
+    return out
+
+
+@pytest.mark.parametrize(
+    "fig,wf_hi,t_step", [(9, 775.0, tfs.STEP_TIME[9]), (10, 125.0, tfs.STEP_TIME[10])]
+)
+def test_the_phase_plane_trajectory_matches(fig, wf_hi, t_step):
+    """Ps3 against NG -- the comparison that discards the time axis, and with it the
+    unprinted step time (#37).
+
+    Only Figure 10's panel is evidence: Figure 9's Ps3(NG) is nearly a straight chord between
+    the two trims (see `test_the_phase_plane_is_not_a_degenerate_comparison`). The metric is
+    blind to the volume constants `K_V3` and `K_V41`, which drop out of the algebraic
+    pressure solve, and on Figure 9 it is not converged in dt.
+    """
+    for n, o, b, dev in phase_plane(fig, wf_hi, t_step):
         assert abs(dev) < PHASE_PLANE_TOL_PCT, (
             f"fig {fig} at {n:.0f} %NG: Ps3 ours {o:.2f} against Ballin's {b:.2f}, "
             f"{dev:+.2f} % -- the state trajectory has moved, not just the rate"
@@ -224,11 +235,9 @@ def test_the_phase_plane_is_not_a_degenerate_comparison():
     """Figure 10's trajectory is curved; Figure 9's is not. Only the first is evidence: a
     model matching the two endpoint trims already reproduces the straight chord.
     """
-    for fig, t_step, grid, straight in (
-        (9, tfs.STEP_TIME[9], (92.0, 94.0, 96.0, 98.0), True),
-        (10, tfs.STEP_TIME[10], (78.0, 80.0, 82.0, 84.0, 86.0, 88.0, 90.0), False),
-    ):
-        bn, bp = _ballin_phase_plane(fig, t_step)
+    for fig, straight in ((9, True), (10, False)):
+        grid = PHASE_PLANE_GRID[fig]
+        bn, bp = _ballin_phase_plane(fig, tfs.STEP_TIME[fig])
         lo, hi = min(grid), max(grid)
         p_lo, p_hi = float(np.interp(lo, bn, bp)), float(np.interp(hi, bn, bp))
         chord = max(

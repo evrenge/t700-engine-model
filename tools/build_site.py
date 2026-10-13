@@ -7,7 +7,12 @@ The site is a generated artifact. Edit `site/template.html` and rerun:
     python tools/build_site.py --check           # is the committed index.html current?
 
 Every number in the page comes out of `site/assets/report.json`, which `validation/report.py`
-recomputes from the model. The open-question summaries are curated prose (a ledger cell is
+recomputes from the model. Besides the named placeholders filled below, the template takes
+`{{rj:dotted.path|fmt}}` anywhere -- e.g. `{{rj:eigenvalues.notes.table_1_stats.rms|.2f}}`
+-- which becomes `format(value, fmt)` of the report.json value at that path; a segment is a
+dict key or an integer list index (`tools/report_json.py`). A number quoted in prose should be
+one of these rather than typed in, or it goes stale when the model moves. Any `{{` left after
+filling stops the build. The open-question summaries are curated prose (a ledger cell is
 far too long to show), but which rows appear and their verdicts are read from
 `docs/notes/open-questions.md` and checked against `OPEN_SUMMARY`, so the page cannot
 disagree with the ledger about what is still open.
@@ -15,10 +20,11 @@ disagree with the ledger about what is still open.
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from pathlib import Path
+
+from report_json import load, lookup  # tools/ is this script's directory
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
@@ -124,7 +130,7 @@ SCH_WHAT = {
     "F_EC1": "Thermocouple time constant &mdash; itself a lookup, four T4.5 lines.",
 }
 
-D = json.loads((ASSETS / "report.json").read_text())
+D = load()
 _B1W = max(D["table_b1"]["rows"], key=lambda r: abs(r["dev_pct"]))
 _EIGW = D["eigenvalues"]["notes"]["table_1_worst_row"]
 
@@ -421,8 +427,21 @@ html = (
     )
 )
 
+_RJ = re.compile(r"\{\{rj:([^|{}]+)\|([^{}]*)\}\}")
+
+
+def rj(m: re.Match) -> str:
+    """`{{rj:path|fmt}}`, filled from report.json; a path that does not resolve stops the build."""
+    try:
+        return format(lookup(D, m.group(1)), m.group(2))
+    except (KeyError, IndexError, TypeError, ValueError) as e:
+        raise SystemExit(f"template placeholder {m.group(0)} does not resolve: {e!r}") from e
+
+
+html = _RJ.sub(rj, html)
+
 out = SITE / "index.html"
-left = re.findall(r"\{\{[a-z0-9_-]+\}\}", html)
+left = re.findall(r"\{\{[^{}]{0,60}\}?\}?", html)
 if left:
     raise SystemExit(f"unresolved template placeholders: {sorted(set(left))}")
 if "--check" in sys.argv:

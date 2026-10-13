@@ -26,6 +26,10 @@ The lookbehind rejects a minus after a digit or dot (`0.90-0.96` is a range) and
 or `/` (`+/-2.5` is a magnitude), so `-56 to -50 %` reads as `{-56, -50}`."""
 
 
+_SPLIT = re.compile(r"(?<!\\)\|")
+"""A cell boundary: markdown splits a table row on unescaped pipes only (`\\|` is a literal
+one, as in a `<!--rj:...\\|abs-->` marker, see `tests/test_live_numbers.py`)."""
+
 _TOLERANCE_HEADERS = {"tolerance", "bound", "steady state"}
 """The second header cell of each tolerance table in SCOPE.md, lowercased."""
 
@@ -44,7 +48,7 @@ def _parse() -> tuple[list[tuple[str, str, str]], list[str], int]:
         if not line.startswith("|"):
             in_table = False
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        cells = [c.strip() for c in _SPLIT.split(line.strip().strip("|"))]
         if not in_table:  # a header row
             in_table = True
             in_tolerance = len(cells) > 1 and cells[1].lower() in _TOLERANCE_HEADERS

@@ -49,9 +49,7 @@ ALLOWED: dict[str, str] = {
 }
 """Exact citation strings that are not names, each with the reason it is not."""
 
-_FILE_REF = re.compile(
-    r"(?<![\w/.-])((?:[\w.-]+/)*(?:\w+\.py|test_\w+))::(\w+(?:(?:::|\.)\w+)?)"
-)
+_FILE_REF = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)*(?:\w+\.py|test_\w+))::(\w+(?:(?:::|\.)\w+)?)")
 _MODULE_REF = re.compile(r"(?<![\w.])(test_\w+)\.([A-Za-z_]\w*)")
 _BARE_TEST = re.compile(r"`(test_\w+)(?:\[[^`\]]*\])?`")
 
@@ -82,10 +80,7 @@ def _bound(node: ast.AST) -> Iterator[str]:
 
 def _python_files() -> list[Path]:
     return sorted(
-        p
-        for folder in CODE
-        for p in (ROOT / folder).rglob("*.py")
-        if "__pycache__" not in p.parts
+        p for folder in CODE for p in (ROOT / folder).rglob("*.py") if "__pycache__" not in p.parts
     )
 
 
@@ -105,8 +100,7 @@ def index() -> tuple[dict[str, frozenset[str]], frozenset[str]]:
         tests |= {
             n.name
             for n in ast.walk(tree)
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and n.name.startswith("test_")
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_")
         }
     return names, frozenset(tests)
 
