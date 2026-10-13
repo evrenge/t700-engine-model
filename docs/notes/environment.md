@@ -1,11 +1,7 @@
 # The environment, and the provenance of the source scan
 
-Two things a replication has as inputs and does not usually write down: the machine that
-produced the numbers, and the exact copy of the document they were read from. Both were
-unrecorded here until the 2026-09-13 dependency audit
-(2026-09-13, findings 7 and 8) pointed out that the only
-description of the environment was the sentence "work inside the `t700-dev` distrobox"
-in CLAUDE.md — and that container existed on exactly one machine.
+Two inputs a replication rarely writes down: the machine that produced the numbers, and
+the exact copy of the document they were read from.
 
 ## The source document
 
@@ -25,9 +21,8 @@ is what makes a citation checkable.
 | PDF producer | `Pdf.Capture version 5.2`, ModDate 2003-05-23 |
 
 Its embedded metadata is empty — no title, author, subject or keywords — so nothing
-inside the file identifies it. What identifies it is printed on the NTRS cover sheet,
-**read off the raster at 300 dpi, not from the text layer**, which corrupts the
-accession number to `NBB-2637B`:
+inside the file identifies it. The NTRS cover sheet does, **read off the raster at 300 dpi,
+not from the text layer**, which corrupts the accession number to `NBB-2637B`:
 
 | | |
 |---|---|
@@ -38,14 +33,14 @@ accession number to `NBB-2637B`:
 | Subject category / microfiche | `G3/08 0156166`, CSCL 21E, Unclas |
 | Collation | "(NASA) 95 p" |
 
-**The URL it was downloaded from is not recorded and cannot be recovered.** The checksum
-stands in for it: any future copy can be checked against this one, and if it differs,
-every `pdf p.NN` in the codebase must be re-checked before it is trusted.
+**The URL it was downloaded from is not recorded.** The checksum stands in for it: if a
+future copy differs, every `pdf p.NN` in the codebase must be re-checked before it is
+trusted.
 
 ## The environment
 
-Recorded 2026-09-13 from the `t700-dev` container, which is what produced every number
-in `README.md` and `SCOPE.md`.
+The `t700-dev` container, which produces every number in `README.md` and `SCOPE.md`.
+Recorded 2026-09-13; unchanged on 2026-10-13.
 
 | | |
 |---|---|
@@ -63,33 +58,16 @@ in `README.md` and `SCOPE.md`.
 `pyproject.toml` keeps lower bounds instead, because those express what the code needs
 rather than what it happened to run on.
 
-### poppler is a prerequisite no Python dependency list can express
+**poppler is a prerequisite no Python dependency list can express.** Every digitizer under
+`tools/` shells out to `pdftoppm`, `pdfimages` or `pdfinfo`, so `bash tools/reproduce_all.sh`
+needs poppler on PATH; the gate checks for it up front, alongside NumPy. `src/t700/` needs
+none of it: the model reads the committed CSVs and nothing else.
 
-Every digitizer under `tools/` shells out to `pdftoppm`, `pdfimages` or `pdfinfo`, so
-`bash tools/reproduce_all.sh` needs poppler on PATH. The string "poppler" appeared
-nowhere in this repository until 2026-09-13, and the gate would have failed on a fresh
-machine with a `FileNotFoundError` naming `pdftoppm` and no indication of what to
-install. It is now checked up front by the gate, alongside NumPy.
-
-`src/t700/` needs none of it. The model reads the committed CSVs and nothing else.
-
-### Version drift, measured rather than assumed
-
-The dependency audit found the container (numpy 2.4.6, scipy 1.16.2, pytest 8.4.2) three
-minor versions behind a fresh `pip install` of the same `pyproject.toml` (numpy 2.5.3,
-scipy 1.18.1, pytest 9.1.1) — every dependency being a bare lower bound. That is a real
-reproducibility hole, and it is also the reason a lock file alone would not have closed
-it: nothing was *comparing* the two.
-
-Measured on 2026-09-13, against the wheel built from this tree and installed into a clean
-venv that resolved numpy 2.5.3:
-
-    trim.solve(wf_pps=400/3600).state
-      numpy 2.4.6  ng_rpm=40667.95858675376  p3_psia=163.66043457653322
-      numpy 2.5.3  ng_rpm=40667.95858675376  p3_psia=163.66043457653322
-
-Bit-identical on all five states. That is one trim, not a proof; it is the check that
-was run, and it is cheap enough to rerun whenever the pins move.
+**Version drift.** Every dependency in `pyproject.toml` is a bare lower bound, so a fresh
+`pip install` resolves newer versions than the container's. On 2026-09-13 a wheel built
+from the tree, installed into a clean venv that resolved numpy 2.5.3, gave
+`trim.solve(wf_pps=400/3600).state` bit-identical to the container's numpy 2.4.6 on all
+five states. That is one trim, not a proof; rerun it whenever the pins move.
 
 ## What this does not cover
 

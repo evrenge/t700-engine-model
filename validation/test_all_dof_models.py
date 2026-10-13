@@ -133,7 +133,7 @@ def test_ng_mode_against_table_1_columns_4_and_5(dof: DOF, trim_no: int):
     """Our quasi-steady model's NG mode against Table 1's 2-DOF and reduced-5 columns.
 
     The residual is the `f1` derivative ambiguity of open question #43 (see
-    `docs/notes/derivative-ambiguity.md`); the discrete frame map Ballin actually ran is
+    `docs/notes/open-questions.md`); the discrete frame map Ballin actually ran is
     closer (`test_discrete_map.py`). Our reduced-5 is identical to our 2-DOF by construction
     (see `t700.linear`), so it cannot match both of Ballin's columns, which differ.
     """

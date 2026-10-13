@@ -301,7 +301,7 @@ def test_the_printed_iteration_tolerance_costs_a_measurable_amount():
 def test_the_descent_residual_is_gone_and_the_level_one_replaced_it():
     """Pins where the `f1` interpolation residual (#43) sits against Table 1 column 4: descent
     tight, level the loose one. Changing the interpolation scheme relocates it (see
-    `docs/notes/derivative-ambiguity.md`), so neither trim may drift back unnoticed.
+    `docs/notes/open-questions.md` #43), so neither trim may drift back unnoticed.
     """
     for case, lo, hi in ((3, -7.0, 7.0), (2, 5.0, 15.0)):
         cont = continuous_ng_mode(case)

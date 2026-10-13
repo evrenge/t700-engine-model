@@ -2,14 +2,8 @@
 
 Nineteen figures in the appendices carry model data — 11 engine functions, 8 control
 schedules — and five more in the body carry validation references. **None of them exists as
-numbers anywhere.** This file is what has been learned turning them into CSV: how the
-pipeline works, what it refuses to do, and the traps that each cost a wrong file that
-looked right.
-
-Rewritten 2026-09-18. The version before it opened with a worked example built on
-`tools/digitize.py`, a CLI that was deleted that week, and taught a two-point linear axis
-calibration that traps 5, 6 and 7 further down the same page had already demolished. If
-you are looking for it, it is in `git log -p docs/notes/digitizing-recipe.md`.
+numbers anywhere.** This file is how they are turned into CSV: how the pipeline works, what
+it refuses to do, and the traps that each cost a wrong file that looked right.
 
 ## The shape of the thing
 
@@ -23,12 +17,9 @@ and nothing else:
     glyph.py        the marker: a generative model of the local ink, fitted
     provenance.py   the CSV and its header -- one writer, and the parser that reads it back
 
-Until 2026-09-16 that machinery existed five times over, and the cost was not the
-duplication. It was that an improvement made for one figure did not reach the others and
-nothing said so — the frame model, the Nelder-Mead guards and the anchoring rule were each
-fixed in one copy and not the rest, and it took reading two files side by side to see it.
-`tests/test_tool_duplication.py` now fails if the same function body appears in two files
-under `tools/`.
+One copy of each concept, so that a fix made for one figure reaches all of them.
+`tests/test_tool_duplication.py` fails if the same function body appears twice anywhere in
+`tools/`, `validation/`, `tests/` or `src/`.
 
 ## What the tool decides, and what you decide
 
@@ -51,7 +42,8 @@ made on it.
 
 ## The traps
 
-Numbered as they were found, not by severity. Each cost a wrong CSV that looked right.
+Numbered as they were found, not by severity; the code cites them by number. Each cost a
+wrong CSV that looked right.
 
 **1. Markers sit ON the joining line, so blob detection is useless.** The curve and its
 markers are one connected component. Model the marker instead: two strokes plus the two
@@ -64,8 +56,8 @@ off a downscaled image cost ~25 px, which on Figure A2 is 0.3 in PS3/P2 — enou
 every value, small enough to look plausible in the CSV.
 
 **3. A marker on a frame gets clipped** by an inset, and **4. the frame finder is fooled by
-a long flat data line** — `find_frame` averaged every strong row, and a flat run of data is
-a strong row. On Figure A3 it returned top=362 against a measured 313. Both are why
+a long flat data line** — a finder that averaged every strong row returned top=362 against
+a measured 313 on Figure A3, because a flat run of data is a strong row. So
 `find_frame_box` thresholds on coverage of the plot *width* after shearing, rather than on
 row strength: a footer rule is too short to qualify, a data line qualifies but lies inside,
 and a frame — however broken — still spans the plot once the shear is undone.
@@ -83,24 +75,17 @@ lattice** — with 200 ticks the LOO error is set by individual tick scatter and
 with order, so every order clears it. What protects you then is that the frame test is held
 out: an order that bought the interior with noise predicts the frame worse and loses.
 
-**7. The frame edges image as arcs — but fitting them as arcs is usually WORSE.** This trap
-used to read "the frame edges are arcs, so a homography is wrong too", inferred from the
-measured sagittae, which run 0.3 to 3.5 px on a printed straight line. Measured on 2026-09-18
-across all thirteen single-curve figures, that does not generalise: **eleven of them predict
-their own printed frame values better under the straight model.** Two do better with arcs
-— A10 by 11×, C26 by 1.2× — and the tool now fits both and lets each figure choose, with
-arcs required to win by 10 % because straight is the incumbent. (A11 was first measured as
-a third, by 4.3×: a minor tick had stood in for a major hidden under a marker in its
-straight trial. Fixed 2026-10-12.)
+**7. The frame edges image as arcs — but fitting them as arcs is usually WORSE.** The
+sagitta of a printed straight frame line runs 0.3 to 3.5 px, yet most figures predict their
+own printed frame values better under the straight model. The tool fits both and lets each
+figure choose, with arcs required to win by 10 % because straight is the incumbent;
+`tools/compare_models.py` reports the choice per figure. A measured physical effect is not
+by itself a reason to model it. And **the question cannot be answered on the coarse
+lattice**: on its majors alone A8 preferred arcs, and on the full lattice it prefers
+straight. Fix the tick lattice first, or the answer comes out confidently backwards.
 
-Two lessons, and the second is the larger one. A measured physical effect is not by itself
-a reason to model it: the sagitta is real on every page and modelling it helps on three.
-And **this question could not be answered on the coarse lattice.** On the majors alone A8
-preferred arcs by 17.7×; with ten times the ticks it prefers straight by 7.9×. The tick
-lattice had to be fixed first or the answer would have been confidently backwards.
-
-Related, and unchanged: **do not resample the page.** Warping pixels needs interpolation,
-and interpolation invents ink. Fit the distortion into the map instead.
+Related: **do not resample the page.** Warping pixels needs interpolation, and
+interpolation invents ink. Fit the distortion into the map instead.
 
 **8. `Nelder-Mead` builds its initial simplex by perturbing each coordinate by 5 % of its
 own value.** At an image column of ~2269 that is a 113 px first step, outside any scoring
@@ -117,15 +102,13 @@ so a marker on a frame line has the inward half of its disc stripped and the out
 left, pulling the fitted centre outward. Mask |d| < k+5 on *both* sides.
 
 **11. The page prints five to twenty-five times more ticks than the majors, and they are
-free.** Every one of these figures prints a minor lattice; until 2026-09-16 the tools
-detected it, used it to build their masks and threw it away before calibrating. Using it
-took the summed held-out frame error over 26 axes from 36.99 to 22.82 per-mille. Two things
-make it work, and it fails without either: **measure the minor step** from the ticks
-themselves rather than reading it off the page — major spacing ÷ median gap, which must come
-out an integer, and does to within 1.7 % on all 52 edges — and **label the fine ticks
-through a fit made on the majors alone**, never through the straight line between the frame
-corners, which is several pixels out in mid-page and discards a contiguous block of good
-ticks. A9 lost 29 of its 141 that way.
+free.** Every one of these figures prints a minor lattice, and calibrating on it rather than
+on the majors alone cuts the held-out frame error substantially. Two things make it work,
+and it fails without either: **measure the minor step** from the ticks themselves rather
+than reading it off the page — major spacing ÷ median gap, which must come out an integer —
+and **label the fine ticks through a fit made on the majors alone**, never through the
+straight line between the frame corners, which is several pixels out in mid-page and
+discards a contiguous block of good ticks (A9 lost 29 of its 141 that way).
 
 A11 is the cautionary one for reading a lattice by eye: it prints **three** tick lengths —
 a minor, a longer one every ten minors at the half-major, and the major — so counted by eye
@@ -140,89 +123,52 @@ probe a million rows off the page. Loud, immediately — but the next one might 
 
 The tool is never told to expect any of these, which is what makes them checks.
 
-- **Regular structure.** A2's markers sit at each integer of PS3/P2 and the extraction
-  recovers them to within 0.016; A9's abscissae fall on a 0.025 lattice and land within
-  0.00048.
+- **Regular structure.** A2's markers sit at each integer of PS3/P2, and A9's abscissae on a
+  0.025 lattice; the extraction recovers both without being told.
 - **A printed frame value held out of the fit.** The backbone of every model choice above.
-  On A9's x it also handed back a measurement of the *unprinted* left frame, 0.3008,
-  confirming a 0.30 that had been inferred from a tick count.
+  On A9's x it also measures the *unprinted* left frame, which confirms the 0.30 inferred
+  from a tick count.
 - **A local two-tick interpolation.** Interpolate between the two ticks bracketing each
   point on each ticked edge and average. It cannot see a global bow because it never fits
   one, so where it agrees with the chosen polynomial, that polynomial is not wandering
-  between ticks. On a fine lattice the brackets are 5–25× tighter, which makes this much
-  sharper than it was.
+  between ticks. A fine lattice makes the brackets 5–25× tighter.
 - **Two markers that should be one number.** A6 prints a horizontal line and two markers;
-  they agree to 0.016 σ, which is the figure's own statement that `f6` is a constant.
+  their agreement is the figure's own statement that `f6` is a constant.
 
 **Two rules that outrank any of them: assert on structure, not on count — and a count that
-matches is not a check.** The A2 y detector once returned exactly 189 minor ticks, the
-exactly correct number, while holding one spurious tick and missing one real one; the
-off-by-one labelling moved the axis by 0.03 in T3/T2 and every count-based check passed.
+matches is not a check.** The A2 y detector once returned exactly the correct number of
+minor ticks while holding one spurious tick and missing one real one; the off-by-one
+labelling shifted the axis and every count-based check passed.
 
 ## Read error, and what it is worth
 
-Each CSV carries a per-point 1 sigma in its own units, built by quadrature from the tick-fit
-residual, the spread over defensible polynomial orders, the disagreement between the two
-ticked edges, and the glyph-centre robustness.
+Each CSV carries a per-point 1 sigma in its own units (`f1` carries none), built by
+quadrature from the tick-fit residual, the spread over defensible polynomial orders, the
+disagreement between the two ticked edges, and the glyph-centre robustness.
 
-**What that uncertainty costs the model, remeasured 2026-10-12.** Each map is shifted by
-exactly +1 sigma of its own per-point error, on one axis at a time, and all three trims plus
-both open-loop transients are resolved. Steady column is the worst shaft-power change over
-the three trims; transient is the largest change in any whole-curve panel rms, in percentage
-points of that panel's excursion. Every map that carries a per-point sigma is here; `f1`
-carries none:
+`tools/sensitivity_sweep.py` measures what that costs the model: it shifts each map by
+exactly +1 sigma, one axis at a time, re-solves the three trims and both open-loop
+transients, and reports the worst shaft-power change and the largest change in any
+whole-curve panel rms. On the run recorded 2026-10-12 the most expensive maps were `f7`,
+`f2` and `f8`, each worth a few tenths of a percent of shaft power at the worst trim. Rerun
+it for current numbers; it is a long job. Two results outlast the numbers:
 
-| map, +1 sigma | SHP, worst of 3 trims | worst transient panel |
-|---|---|---|
-| `f7` x | **0.290 %** | fig9 t45 **+0.346** |
-| `f2` x | **0.240 %** | fig10 %NG **-0.221** |
-| `f8` y | **0.222 %** | fig9 torq45 +0.095 |
-| `f2` y | 0.177 % | fig10 %NG +0.131 |
-| `f7` y | 0.154 % | fig9 %NG -0.110 |
-| `f8` x | 0.132 % | fig9 torq45 +0.095 |
-| `f3` x | 0.129 % | fig10 torq45 +0.039 |
-| `f6` y | 0.113 % | fig9 torq45 +0.053 |
-| `f10` x | 0.064 % | fig10 torq45 +0.019 |
-| `f9` y | 0.057 % | fig9 %NG -0.091 |
-| `f10` y, `f3` y | <= 0.028 % | <= 0.014 |
-| `f9` x, `f5` x/y | <= 0.014 % | <= 0.028 |
-| `f_hs` x/y | **0.000 %** | fig10 %NG +0.019 / -0.014 |
-| `f4` x/y, `f6` x | 0.000 % | <= 0.001 |
+- **`f_hs` costs nothing at trim and shows only in a transient.** It sets the station-4.1
+  heat-sink time constant [Eqs. 52-53], which does no work at equilibrium. A sensitivity
+  table that stops at the trims understates every dynamic-only quantity, which is why the
+  sweep runs the transients too.
+- **A perturbation that improves the report comparison is not a licence to apply it.**
+  On that run, shifting `f2` by +1 sigma in x improved Table B.1's rms slightly. That
+  measures how close the calibration sits to the target; tuning a digitized map toward a
+  printed table is the move CLAUDE.md forbids.
 
-Three things in that table are worth more than the numbers.
-
-**The ranking has changed, and the old table had the leader wrong.** It reported `f9` as the
-most expensive map, at +0.069 % on hover shaft power. `f9` is now tenth at 0.057 %, and
-`f7` leads at 0.290 % -- absent from the 2026-09-19 version of this table, which the sweep
-had skipped. That is not a regression: `f9` was re-digitized and its read error
-fell. The old numbers were measured on 2026-09-11 against maps that have since moved, and
-they sat in this file being quoted for eight days after they stopped being true.
-
-**`f_hs` costs exactly nothing at trim and is only visible in a transient.** It sets the
-station-4.1 heat-sink time constant [Eq. 52-53], which does no work at equilibrium, so a
-trim-only sensitivity table reports zero for it however wrong it is. It appears at 0.019
-points of a Figure 10 panel. Any table like this one that stops at the trims will
-systematically understate every dynamic-only quantity -- which is why the transient column
-is here.
-
-**A perturbation that improves the report comparison is not a licence to apply it.** Shifting
-`f2` by +1 sigma in x moves Table B.1's rms by -0.063, i.e. better. That is a measurement of
-how close the calibration sits to the target, not an instruction: tuning a digitized map
-toward a printed table is the move CLAUDE.md forbids, and the sigma it would be tuned within
-is the reason the comparison has any headroom at all.
-
-Reproduce with `tools/sensitivity_sweep.py`, which perturbs a throwaway git worktree so the
-real tree is never touched and runs one subprocess per case, because the loaded `Curve`
-objects are cached and their arrays are frozen.
-
-SCOPE.md carries the *figures'* read error separately, measured a different way: Figures 9
+`SCOPE.md` carries the *figures'* read error separately, measured a different way: Figures 9
 and 10 each print one panel whose true value is stated, so digitizing it measures that
 page's error directly.
 
 ## Which tool owns which figure
 
-`tools/reproduce_all.sh` runs all of them and diffs the result against `data/`. Verified
-against each tool's own output paths rather than from memory.
+`tools/reproduce_all.sh` runs all of them and diffs the result against `data/`.
 
 | tool | figures | writes |
 |---|---|---|
@@ -231,10 +177,10 @@ against each tool's own output paths rather than from memory.
 | `digitize_single_curve.py` | A3–A6, A8, A10, A11 (pp.58–66); C24–C29 (pp.95–100) | `f3`, `f4`, `f5`, `f6`, `f8`, `f10`, `f_hs`, and `F_HM1`–`F_HM6` — thirteen figures |
 | `digitize_a7.py` | A7 (p.62) | `f7` |
 | `digitize_a9.py` | A9 (p.64) | `f9` |
-| `digitize_multi_curve.py` | C23 | `F_EC1`. Refuses C30 by design — its curves cross, so rank in y is not identity |
+| `digitize_multi_curve.py` | C23 (p.94) | `F_EC1`. Refuses C30 by design — its curves cross, so rank in y is not identity |
 | `digitize_c30.py` | C30 (p.101) | `F_HM7`, the acceleration fuel limit — the one figure needing per-curve tracking |
-| `digitize_fig678.py` | 6, 7, 8 | `data/reference/fig06–08_*.csv`, three series each |
-| `digitize_fig910.py` | 9, 10 | `data/reference/fig09–10_*.csv`, six panels each |
+| `digitize_fig678.py` | 6, 7, 8 (pp.40–42) | `data/reference/fig06–08_*.csv`, three series each |
+| `digitize_fig910.py` | 9, 10 (pp.45–46) | `data/reference/fig09–10_*.csv`, six panels each |
 | `tools/figure/` | — | the shared library; writes nothing |
 | `rectify_page.py` | — | squares up a page for A1's component labelling. **Resamples**, which nothing else does |
 | `check_straightness.py` | — | audit: is each printed curve straight between its markers, measured in data space |
@@ -246,14 +192,13 @@ their headers carry provenance no generator writes — so those tools *check* th
 instead of rewriting it, and return non-zero on any difference. CLAUDE.md records why that
 distinction matters.
 
-`digitize_fig678.py` and `digitize_fig910.py` were moved onto the library on 2026-10-13, one
-step at a time; a step that moved data was kept only if every changed point stayed inside
-its file's own read error (0.5 px of the value axis on Figures 9-10) and every test passed
-untouched. Both take plot coordinates from `frame.make_sv` on four straight lines and ticks
-from `ticks.find_ticks`; Figures 6-8 also take the box from `find_frame_box`, the frame lines
-from `fit_edges`, and the axis maps from `axis.fit_anchored`, `choose_anchored` and
-`blend_value`. Figures 9-10 keep `frame.band_line` for their panel frames: `fit_edges` moved
-values by up to 1.40x that bound (Figure 10 T41) and Figure 9's step time by -0.28 ms, where
-0.05 ms was allowed. What else stays in the scripts has no library equivalent: glyph
+**The body figures.** `digitize_fig678.py` takes everything geometric from the library: the
+plot box from `frame.find_frame_box`, the frame lines from `frame.fit_edges`, plot
+coordinates from `frame.make_sv`, ticks from `ticks.find_ticks`, and the axis maps from
+`axis.fit_anchored`, `axis.choose_anchored` and `axis.blend_value`. `digitize_fig910.py`
+takes `make_sv`, and `find_ticks` for its time-axis tick check, but keeps its own
+panel-frame fitter (`frame_tilt` and `vframe_fit`, on `frame.band_line`): `fit_edges` moved
+its values by more than the files' 0.5 px read error, and the measured reason is at the
+call in `find_panels`. What stays in the scripts has no library equivalent: glyph
 classification (6-8), and the panel search, marker lattice, line tracer and caption check
 (9-10).

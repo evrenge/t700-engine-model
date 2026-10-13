@@ -226,7 +226,7 @@ def _err(trim_no: int, si: str, sj: str, rel_step: float | None = None) -> float
 def test_hover_is_the_double_case_that_pins_the_mechanism():
     """One operating point, two tables: hover sits on an `f7` knot (the worst `f7`-driven
     errors, `test_the_f7_error_shrinks_monotonically_with_power`) and mid-segment on `f1`,
-    where its NG column stays small. See `docs/notes/derivative-ambiguity.md`, #43.
+    where its NG column stays small. See `docs/notes/open-questions.md` #43 and #56.
     """
     assert _knot_distance_f7(1) < 0.05, "hover no longer sits on an f7 knot"
     assert _knot_distance_f1(1) > 0.30, "hover no longer sits mid-segment on f1"
@@ -241,7 +241,7 @@ def test_the_ng_column_error_is_redistributed_not_removed():
     """`f1` is piecewise linear between speed lines, so d/dNGc jumps at each one.
 
     Which trim carries the NG-column error depends on the interpolation scheme, which the
-    report does not state (open question #43, `docs/notes/derivative-ambiguity.md`). This
+    report does not state (open question #43, `docs/notes/open-questions.md`). This
     pins the current ordering and that the spread stays bounded.
     """
     d = {t: _knot_distance_f1(t) for t in (1, 2, 3)}
