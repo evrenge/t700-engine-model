@@ -29,7 +29,7 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from figure.axis import blend_value, choose_anchored, fit_anchored  # noqa: E402
-from figure.frame import longest_run, make_sv  # noqa: E402
+from figure.frame import band_line, longest_run, longest_run_columns, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig678")
@@ -107,11 +107,8 @@ on p.40) sits a factor of five from both."""
 def find_frame(ink: np.ndarray) -> tuple[int, int, int, int]:
     """The single plot frame. Same discriminator as everywhere else in this project:
     a frame line spans the plot, text and data do not."""
-    h, w = ink.shape
-    m0, m1 = int(w * 0.06), int(w * 0.97)
-    cols = np.array([longest_run(ink[:, x]) if m0 <= x < m1 else 0 for x in range(w)])
-    strong = np.flatnonzero(cols > 0.6 * cols.max())
-    left, right = int(strong.min()), int(strong.max())
+    h = ink.shape[0]
+    left, right = longest_run_columns(ink, 0.06, 0.97, 0.6)
 
     # Longest run per row, not fill fraction: p.40's faint, tilted frame spreads its ink
     # over twenty rows, and by fill the caption (dense text) wins. See FRAME_MIN_RUN_FRAC.
@@ -137,11 +134,6 @@ Wide enough to contain the whole lean (15-19 px end to end on pp.41-42) plus the
 thickness; a second pass narrows to 6 px about the first fit."""
 
 
-def _fit_line(samples: list[tuple[float, float]]) -> tuple[float, float]:
-    a, b = np.polyfit([s[0] for s in samples], [s[1] for s in samples], 1)
-    return float(a), float(b)
-
-
 def fit_frames(ink: np.ndarray, frame: tuple[int, int, int, int]) -> dict:
     """Fit all four frame lines, because the plot is a parallelogram and not a rectangle.
 
@@ -156,37 +148,16 @@ def fit_frames(ink: np.ndarray, frame: tuple[int, int, int, int]) -> dict:
     """
     left, top, right, bottom = frame
     out = {}
-    for name, nominal, vertical in (
-        ("top", top, False),
-        ("bottom", bottom, False),
-        ("left", left, True),
-        ("right", right, True),
+    for name, nominal, along, lo, hi in (
+        ("top", top, 1, left + 5, right - 4),
+        ("bottom", bottom, 1, left + 5, right - 4),
+        ("left", left, 0, top + 5, bottom - 4),
+        ("right", right, 0, top + 5, bottom - 4),
     ):
-        half = FRAME_FIT_HALF_BAND_PX
-        fitted = (0.0, float(nominal))
-        for _pass in (0, 1):
-            samples: list[tuple[float, float]] = []
-            if vertical:
-                for y in range(top + 5, bottom - 4, 4):
-                    centre = fitted[0] * y + fitted[1]
-                    lo = int(round(centre - half))
-                    band = ink[y, max(lo, 0) : lo + 2 * half + 1]
-                    idx = np.flatnonzero(band)
-                    if idx.size and idx.size <= 10:
-                        samples.append((float(y), lo + float(idx.mean())))
-            else:
-                for x in range(left + 5, right - 4, 4):
-                    centre = fitted[0] * x + fitted[1]
-                    lo = int(round(centre - half))
-                    band = ink[max(lo, 0) : lo + 2 * half + 1, x]
-                    idx = np.flatnonzero(band)
-                    if idx.size and idx.size <= 10:
-                        samples.append((float(x), lo + float(idx.mean())))
-            if len(samples) < 50:
-                break
-            fitted = _fit_line(samples)
-            half = 6
-        out[name] = fitted
+        # a pass short of 50 samples keeps the previous pass's line, or the nominal one
+        out[name], _, _ = band_line(
+            ink, along, nominal, lo, hi, 4, (FRAME_FIT_HALF_BAND_PX, 6), 10, 50
+        )
     return out
 
 

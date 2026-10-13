@@ -31,7 +31,7 @@ import numpy as np
 from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from figure.frame import longest_run, make_sv  # noqa: E402
+from figure.frame import band_line, longest_run_columns, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig910")
@@ -179,19 +179,12 @@ def frame_tilt(ink: np.ndarray, y0: int, left: int, right: int) -> tuple[float, 
     crossing, or a tick), fit a line. The fitted row also replaces the panel search's,
     which is a centroid of the smeared tilted line.
     """
-    xs: list[int] = []
-    ys: list[float] = []
-    for x in range(left + 5, right - 4, 4):
-        band = ink[y0 - FRAME_HALF_BAND_PX : y0 + FRAME_HALF_BAND_PX + 1, x]
-        idx = np.flatnonzero(band)
-        if idx.size and idx.size <= 8:
-            xs.append(x)
-            ys.append(y0 - FRAME_HALF_BAND_PX + float(idx.mean()))
-    if len(xs) < FRAME_MIN_COLUMNS:
+    (a, b), done, res = band_line(
+        ink, 1, y0, left + 5, right - 4, 4, (FRAME_HALF_BAND_PX,), 8, FRAME_MIN_COLUMNS
+    )
+    if not done:
         return 0.0, float(y0), float("nan")
-    a, b = np.polyfit(xs, ys, 1)
-    res = float(np.std(np.asarray(ys) - (a * np.asarray(xs) + b)))
-    return float(a), float(a * left + b), res
+    return a, a * left + b, res
 
 
 def vframe_fit(ink: np.ndarray, x0: float, y0: int, y1: int) -> tuple[float, float, float]:
@@ -200,27 +193,12 @@ def vframe_fit(ink: np.ndarray, x0: float, y0: int, y1: int) -> tuple[float, flo
     Two passes, wide then narrow, for the same reason `frame_tilt` uses two: the starting
     guess is the page-wide extreme column and the true line can be a dozen pixels away.
     """
-    fitted = (0.0, float(x0))
-    half = VFRAME_HALF_BAND_PX
-    res = float("nan")
-    for _pass in (0, 1):
-        ys: list[float] = []
-        xs: list[float] = []
-        for y in range(y0 + 4, y1 - 3, 3):
-            centre = fitted[0] * y + fitted[1]
-            lo = int(round(centre - half))
-            band = ink[y, max(lo, 0) : lo + 2 * half + 1]
-            idx = np.flatnonzero(band)
-            if idx.size and idx.size <= 10:
-                ys.append(float(y))
-                xs.append(lo + float(idx.mean()))
-        if len(ys) < VFRAME_MIN_ROWS:
-            return 0.0, float(x0), float("nan")
-        a, b = np.polyfit(ys, xs, 1)
-        fitted = (float(a), float(b))
-        res = float(np.std(np.asarray(xs) - (a * np.asarray(ys) + b)))
-        half = 6
-    return fitted[0], fitted[0] * y0 + fitted[1], res
+    (a, b), done, res = band_line(
+        ink, 0, x0, y0 + 4, y1 - 3, 3, (VFRAME_HALF_BAND_PX, 6), 10, VFRAME_MIN_ROWS
+    )
+    if done < 2:
+        return 0.0, float(x0), float("nan")
+    return a, a * y0 + b, res
 
 
 def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
@@ -231,11 +209,8 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     full-width lines too, and pairing neighbours shifts every label by one panel), so the
     six tops are found as an arithmetic progression, which the trace lines cannot join.
     """
-    h, w = ink.shape
-    m0, m1 = int(w * 0.08), int(w * 0.97)
-    cols = np.array([longest_run(ink[:, x]) if m0 <= x < m1 else 0 for x in range(w)])
-    strong = np.flatnonzero(cols > 0.7 * cols.max())
-    left, right = int(strong.min()), int(strong.max())
+    h = ink.shape[0]
+    left, right = longest_run_columns(ink, 0.08, 0.97, 0.7)
 
     frac = ink[:, left : right + 1].mean(axis=1)
     lines: np.ndarray = np.zeros(0)
