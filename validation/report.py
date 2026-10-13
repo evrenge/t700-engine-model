@@ -918,7 +918,7 @@ def sheet_engine_steady() -> dict:
 
 
 def sheet_open_loop() -> dict:
-    """A family of fuel steps from the same trim, both heat-sink configurations."""
+    """A family of fuel steps from the same trim, with the heat sink."""
     import test_fuel_step as tfs
 
     steps = [(125.0, "#9c5bd0"), (250.0, GE), (550.0, OURS), (775.0, BALLIN)]
@@ -937,12 +937,16 @@ def sheet_open_loop() -> dict:
         ):
             ax.plot(t, fn(np.asarray(tr[key])), "-", color=col, lw=1.8, zorder=3, label=lab)
         ng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
+        t41 = np.asarray(tr["t41"])
+        # Peak and overshoot belong to the steps up; over a step down the maximum is just
+        # the starting trim.
+        up = pph > 400.0
         out[f"step_{pph:.0f}"] = {
             "ng_start": float(ng[0]),
             "ng_end": float(ng[-1]),
-            "t41_peak": float(np.max(tr["t41"])),
-            "t41_end": float(tr["t41"][-1]),
-            "t41_overshoot": float(np.max(tr["t41"]) - tr["t41"][-1]),
+            "t41_peak": float(t41.max()) if up else None,
+            "t41_end": float(t41[-1]),
+            "t41_overshoot": float(t41.max() - t41[-1]) if up else None,
         }
     for ax, ylab, title in (
         (axes[0], "%NG", "gas generator speed"),

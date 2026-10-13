@@ -1,6 +1,8 @@
 """Find the equilibrium of the gas generator at a given fuel flow.
 
-Ballin trims by suppressing the integrations [pdf p.28]; algebraically, solve
+A trim is an equilibrium of the full model; the report mentions trimming only in passing, its
+linear models extracted "after trimming the simulation at a desired operating condition"
+[pdf p.28]. Algebraically, solve
 
     dNG/dt = dP3/dt = dP41/dt = dP45/dt = 0
 

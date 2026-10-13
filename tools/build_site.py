@@ -301,11 +301,19 @@ envelope = "".join(
 )
 
 ol = D["open_loop"]
+
+
+def or_dash(v: float | None, spec: str) -> str:
+    """`v` formatted, or a dash where the quantity does not apply (null in report.json)."""
+    return "&mdash;" if v is None else format(v, spec)
+
+
 ol_rows = "".join(
     f'<tr><td class="mono">400 &rarr; {k.split("_")[1]}</td>'
     f'<td class="mono">{v["ng_start"]:.2f}</td><td class="mono">{v["ng_end"]:.2f}</td>'
-    f'<td class="mono">{v["t41_peak"]:,.0f}</td><td class="mono">{v["t41_end"]:,.0f}</td>'
-    f'<td class="mono strong">{v["t41_overshoot"]:+,.0f}</td></tr>'
+    f'<td class="mono">{or_dash(v["t41_peak"], ",.0f")}</td>'
+    f'<td class="mono">{v["t41_end"]:,.0f}</td>'
+    f'<td class="mono strong">{or_dash(v["t41_overshoot"], "+,.0f")}</td></tr>'
     for k, v in sorted(ol.items(), key=lambda kv: float(kv[0].split("_")[1]))
 )
 
