@@ -37,6 +37,19 @@ from figure.raster import native_bitmap  # noqa: E402
 
 REF = Path("data/reference")
 FIGURES = {
+    11: {
+        "page": 48,
+        "ranges": [
+            ("collective", "COLLECTIVE, in.", 0.0, 10.0),
+            ("torque", "TOT. TORQUE, ft-lb X 10^-3", 18.0, 28.0),
+            ("ng", "GAS GEN. TURBINE, %", 88.0, 93.0),
+            ("fuel", "VEH. FUEL, lb/hr", 500.0, 900.0),
+            ("nr", "MAIN ROTOR SPEED, %", 99.0, 102.0),
+        ],
+        "t_range": (2.0, 8.0),
+        "t_major": 1.0,
+        "legend": {"collective": (None, 4.0)},
+    },
     12: {
         "page": 49,
         "ranges": [
@@ -48,7 +61,20 @@ FIGURES = {
         ],
         "t_range": (0.0, 6.0),
         "t_major": 1.0,
-        "legend_above": {"lat_cyclic": 0.5},
+        "legend": {"lat_cyclic": (0.5, None)},
+    },
+    13: {
+        "page": 51,
+        "ranges": [
+            ("collective", "COLLECTIVE, in.", 0.0, 10.0),
+            ("torque", "TOT. TORQUE, ft-lb X 10^-3", 20.0, 50.0),
+            ("ng", "GAS GEN. TURBINE, %", 92.0, 96.0),
+            ("fuel", "VEH. FUEL, lb/hr", 600.0, 1100.0),
+            ("nr", "MAIN ROTOR SPEED, %", 98.0, 101.0),
+        ],
+        "t_range": (1.0, 7.0),
+        "t_major": 1.0,
+        "legend": {"collective": (None, 4.0)},
     },
     14: {
         "page": 52,
@@ -61,13 +87,15 @@ FIGURES = {
         ],
         "t_range": (2.0, 10.0),
         "t_major": 2.0,
-        "legend_above": {"pedals": 0.5},
+        "legend": {"pedals": (0.5, None)},
     },
 }
-"""Per figure: its page, each panel's printed y range from its own tick labels, the time
-axis as printed (Figure 12 0.0 to 6.0 labelled every 1.0, Figure 14 2.0 to 10.0 every 2.0),
-and the value above which a panel's ink is legend, not data: on both figures the legend fills
-the top panel above 1 in. and the traces stay below 0 in. [pdf pp.49, 52]."""
+"""Per figure: its page, each panel's printed y range from its own tick labels, the time axis as
+printed (Figure 11 2.0 to 8.0, Figure 12 0.0 to 6.0 and Figure 13 1.0 to 7.0, each labelled
+every 1.0; Figure 14 2.0 to 10.0 every 2.0), and the values beyond which a panel's ink is
+legend, not data: on Figures 12 and 14 the legend fills the top panel above 1 in. and the
+traces stay below 0 in.; on Figures 11 and 13 the legend lies below 3.5 in. and the traces above
+4.5 in. [pdf pp.48, 49, 51, 52]."""
 SOLID_MIN_PX = 40
 """A component at least this many columns wide is the solid line: the dashes are 14-15 px."""
 SPECK_PX = 12
@@ -94,9 +122,9 @@ within `END_ROWS` rows of its height there, continues it: Figure 12's NG line br
 of the frame and its last 20 columns stand alone."""
 NEAR_PX = 60
 SPECK_LINES = 4.0
-"""A dash more than `SPECK_LINES` line widths from both the solid line and the line through the
-dashed ink within `NEAR_PX` columns of it is a speck: Figure 12 has one below its rotor-speed
-traces near 1.9 s."""
+"""A dash more than `SPECK_LINES` line widths from the straight line through the other dashes
+within `NEAR_PX` columns is a speck (Figure 12 has one below its rotor-speed traces near 1.9 s),
+and so is a joined dash that far from them (`check_dashes`)."""
 HIDDEN_PX = 30
 """A stretch without dash ink longer than this many columns is not a gap in the dash pattern
 (about 10 px) but the dashed line lying on the solid one."""
@@ -201,7 +229,7 @@ def fill_hidden(dx, dc, drun, sx, sc, srun, width: float):
     return out_x[o], out_c[o], out_r[o], seen[o]
 
 
-def classify(lab: np.ndarray, sl: list, v_of, cut: float | None) -> tuple[list, list]:
+def classify(lab: np.ndarray, sl: list, v_of, legend: tuple | None) -> tuple[list, list]:
     """The labels of the solid line's pieces and of the dashes, legend and specks left out.
 
     A component at least `SOLID_MIN_PX` wide is solid, and so is a short one that continues it
@@ -213,8 +241,11 @@ def classify(lab: np.ndarray, sl: list, v_of, cut: float | None) -> tuple[list, 
         ys, xs = np.nonzero(lab[s] == i)
         if ys.size < SPECK_PX:
             continue
-        if cut is not None and _scalar(v_of(s[0].start + ys.mean(), s[1].start + xs.mean())) > cut:
-            continue
+        if legend is not None:
+            v = _scalar(v_of(s[0].start + ys.mean(), s[1].start + xs.mean()))
+            lo, hi = legend
+            if (lo is None or v > lo) and (hi is None or v < hi):
+                continue
         keep[i] = s
     solid = [i for i, s in keep.items() if s[1].stop - s[1].start >= SOLID_MIN_PX]
     grown = True
@@ -235,28 +266,64 @@ def classify(lab: np.ndarray, sl: list, v_of, cut: float | None) -> tuple[list, 
     return solid, [i for i in keep if i not in solid]
 
 
-def drop_specks(lab, dashes, jx, jc, sx, sc, width: float) -> list[int]:
-    """The dashes less a speck: one more than `SPECK_LINES` line widths from both the solid line
-    and the straight line through the other dash ink within `NEAR_PX` columns."""
+def legend_note(legend: tuple | None) -> str:
+    """The CSV header's words for a panel's legend band."""
+    if legend is None:
+        return ""
+    lo, hi = legend
+    if hi is None:
+        return f"; ink above {lo:g} is the legend"
+    if lo is None:
+        return f"; ink below {hi:g} is the legend"
+    return f"; ink from {lo:g} to {hi:g} is the legend"
+
+
+def _line_at(x: float, ox: np.ndarray, oy: np.ndarray) -> float | None:
+    """The straight line through the points within `NEAR_PX` columns of `x`, at `x`; `None`
+    with fewer than two columns of them."""
+    near = np.abs(ox - x) <= NEAR_PX
+    if np.unique(ox[near]).size < 2:
+        return None
+    a, b = np.polyfit(ox[near], oy[near], 1)
+    return float(a * x + b)
+
+
+def check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width: float):
+    """The dashes and joined dashes the dashed line's own ink agrees on.
+
+    A dash is kept when the straight line through the other dashes within `NEAR_PX` columns
+    passes within `SPECK_LINES` line widths of it; with too few of them, when it lies that close
+    to the solid line or to the joined dashes. A joined dash is dropped when the dashes around
+    it put the dashed line farther than that from it: a thick stretch of the solid line, not a
+    dash. Returns the kept dash labels and the kept joined dashes' columns, centres and runs."""
     far = SPECK_LINES * width
-    cents = {}
+    cents = []
     for i in dashes:
         ys, xs = np.nonzero(lab == i)
-        cents[i] = (float(xs.mean()), float(ys.mean()))
-    out = []
-    for i, (xc, yc) in cents.items():
-        if abs(yc - np.interp(xc, sx, sc)) <= far:
-            out.append(i)
-            continue
-        ox = [x for j, (x, _y) in cents.items() if j != i] + list(jx)
-        oy = [y for j, (_x, y) in cents.items() if j != i] + list(jc)
-        ox, oy = np.array(ox), np.array(oy)
-        near = np.abs(ox - xc) <= NEAR_PX
-        if np.unique(ox[near]).size >= 2:
-            a, b = np.polyfit(ox[near], oy[near], 1)
-            if abs(yc - (a * xc + b)) <= far:
-                out.append(i)
-    return out
+        cents.append((float(xs.mean()), float(ys.mean())))
+    cx = np.array([c[0] for c in cents])
+    cy = np.array([c[1] for c in cents])
+    keep = []
+    for k in range(len(dashes)):
+        others = np.arange(cx.size) != k
+        line = _line_at(cx[k], cx[others], cy[others])
+        if line is None:
+            line = _line_at(cx[k], jx, jc)
+            near = abs(cy[k] - np.interp(cx[k], sx, sc)) <= far
+            ok = near or (line is not None and abs(cy[k] - line) <= far)
+        else:
+            ok = abs(cy[k] - line) <= far
+        if ok:
+            keep.append(k)
+    kx, ky = cx[keep], cy[keep]
+    agree = np.array(
+        [
+            (lv := _line_at(x, kx, ky)) is None or abs(c - lv) <= far
+            for x, c in zip(jx, jc, strict=True)
+        ],
+        bool,
+    )
+    return [dashes[k] for k in keep], jx[agree], jc[agree], jrun[agree]
 
 
 def line_width(lab: np.ndarray, ids: list[int]) -> float:
@@ -275,11 +342,11 @@ def main() -> int:
         for p in find_panels(ink, cfg["ranges"]):
             x_of, v_of, terr = calibrate(ink, p, cfg["t_range"], cfg["t_major"])
             lab, sl = components(ink, p)
-            cut = cfg["legend_above"].get(p.key)
-            solid, dashes = classify(lab, sl, v_of, cut)
+            legend = cfg["legend"].get(p.key)
+            solid, dashes = classify(lab, sl, v_of, legend)
             width = line_width(lab, solid)
             sx, sc, srun, jx, jc, jrun = separate(np.isin(lab, solid), width)
-            dashes = drop_specks(lab, dashes, jx, jc, sx, sc, width)
+            dashes, jx, jc, jrun = check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width)
             fx, ftop, fbot = extents(np.isin(lab, dashes))
             frun = fbot - ftop + 1.0
             dx, dc, drun, seen = fill_hidden(
@@ -322,9 +389,8 @@ def main() -> int:
                         f"wide and the pieces continuing them, the dashes the rest, and a dash "
                         f"joined to the solid line is cut from it where its column is over "
                         f"{JOIN_PX} px thicker than the line; components under {SPECK_PX} px, "
-                        f"and dashes over {SPECK_LINES:g} line widths from both lines, are specks"
-                        + (f"; ink above {cut:g} is the legend" if cut is not None else "")
-                        + "\n"
+                        f"and dashes over {SPECK_LINES:g} line widths from the dashes around them, "
+                        f"are specks" + legend_note(legend) + "\n"
                     )
                     fh.write(f"# value: axis range {p.v_lo} to {p.v_hi}\n")
                     fh.write(f"# points: {r.shape[0]}\n")

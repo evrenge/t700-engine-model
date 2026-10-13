@@ -879,13 +879,23 @@ def figures_4_5() -> dict:
 
 
 def gen_hel() -> dict:
-    """Figures 12 and 14 [pdf pp.49, 52]: his rotor speed replayed into our closed loop, NG,
-    fuel and torque against his Gen Hel line (`test_gen_hel`, #81)."""
+    """Figures 11-14 [pdf pp.48-52]: his rotor speed, and his collective where it moves,
+    replayed into our closed loop; NG, fuel and torque against his Gen Hel line
+    (`test_gen_hel`, #81)."""
     import test_gen_hel as g
 
     out: dict = {}
+    lo, hi = g.collective_scales()
+    what = {
+        11: (48, "collective input at 90 kt"),
+        12: (49, "lateral cyclic input at 55 kt"),
+        13: (51, "collective input at hover"),
+        14: (52, "pedal input at hover"),
+    }
     for fno in g.FIGS:
-        out[f"figure {fno}"] = {
+        key_in, label_in, range_in = g.INPUT[fno]
+        moves = fno in g.COLLECTIVE_FIGS
+        d = {
             "his trim": {k: g.his_trim(fno, k) for k in ("nr", "ng", "fuel", "torque")},
             "our trim": {
                 "ng_pct": 100.0 * g.our_trim(fno).state.ng_rpm / c.NG_DES,
@@ -894,14 +904,20 @@ def gen_hel() -> dict:
             },
             "rms vs his gen hel": {k: g.rms(g.gap(fno, k)) for k in g.PANELS},
             "rms vs flight test": {k: g.rms(g.gap(fno, k, "test")) for k in g.PANELS},
-            "rms with np held": {k: g.rms(g.gap(fno, k, np_held=True)) for k in g.PANELS},
+            "rms with his inputs held": {k: g.held(fno, k) for k in g.PANELS},
         }
-        key_in, label_in, range_in = g.INPUT[fno]
+        if moves:
+            d["his trim"]["collective_in"] = g.his_trim(fno, "collective")
+            d["collective scale pct per in"] = g.scale_of(fno)
+            d["collective scale range pct per in"] = [lo, hi]
+            d["rms across the scale range"] = {
+                k: [g.rms(g.gap(fno, k, scale=x)) for x in (lo, hi)] for k in g.PANELS
+            }
+        out[f"figure {fno}"] = d
+        page, title_in = what[fno]
         fig, axes = plt.subplots(5, 1, figsize=fs(8.0, 12.0), sharex=True)
-        what = {12: "lateral cyclic input at 55 kt", 14: "pedal input at hover"}[fno]
-        page = {12: 49, 14: 52}[fno]
         rows = (
-            (key_in, label_in, f"Figure {fno}, pdf p.{page}: {what}"),
+            (key_in, label_in, f"Figure {fno}, pdf p.{page}: {title_in}"),
             ("torque", "total torque, % of trim", ""),
             ("ng", "gas generator speed, %", ""),
             ("fuel", "vehicle fuel flow, % of trim", ""),
@@ -917,24 +933,44 @@ def gen_hel() -> dict:
                     v = 100.0 * v / g.his_trim(fno, key, line)
                 ax.plot(t, v, sty, color=colr, lw=1.3 if line == "gen_hel" else 1.0, label=lab)
             if key in g.PANELS:
+                if moves:
+                    t, v_lo = g.ours(fno, key, scale=lo)
+                    _, v_hi = g.ours(fno, key, scale=hi)
+                    ax.fill_between(
+                        t,
+                        np.minimum(v_lo, v_hi),
+                        np.maximum(v_lo, v_hi),
+                        color=OURS,
+                        alpha=0.15,
+                        lw=0,
+                        label=f"ours, collective at {lo:.1f}-{hi:.1f} % per inch",
+                    )
                 t, v = g.ours(fno, key)
-                ax.plot(t, v, "-", color=OURS, lw=1.1, label="ours, replaying his rotor speed")
+                lab = "ours, replaying his rotor speed" + (" and collective" if moves else "")
+                ax.plot(t, v, "-", color=OURS, lw=1.1, label=lab)
             if key == key_in:
                 ax.set_ylim(*range_in)
-                ax.text(
-                    0.01,
-                    0.88,
-                    "his input, on his printed scale: it reaches our model only through "
-                    "rotor speed",
-                    transform=ax.transAxes,
-                    fontsize=7,
-                    color=MUTED,
+                note = (
+                    f"his input, on his printed scale: our collective follows it at "
+                    f"{g.scale_of(fno):.1f} % of maximum per inch"
+                    if moves
+                    else "his input, on his printed scale: it reaches our model only through "
+                    "rotor speed"
                 )
+                ax.text(0.01, 0.88, note, transform=ax.transAxes, fontsize=7, color=MUTED)
             _style(ax, "time, s" if key == "nr" else "", ylabel, title)
-            if key == "ng":
-                where = "upper left" if fno == 12 else "lower center"
-                ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc=where)
-        fig.tight_layout()
+        handles, labels = axes[2].get_legend_handles_labels()
+        fig.legend(
+            handles,
+            labels,
+            loc="upper right",
+            bbox_to_anchor=(0.995, 0.998),
+            ncol=2,
+            frameon=False,
+            fontsize=7,
+            labelcolor=MUTED,
+        )
+        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.975))
         save(fig, f"figure-{fno}-replay")
     return out
 
