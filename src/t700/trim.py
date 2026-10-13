@@ -6,7 +6,7 @@ Ballin trims by suppressing the integrations [pdf p.28]; algebraically, solve
 
 for (NG, P3, P41, P45) with fuel flow, NP and ambient given. NP is not solved for: Eq. 47's
 Qreq comes from the Gen Hel UH-60A simulation the report does not contain, so NP is held
-and Qreq read off as Q_PT, which is Table B.1's "engine torque (ref. shaft)" and so a
+and Qreq read off as Q_PT, which is Table B.1's "engine torque (ref. shaft)" [pdf p.67] and so a
 validation target.
 
 Damped Newton with a differenced Jacobian, which keeps SciPy out of the core.

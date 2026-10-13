@@ -8,7 +8,7 @@ Ballin makes the three pressures algebraic and solves them each frame:
 * the opened compressor mass-flow iteration (Eq. 74) carries one mass flow across the frame
   boundary instead of looping through the compressor map;
 * the inner P3/P41 loop (Eqs. 76, 78) is a Gauss-Seidel sweep -- "eleven arithmetic
-  operations for each pass ... no relaxation algorithm is required for convergence"
+  operations required for each pass ... no relaxation algorithm is required for convergence"
   [pdf p.37];
 * P45 is solved independently (Eq. 80), "because it is a nonlinear function of its own
   value, iterative techniques must be used" [pdf p.37].
@@ -23,7 +23,7 @@ Two decisions, not transcriptions:
   model with "no iteration between time steps" [pdf p.35] would use.
 * Eq. 74 reads two ways (open question #22). As printed it lags only the bleed,
   `WA31_(n) = WA3_(n) - WA3_bl_(n-1)`; the prose takes "the mass flow leaving the
-  compressor in the previous interval", `WA31_(n) = WA31_(n-1)`. Both are implemented
+  compressor in the previous interval" [pdf p.36], `WA31_(n) = WA31_(n-1)`. Both are implemented
   (`lag_whole_flow`); the default is the prose, the sentence that describes opening the
   loop. The two differ by less than the report's own 0.1 % criterion.
 """
@@ -58,7 +58,7 @@ every 7 msec"."""
 
 FRAME_NP_S = 0.014
 """NP update interval [pdf p.47]. NP is the drive-train degree of freedom and moves at the
-host rotor rate, so the model is multirate 2:1 -- "the engine model is updated twice for
+host rotor rate, so the model is multirate 2:1 -- "the T700 program was updated twice for
 each rotor routine cycle, or once every 7 msec". `run` defaults to it."""
 
 MAX_STEP_S = 0.010
@@ -274,8 +274,8 @@ def _p45_loop(
     "Eight iterations resulted in an error equal to less than 0.1 percent of the
     steady-state value" [pdf p.37], measured under "an instantaneous step in fuel flow from
     flight idle to full power", Figure 9's own test case. The numerator is constant over the
-    iteration; only the f9 lookup changes ("one function-table lookup and four arithmetic
-    operations" a pass [pdf p.37]).
+    iteration; only the f9 lookup changes ("A total of four arithmetic operations and one
+    function-table look-up is used for each iteration" [pdf p.37]).
 
     Eq. 79 prints the returned bleed as `B3 B4 WA2` where Eq. 44 writes `B3 K_bl WA2` for
     the identical term, and B4 is in no nomenclature (open question #30). K_bl is used.

@@ -4,7 +4,7 @@ Every function in Ballin's engine (`f1`..`f10`, `f_hs`) exists only as a printed
 digitizers under `tools/` turned them into the CSVs in `data/maps/`
 (`docs/notes/digitizing-recipe.md`); this module reads and evaluates them.
 
-The report calls these "function table lookups" [pdf p.37] but never states the
+The report calls each one a "function-table look-up" [pdf p.37] but never states the
 interpolation scheme (open question #43). Linear between breakpoints is an inference: the
 figures are knots joined by straight segments, and a 1988 real-time model could not afford
 splines. Off the end of a table the value is clamped and counted (`clamp_report()`), so a
@@ -569,8 +569,8 @@ def f6() -> Curve:
     constant has no domain to leave, so FAR beyond the table (open question #45) is not an
     extrapolation.
 
-    The printed abscissa reads "FUEL-TO-RATIO, FAR"; AIR is missing on the page (open
-    question #7).
+    The printed abscissa reads "FUEL-TO-RATIO, FAR" [Fig. A6, pdf p.61]; AIR is missing on
+    the page (open question #7).
     """
     return load_curve(
         "f6_combustor_efficiency.csv",

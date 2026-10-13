@@ -312,7 +312,7 @@ def extract(
     ambient: Ambient = STANDARD_DAY,
     j_load: float = 0.0,
     dq_req_dnp: float = 0.0,
-    rel_step: float = 0.02,  # [pdf p.28] "plus or minus two percent of equilibrium"
+    rel_step: float = 0.02,  # [pdf p.28] "plus or minus two percent of equilibruim [sic]"
 ) -> LinearModel:
     """Extract one of the five linear models about a converged trim.
 
@@ -385,7 +385,7 @@ def extract(
         return LinearModel(dof, STATES[dof], A, b, full0, wf_pps, np_rpm)
 
     if dof is DOF.REDUCED_FIVE:
-        # "setting the state derivatives P3-dot, P41-dot and P45-dot to zero and solving
+        # "setting the state derivatives P3-dot, P41-dot, and P45-dot to zero and solving
         # the equations for the remaining two states" [pdf p.28]. The algebra is not
         # printed; this is the standard residualization, checked against Table 1 column 5.
         m5 = extract(trim_result, wf_pps, DOF.FIVE, amb, j_load, dq_req_dnp, rel_step)
