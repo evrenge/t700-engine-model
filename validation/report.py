@@ -844,7 +844,7 @@ def figures_4_5() -> dict:
             ax = axes[row, col]
             j = 1 if key == "ng" else 2
             if fno == 4:
-                tb, v = f45.his_curves(4, key)["all four"]
+                tb, v, _h = f45.his_curves(4, key)["all four"]
                 ax.plot(tb, v, color=BALLIN, lw=3.0, alpha=0.45, label="Ballin, all four curves")
                 for name, sty, colr, lab in (
                     ("5-DOF", "-", OURS, "our 5-DOF"),
@@ -854,7 +854,7 @@ def figures_4_5() -> dict:
                     ax.plot(t, ys[j - 1], sty, color=colr, lw=1.1, label=lab)
             else:
                 for curve, sty in (("5-DOF", "-"), ("6-DOF", "--")):
-                    tb, v = f45.his_curves(5, key)[curve]
+                    tb, v, _h = f45.his_curves(5, key)[curve]
                     ax.plot(tb, v, sty, color=BALLIN, lw=1.4, label=f"Ballin {curve}")
                     t, *ys = f45.response(curve, 5)
                     ax.plot(t, ys[j - 1], sty, color=OURS, lw=1.1, label=f"our {curve}")

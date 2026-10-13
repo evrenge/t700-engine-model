@@ -131,13 +131,13 @@ def plateaus(ts: np.ndarray, vs: np.ndarray) -> list[tuple[float, float, float]]
     return out
 
 
-def band(ink: np.ndarray, p, x_of, v_of, width: float) -> np.ndarray:
-    """Per column: `(t, upper, lower, runs)`, the uppermost and lowermost line centres.
+def column_runs(ink: np.ndarray, p) -> list[tuple[int, list[tuple[int, int]]]]:
+    """Per column, the ink runs between the frames as `(top row, bottom row)`.
 
     Ink far from its neighbours' band is a speck, not a trace: a run more than `STRAY_PX`
-    outside the rolling median of the band over `STRAY_WINDOW` columns is dropped first.
-    Figure 5 has one such dot above its NG traces near 8 s, five columns wide, where the
-    traces' own dashes leave a gap."""
+    outside the rolling median of the band over `STRAY_WINDOW` columns is dropped. Figure 5 has
+    one such dot above its NG traces near 8 s, five columns wide, where the traces' own dashes
+    leave a gap."""
     cols = []
     for x in range(int(p.left_at_top) + MARGIN_PX, int(p.right_at_top) - MARGIN_PX):
         y0 = int(np.ceil(p.top_at(x))) + MARGIN_PX
@@ -147,12 +147,38 @@ def band(ink: np.ndarray, p, x_of, v_of, width: float) -> np.ndarray:
             cols.append((x, runs))
     tops = ndimage.median_filter(np.array([r[0][0] for _, r in cols], float), STRAY_WINDOW)
     bots = ndimage.median_filter(np.array([r[-1][1] for _, r in cols], float), STRAY_WINDOW)
-    rows = []
-    inset = 0.5 * (width - 1.0)
+    out = []
     for (x, runs), lo_px, hi_px in zip(cols, tops, bots, strict=True):
         runs = [r for r in runs if r[1] >= lo_px - STRAY_PX and r[0] <= hi_px + STRAY_PX]
-        if not runs:
-            continue
+        if runs:
+            out.append((x, runs))
+    return out
+
+
+def run_table(ink: np.ndarray, p, x_of, v_of, width: float) -> np.ndarray:
+    """One row per ink run: `(column, t, centre, half span)`, the half span being how far the run
+    reaches either side of its centre beyond half a line width (zero for a flat line, large on
+    a steep stroke). Values in % of trim."""
+    rows = []
+    inset = 0.5 * (width - 1.0)
+    for x, runs in column_runs(ink, p):
+        for a, b in runs:
+            mid = 0.5 * (a + b)
+            t = _scalar(x_of(x, mid))
+            if t > T_END:
+                continue
+            c = _scalar(v_of(mid, x))
+            reach = max(0.5 * (b - a) - inset, 0.0)
+            half = abs(_scalar(v_of(mid - reach, x)) - c)
+            rows.append((x, t, c, half))
+    return np.asarray(rows)
+
+
+def band(ink: np.ndarray, p, x_of, v_of, width: float) -> np.ndarray:
+    """Per column: `(t, upper, lower, runs)`, the uppermost and lowermost line centres."""
+    rows = []
+    inset = 0.5 * (width - 1.0)
+    for x, runs in column_runs(ink, p):
         top = runs[0][0] + inset
         bot = runs[-1][1] - inset
         if bot < top:  # one line thinner than the median: its centre
@@ -246,6 +272,37 @@ def main() -> int:
                 fh.write("t_s,upper,lower,runs\n")
                 for t, up, lo, n in b:
                     fh.write(f"{t:.5f},{up:.5f},{lo:.5f},{int(n)}\n")
+            if fig == 5:
+                r = run_table(ink, p, x_of, v_of, width)
+                path = REF / f"fig{fig:02d}_{key}_runs.csv"
+                with path.open("w") as fh:
+                    fh.write(f"# source: TM-100991 pdf p.{page}, Figure {fig}, panel {p.label}\n")
+                    fh.write(
+                        f"# quantity: {p.label} vs time, every ink run in every column, so the "
+                        "two traces can be told apart where they cross: 6-DOF (dashed) and "
+                        "5-DOF (dash-dot) linear models\n"
+                    )
+                    fh.write(
+                        "# method: digitized -- native 300 dpi 1-bit scan, "
+                        "tools/digitize_fig45.py\n"
+                    )
+                    fh.write(
+                        f"# columns: column, the scan's pixel column, shared by the runs one "
+                        f"column holds; t_s; centre, the run's centre in % of trim; half_span, how "
+                        f"far the run reaches either side of its centre beyond half the "
+                        f"{width:.1f} px line width, % of trim. Specks are dropped as for "
+                        f"fig{fig:02d}_{key}.csv\n"
+                    )
+                    fh.write(f"# value: axis range {p.v_lo} to {p.v_hi}\n")
+                    fh.write(f"# points: {r.shape[0]}\n")
+                    fh.write(f"# x tick check: worst interior major tick off by {terr:.4f} s\n")
+                    fh.write(
+                        f"# frame tilt corrected: {p.tilt_pct_height:+.2f} % of panel height\n"
+                    )
+                    fh.write("# NOT transcribed. Values carry read error.\n")
+                    fh.write("column,t_s,centre,half_span\n")
+                    for x, t, cc, hh in r:
+                        fh.write(f"{int(x)},{t:.5f},{cc:.5f},{hh:.5f}\n")
             print(f"  {key}: {b.shape[0]} columns, x tick worst {terr:.4f} s")
     if failures:
         print("\nINPUT CHECK FAILED:", *failures, sep="\n  ")
