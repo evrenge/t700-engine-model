@@ -1580,6 +1580,88 @@
      "worst": -7.970777075562496
     }
    }
+  },
+  "inlet that would fit": {
+   "case 2 vs ballin": {
+    "p2_psia": 10.501776738058908,
+    "t2_degR": 477.0234228992036,
+    "printed_p2_psia": 14.17,
+    "printed_t2_degR": 515.6,
+    "rms_left_pct": 1.3464389349901245,
+    "rms_at_printed_pct": 7.0706282455616805
+   },
+   "case 2 vs engine": {
+    "p2_psia": 8.357067231856892,
+    "t2_degR": 441.77729519781775,
+    "printed_p2_psia": 14.17,
+    "printed_t2_degR": 515.6,
+    "rms_left_pct": 1.3835737573370621,
+    "rms_at_printed_pct": 11.571465849280148
+   },
+   "case 3 vs ballin": {
+    "p2_psia": 10.421630870652898,
+    "t2_degR": 470.85889904911573,
+    "printed_p2_psia": 14.16,
+    "printed_t2_degR": 508.3,
+    "rms_left_pct": 1.4563191051975712,
+    "rms_at_printed_pct": 7.789135126177919
+   },
+   "case 3 vs engine": {
+    "p2_psia": 9.679319209499747,
+    "t2_degR": 457.90581582581797,
+    "printed_p2_psia": 14.16,
+    "printed_t2_degR": 508.3,
+    "rms_left_pct": 1.197732180669986,
+    "rms_at_printed_pct": 9.158433424482654
+   },
+   "case 4 vs ballin": {
+    "p2_psia": 10.198743081451696,
+    "t2_degR": 464.8986551699061,
+    "printed_p2_psia": 14.09,
+    "printed_t2_degR": 508.0,
+    "rms_left_pct": 1.5925745067958628,
+    "rms_at_printed_pct": 8.005027995108113
+   },
+   "case 4 vs engine": {
+    "p2_psia": 9.828702334131641,
+    "t2_degR": 458.85181812290176,
+    "printed_p2_psia": 14.09,
+    "printed_t2_degR": 508.0,
+    "rms_left_pct": 1.4590895998387605,
+    "rms_at_printed_pct": 8.959741939608856
+   },
+   "case 5 vs ballin": {
+    "p2_psia": 10.529297732906393,
+    "t2_degR": 464.54927467869595,
+    "printed_p2_psia": 14.02,
+    "printed_t2_degR": 507.2,
+    "rms_left_pct": 1.8024897657486023,
+    "rms_at_printed_pct": 8.522233057567467
+   },
+   "case 5 vs engine": {
+    "p2_psia": 10.352167637289671,
+    "t2_degR": 458.195727444521,
+    "printed_p2_psia": 14.02,
+    "printed_t2_degR": 507.2,
+    "rms_left_pct": 1.060603944862852,
+    "rms_at_printed_pct": 9.361944753739705
+   },
+   "case 6 vs ballin": {
+    "p2_psia": 11.86050497401375,
+    "t2_degR": 489.07265589225824,
+    "printed_p2_psia": 13.92,
+    "printed_t2_degR": 507.2,
+    "rms_left_pct": 2.604841997515167,
+    "rms_at_printed_pct": 7.096655717430163
+   },
+   "case 6 vs engine": {
+    "p2_psia": 11.67083313564576,
+    "t2_degR": 480.60839620448286,
+    "printed_p2_psia": 13.92,
+    "printed_t2_degR": 507.2,
+    "rms_left_pct": 2.5259190437532304,
+    "rms_at_printed_pct": 7.885345145396619
+   }
   }
  },
  "figures_4_5": {

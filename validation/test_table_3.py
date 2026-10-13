@@ -16,11 +16,13 @@ mostly those maps, and nothing here may be tuned toward either column.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 from dataclasses import dataclass
 
+import numpy as np
 import pytest
-from scipy.optimize import brentq
+from scipy.optimize import brentq, least_squares
 
 from t700 import constants as c
 from t700 import maps, trim
@@ -101,7 +103,10 @@ def run(n: int) -> Ours:
     fixed point, a few passes. Inside it, NP is the root of Q_PT - load torque, which falls
     monotonically with NP (Eq. 41).
     """
-    case = TABLE_2[n]
+    return _run(TABLE_2[n], n)
+
+
+def _run(case: Case, n: int, np_hi: float = 1.3) -> Ours:
     ps9 = case.p49_psia / 1.05
     np_rpm = c.NP_DES
     for _ in range(50):
@@ -109,7 +114,7 @@ def run(n: int) -> Ours:
         def excess(x: float, ps9: float = ps9) -> float:
             return _trim(case, x, ps9).frame.q_pt_ftlbf - case.load_ftlbf
 
-        np_rpm = brentq(excess, 0.3 * c.NP_DES, 1.3 * c.NP_DES, xtol=1e-9)
+        np_rpm = brentq(excess, 0.3 * c.NP_DES, np_hi * c.NP_DES, xtol=1e-9)
         r = _trim(case, np_rpm, ps9)
         new = case.p49_psia / float(maps.f10()(r.frame.ngc_pct))
         if abs(new - ps9) < 1e-12:
@@ -180,3 +185,37 @@ def test_the_standard_maps_make_a_stronger_engine_than_the_prototype():
         dev = deviation(n, "ballin")
         assert all(dev[q] > 0 for q in higher), f"case {n}: {dev}"
         assert all(dev[q] < 0 for q in lower), f"case {n}: {dev}"
+
+
+# ------------------------------------------------- could the inlet explain the difference?
+
+
+@functools.cache
+def inlet_fit(n: int, column: str = "ballin") -> dict:
+    """The inlet pressure and temperature that bring our case `n` closest to a printed column,
+    all six quantities in % alike: `p2_psia`, `t2_degR` and the `deviations` left, %.
+
+    A diagnostic, never an input: Table 2 prints the inlet [pdf p.43]."""
+    case, printed = TABLE_2[n], np.array(TABLE_3[column][n])
+
+    def res(x):
+        moved = dataclasses.replace(case, p2_psia=float(x[0]), t2_degR=float(x[1]))
+        return 100.0 * (np.array(_run(moved, n, np_hi=1.6).values) - printed) / printed
+
+    s = least_squares(res, [case.p2_psia, case.t2_degR], diff_step=1e-4, x_scale=[1.0, 20.0])
+    return {"p2_psia": float(s.x[0]), "t2_degR": float(s.x[1]), "deviations": s.fun}
+
+
+INLET_SHORTFALL_PSIA = 2.0
+"""How far below Table 2's inlet pressure his column's best inlet lies, at the least, cases
+2-5: "the inlet and exhaust conditions, fuel flow, and load conditions were specified"
+[pdf p.39], so an inlet this far from the printed one is not his test. Case 6 sits closer
+and still misses."""
+
+
+@pytest.mark.parametrize("n", (2, 3, 4, 5))
+def test_the_inlet_does_not_explain_ballins_column(n: int):
+    """Matching his column through the inlet alone needs an inlet far below the printed one:
+    the difference is the maps (#34), not the boundary condition."""
+    f = inlet_fit(n)
+    assert TABLE_2[n].p2_psia - f["p2_psia"] > INLET_SHORTFALL_PSIA, f

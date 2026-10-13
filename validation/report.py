@@ -806,7 +806,25 @@ def table_3() -> dict:
             k: _stats(np.array([r[k] for r in sel]))
             for k in ("ours_vs_ballin_pct", "ballin_vs_engine_pct", "ours_vs_engine_pct")
         }
-    return {"rows": rows, "stats_cases_2_6": stats}
+    inlet = {}
+    for n in t3.CHARACTERIZED:
+        for col in ("ballin", "engine"):
+            fit = t3.inlet_fit(n, col)
+            inlet[f"case {n} vs {col}"] = {
+                "p2_psia": fit["p2_psia"],
+                "t2_degR": fit["t2_degR"],
+                "printed_p2_psia": t3.TABLE_2[n].p2_psia,
+                "printed_t2_degR": t3.TABLE_2[n].t2_degR,
+                "rms_left_pct": float(np.sqrt(np.mean(np.square(fit["deviations"])))),
+                "rms_at_printed_pct": float(
+                    np.sqrt(
+                        np.mean(
+                            np.square([r[f"ours_vs_{col}_pct"] for r in rows if r["case"] == n])
+                        )
+                    )
+                ),
+            }
+    return {"rows": rows, "stats_cases_2_6": stats, "inlet that would fit": inlet}
 
 
 def figures_4_5() -> dict:
