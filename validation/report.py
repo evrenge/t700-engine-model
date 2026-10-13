@@ -626,9 +626,7 @@ def appendix_b() -> dict:
     ax.set_yscale("log")
     ax.set_xlim(lim)
     ax.set_ylim(lim)
-    _style(
-        ax, "|printed|, Appendix B", "|ours|", "All 206 non-zero printed elements, twelve figures"
-    )
+    _style(ax, "|printed|, Appendix B", "|ours|", "Every compared printed element, twelve figures")
     ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="upper left")
 
     ax = axes[1]
@@ -896,7 +894,7 @@ def sheet_engine_steady() -> dict:
             ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
     plotstyle.title(
         fig,
-        "The equilibrium operating line, 130 to 810 lbm/hr. No reference data -- this is "
+        "The equilibrium operating line over the whole trim range. No reference data -- this is "
         "the model's own behaviour",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.965))
