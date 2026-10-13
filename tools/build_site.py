@@ -37,30 +37,31 @@ _SPLIT = re.compile(r"(?<!\\)\|")
 OPEN_SUMMARY = {
     60: (
         "<code>f1</code> on a beta grid, not the printed table",
-        "A deliberate departure. It removes a manufactured extrapolation entirely and "
-        "halves the worst Table&nbsp;1 speed mode, at a cost of 0.2018&nbsp;&rarr;&nbsp;"
-        "0.2439 % on Table B.1&rsquo;s rms.",
+        "A deliberate departure, kept by decision (&sect;5). It removes a manufactured "
+        "extrapolation entirely; against the printed table it wins on some printed surfaces "
+        "and loses on others. It sits under every number in &sect;6, through the compressor "
+        "map.",
     ),
     74: (
         "Figure&nbsp;A1&rsquo;s speed lines do not form a smooth family",
-        "No smooth surface fits all eleven digitized lines: the best joint fit reaches "
-        "&chi;&sup2;/dof 4.67, and adjacent lines differ by up to 11&nbsp;&sigma;. Either our "
-        "read error understates the cross-line error 2&ndash;4&times;, or the printed figure "
-        "is not internally consistent.",
+        "No smooth surface fits all eleven digitized lines within their quoted read error, and "
+        "adjacent lines disagree well beyond it. Either our read error understates the error "
+        "across lines, or the printed figure is not internally consistent. It sits under every "
+        "number in &sect;6, through the compressor map.",
     ),
     75: (
         "Which P45 the gas generator torque&rsquo;s &Delta;H<sub>GT</sub> uses",
         "The report is silent. Each real-time frame evaluates Eq.&nbsp;26 at the previous "
         "frame&rsquo;s P45, as the Eq.&nbsp;80 iteration needs, and Q<sub>GT</sub> "
-        "(Eq.&nbsp;40) reuses it. Using the solved P45 for Q<sub>GT</sub> instead would move "
-        "the Figure&nbsp;9 step by up to 0.4&nbsp;%NG and 2&nbsp;% on Q<sub>PT</sub>; no trim "
-        "moves.",
+        "(Eq.&nbsp;40) reuses it. The solved P45 instead would move the transients of "
+        "&sect;6.5, Figure&nbsp;9 most; no trim moves.",
     ),
     76: (
         "pdf p.32 labels F<sub>2</sub>&rsquo;s sixth column with T41<sub>ns</sub>",
         "The state vector on the same page has T41 sixth, and F<sub>2</sub>(6,6) = "
         "&minus;1/&tau;<sub>2</sub> is a derivative with respect to T41; the five entries "
-        "above it say T41<sub>ns</sub>. Its effect on our linear models is not yet checked.",
+        "above it say T41<sub>ns</sub>. Its effect on the 6-DOF comparisons in &sect;6 is not "
+        "yet checked.",
     ),
 }
 
@@ -138,14 +139,14 @@ _EIGW = D["eigenvalues"]["notes"]["table_1_worst_row"]
 head = [
     (
         "Table B.1, the printed engine state",
-        "21 numbers",
+        f"{D['table_b1']['n']} numbers",
         D["table_b1"],
         f"worst {_B1W['quantity']} {'&minus;' if _B1W['dev_pct'] < 0 else '+'}"
         f"{abs(_B1W['dev_pct']):.2f} % at {_B1W['trim'].split()[0]}",
     ),
     (
         "Table 1, printed eigenvalues",
-        "27 modes",
+        f"{D['eigenvalues']['notes']['table_1_stats']['n']} modes",
         D["eigenvalues"]["notes"]["table_1_stats"],
         f"worst {'&minus;' if _EIGW['dev_pct'] < 0 else '+'}{abs(_EIGW['dev_pct']):.1f} % on "
         f"the {_EIGW['model'].replace('dof', '-DOF').upper()} {_EIGW['mode']} mode at "
@@ -153,19 +154,19 @@ head = [
     ),
     (
         "Appendix B, matrix A",
-        "158 non-zero",
+        f"{D['appendix_b']['A']['n']} non-zero",
         D["appendix_b"]["A"],
-        "every one of the 206 non-zero elements is compared",
+        "every non-zero printed element, all twelve figures",
     ),
     (
         "Appendix B, fuel column b",
-        "42 non-zero",
+        f"{D['appendix_b']['b']['n']} non-zero",
         D["appendix_b"]["b"],
         "the 6-DOF half carries the heat sink's deficit",
     ),
     (
         "Closed loop against Table B.1",
-        "15 numbers",
+        f"{D['closed_loop']['n']} numbers",
         D["closed_loop"],
         "fuel flow is an <em>output</em> here, not an input",
     ),
@@ -221,7 +222,8 @@ FIGNOTE = {
     6: "NG against fuel flow. Deviation in %NG points, not percent &mdash; an absolute "
     "difference on a speed already expressed as a percentage.",
     7: "Shaft power against fuel flow. The low-power end is the worst, and it is the same "
-    "end where Table B.1 and this figure disagree with <em>each other</em> by 5.5 %.",
+    "end where Table B.1 and this figure disagree with <em>each other</em> by "
+    "{{rj:internal_spread.widest_theirs_pct|.1f}} %.",
     8: "Ps3 against NG. No fuel flow appears in it, so it cannot be rescued by a "
     "compensating fuel-path error.",
 }
@@ -302,12 +304,12 @@ envelope = "".join(
         (
             "Turbine inlet T4.1",
             rng("t41_range_degR", 0, " &deg;R"),
-            "2690 &deg;R at the top of the range",
+            "rises with fuel flow along the whole line",
         ),
         (
             "Customer + cooling bleed",
             rng("bleed_pct_range", 2, " %"),
-            "falls as speed rises &mdash; the schedules close off above 85 %NG",
+            "falls as speed rises; the seal bleed is zero above 89 % corrected speed",
         ),
         ("Best SFC", f"{es['sfc_best']:.3f} lbm/hr per hp", f"at {es['sfc_best_at_ng']:.1f} %NG"),
     ]

@@ -191,13 +191,11 @@ picture{display:block}
 <button id="theme" type="button" aria-label="Switch colour theme">Theme</button>
 <div class="wrap">
 <header>
-  <p class="kicker">Engineering report &middot; replication of NASA TM&#8209;100991 &middot; 14 September 2026</p>
+  <p class="kicker">Engineering report &middot; replication of NASA TM&#8209;100991 &middot; generated from the current report.json</p>
   <h1>T700 Replication Report</h1>
   <p class="lede">A component-level model of the <strong>General Electric T700&#8209;GE&#8209;700</strong>
   turboshaft and its complete fuel control, rebuilt in Python from Ballin&rsquo;s 1988 real-time
-  simulation. This report covers what was built, how the source data was recovered from a
-  scanned document, which modelling decisions depart from the report and what each costs,
-  and how the result measures against every number the report prints.</p>
+  simulation and measured against every number the report prints.</p>
   <nav class="toc">
     <a href="#s1"><span class="no">1</span><span>What was built</span></a>
     <a href="#s2"><span class="no">2</span><span>The engine on its own</span></a>
@@ -218,24 +216,23 @@ picture{display:block}
   <div class="surface"><span class="n">19</span>
     <span class="what">Figures digitized into function tables</span>
     <span class="where">11 engine maps &middot; 8 control schedules</span></div>
-  <div class="surface"><span class="n">551</span>
-    <span class="what">Printed values compared against</span>
-    <span class="where">Table B.1 &middot; Table 1 &middot; Appendix B &middot; Figures 6&ndash;10</span></div>
-  <div class="surface"><span class="n">31 &micro;s</span>
-    <span class="what">Frame time, held trim</span>
-    <span class="where">against a 10 ms real-time budget</span></div>
+  <div class="surface"><span class="n">0.22 %</span>
+    <span class="what">rms against Table B.1</span>
+    <span class="where">the printed engine state, fuel prescribed</span></div>
+  <div class="surface"><span class="n">0.25 %</span>
+    <span class="what">Worst error, closed loop</span>
+    <span class="where">Table B.1 again, with fuel flow an output</span></div>
 </div>
 
 <section id="s1">
   <div class="shead"><span class="snum">1</span><h2>What was built</h2>
     <span class="eyebrow">scope and structure</span></div>
   <div class="col">
-  <p>Ballin&rsquo;s problem was that a component-level thermodynamic engine model had to
-  compute in under <strong>10 milliseconds per frame</strong> on 1988 hardware while a pilot
-  flew a helicopter around it. Most of the report is the record of how he made an implicit
-  engine model run in real time and what that cost him. The replication reproduces both the
-  model and the compromises &mdash; where the report is dated or arguably wrong, it is
-  reproduced as written and the objection recorded rather than fixed.</p></div>
+  <p>Ballin had to run a component-level thermodynamic engine model in real time on 1988
+  hardware, at a time step of at most <strong>10&nbsp;ms</strong> [pdf p.38], while a pilot flew
+  a helicopter around it. The replication reproduces both the model and the compromises that
+  made it real-time: where the report is dated or arguably wrong, it is reproduced as written
+  and the objection recorded.</p></div>
 
   <dl class="spec">
     <dt>Engine states</dt><dd>NG, NP, P3, P41, P45 &mdash; two spool speeds and three
@@ -247,64 +244,61 @@ picture{display:block}
     <dt>Frame rate</dt><dd>7 ms engine, multirate 2:1 against a 14 ms rotor step &mdash;
       the report&rsquo;s own configuration</dd>
     <dt>Integration</dt><dd>fixed-step explicit Euler. The report never names its
-      integrator; this is recorded as a decision, not a reading</dd>
+      integrator; this is a decision, not a reading</dd>
     <dt>Units</dt><dd>the report&rsquo;s own &mdash; lbm, psia, &deg;R, hp, ft&middot;lbf,
-      rpm. Conversions happen only at the I/O boundary</dd>
+      rpm</dd>
   </dl>
 
   <div class="keyed"><h3>Why the pressures are algebraic and not integrated</h3>
   <p>The 5-state model Appendix B linearizes <em>cannot be integrated at the report&rsquo;s
-  frame time.</em> Our own Jacobian puts the fastest mode at 4881 /sec &mdash; a time
-  constant of 0.205 ms &mdash; so explicit integration is stable only below about 0.41 ms.
-  The report runs at 7 ms, seventeen times over that limit; it would diverge on the first
-  frame. So Ballin makes the three pressures algebraic and solves them within the frame:
-  an <strong>opened</strong> compressor mass-flow iteration that carries one flow across the
-  frame boundary (Eq.&nbsp;74), a Gauss&ndash;Seidel sweep for P3 and P41 (Eqs.&nbsp;76, 78),
-  and an independent solve for P45 (Eq.&nbsp;80). What remains integrated is NG and NP,
-  whose modes run 437&ndash;738 ms and 358&ndash;602 ms &mdash; comfortably stable.</p>
-  <p style="margin-bottom:0">That also decodes the report&rsquo;s Conclusions, where omitting
-  the high-speed inter-volume mass-flow dynamics &ldquo;was found to be unnecessary&rdquo;.
-  Those dynamics <em>are</em> the two fast modes. They are far quicker than anything a pilot
-  or rotor can feel, and carrying them would have cost a twentyfold smaller time step.</p>
+  frame time.</em> Table&nbsp;1 puts its fastest mode at &minus;4900 /sec [pdf p.31], so
+  explicit integration is stable only below about 0.4 ms; the report runs at 7 ms. Ballin
+  therefore makes the three pressures algebraic and solves them within the frame: an
+  <strong>opened</strong> compressor mass-flow iteration that carries one flow across the frame
+  boundary (Eq.&nbsp;74), a Gauss&ndash;Seidel sweep for P3 and P41 (Eqs.&nbsp;76, 78), and an
+  independent solve for P45 (Eq.&nbsp;80). Only NG and NP, at least three orders of magnitude
+  slower, are integrated.</p>
+  <p style="margin-bottom:0">That is what the Conclusions mean by &ldquo;The modeling of
+  high-speed dynamics which represent changes of mass flow between the internal control volumes
+  was found to be unnecessary&rdquo; [pdf p.54]: those dynamics <em>are</em> the fast
+  modes.</p>
   </div>
 </section>
 
 <section id="s2">
   <div class="shead"><span class="snum">2</span><h2>The engine on its own</h2>
     <span class="eyebrow">no reference data &mdash; this is the model</span></div>
-  <div class="col"><p>Before any comparison: what the engine does across the range the
-  report declares it valid over. Nothing on this page is a fit to reference data.</p></div>
+  <div class="col"><p>What the engine does across the range the report declares it valid
+  over; nothing here is compared with reference data.</p></div>
 
   <figure><picture><source data-dark srcset="assets/engine-operating-line-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/engine-operating-line-light.png" data-stem="engine-operating-line" alt="Six panels of the equilibrium operating line against gas generator speed: station pressures, station temperatures, air path mass flows, shaft power, specific fuel consumption and bleed fraction." loading="lazy"></picture>
-    <figcaption>The equilibrium operating line, trimmed at 159 fuel flows from 130 to
-    810&nbsp;lbm/hr with the power turbine held at design speed.</figcaption></figure>
+    <figcaption>The equilibrium operating line, trimmed at fuel flows from
+    130 to 806&nbsp;lbm/hr
+    with the power turbine held at design speed.</figcaption></figure>
 
   <div class="scroll"><table>
     <caption>Operating envelope, as the model runs it</caption>
     <thead><tr><th scope="col">Quantity</th><th scope="col">Range</th>
       <th scope="col"></th></tr></thead>
-    <tbody><tr><td>Gas generator speed</td><td class="mono">68.0 &ndash; 100.0 %NG</td><td class="note">the report claims validity to 100 %NG and no further</td></tr><tr><td>Fuel flow</td><td class="mono">130 &ndash; 806 lbm/hr</td><td class="note">the trim ladder's own span</td></tr><tr><td>Shaft power</td><td class="mono">-17 &ndash; 1,786 hp</td><td class="note">crosses zero at 75.28 %NG &mdash; the free turbine absorbs below that</td></tr><tr><td>Compressor pressure ratio</td><td class="mono">3.93 &ndash; 16.65 : 1</td><td class="note">Ps3 over ambient, sea-level standard day</td></tr><tr><td>Turbine inlet T4.1</td><td class="mono">1,755 &ndash; 2,755 &deg;R</td><td class="note">2690 &deg;R at the top of the range</td></tr><tr><td>Customer + cooling bleed</td><td class="mono">9.28 &ndash; 20.68 %</td><td class="note">falls as speed rises &mdash; the schedules close off above 85 %NG</td></tr><tr><td>Best SFC</td><td class="mono">0.451 lbm/hr per hp</td><td class="note">at 100.0 %NG</td></tr></tbody>
+    <tbody><tr><td>Gas generator speed</td><td class="mono">68.0 &ndash; 100.0 %NG</td><td class="note">the report claims validity to 100 %NG and no further</td></tr><tr><td>Fuel flow</td><td class="mono">130 &ndash; 806 lbm/hr</td><td class="note">the trim ladder's own span</td></tr><tr><td>Shaft power</td><td class="mono">-17 &ndash; 1,786 hp</td><td class="note">crosses zero at 75.28 %NG &mdash; the free turbine absorbs below that</td></tr><tr><td>Compressor pressure ratio</td><td class="mono">3.93 &ndash; 16.65 : 1</td><td class="note">Ps3 over ambient, sea-level standard day</td></tr><tr><td>Turbine inlet T4.1</td><td class="mono">1,755 &ndash; 2,755 &deg;R</td><td class="note">rises with fuel flow along the whole line</td></tr><tr><td>Customer + cooling bleed</td><td class="mono">9.28 &ndash; 20.68 %</td><td class="note">falls as speed rises; the seal bleed is zero above 89 % corrected speed</td></tr><tr><td>Best SFC</td><td class="mono">0.451 lbm/hr per hp</td><td class="note">at 100.0 %NG</td></tr></tbody>
   </table></div>
 
-  <div class="keyed"><h3>Two features of that line worth naming</h3>
+  <div class="keyed"><h3>Two features of that line</h3>
   <p><strong>Shaft power goes negative below
-  75.28 %NG.</strong> That is not a defect: at
-  very low fuel the free turbine absorbs rather than delivers, and the report explicitly
-  eliminates fuel control below flight-idle power. It is also why the SFC panel starts at
-  50 hp &mdash; plotting Wf/SHP through a sign change is meaningless.</p>
+  75.28 %NG.</strong> At very low fuel the free turbine
+  absorbs rather than delivers, and the report eliminates fuel control below flight-idle power
+  [pdf p.38]. It is also why the SFC panel starts at 50 hp.</p>
   <p style="margin-bottom:0"><strong>Bleed falls from
   20.7 % of inlet flow to 9.3 %.</strong>
-  Three bleed paths are modelled separately (Eqs.&nbsp;12&ndash;17): seal pressurization
-  <code>B1</code> against corrected speed, power-turbine balance <code>B2</code> and
-  tip-leak plus turbine cooling <code>B3</code>, both against corrected inlet flow. The
-  step down between 80 and 88 %NG is the seal bleed schedule closing off &mdash; it reaches
-  exactly zero above 89 %NG and stays there, which the digitizer enforces rather than
+  Of the three bleed paths (Eqs.&nbsp;12&ndash;17), the seal pressurization bleed
+  <code>B1</code> is scheduled on corrected speed (Figure&nbsp;A3) and closes off between 78
+  and 89 %; above that it is exactly zero, which conditioning enforces (&sect;4) rather than
   leaving as read noise.</p></div>
 
   <figure><picture><source data-dark srcset="assets/open-loop-family-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/open-loop-family-light.png" data-stem="open-loop-family" alt="Four fuel steps from the same 400 lbm per hour trim plotted together: gas generator speed, turbine inlet temperature, power turbine torque and compressor discharge pressure." loading="lazy"></picture>
-    <figcaption>Open loop, power turbine held at design speed. The T4.1 spike is the
-    signature of a fuel step into a fixed air flow: the burner temperature moves before the
-    spool can respond, and the station&#8209;4.1 heat sink is what damps it.</figcaption>
+    <figcaption>Open loop, power turbine held at design speed. The T4.1 spike is a fuel step
+    into a fixed air flow: burner temperature moves before the spool can respond, and the
+    station&#8209;4.1 heat sink damps it.</figcaption>
   </figure>
   <div class="scroll"><table>
     <thead><tr><th scope="col">Step, lbm/hr</th><th scope="col">NG start %</th>
@@ -317,22 +311,21 @@ picture{display:block}
   <div class="shead"><span class="snum">3</span><h2>The fuel control system</h2>
     <span class="eyebrow">Appendix C &mdash; 22 block diagrams, 8 schedules, no equations</span></div>
   <div class="col">
-  <p>Appendix C specifies the complete T700 fuel control and it contains <strong>no
-  equations whatsoever</strong>. It is one constants table, twenty-two block diagrams and
-  eight function plots. Every signal path in the implementation was traced off the page
-  raster at 300&ndash;600&nbsp;dpi, summing junction by summing junction, because a misread
-  sign there inverts the control and still produces plausible numbers.</p>
-  <p>Two units, and the relationship between them is the thing to understand first.</p></div>
+  <p>Appendix C specifies the complete T700 fuel control and contains <strong>no
+  equations</strong>: one constants table, twenty-two block diagrams and eight function plots.
+  Every signal path was traced off the page raster at 300&ndash;600&nbsp;dpi, summing junction
+  by summing junction, because a misread sign inverts the control and still produces plausible
+  numbers.</p></div>
 
   <div class="two">
   <div><h3>HMU &mdash; hydromechanical unit</h3>
   <p style="font-size:.94rem">The primary loop. Governs <em>gas generator</em> speed on a
-  droop line, applies the idle, acceleration and deceleration cam limits, and meters fuel.
-  It runs alone if the electrical trim is null. Figures C9&ndash;C22.</p></div>
+  droop line, applies the idle, acceleration and deceleration limits, and meters fuel. It runs
+  alone if the electrical trim is null. Figures C9&ndash;C22.</p></div>
   <div><h3>ECU &mdash; electrical control unit</h3>
   <p style="font-size:.94rem">Governs <em>power turbine</em> speed and limits T4.5. Its
-  entire authority is one voltage, <code>SPDG</code>, which drives a torque motor that
-  trims the HMU&rsquo;s droop line downward. Figures C1&ndash;C8.</p></div>
+  entire authority is one voltage, <code>SPDG</code>, driving a torque motor that trims the
+  HMU&rsquo;s droop line downward. Figures C1&ndash;C8.</p></div>
   </div>
 
   <div class="ascii">HMU droop line [Fig. C9, signs read at 600 dpi]
@@ -354,10 +347,9 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
 
   <figure><picture><source data-dark srcset="assets/control-schedules-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/control-schedules-light.png" data-stem="control-schedules" alt="Eight panels, one per Appendix C scheduling function, each showing the printed markers and the interpolated curve the model evaluates." loading="lazy"></picture>
     <figcaption>All eight scheduling functions. Six are single curves; <code>F_HM7</code>
-    and <code>F_EC1</code> are two-dimensional and were the hardest extractions in the
-    project &mdash; their curves converge and overprint, so they are traced column by column
-    and identified by <em>rank</em> rather than by reading a 10&nbsp;px digit off a 1988
-    scan.</figcaption></figure>
+    and <code>F_EC1</code> are two-dimensional, and their curves converge and overprint, so they
+    are traced column by column and identified by <em>rank</em> rather than by reading a
+    10&nbsp;px digit off the scan.</figcaption></figure>
 
   <div class="scroll"><table>
     <thead><tr><th scope="col">Function</th><th scope="col">Source</th>
@@ -366,24 +358,20 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   </table></div>
 
   <div class="keyed"><h3>What the control system is worth, measured</h3>
-  <p>The report&rsquo;s only closed-loop figures need the Gen&nbsp;Hel UH&#8209;60A
-  blade-element helicopter simulation, which it consumes and does not contain &mdash; so
-  there is no published closed-loop trace to overlay. The check that <em>is</em> available is
-  a genuine cross-check rather than a restatement: the engine comes from the report&rsquo;s
-  body and Appendix&nbsp;A, the control from Appendix&nbsp;C&rsquo;s block diagrams and
-  digitized plots, and <strong>neither half knows the other exists</strong>. Close the loop,
-  hold the printed shaft torque, set the speed reference, and the model must find Table
-  B.1&rsquo;s printed state with fuel flow as an <em>output</em>.</p>
-  <p style="margin-bottom:0">It does, to <strong>0.25 %</strong> worst over
-  fifteen numbers
-  &mdash; NG, NP, Wf, Ps3 and shaft power at three trims.</p></div>
+  <p style="margin-bottom:0">The report&rsquo;s closed-loop figures need the Gen&nbsp;Hel
+  helicopter simulation (&sect;8), so there is no closed-loop trace to overlay. The check that
+  <em>is</em> available is a genuine cross-check: the engine comes from the report&rsquo;s body
+  and Appendix&nbsp;A, the control from Appendix&nbsp;C, and <strong>neither half knows the
+  other exists</strong>. Hold the printed shaft torque, set the speed reference, and the closed
+  loop must find Table B.1&rsquo;s printed state with fuel flow as an <em>output</em>. It does,
+  to <strong>0.25 %</strong> worst over NG, NP, Wf, Ps3 and shaft power
+  at three trims.</p></div>
 
   <figure><picture><source data-dark srcset="assets/closed-loop-response-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/closed-loop-response-light.png" data-stem="closed-loop-response" alt="Twelve panels: three closed-loop manoeuvres, each showing power turbine speed, fuel flow, gas generator speed and the ECU torque-motor demand." loading="lazy"></picture>
-    <figcaption>Three manoeuvres at the hover trim. Fuel flow is an output in every one of
-    these panels. The collective slam is the load-demand feedforward exercised alone &mdash;
-    the load here is a function of speed only, so moving the collective moves what the
-    control <em>anticipates</em> without moving what the rotor actually takes, which is why
-    NP rises rather than dipping.</figcaption></figure>
+    <figcaption>Three manoeuvres at the hover trim; fuel flow is an output in every panel.
+    The collective slam exercises only the load-demand feedforward: the load here depends on
+    speed alone, so the control <em>anticipates</em> a load that never arrives and NP rises
+    rather than dipping.</figcaption></figure>
 
   <div class="scroll"><table>
     <thead><tr><th scope="col">Manoeuvre</th><th scope="col">NP range, rpm</th>
@@ -392,64 +380,56 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <tbody><tr><td>15 % load step</td><td class="mono">20,700 &ndash; 20,900</td><td class="mono">20,896</td><td class="mono">476 &ndash; 554</td><td class="mono">522</td><td class="mono small">droop</td></tr><tr><td>collective 52.75 -> 70 %</td><td class="mono">20,891 &ndash; 21,415</td><td class="mono">20,896</td><td class="mono">388 &ndash; 684</td><td class="mono">476</td><td class="mono small">droop</td></tr><tr><td>speed reference 100 -> 102 %</td><td class="mono">20,891 &ndash; 21,408</td><td class="mono">21,314</td><td class="mono">476 &ndash; 670</td><td class="mono">504</td><td class="mono small">droop</td></tr></tbody>
   </table></div>
   <div class="note-box"><h3>The loop settles to a cycle, not a point</h3>
-  <p>The NG speed sensor carries a printed 0.05 %NG hysteresis band, and that band sustains
-  a limit cycle: NP oscillates 7.6 to
+  <p>The NG speed sensor&rsquo;s printed 0.05 %NG hysteresis band sustains a limit cycle: NP
+  oscillates 7.6 to
   16.4&nbsp;rpm peak to peak at the three trims and does
   not decay. Every closed-loop number quoted here is therefore a <strong>mean over whole
-  cycles</strong>, not a terminal sample &mdash; the terminal sample depends on where the
-  run happens to stop and moves the headline figure by a factor of two and a half.</p></div>
+  cycles</strong>; a terminal sample would depend on where the run happens to stop.</p></div>
 </section>
 
 <section id="s4">
   <div class="shead"><span class="snum">4</span><h2>Source data and digitization</h2>
     <span class="eyebrow">nineteen figures, none of which exists as numbers</span></div>
   <div class="col">
-  <p>The report supplies its function tables only as printed plots. Nineteen figures carry
-  model data &mdash; eleven engine functions and eight control schedules &mdash; and five more
-  in the body carry the validation references. Recovering them is a measurement, and it is
-  treated as one.</p></div>
+  <p>The report supplies its function tables only as printed plots: eleven engine functions
+  and eight control schedules, plus five body figures that carry the validation references.
+  Recovering them is a measurement, and it is treated as one.</p></div>
 
   <div class="scroll"><table>
-    <caption>The extraction pipeline, and what each step is defending against</caption>
+    <caption>The extraction pipeline, and what each step defends against</caption>
     <thead><tr><th scope="col">Step</th><th scope="col">Method</th>
       <th scope="col">The failure it prevents</th></tr></thead>
     <tbody>
-    <tr><td class="mono">Render</td><td>The Appendix&nbsp;C pages are single 300&nbsp;dpi
-      1&#8209;bit CCITT images. Every render above that is an upsample, so extraction works on
-      the embedded bitmap itself, pulled out with <code>pdfimages</code>.</td>
-      <td class="note">Inventing sub-pixel detail that was never in the scan.</td></tr>
-    <tr><td class="mono">Calibrate</td><td>Frame detection, then a tick lattice, then an
-      axis polynomial fitted through the interior ticks. Never by eye.</td>
-      <td class="note">Reading tick coordinates off a downscaled image cost ~25&nbsp;px on the
-      first figure &mdash; 0.3 in pressure ratio, enough to move every value and small enough
-      to look entirely plausible in the CSV.</td></tr>
-    <tr><td class="mono">Rectify</td><td>Page skew and keystone are applied as a
-      <em>coordinate transform on the measured points</em>. The pixels are never resampled.</td>
-      <td class="note">Interpolation touching the data. It also means a residual bow in the
-      ink survives &mdash; which is how <code>f6</code>&rsquo;s apparent slope was caught.</td></tr>
-    <tr><td class="mono">Extract</td><td>Single-curve figures: a generative model fitted to
-      each printed glyph. Multi-curve figures: column-by-column tracing, with curves
-      identified by rank because they never cross.</td>
-      <td class="note">Blob detection is useless when markers sit <em>on</em> the joining
-      line &mdash; the curve and all its crosses form one connected component.</td></tr>
-    <tr><td class="mono">Verify</td><td>An overlay image per figure, an independent visual
-      marker count, and held-out checks &mdash; Figure&nbsp;A2&rsquo;s markers recover the
-      integers 1&ndash;20 to within 0.04.</td>
-      <td class="note">Both failures above were invisible in the CSV and obvious in the
-      overlay. This step is not optional.</td></tr>
+    <tr><td class="mono">Render</td><td>The figure pages are single 300&nbsp;dpi 1&#8209;bit
+      images, so extraction works on the embedded bitmap itself (<code>pdfimages</code>).</td>
+      <td class="note">Inventing sub-pixel detail the scan never had.</td></tr>
+    <tr><td class="mono">Calibrate</td><td>Frame detection, a tick lattice, then an axis
+      polynomial through the interior ticks. Never by eye.</td>
+      <td class="note">An error large enough to move every value and small enough to look
+      plausible in the CSV.</td></tr>
+    <tr><td class="mono">Rectify</td><td>Page skew and keystone are a <em>coordinate
+      transform on the measured points</em>; the pixels are never resampled.</td>
+      <td class="note">Interpolation touching the data. A residual bow in the ink survives,
+      which is how <code>f6</code>&rsquo;s apparent slope was caught.</td></tr>
+    <tr><td class="mono">Extract</td><td>Single curves: a generative model fitted to each
+      printed glyph. Multi-curve figures: column-by-column tracing, curves identified by rank
+      because they never cross.</td>
+      <td class="note">Blob detection fails when markers sit <em>on</em> the joining
+      line.</td></tr>
+    <tr><td class="mono">Verify</td><td>An overlay per figure, an independent marker count,
+      and held-out checks: Figure&nbsp;A2&rsquo;s markers are printed at the integers
+      1&ndash;20, and the extraction, never told so, recovers them.</td>
+      <td class="note">Errors invisible in the CSV and obvious in the overlay.</td></tr>
     <tr><td class="mono">Gate</td><td>Every digitizer reruns on demand and diffs against the
-      committed file; the gate refuses to run on an interpreter without NumPy and a failed
-      tool poisons the verdict.</td>
-      <td class="note">A gate that cannot fail is not a gate &mdash; an earlier version
-      computed its verdict from <code>git status</code> alone and reported success when every
-      digitizer had crashed on import.</td></tr>
+      committed file; a failed tool fails the verdict.</td>
+      <td class="note">A gate that passes when every digitizer has crashed.</td></tr>
     </tbody>
   </table></div>
 
   <figure><picture><source data-dark srcset="assets/engine-maps-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/engine-maps-light.png" data-stem="engine-maps" alt="Twelve panels covering Appendix A's eleven engine function tables plus a comparison of the compressor map's 89 percent speed line drawn two ways." loading="lazy"></picture>
     <figcaption>Appendix&nbsp;A&rsquo;s function tables. Crosses are the printed markers; the
-    line is what the model actually evaluates. Axis titles are read from each data
-    file&rsquo;s own provenance header rather than typed.</figcaption></figure>
+    line is what the model evaluates. Axis titles come from each data file&rsquo;s own
+    provenance header.</figcaption></figure>
 
   <div class="scroll"><table>
     <thead><tr><th scope="col">Table</th><th scope="col">Source</th>
@@ -458,38 +438,27 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <tbody><tr><td class="mono">f2</td><td class="mono small">Fig. A2, p.57</td><td class="mono">20</td><td class="mono small">PS3/P2</td><td class="mono">0</td></tr><tr><td class="mono">f3</td><td class="mono small">Fig. A3, p.58</td><td class="mono">13</td><td class="mono small">NGC, percent</td><td class="mono">1.8e-04</td></tr><tr><td class="mono">f4</td><td class="mono small">Fig. A4, p.59</td><td class="mono">3</td><td class="mono small">WA2C, lbm/sec</td><td class="mono">0</td></tr><tr><td class="mono">f5</td><td class="mono small">Fig. A5, p.60</td><td class="mono">3</td><td class="mono small">WA2C, lbm/sec</td><td class="mono">0</td></tr><tr><td class="mono">f6</td><td class="mono small">Fig. A6, p.61</td><td class="mono">2</td><td class="mono small">FAR</td><td class="mono">4.5e-06</td></tr><tr><td class="mono">f7</td><td class="mono small">Fig. A7, p.62</td><td class="mono">6</td><td class="mono small">P45/P41</td><td class="mono">0</td></tr><tr><td class="mono">f8</td><td class="mono small">Fig. A8, p.63</td><td class="mono">12</td><td class="mono small">P49/P45</td><td class="mono">0</td></tr><tr><td class="mono">f9</td><td class="mono small">Fig. A9, p.64</td><td class="mono">23</td><td class="mono small">Ps9/P45</td><td class="mono">4.5e-05</td></tr><tr><td class="mono">f10</td><td class="mono small">Fig. A10, p.65</td><td class="mono">18</td><td class="mono small">NGC, percent</td><td class="mono">0</td></tr><tr><td class="mono">f_hs</td><td class="mono small">Fig. A11, p.66</td><td class="mono">6</td><td class="mono small">NGC, percent</td><td class="mono">0</td></tr><tr><td class="mono">f1</td><td class="mono small">Fig. A1, p.56</td><td class="mono">11 lines &times; 56</td><td class="mono small">11 speed lines, beta grid</td><td class="mono">&mdash;</td></tr></tbody>
   </table></div>
 
-  <div class="keyed"><h3>Physical conditioning, and why the last column matters</h3>
-  <p>A digitized table carries read noise, and some of these functions have physics that
-  must hold <em>exactly</em> rather than approximately &mdash; a bleed fraction that reaches
-  zero must be zero, a monotone ratio must not wobble. Conditioning enforces that on load.
-  The last column is how far it moved any value, and it is bounded: if it ever exceeds
-  10<sup>&minus;3</sup> the digitization is wrong and the fix belongs at the figure, not in
-  the loader. The CSVs are never edited &mdash; they still carry the ink as measured, so the
-  chain back to the page is unbroken.</p></div>
+  <div class="keyed"><h3>Physical conditioning, and the last column</h3>
+  <p style="margin-bottom:0">Some of these functions have physics that must hold
+  <em>exactly</em>: a bleed fraction that reaches zero must be zero, a monotone ratio must not
+  wobble. Conditioning enforces that on load. The last column is how far it moved any value,
+  bounded at a few times that map&rsquo;s own read error
+  (<code>test_maps.CONDITIONING_TOL_SIGMA</code>): past that the fix belongs at the figure. The
+  CSVs are never edited; they carry the ink as measured.</p></div>
 
-  <div class="note-box"><h3>The read error is measured, not estimated &mdash; and it is a pixel offset</h3>
+  <div class="note-box"><h3>The read error is measured, not estimated</h3>
   <p>Figures&nbsp;9 and 10 each contain one panel whose true value is printed: the fuel flow
-  is the <em>input</em>, and both its levels are stated in the caption. Digitizing a panel
-  whose answer is known measures the read error of those figures directly. It comes out as a
-  fixed fraction of each panel&rsquo;s span, not of the value &mdash; a pixel offset. The test
-  of that model is a prediction: the two figures read the <em>same</em> 400&nbsp;lbm/hr trim
-  on axes of different height, and calibrating only on the fuel panels predicts
-  <strong>+0.340 %NG</strong> on the speed panel against a measured <strong>+0.340</strong>.
-  A percent-of-value model cannot produce that. Converted through each panel&rsquo;s own
-  span, the floor runs from 0.21 %NG on speed to 2.9 % on torque &mdash; which matters,
-  because most headline transient agreements are quoted on speed, where the floor is nine
-  times tighter than a single figure for the page would suggest.</p></div>
+  is the <em>input</em>, with both levels in the caption. Digitizing it measures the read error
+  directly. It is a fixed fraction of each panel&rsquo;s span, not of the value &mdash; a pixel
+  offset &mdash; which is why the transient tolerances are a percent of full scale.</p></div>
 </section>
 <section id="s5">
   <div class="shead"><span class="snum">5</span><h2>Modelling decisions and departures</h2>
     <span class="eyebrow">each one recorded, each one costed</span></div>
   <div class="col">
-  <p>The governing rule is replication, not improvement: where the report is dated,
-  simplified or arguably wrong, reproduce it as written and record the objection. A handful
-  of places nonetheless required a decision, either because the report is silent or because
-  reproducing it literally produces something demonstrably wrong. Every one is listed here
-  with what it costs, because a departure nobody can measure is a departure that will be
-  undone by accident.</p></div>
+  <p>Where the report is silent, or reproducing it literally produces something demonstrably
+  wrong, a decision was needed. Each is listed with what it costs: a departure nobody can
+  measure will be undone by accident.</p></div>
 
   <div class="scroll"><table>
     <thead><tr><th scope="col">Decision</th><th scope="col">What the report says</th>
@@ -499,101 +468,91 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
       <span class="sub">Eqs. 48&ndash;53</span></th>
       <td>Prints both configurations and says which figures use which. Eqs.&nbsp;48&ndash;49
       are the metal energy balance; Eq.&nbsp;50 is the lead&ndash;lag they collapse into.</td>
-      <td>Implemented as a <strong>switch</strong>, so the engine runs in either
-      configuration Ballin published. Built on the printed Eqs.&nbsp;48&ndash;49 and not on
-      Eq.&nbsp;50 &mdash; the collapse is only valid for constant coefficients, and the
-      difference is visible: the Figure&nbsp;9 T4.1 overshoot went 3.41&times; Ballin&rsquo;s
-      to 1.67&times; when the heat sink landed as Eq.&nbsp;50, and to
-      <strong>0.87&times;</strong> when it was rebuilt on Eqs.&nbsp;48&ndash;49.</td></tr>
+      <td>A <strong>switch</strong>, so either published configuration runs. Built on
+      Eqs.&nbsp;48&ndash;49, not Eq.&nbsp;50: the collapse holds only for constant
+      coefficients, and Eqs.&nbsp;51 and 53 vary with T41 and W41, so a lead&ndash;lag memory
+      goes stale on a fuel step.</td></tr>
     <tr><th scope="row">The two heat-sink time constants
       <span class="sub">&tau;&#8321;, &tau;&#8322; in Eq. 63</span></th>
       <td>Not printed anywhere, and trim-dependent by definition.</td>
-      <td>Recovered from Appendix&nbsp;B&rsquo;s own matrices, which determine their
-      <em>ratio</em> (0.6845 / 0.6571 / 0.6270) even though neither survives its own print
-      precision alone. Ours runs <strong>7.3 % low uniformly</strong> &mdash; and that same
-      ratio shows up in three independent blocks of the linear model, which is what says it
-      is the time constants and not the structure.</td></tr>
+      <td>Recovered from Appendix&nbsp;B&rsquo;s own 3&#8209;DOF blocks. They imply a TC_T41
+      larger than the printed 0.29 [pdf p.55]
+      (<code>test_heat_sink_taus.IMPLIED_TC_T41</code>): Appendix&nbsp;B was generated with a
+      different constant. We keep the printed one, which is why our 6&#8209;DOF fuel column
+      runs low (&sect;6.3).</td></tr>
     <tr><th scope="row">Opened compressor iteration
       <span class="sub">Eq. 74</span></th>
-      <td>Reads two ways. The printed equation lags only the bleed; the prose says the
-      combustor inlet flow is the flow leaving the compressor in the previous interval.</td>
-      <td>Both implemented and selectable; the prose reading ships. The distinction is
-      <strong>below the tolerance the report itself works to</strong> &mdash; both converge
-      to the same limit and differ by at most 0.11 %NG over a whole 400&nbsp;&rarr;&nbsp;775
-      step at the report&rsquo;s own frame, settling to 0.0002 %.</td></tr>
+      <td>Reads two ways: the printed equation lags only the bleed; the prose lags the whole
+      flow leaving the compressor.</td>
+      <td>Both selectable; the prose reading ships. They converge to the same trim and differ
+      only while a transient is under way, by a few tenths of a percent of speed at
+      most.</td></tr>
     <tr><th scope="row">Power turbine pressure solve
       <span class="sub">Eq. 80</span></th>
-      <td>&ldquo;Because it is a nonlinear function of its own value, iterative techniques
-      must be used.&rdquo;</td>
-      <td>The printed fixed-point iteration <strong>does not converge</strong> where the
-      mass-flow table&rsquo;s elasticity is below &minus;1, which is most of a chop. It is now
-      <em>solved exactly</em>: substituting u&nbsp;=&nbsp;Ps9/P45 turns it into a
-      piecewise-linear function against a line through the origin, strictly decreasing, so
-      the root is unique and one divide away. Satisfies Eq.&nbsp;80 to better than
-      10<sup>&minus;12</sup>; the bisection it replaced sat within 3&times;10<sup>&minus;6</sup>.</td></tr>
+      <td>&ldquo;&hellip;because it is a nonlinear function of its own value, iterative
+      techniques must be used&rdquo; [pdf p.37].</td>
+      <td>The printed fixed-point iteration runs first. Where the mass-flow table&rsquo;s
+      elasticity is below &minus;1, most of a chop, it <strong>does not converge</strong>, and
+      the same equation is <em>solved exactly</em> instead: with u&nbsp;=&nbsp;Ps9/P45 it is a
+      piecewise-linear function against a line through the origin, so the root is unique and
+      one divide away.</td></tr>
     <tr><th scope="row">Compressor map interpolation
       <span class="sub">f1, Figure A1</span></th>
-      <td>Seven markers per speed line and no interpolation scheme stated anywhere.</td>
-      <td><strong>A departure.</strong> Interpolated at constant <em>beta</em> &mdash; the
-      fraction of each speed line&rsquo;s own pressure-ratio span &mdash; rather than at
-      constant abscissa. It removes a manufactured extrapolation entirely (389 frames of the
-      chop read a speed line up to 45 % past its last knot; zero do now) and halves the worst
-      Table&nbsp;1 speed mode, 22.6&nbsp;&rarr;&nbsp;7.6 %. It costs
-      0.2018&nbsp;&rarr;&nbsp;0.2439 % on Table B.1&rsquo;s rms. Taken because a scheme that
-      invents extrapolation is wrong whatever it scores.</td></tr>
+      <td>Seven markers per speed line and no interpolation scheme stated.</td>
+      <td><strong>A departure, still open (#60).</strong> Interpolated at constant
+      <em>beta</em>, the fraction of each speed line&rsquo;s own pressure-ratio span, rather
+      than at constant abscissa, which on the Figure&nbsp;10 chop reads the 65&nbsp;% line far
+      past its last knot. Against the printed table it wins on some printed surfaces and loses
+      on others, so the scores do not decide it. Kept because a scheme that invents
+      extrapolation is wrong whatever it scores.</td></tr>
     <tr><th scope="row">Combustor efficiency
       <span class="sub">f6, Figure A6</span></th>
       <td>A curve with a visible slope, and no numeric table.</td>
-      <td><strong>A departure.</strong> Loaded as a constant. The thirteen digitized glyphs
-      are consistent with a horizontal line to within 3.65&times;10<sup>&minus;5</sup> at each
-      endpoint &mdash; well inside the ink width &mdash; and the page&rsquo;s four frame edges
-      sit at four <em>different</em> angles, so a printed horizontal line does not come back
-      horizontal. The slope was the paper.</td></tr>
+      <td><strong>A departure, and immaterial.</strong> Loaded as a constant: the digitized
+      glyphs fit a horizontal line well inside the ink width, and the page&rsquo;s frame edges
+      sit at four <em>different</em> angles, so the slope was the paper. The digitized slope
+      would leave every printed comparison unchanged to four significant figures.</td></tr>
     <tr><th scope="row">Limited integrators
       <span class="sub">Figs. C3, C7, C10</span></th>
       <td>All three draw an unlimited <code>1/s</code> followed by a <em>separate</em>
       saturation block &mdash; a topology that winds up.</td>
-      <td><strong>A deliberate departure, still open.</strong> We clamp the state instead,
-      which does not wind up. Invisible until a limit binds and large when one does: with a
-      load chop the two readings differ by 1240&nbsp;rpm on NP and 330&nbsp;lbm/hr on fuel.
-      A real op-amp integrator against a physical stop does not wind up, so the drawn
-      topology is probably schematic shorthand &mdash; but that is a judgement, not a
-      reading.</td></tr>
+      <td><strong>A departure, closed by decision (#59).</strong> We clamp the state, which
+      does not wind up. The two agree on every surface the report prints and separate only under
+      a sustained load dump, where the drawn windup overspeeds NP beyond anything
+      printed.</td></tr>
     <tr><th scope="row">Jacobian perturbation step</th>
-      <td>&ldquo;Plus or minus two percent of equilibrium conditions&rdquo; &mdash; an
-      <em>amplitude</em> chosen to match real helicopter excursions.</td>
-      <td>We use 10<sup>&minus;5</sup>, inside a plateau where the spectrum is converged to
-      five figures. The two are not interchangeable and answer different questions: ours is
-      the Jacobian, &plusmn;2 % is the finite secant Ballin&rsquo;s matrices actually are.
-      Against Table&nbsp;1&rsquo;s printed value neither wins &mdash; &minus;9.1 % against
-      +9.7 % &mdash; so the comparison cannot settle it. Recorded as open.</td></tr>
+      <td>&ldquo;plus or minus two percent of equilibruim [<em>sic</em>] conditions&rdquo;
+      [pdf p.28] &mdash; an <em>amplitude</em>, matched to the rotor speed deviations of real
+      helicopters.</td>
+      <td>The report&rsquo;s &plusmn;2 %, adopted (#56): a finite secant, which is what
+      Ballin&rsquo;s matrices are, and better than an infinitesimal step on Table&nbsp;1 and
+      Appendix&nbsp;B. The cost: Eq.&nbsp;18&rsquo;s square root makes the secant differ from
+      the tangent in the pressure equations, so tests about local slopes use the
+      tangent.</td></tr>
     <tr><th scope="row">Hysteresis band convention</th>
-      <td>Three control blocks carry backlash and each names a constant. None of the three
-      figures says whether it is the whole band or the half band.</td>
-      <td>Taken as the total band. Bounded rather than guessed: reading it the other way
-      moves the settled state by at most 0.09 % on speed and 1.08 % on descent shaft
-      power, and no conclusion in the project turns on it &mdash; though it does change the
-      limit-cycle amplitude by 37 %.</td></tr>
+      <td>Three control blocks carry backlash and each names a constant. None says whether
+      it is the whole band or the half band.</td>
+      <td>The total band, closed by decision (#54). Reading it the other way moves the settled
+      state very little and no conclusion turns on it, though it changes the limit-cycle
+      amplitude of &sect;3.</td></tr>
     </tbody>
   </table></div>
 
   <div class="note-box"><h3>One bias that must <em>not</em> be fixed</h3>
-  <p>Ballin&rsquo;s model underestimates turbine temperature at trim in every validation case
-  and he says so. A replication inherits that: reproducing the bias with the same sign is
-  correct, and a version that matched the hardware better than his did would be a
-  <em>worse</em> replication. The same applies to the other admitted limits &mdash; the
-  100 %NG ceiling, direction-independent heat-sink constants, no T4.5 heat sink, damping
-  slightly high, load-demand compensation weaker than the real aircraft.</p></div>
+  <p>Ballin&rsquo;s model underestimates turbine temperature at trim in every validation case,
+  and he says so. Reproducing that bias with the same sign is correct; matching the hardware
+  better would be a <em>worse</em> replication. The same holds for his other admitted limits
+  &mdash; the 100 %NG ceiling,
+  direction-independent heat-sink constants, no T4.5 heat sink, damping slightly high,
+  load-demand compensation weaker than the real aircraft.</p></div>
 </section>
 <section id="s6">
   <div class="shead"><span class="snum">6</span><h2>Validation against the report</h2>
-    <span class="eyebrow">four printed surfaces, 551 values</span></div>
-  <div class="col"><p>Every number below is recomputed by the generator that builds this
-  page, not transcribed from a previous summary.</p></div>
+    <span class="eyebrow">Table B.1 &middot; Table 1 &middot; Appendix B &middot; Figures 6&ndash;10</span></div>
   <div class="scroll"><table>
     <thead><tr><th scope="col">Comparison</th><th scope="col">rms %</th>
       <th scope="col">mean %</th><th scope="col">worst %</th><th scope="col"></th></tr></thead>
-    <tbody><tr><th scope="row">Table B.1, the printed engine state<span class="sub">21 numbers</span></th><td class="mono">0.222</td><td class="mono">-0.087</td><td class="mono strong">-0.806</td><td class="note">worst SHP &minus;0.81 % at descent</td></tr><tr><th scope="row">Table 1, printed eigenvalues<span class="sub">27 modes</span></th><td class="mono">1.937</td><td class="mono">0.558</td><td class="mono strong">4.701</td><td class="note">worst +4.7 % on the 2-DOF NG mode at hover</td></tr><tr><th scope="row">Appendix B, matrix A<span class="sub">158 non-zero</span></th><td class="mono">6.262</td><td class="mono">-0.354</td><td class="mono strong">-33.749</td><td class="note">every one of the 206 non-zero elements is compared</td></tr><tr><th scope="row">Appendix B, fuel column b<span class="sub">42 non-zero</span></th><td class="mono">6.405</td><td class="mono">-1.330</td><td class="mono strong">24.299</td><td class="note">the 6-DOF half carries the heat sink's deficit</td></tr><tr><th scope="row">Closed loop against Table B.1<span class="sub">15 numbers</span></th><td class="mono">0.081</td><td class="mono">0.020</td><td class="mono strong">0.245</td><td class="note">fuel flow is an <em>output</em> here, not an input</td></tr></tbody>
+    <tbody><tr><th scope="row">Table B.1, the printed engine state<span class="sub">21 numbers</span></th><td class="mono">0.222</td><td class="mono">-0.087</td><td class="mono strong">-0.806</td><td class="note">worst SHP &minus;0.81 % at descent</td></tr><tr><th scope="row">Table 1, printed eigenvalues<span class="sub">27 modes</span></th><td class="mono">1.937</td><td class="mono">0.558</td><td class="mono strong">4.701</td><td class="note">worst +4.7 % on the 2-DOF NG mode at hover</td></tr><tr><th scope="row">Appendix B, matrix A<span class="sub">158 non-zero</span></th><td class="mono">6.262</td><td class="mono">-0.354</td><td class="mono strong">-33.749</td><td class="note">every non-zero printed element, all twelve figures</td></tr><tr><th scope="row">Appendix B, fuel column b<span class="sub">42 non-zero</span></th><td class="mono">6.405</td><td class="mono">-1.330</td><td class="mono strong">24.299</td><td class="note">the 6-DOF half carries the heat sink's deficit</td></tr><tr><th scope="row">Closed loop against Table B.1<span class="sub">15 numbers</span></th><td class="mono">0.081</td><td class="mono">0.020</td><td class="mono strong">0.245</td><td class="note">fuel flow is an <em>output</em> here, not an input</td></tr></tbody>
   </table></div>
   <div class="legend">
     <span><i class="swatch" style="background:var(--ours)"></i>our model</span>
@@ -615,22 +574,21 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   <h3 style="margin-top:42px">6.2 &nbsp;Table 1 &mdash; every printed eigenvalue</h3>
   <figure><picture><source data-dark srcset="assets/eigenvalues-all-models-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/eigenvalues-all-models-light.png" data-stem="eigenvalues-all-models" alt="Left: all 27 eigenvalues Table 1 prints, each paired with ours, on a log scale. Right: the 3-DOF and 6-DOF spectra, which Table 1 does not print, taken from Ballin's own matrices." loading="lazy"></picture>
     <figcaption>Left, everything Table&nbsp;1 prints, across three model variants. Right, the
-    two spectra it does <em>not</em> &mdash; recovered from Ballin&rsquo;s own printed
-    matrices, which is the only way those variants can be checked by eigenvalue at
-    all.</figcaption></figure>
+    two spectra it does <em>not</em>, recovered from Ballin&rsquo;s own printed matrices: the
+    only way to check those variants by eigenvalue.</figcaption></figure>
   <div class="scroll"><table>
     <thead><tr><th scope="col">Model</th><th scope="col">Trim</th><th scope="col">Mode</th>
       <th scope="col">printed 1/s</th><th scope="col">ours 1/s</th>
       <th scope="col">deviation %</th></tr></thead>
     <tbody><tr><td>5-DOF</td><td>hover</td><td class="mono">NP</td><td class="mono">-0.565</td><td class="mono">-0.565</td><td class="mono dev">+0.01<span class="bar"><i class="pos" style="left:50%;width:0.027707135832274358%"></i></span></td></tr><tr><td>5-DOF</td><td>hover</td><td class="mono">NG</td><td class="mono">-2.66</td><td class="mono">-2.691</td><td class="mono dev">+1.18<span class="bar"><i class="pos" style="left:50%;width:3.9184447951319408%"></i></span></td></tr><tr><td>5-DOF</td><td>hover</td><td class="mono">P3</td><td class="mono">-51.6</td><td class="mono">-51.7</td><td class="mono dev">+0.19<span class="bar"><i class="pos" style="left:50%;width:0.6267611362766063%"></i></span></td></tr><tr><td>5-DOF</td><td>hover</td><td class="mono">P45</td><td class="mono">-3,060</td><td class="mono">-3,166</td><td class="mono dev">+3.47<span class="bar"><i class="pos" style="left:50%;width:11.580035648625563%"></i></span></td></tr><tr><td>5-DOF</td><td>hover</td><td class="mono">P41</td><td class="mono">-4,900</td><td class="mono">-5,007</td><td class="mono dev">+2.18<span class="bar"><i class="pos" style="left:50%;width:7.277347096365318%"></i></span></td></tr><tr><td>5-DOF</td><td>level 80 kt</td><td class="mono">NP</td><td class="mono">-0.446</td><td class="mono">-0.4461</td><td class="mono dev">+0.03<span class="bar"><i class="pos" style="left:50%;width:0.08846901754094652%"></i></span></td></tr><tr><td>5-DOF</td><td>level 80 kt</td><td class="mono">NG</td><td class="mono">-2.08</td><td class="mono">-2.111</td><td class="mono dev">+1.51<span class="bar"><i class="pos" style="left:50%;width:5.04021386855025%"></i></span></td></tr><tr><td>5-DOF</td><td>level 80 kt</td><td class="mono">P3</td><td class="mono">-52.2</td><td class="mono">-50.97</td><td class="mono dev">-2.35<span class="bar"><i class="neg" style="left:42.16550471693085%;width:7.834495283069155%"></i></span></td></tr><tr><td>5-DOF</td><td>level 80 kt</td><td class="mono">P45</td><td class="mono">-4,040</td><td class="mono">-3,948</td><td class="mono dev">-2.28<span class="bar"><i class="neg" style="left:42.3927216391665%;width:7.6072783608335%"></i></span></td></tr><tr><td>5-DOF</td><td>level 80 kt</td><td class="mono">P41</td><td class="mono">-4,640</td><td class="mono">-4,736</td><td class="mono dev">+2.08<span class="bar"><i class="pos" style="left:50%;width:6.923332896015031%"></i></span></td></tr><tr><td>5-DOF</td><td>descent 80 kt</td><td class="mono">NP</td><td class="mono">-0.357</td><td class="mono">-0.3567</td><td class="mono dev">-0.09<span class="bar"><i class="neg" style="left:49.707280537938765%;width:0.29271946206123545%"></i></span></td></tr><tr><td>5-DOF</td><td>descent 80 kt</td><td class="mono">NG</td><td class="mono">-1.75</td><td class="mono">-1.755</td><td class="mono dev">+0.28<span class="bar"><i class="pos" style="left:50%;width:0.9315818811614918%"></i></span></td></tr><tr><td>5-DOF</td><td>descent 80 kt</td><td class="mono">P3</td><td class="mono">-52.6</td><td class="mono">-53.56</td><td class="mono dev">+1.83<span class="bar"><i class="pos" style="left:50%;width:6.092245340259997%"></i></span></td></tr><tr><td>5-DOF</td><td>descent 80 kt</td><td class="mono">P41</td><td class="mono">-4,430</td><td class="mono">-4,624</td><td class="mono dev">+4.38<span class="bar"><i class="pos" style="left:50%;width:14.583534392222452%"></i></span></td></tr><tr><td>5-DOF</td><td>descent 80 kt</td><td class="mono">P45</td><td class="mono">-4,530</td><td class="mono">-4,445</td><td class="mono dev">-1.87<span class="bar"><i class="neg" style="left:43.757078677661625%;width:6.242921322338376%"></i></span></td></tr><tr><td>2-DOF</td><td>hover</td><td class="mono">NP</td><td class="mono">-0.565</td><td class="mono">-0.565</td><td class="mono dev">+0.01<span class="bar"><i class="pos" style="left:50%;width:0.027707135832274358%"></i></span></td></tr><tr><td>2-DOF</td><td>hover</td><td class="mono">NG</td><td class="mono">-2.69</td><td class="mono">-2.816</td><td class="mono dev">+4.70<span class="bar"><i class="pos" style="left:50%;width:15.671654217953748%"></i></span></td></tr><tr><td>2-DOF</td><td>level 80 kt</td><td class="mono">NP</td><td class="mono">-0.446</td><td class="mono">-0.4461</td><td class="mono dev">+0.03<span class="bar"><i class="pos" style="left:50%;width:0.08846901754094652%"></i></span></td></tr><tr><td>2-DOF</td><td>level 80 kt</td><td class="mono">NG</td><td class="mono">-2.23</td><td class="mono">-2.202</td><td class="mono dev">-1.27<span class="bar"><i class="neg" style="left:45.77168136070419%;width:4.228318639295807%"></i></span></td></tr><tr><td>2-DOF</td><td>descent 80 kt</td><td class="mono">NP</td><td class="mono">-0.357</td><td class="mono">-0.3567</td><td class="mono dev">-0.09<span class="bar"><i class="neg" style="left:49.70728053792923%;width:0.2927194620707724%"></i></span></td></tr><tr><td>2-DOF</td><td>descent 80 kt</td><td class="mono">NG</td><td class="mono">-1.82</td><td class="mono">-1.768</td><td class="mono dev">-2.85<span class="bar"><i class="neg" style="left:40.48875334340654%;width:9.51124665659346%"></i></span></td></tr><tr><td>reduced-5</td><td>hover</td><td class="mono">NP</td><td class="mono">-0.565</td><td class="mono">-0.565</td><td class="mono dev">+0.01<span class="bar"><i class="pos" style="left:50%;width:0.027707135832274358%"></i></span></td></tr><tr><td>reduced-5</td><td>hover</td><td class="mono">NG</td><td class="mono">-2.81</td><td class="mono">-2.861</td><td class="mono dev">+1.82<span class="bar"><i class="pos" style="left:50%;width:6.0799862084522%"></i></span></td></tr><tr><td>reduced-5</td><td>level 80 kt</td><td class="mono">NP</td><td class="mono">-0.446</td><td class="mono">-0.4461</td><td class="mono dev">+0.03<span class="bar"><i class="pos" style="left:50%;width:0.08846901754094652%"></i></span></td></tr><tr><td>reduced-5</td><td>level 80 kt</td><td class="mono">NG</td><td class="mono">-2.16</td><td class="mono">-2.206</td><td class="mono dev">+2.11<span class="bar"><i class="pos" style="left:50%;width:7.028360660075543%"></i></span></td></tr><tr><td>reduced-5</td><td>descent 80 kt</td><td class="mono">NP</td><td class="mono">-0.357</td><td class="mono">-0.3567</td><td class="mono dev">-0.09<span class="bar"><i class="neg" style="left:49.707280537938765%;width:0.29271946206123545%"></i></span></td></tr><tr><td>reduced-5</td><td>descent 80 kt</td><td class="mono">NG</td><td class="mono">-1.83</td><td class="mono">-1.833</td><td class="mono dev">+0.14<span class="bar"><i class="pos" style="left:50%;width:0.4612368526537128%"></i></span></td></tr></tbody>
   </table></div>
-  <div class="note-box"><h3>The 6-DOF matrices cannot be compared this way, and the plot says so</h3>
+  <div class="note-box"><h3>The 6-DOF matrices cannot be compared by eigenvalue</h3>
   <p>Row&nbsp;6 of the 6&#8209;DOF <code>A</code> differences terms of order
   2&times;10<sup>5</sup> to produce order 10<sup>3</sup>, so four printed significant figures
   carry roughly &plusmn;50 there. As printed, <code>B8</code> is open-loop <strong>unstable at
-  +3.07 /sec</strong>. That is precision lost in the printing, not a claim the report makes,
-  and it is why Appendix&nbsp;B&rsquo;s 6&#8209;DOF figures are compared element by element and
-  never by eigenvalue.</p></div>
+  +3.07 /sec</strong>: precision lost in
+  the printing, not a claim the report makes. The 6&#8209;DOF figures are compared element by
+  element instead.</p></div>
   <div class="scroll"><table>
     <caption>The two spectra Table 1 omits, from the printed matrices themselves</caption>
     <thead><tr><th scope="col">Figure</th><th scope="col">Model</th><th scope="col">Trim</th>
@@ -639,11 +597,10 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <tbody><tr><td class="mono">B7</td><td>3-DOF</td><td>hover</td><td class="mono small">-0.378, -0.565, -2.229</td><td class="mono small">-0.4237, -0.565, -2.3</td><td class="flag"></td></tr><tr><td class="mono">B9</td><td>3-DOF</td><td>level 80 kt</td><td class="mono small">-0.3535, -0.4461, -1.814</td><td class="mono small">-0.4074, -0.4461, -1.715</td><td class="flag"></td></tr><tr><td class="mono">B11</td><td>3-DOF</td><td>descent 80 kt</td><td class="mono small">-0.3567, -0.3577, -1.267</td><td class="mono small">-0.3567, -0.4184, -1.169</td><td class="flag"></td></tr><tr><td class="mono">B8</td><td>6-DOF</td><td>hover</td><td class="mono small">3.067, -0.565, -4.132, -50.88, -3,062, -5,251</td><td class="mono small">-0.4304, -0.565, -2.537, -50.5, -3,166, -5,312</td><td class="flag">UNSTABLE as printed &middot; ill-conditioned</td></tr><tr><td class="mono">B10</td><td>6-DOF</td><td>level 80 kt</td><td class="mono small">-0.4461, -1.844, -1.844, -48.39, -4,038, -4,985</td><td class="mono small">-0.4155, -0.4461, -1.778, -49.78, -3,948, -5,044</td><td class="flag"> &middot; ill-conditioned</td></tr><tr><td class="mono">B12</td><td>6-DOF</td><td>descent 80 kt</td><td class="mono small">-0.3567, -0.7554, -0.7554, -50.47, -4,431, -4,875</td><td class="mono small">-0.3567, -0.419, -1.277, -52.38, -4,445, -4,947</td><td class="flag"> &middot; ill-conditioned</td></tr></tbody>
   </table></div>
 
-  <h3 style="margin-top:42px">6.3 &nbsp;Appendix B &mdash; 297 printed elements</h3>
-  <div class="col"><p>The strongest test in the project, and the reason Appendix&nbsp;B
-  matters: it validates the entire linearized model term by term against printed numbers, with
-  no figure digitization, no read error and no eyeballing. A structural error in any component
-  equation shows up as a wrong matrix element that points straight at the offending partial
+  <h3 style="margin-top:42px">6.3 &nbsp;Appendix B &mdash; every printed matrix element</h3>
+  <div class="col"><p>The strongest test in the project: the linearized model term by term
+  against printed numbers, with no digitization and no read error. A structural error in any
+  component equation shows up as a wrong element pointing at the offending partial
   derivative.</p></div>
   <figure><picture><source data-dark srcset="assets/appendix-b-elements-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/appendix-b-elements-light.png" data-stem="appendix-b-elements" alt="Left: every non-zero printed element plotted against ours on log-log axes, hugging the identity line over eight decades. Right: the same deviations grouped by block." loading="lazy"></picture>
     <figcaption>Eight decades, 10<sup>&minus;2</sup> to 10<sup>6</sup>. The right panel is
@@ -654,30 +611,28 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <tbody><tr><td class="mono">2-DOF A</td><td class="mono">9</td><td class="mono">0.39</td><td class="mono">3.16</td><td class="mono dev">-4.68<span class="bar"><i class="neg" style="left:44.15110779553459%;width:5.848892204465406%"></i></span></td></tr><tr><td class="mono">2-DOF b</td><td class="mono">6</td><td class="mono">0.24</td><td class="mono">2.02</td><td class="mono dev">-2.94<span class="bar"><i class="neg" style="left:46.33070354091773%;width:3.6692964590822683%"></i></span></td></tr><tr><td class="mono">3-DOF A</td><td class="mono">21</td><td class="mono">-2.29</td><td class="mono">8.75</td><td class="mono dev">-33.00<span class="bar"><i class="neg" style="left:8.754684112718195%;width:41.245315887281805%"></i></span></td></tr><tr><td class="mono">3-DOF b</td><td class="mono">9</td><td class="mono">2.73</td><td class="mono">11.77</td><td class="mono dev">+24.30<span class="bar"><i class="pos" style="left:50%;width:30.374213291534474%"></i></span></td></tr><tr><td class="mono">5-DOF A</td><td class="mono">54</td><td class="mono">-0.09</td><td class="mono">4.91</td><td class="mono dev">+15.66<span class="bar"><i class="pos" style="left:50%;width:19.57082213425446%"></i></span></td></tr><tr><td class="mono">5-DOF b</td><td class="mono">12</td><td class="mono">-0.02</td><td class="mono">0.07</td><td class="mono dev">-0.13<span class="bar"><i class="neg" style="left:49.83553217352749%;width:0.1644678264725113%"></i></span></td></tr><tr><td class="mono">6-DOF A</td><td class="mono">74</td><td class="mono">-0.08</td><td class="mono">6.57</td><td class="mono dev">-33.75<span class="bar"><i class="neg" style="left:7.814186812793473%;width:42.18581318720653%"></i></span></td></tr><tr><td class="mono">6-DOF b</td><td class="mono">15</td><td class="mono">-5.44</td><td class="mono">5.48</td><td class="mono dev">-6.44<span class="bar"><i class="neg" style="left:41.95078162952787%;width:8.049218370472135%"></i></span></td></tr></tbody>
   </table></div>
   <div class="keyed"><h3>The 6-DOF fuel column is the one block with a shape</h3>
-  <p>The 5&#8209;DOF <code>b</code> is exact to 0.2 % over twelve numbers. Turn the
-  station&#8209;4.1 heat sink on and the same column drops to 0.937&ndash;0.956 on the
-  gas-path states and 0.879&ndash;0.894 on T4.1 &mdash; uniform, and monotone in power at
-  every entry. The heat sink is the <em>only</em> difference between the two models, so the
-  whole deficit is its, and it carries the same sign and a comparable size as the T4.1
-  row&rsquo;s 7 % lead&ndash;lag deficit. Three blocks low by one ratio is evidence about two
-  unprinted time constants, not about the structure.</p></div>
+  <p style="margin-bottom:0">The 5&#8209;DOF <code>b</code> matches to
+  0.07 % rms. Turn the station&#8209;4.1 heat sink on and
+  the same column runs uniformly low: -5.4 % on average,
+  -6.4 % at worst. The heat sink is the only difference
+  between the two models, so the deficit is its time constants (&sect;5): with the ones
+  Appendix&nbsp;B implies, the column matches within
+  <code>test_heat_sink_taus.SIX_DOF_SWAP_TOL_PCT</code>.</p></div>
 
   <h3 style="margin-top:42px">6.4 &nbsp;Figures 6&ndash;8 &mdash; the steady sweeps</h3>
   <figure><picture><source data-dark srcset="assets/figures-6-8-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figures-6-8-overlay-light.png" data-stem="figures-6-8-overlay" alt="Three overlay plots: our model against Ballin's real-time series and two GE reference series." loading="lazy"></picture>
-    <figcaption>Our curve drawn over Ballin&rsquo;s markers, with both GE series shown for
-    context. The GE data is not the target &mdash; agreeing with it more closely than Ballin
-    does would not be evidence of anything.</figcaption></figure>
+    <figcaption>Our curve over Ballin&rsquo;s markers, with both GE series for context. The GE
+    data is not the target: agreeing with it more closely than Ballin does would not be evidence
+    of anything.</figcaption></figure>
   <div class="scroll"><table>
     <thead><tr><th scope="col">Figure</th><th scope="col">Points scored</th>
       <th scope="col">mean</th><th scope="col">rms</th><th scope="col">worst</th></tr></thead>
-    <tbody><tr><th scope="row">Figure 6<span class="sub">NG against fuel flow. Deviation in %NG points, not percent &mdash; an absolute difference on a speed already expressed as a percentage.</span></th><td class="mono">28 of 29</td><td class="mono">-0.008</td><td class="mono">0.235</td><td class="mono strong">-1.018 %NG</td></tr><tr><th scope="row">Figure 7<span class="sub">Shaft power against fuel flow. The low-power end is the worst, and it is the same end where Table B.1 and this figure disagree with <em>each other</em> by 5.5 %.</span></th><td class="mono">14 of 15</td><td class="mono">0.194</td><td class="mono">0.687</td><td class="mono strong">+2.175 %</td></tr><tr><th scope="row">Figure 8<span class="sub">Ps3 against NG. No fuel flow appears in it, so it cannot be rescued by a compensating fuel-path error.</span></th><td class="mono">26 of 27</td><td class="mono">0.067</td><td class="mono">0.266</td><td class="mono strong">+0.643 %</td></tr></tbody>
+    <tbody><tr><th scope="row">Figure 6<span class="sub">NG against fuel flow. Deviation in %NG points, not percent &mdash; an absolute difference on a speed already expressed as a percentage.</span></th><td class="mono">28 of 29</td><td class="mono">-0.008</td><td class="mono">0.235</td><td class="mono strong">-1.018 %NG</td></tr><tr><th scope="row">Figure 7<span class="sub">Shaft power against fuel flow. The low-power end is the worst, and it is the same end where Table B.1 and this figure disagree with <em>each other</em> by 1.3 %.</span></th><td class="mono">14 of 15</td><td class="mono">0.194</td><td class="mono">0.687</td><td class="mono strong">+2.175 %</td></tr><tr><th scope="row">Figure 8<span class="sub">Ps3 against NG. No fuel flow appears in it, so it cannot be rescued by a compensating fuel-path error.</span></th><td class="mono">26 of 27</td><td class="mono">0.067</td><td class="mono">0.266</td><td class="mono strong">+0.643 %</td></tr></tbody>
   </table></div>
-  <div class="note-box"><h3>Where the report disagrees with itself, and where we are the larger error</h3>
-  <p>Table B.1 and Figures&nbsp;6&ndash;7 describe the same three operating points, one as
-  printed numbers and one as plotted markers. Table B.1 is primary &mdash; it carries no
-  digitizing error of ours, it underpins Appendix&nbsp;B, and Table&nbsp;1&rsquo;s modes come
-  from the same trims &mdash; and the diamonds on the plots above are it, drawn on the
-  figures&rsquo; own axes.</p>
+  <div class="note-box"><h3>Where the report disagrees with itself</h3>
+  <p>Table B.1 and Figures&nbsp;6&ndash;7 describe the same three operating points. Table B.1
+  is primary &mdash; no digitizing error of ours, and Appendix&nbsp;B and Table&nbsp;1 come from
+  the same trims &mdash; and it is drawn as the diamonds above.</p>
   <div class="scroll"><table>
     <caption>Table B.1 against the figure, and us against Table B.1</caption>
     <thead><tr><th scope="col">Trim</th><th scope="col">W<sub>f</sub>, lbm/hr</th>
@@ -685,26 +640,20 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
       <th scope="col">nearest printed marker</th></tr></thead>
     <tbody><tr><th scope="row">hover</th><td class="mono">476.3</td><td class="mono">-0.028 %</td><td class="mono strong">-0.060 %</td><td class="mono small">5.0 lbm/hr</td></tr><tr><th scope="row">level 80 kt</th><td class="mono">349.3</td><td class="mono">+0.148 %</td><td class="mono">-0.077 %</td><td class="mono small">0.6 lbm/hr</td></tr><tr><th scope="row">descent 80 kt</th><td class="mono">267.7</td><td class="mono">+1.329 %</td><td class="mono">-0.806 %</td><td class="mono small">2.7 lbm/hr</td></tr></tbody>
   </table></div>
-  <p>This page used to state that spread as <strong>+5.49 / +1.32 / &minus;0.14 %</strong> on
-  shaft power and draw a rule from it: do not tune below the report&rsquo;s own internal
-  disagreement. Those numbers predate the digitizer corrections of 2026-09-14, which found the
-  disagreement was ours. They were prose that nothing computed, so nothing caught them going
-  stale; the table above is now recomputed on every build. <strong>The consequence changes with
-  them.</strong> The report&rsquo;s widest self-disagreement is 1.329 %, and at the
-  descent trim our shaft power sits outside it &mdash; that residual is
-  <a href="#s9">question&nbsp;69</a>, not a sheltered one. Read the last column before quoting
-  a row: Figure&nbsp;7 prints fifteen markers over its whole range, and on its steep low-power
-  end the curve climbs about 3&nbsp;shp per lbm/hr.</p></div>
+  <p>The report&rsquo;s widest self-disagreement is 1.329 %. A row is set in bold
+  where our error is the larger of the two. Read the last column before quoting a row:
+  Figure&nbsp;7 prints fifteen markers over its whole range, and on its steep low-power end the
+  curve climbs about 3&nbsp;shp per lbm/hr.</p></div>
 
   <h3 style="margin-top:42px">6.5 &nbsp;Figures 9 and 10 &mdash; the fuel transients</h3>
   <figure><picture><source data-dark srcset="assets/figure-9-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figure-9-overlay-light.png" data-stem="figure-9-overlay" alt="Six panels of Figure 9, the fuel step up from 400 to 775 lbm per hour." loading="lazy"></picture>
-    <figcaption>The step up. The sixth panel is the input &mdash; both its levels are printed
-    in the caption, so drawing it shows the step our model was given is the step Ballin&rsquo;s
-    was.</figcaption></figure>
+    <figcaption>The step up. The sixth panel is the input: both its levels are printed in the
+    caption, so drawing it shows that our model was given Ballin&rsquo;s step.</figcaption></figure>
   <figure><picture><source data-dark srcset="assets/figure-10-overlay-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/figure-10-overlay-light.png" data-stem="figure-10-overlay" alt="Six panels of Figure 10, the fuel chop from 400 to 125 lbm per hour." loading="lazy"></picture>
-    <figcaption>The chop. Ballin&rsquo;s trace stops at about t&nbsp;=&nbsp;4.47&nbsp;s on every
-    panel, with the speed still falling at &minus;2.09 %NG per second &mdash; so neither trace
-    has settled and comparisons must be made at matched times.</figcaption></figure>
+    <figcaption>The chop. Ballin&rsquo;s trace stops at about
+    t&nbsp;=&nbsp;4.47&nbsp;s on every panel with the
+    speed still falling, so neither trace has settled and comparisons are made at matched
+    times.</figcaption></figure>
   <div class="scroll"><table>
     <caption>Settled state, measured over the reference&rsquo;s own final window</caption>
     <thead><tr><th scope="col">Figure</th><th scope="col">Panel</th>
@@ -719,85 +668,38 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <tbody><tr><td class="mono">Fig 9 &middot; torq45</td><td class="mono">0.617</td><td><span class="bar solo"><i class="pos" style="left:0;width:15%"></i></span></td></tr><tr><td class="mono">Fig 9 &middot; t41</td><td class="mono">0.673</td><td><span class="bar solo"><i class="pos" style="left:0;width:17%"></i></span></td></tr><tr><td class="mono">Fig 9 &middot; ps3</td><td class="mono">0.715</td><td><span class="bar solo"><i class="pos" style="left:0;width:18%"></i></span></td></tr><tr><td class="mono">Fig 9 &middot; t45</td><td class="mono">0.817</td><td><span class="bar solo"><i class="pos" style="left:0;width:20%"></i></span></td></tr><tr><td class="mono">Fig 9 &middot; pcng</td><td class="mono">1.426</td><td><span class="bar solo"><i class="pos" style="left:0;width:36%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; pcng</td><td class="mono">1.436</td><td><span class="bar solo"><i class="pos" style="left:0;width:36%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; ps3</td><td class="mono">1.677</td><td><span class="bar solo"><i class="pos" style="left:0;width:42%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; torq45</td><td class="mono">2.388</td><td><span class="bar solo"><i class="pos" style="left:0;width:60%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; t45</td><td class="mono">2.899</td><td><span class="bar solo"><i class="pos" style="left:0;width:72%"></i></span></td></tr><tr><td class="mono">Fig 10 &middot; t41</td><td class="mono">3.797</td><td><span class="bar solo"><i class="pos" style="left:0;width:95%"></i></span></td></tr></tbody>
   </table></div>
   <figure><picture><source data-dark srcset="assets/phase-plane-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/phase-plane-light.png" data-stem="phase-plane" alt="Both transients plotted as compressor discharge pressure against gas generator speed, with the Figure 8 equilibrium locus dashed." loading="lazy"></picture>
-    <figcaption>The same transients with the time axis discarded &mdash; the comparison that
-    does not depend on when the step happened. Both run below the equilibrium locus by
-    construction: a choked station&#8209;4.1 nozzle passes the same flow at a lower pressure
-    once the temperature falls.</figcaption></figure>
+    <figcaption>The same transients without the time axis, so the comparison does not depend
+    on when the step happened. Both run below the equilibrium locus: a choked
+    station&#8209;4.1 nozzle passes the same flow at a lower pressure once the temperature
+    falls.</figcaption></figure>
 </section>
 <section id="s7">
   <div class="shead"><span class="snum">7</span><h2>Real-time performance</h2>
-    <span class="eyebrow">7&times; on the whole suite, no accuracy given up</span></div>
+    <span class="eyebrow">far inside the budget, no accuracy given up</span></div>
   <div class="col">
-  <p>The report&rsquo;s constraint was 10&nbsp;ms per frame on 1988 hardware. The replication
-  is not a real-time deliverable, but frame cost still governs how much validation can be run,
-  and it had drifted. A profiling pass took the whole test suite from 214 to 31 seconds under
-  two hard constraints: <strong>no new dependency</strong>, and <strong>no accuracy
-  loss</strong>.</p></div>
+  <p>The report&rsquo;s frame was at most 10&nbsp;ms [pdf p.38]. The replication is not a
+  real-time deliverable, but frame cost governs how much validation can be run. On a laptop an
+  engine frame costs tens of microseconds, two orders of magnitude inside that budget, and the
+  closed loop with both control units stays well inside it too. Most of the time was in the
+  function-table lookups, not the iterations. Every change below was held to <strong>no new
+  dependency</strong> and <strong>no accuracy loss</strong>.</p></div>
 
   <div class="scroll"><table>
-    <caption>Measured, before and after</caption>
-    <thead><tr><th scope="col">Workload</th><th scope="col">before</th>
-      <th scope="col">after</th><th scope="col">factor</th></tr></thead>
-    <tbody>
-      <tr><td>Held 400 lbm/hr trim</td><td class="mono">205.8 &micro;s/frame</td>
-        <td class="mono">31.5</td><td class="mono strong">6.5&times;</td></tr>
-      <tr><td>Figure 9 acceleration</td><td class="mono">236.4</td>
-        <td class="mono">37.4</td><td class="mono strong">6.3&times;</td></tr>
-      <tr><td>Figure 10 chop</td><td class="mono">522.2</td>
-        <td class="mono">48.8</td><td class="mono strong">10.7&times;</td></tr>
-      <tr><td>Closed loop, engine + HMU + ECU</td><td class="mono">515.0</td>
-        <td class="mono">95.5</td><td class="mono strong">5.4&times;</td></tr>
-      <tr><td>Trim solve</td><td class="mono">5.77 ms</td>
-        <td class="mono">1.40</td><td class="mono strong">4.1&times;</td></tr>
-      <tr><th scope="row">Full test suite</th><td class="mono">214 s</td>
-        <td class="mono">31</td><td class="mono strong">6.9&times;</td></tr>
-    </tbody>
-  </table></div>
-
-  <div class="col">
-  <p style="margin-top:22px">The profile was not where it was assumed to be.
-  <strong>66 % of frame time was in the function-table lookup</strong> &mdash; 75 % on the chop
-  &mdash; and not in the iterations. A held trim converging both pressure loops in one pass
-  each still cost 206&nbsp;&micro;s.</p></div>
-
-  <div class="scroll"><table>
-    <thead><tr><th scope="col">Change</th><th scope="col">Effect</th>
-      <th scope="col">How accuracy was held</th></tr></thead>
+    <thead><tr><th scope="col">Change</th><th scope="col">How accuracy was held</th></tr></thead>
     <tbody>
     <tr><th scope="row">A scalar path for table lookup</th>
-      <td class="mono">13.33 &rarr; 0.93 &micro;s</td>
-      <td class="note">Every call site asks for one abscissa and wraps the answer in
-      <code>float()</code>; the array round-trip for that cost 13.3&nbsp;&micro;s to do about
-      four flops. The scalar path <em>reproduces</em> NumPy&rsquo;s interpolation rather than
-      approximating it &mdash; checked over 129,694 queries across all 32 shipped curves, at
-      every knot, every midpoint, 4000 random interior points each and outside both ends:
-      <strong>zero bit-mismatches</strong>.</td></tr>
-    <tr><th scope="row">Never materialize the blended compressor line</th>
-      <td class="mono">18.81 &rarr; 2.65 &micro;s</td>
-      <td class="note">Blending two 56-point speed lines allocated two arrays per frame to
-      serve one abscissa. The blend is now evaluated inside the bisection &mdash; six knots,
-      not 112 &mdash; with the same element-wise arithmetic and so the same bits. The 56
-      points were never the cost; materializing them was.</td></tr>
+      <td class="note">Every call site asks for one abscissa. The scalar path
+      <em>reproduces</em> NumPy&rsquo;s interpolation rather than approximating it: checked at
+      every knot, every midpoint, random interior points and outside both ends of every shipped
+      curve, with <strong>zero bit-mismatches</strong>.</td></tr>
     <tr><th scope="row">Loop invariants out of the Gauss&ndash;Seidel sweep</th>
-      <td class="mono">~1 &rarr; 0.05 &micro;s on the roots</td>
-      <td class="note">It recomputed two invariants every pass, though the report&rsquo;s own
-      &ldquo;eleven arithmetic operations for each pass&rdquo; says they are held. Hoisted
-      with the printed expressions&rsquo; association preserved.</td></tr>
-    <tr><th scope="row">Construction instead of <code>dataclasses.replace</code></th>
-      <td class="mono">6.6 &micro;s/frame</td>
-      <td class="note">All three control steps rewrite every field, so <code>replace</code> was
-      introspecting the field list each frame to rediscover that it was a
-      construction.</td></tr>
+      <td class="note">The report counts &ldquo;eleven arithmetic operations required for each
+      pass&rdquo; [pdf p.37], which leaves no room to recompute the two invariants every pass.
+      Hoisted, with the printed expressions&rsquo; association preserved.</td></tr>
     <tr><th scope="row">Eq. 80 solved exactly</th>
-      <td class="mono">16.9 &rarr; 7.0 passes/frame</td>
-      <td class="note"><strong>The one change that is not bit-identical, and it is bounded.</strong>
-      Over the 801 fallback solves the published transients take, the exact root satisfies
-      Eq.&nbsp;80 to better than 10<sup>&minus;12</sup> relative and the bisection it replaced
-      sat within 3.05&times;10<sup>&minus;6</sup>. Only chop runs move at all; trims, all twelve
-      Appendix&nbsp;B comparisons, Figure&nbsp;9 and the entire closed loop are bit-identical.
-      Within the chop, the worst movement in any channel is
-      <strong>0.00045 %</strong> &mdash; speed moves 0.0046&nbsp;rpm in an 8188&nbsp;rpm
-      excursion.</td></tr>
+      <td class="note"><strong>The one change that is not bit-identical.</strong> It acts only
+      where the printed iteration fails to converge (&sect;5), and there it moves the result far
+      below any tolerance.</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -807,24 +709,16 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <span class="eyebrow">the boundaries are in the source</span></div>
   <div class="col">
   <p><strong>Figures 11&ndash;15</strong> run the engine inside the Gen&nbsp;Hel UH&#8209;60A
-  blade-element helicopter simulation, which this report consumes and does not contain. They
-  are out of scope by construction, not by omission &mdash; the rotor model is an external
-  supplier to the report exactly as it is to us.</p>
-  <p><strong>Table 3</strong> looks like the best steady-state benchmark available &mdash; six
-  hardware test cases with speeds, flows, pressures and temperatures &mdash; but its model
-  column was produced with compressor and turbine functions from the <em>NASA&#8209;Lewis
-  prototype engine</em>, supplied in place of the standard ones and printed nowhere. Its own
-  caption says it does not represent specification T700 performance. It is evidence of method,
-  never pass/fail.</p>
+  blade-element helicopter simulation, which the report consumes and does not contain. They
+  are out of scope by construction: the rotor model is an external supplier to the report
+  exactly as it is to us.</p>
+  <p><strong>Table 3</strong> looks like the best steady-state benchmark, but its model column
+  used the <em>NASA&#8209;Lewis prototype engine&rsquo;s</em> compressor and turbine functions,
+  printed nowhere, and its own caption says it does not represent specification T700
+  performance: evidence of method, never pass/fail.</p>
   <p><strong>Two Gen&nbsp;Hel derivatives</strong> &mdash; the load-torque slope and the load
   inertia &mdash; are recovered from Appendix&nbsp;B itself rather than modelled, so the power
-  turbine row of every linear comparison is supplied rather than predicted. The residual
-  without them is the same &minus;51.8 / &minus;53.5 / &minus;54.6 % in all four model variants
-  to five figures, which is what a missing term in one equation should do.</p>
-  <p><strong>Six open questions remain</strong>, and every one is a place where the report is
-  silent and a choice was made, not a place where something is unexplained. Four are
-  deliberate departures on record; two are ambiguities the source cannot settle, both with
-  their cost measured.</p>
+  turbine row of every linear comparison is supplied rather than predicted.</p>
   <p><strong>Above 100 %NG nothing is claimed.</strong> That ceiling is Ballin&rsquo;s, stated
   in his own validation section, and a replication inherits it.</p>
   </div>
@@ -834,34 +728,21 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   <div class="shead"><span class="snum">9</span><h2>What is still open</h2>
     <span class="eyebrow">4 open &middot; 0 partly closed &middot; 72 logged in total</span></div>
   <div class="col">
-  <p>Anything the report does not answer goes into a ledger rather than into the code as a
-  guess. Of 72 questions logged over the project, these 4 remain open and
-  0 are partly closed. <strong>Every open one is a place where the report is
-  silent and a choice was made</strong>, not a place where something is unexplained &mdash;
-  four are deliberate departures on record, and two are ambiguities the source cannot settle,
-  both with their cost measured.</p>
-  <p>None of them blocks a result. They are listed because a departure nobody can see is a
-  departure that will be undone by accident, and because a reader deciding how much weight to
-  put on a number in &sect;6 should know which of these sits underneath it.</p></div>
+  <p>Anything the report does not answer goes into a ledger,
+  <code>docs/notes/open-questions.md</code>, rather than into the code as a guess. These are the
+  rows not yet closed. None blocks a result; each says what it is and which numbers in
+  &sect;6 it sits under.</p></div>
   <div class="scroll"><table>
     <thead><tr><th scope="col">Row</th><th scope="col">Verdict</th>
       <th scope="col">Question</th><th scope="col">Where it stands</th></tr></thead>
-    <tbody><tr><td class="mono">#60</td><td><span class="tag is-open">open</span></td><th scope="row"><code>f1</code> on a beta grid, not the printed table</th><td class="note">A deliberate departure. It removes a manufactured extrapolation entirely and halves the worst Table&nbsp;1 speed mode, at a cost of 0.2018&nbsp;&rarr;&nbsp;0.2439 % on Table B.1&rsquo;s rms.</td></tr><tr><td class="mono">#74</td><td><span class="tag is-open">open</span></td><th scope="row">Figure&nbsp;A1&rsquo;s speed lines do not form a smooth family</th><td class="note">No smooth surface fits all eleven digitized lines: the best joint fit reaches &chi;&sup2;/dof 4.67, and adjacent lines differ by up to 11&nbsp;&sigma;. Either our read error understates the cross-line error 2&ndash;4&times;, or the printed figure is not internally consistent.</td></tr><tr><td class="mono">#75</td><td><span class="tag is-open">open</span></td><th scope="row">Which P45 the gas generator torque&rsquo;s &Delta;H<sub>GT</sub> uses</th><td class="note">The report is silent. Each real-time frame evaluates Eq.&nbsp;26 at the previous frame&rsquo;s P45, as the Eq.&nbsp;80 iteration needs, and Q<sub>GT</sub> (Eq.&nbsp;40) reuses it. Using the solved P45 for Q<sub>GT</sub> instead would move the Figure&nbsp;9 step by up to 0.4&nbsp;%NG and 2&nbsp;% on Q<sub>PT</sub>; no trim moves.</td></tr><tr><td class="mono">#76</td><td><span class="tag is-open">open</span></td><th scope="row">pdf p.32 labels F<sub>2</sub>&rsquo;s sixth column with T41<sub>ns</sub></th><td class="note">The state vector on the same page has T41 sixth, and F<sub>2</sub>(6,6) = &minus;1/&tau;<sub>2</sub> is a derivative with respect to T41; the five entries above it say T41<sub>ns</sub>. Its effect on our linear models is not yet checked.</td></tr></tbody>
+    <tbody><tr><td class="mono">#60</td><td><span class="tag is-open">open</span></td><th scope="row"><code>f1</code> on a beta grid, not the printed table</th><td class="note">A deliberate departure, kept by decision (&sect;5). It removes a manufactured extrapolation entirely; against the printed table it wins on some printed surfaces and loses on others. It sits under every number in &sect;6, through the compressor map.</td></tr><tr><td class="mono">#74</td><td><span class="tag is-open">open</span></td><th scope="row">Figure&nbsp;A1&rsquo;s speed lines do not form a smooth family</th><td class="note">No smooth surface fits all eleven digitized lines within their quoted read error, and adjacent lines disagree well beyond it. Either our read error understates the error across lines, or the printed figure is not internally consistent. It sits under every number in &sect;6, through the compressor map.</td></tr><tr><td class="mono">#75</td><td><span class="tag is-open">open</span></td><th scope="row">Which P45 the gas generator torque&rsquo;s &Delta;H<sub>GT</sub> uses</th><td class="note">The report is silent. Each real-time frame evaluates Eq.&nbsp;26 at the previous frame&rsquo;s P45, as the Eq.&nbsp;80 iteration needs, and Q<sub>GT</sub> (Eq.&nbsp;40) reuses it. The solved P45 instead would move the transients of &sect;6.5, Figure&nbsp;9 most; no trim moves.</td></tr><tr><td class="mono">#76</td><td><span class="tag is-open">open</span></td><th scope="row">pdf p.32 labels F<sub>2</sub>&rsquo;s sixth column with T41<sub>ns</sub></th><td class="note">The state vector on the same page has T41 sixth, and F<sub>2</sub>(6,6) = &minus;1/&tau;<sub>2</sub> is a derivative with respect to T41; the five entries above it say T41<sub>ns</sub>. Its effect on the 6-DOF comparisons in &sect;6 is not yet checked.</td></tr></tbody>
   </table></div>
-  <div class="note-box"><h3>Two of these are load-bearing on the numbers in &sect;6</h3>
-  <p><strong>#43</strong>, the interpolation scheme, sets what every function table returns
-  <em>between</em> its printed knots &mdash; and the report states no scheme anywhere. It is
-  the residual behind the spread in the linear-model comparison, and changing the scheme (as
-  #60 did) redistributes that spread across trims rather than removing it. <strong>#56</strong>,
-  the Jacobian step, changes the worst eigenvalue by up to 23 % depending on which question
-  one thinks Appendix&nbsp;B's matrices answer. Neither can be settled from the source.</p>
-  </div>
 </section>
 
 <footer>
-  <p>All figures and tables generated by <code>validation/report.py</code>, which recomputes
-  every value from the model and the digitized reference data; nothing on this page is
-  transcribed from a previous summary. The model core depends on NumPy and the standard
+  <p>Figures, tables and the numbers quoted in the text are filled from
+  <code>site/assets/report.json</code>, which <code>validation/report.py</code> recomputes from
+  the model and the digitized reference data. The model core depends on NumPy and the standard
   library alone. Source: Ballin, M.&nbsp;G., <em>A High-Fidelity Real-Time Simulation of a
   Small Turboshaft Engine</em>, NASA TM&#8209;100991, July 1988 &mdash; NTRS accession
   N88&#8209;26378, not subject to US copyright under 17&nbsp;U.S.C. &sect;105.</p>
