@@ -6,9 +6,10 @@ helicopter simulation" to one pilot input: Ballin's Gen Hel line (solid) against
 (dashed). Gen Hel itself is not in the report (#39), but its printed rotor speed is, and Gen Hel
 drives the T700 through "a rigid-shaft drive train model" whose degree of freedom "corresponds
 to that of the drive train and rotor hub" [pdf p.47]: rotor speed in % is NP in %. Everything
-the airframe does reaches the propulsion system through that speed, and a lateral cyclic or
-pedal input leaves the collective, and with it the load demand, where it was ("without the
-influences of the load demand compensation", pdf p.50). So the comparison replays Ballin's
+the airframe does reaches the propulsion system through that speed, and the flight-test inputs
+are "single-axis control inputs" [pdf p.47], so a lateral cyclic or pedal input leaves the
+collective, and with it the load demand, where it was ("without the influences of the load
+demand compensation", pdf p.50, of Figure 14). So the comparison replays Ballin's
 rotor speed into our closed loop as NP and predicts the three other things he prints, NG,
 vehicle fuel flow and total torque, against his Gen Hel line (#81).
 
