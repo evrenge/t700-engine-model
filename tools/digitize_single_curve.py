@@ -36,7 +36,7 @@ from pathlib import Path
 import numpy as np
 from scipy import ndimage
 
-from figure.axis import blend_value, calibrate_under
+from figure.axis import FRAME_MARGIN, blend_value, calibrate_under, choose_frame_order
 from figure.frame import along_segments, auto_frame_spec, blocked_mask, ink_excesses
 from figure.frame import dist as _dist
 from figure.glyph import fit_glyphs, glyph_only_windows, windows
@@ -44,9 +44,6 @@ from figure.provenance import edge_str
 from figure.provenance import poly_str as _poly_str
 from figure.raster import native_bitmap, overlay
 from figure.ticks import major_step, major_values
-
-FRAME_MARGIN = 0.90
-"""Arcs replace straight edges only if they predict the printed frames 10 % better."""
 
 OUT = Path("validation/out/digitize/a6810")
 
@@ -330,19 +327,7 @@ def run(key):
     ink = native_bitmap(cfg["page"])
     fspec = auto_frame_spec(cfg["page"])
 
-    # ---- straight edges or arcs? The figure decides (recipe trap 7): run both, keep
-    # whichever predicts the printed frame values better, summed over both axes. Asked on
-    # the fine lattice; on the majors alone A8 gives the opposite answer.
-    trials = {fo: calibrate_under(ink, fspec, cfg, fo, verbose=False) for fo in (1, 2)}
-    # Straight is the incumbent, so arcs must win by a margin: a near-tie should not move a
-    # published number.
-    forder = 2 if trials[2]["score"] < FRAME_MARGIN * trials[1]["score"] else 1
-    print(
-        f"frame model: straight {trials[1]['score']:.3f} per-mille vs arcs "
-        f"{trials[2]['score']:.3f}  ->  {'ARCS' if forder == 2 else 'STRAIGHT'} "
-        f"(summed held-out frame error over both axes; arcs must win by "
-        f"{(1 - FRAME_MARGIN) * 100:.0f} %)"
-    )
+    forder, trials = choose_frame_order(ink, fspec, cfg)
     cal = calibrate_under(ink, fspec, cfg, forder, verbose=True)
     fc, frdiag, fr = cal["fc"], cal["frdiag"], cal["fr"]
     TL, TR, BR, BL = cal["corners"]

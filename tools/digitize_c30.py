@@ -40,7 +40,7 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from figure.axis import blend_value, calibrate_under
+from figure.axis import blend_value, calibrate_under, choose_frame_order
 from figure.frame import auto_frame_spec, runs
 from figure.raster import native_bitmap
 
@@ -250,8 +250,10 @@ def runs_in_column(work, col, top, bot):
 def main(argv=None) -> int:
     ink = native_bitmap(PAGE)
     print(f"\n================ {CFG['fig']} {CFG['func']} (pdf p.{PAGE})")
-    # the single-curve calibration path, with straight frame edges
-    cal = calibrate_under(ink, auto_frame_spec(PAGE), CFG, 1)
+    # the single-curve calibration path, straight edges or arcs by the same rule
+    fspec = auto_frame_spec(PAGE)
+    forder, trials = choose_frame_order(ink, fspec, CFG)
+    cal = calibrate_under(ink, fspec, CFG, forder)
     TL, TR, _BR, BL = cal["corners"]
     to_uv, CX, CY = cal["to_uv"], cal["CX"], cal["CY"]
 
@@ -405,11 +407,11 @@ def main(argv=None) -> int:
         )
 
     rows = [(T2_OF[k], q[0], q[1]) for k in sorted(measured) for q in measured[k]]
-    write_csv(rows, CX, CY, mean_cov, worst_seed)
+    write_csv(rows, CX, CY, mean_cov, worst_seed, forder, trials)
     return 0
 
 
-def write_csv(rows, CX, CY, cover, worst_seed):
+def write_csv(rows, CX, CY, cover, worst_seed, forder, trials):
     lines = [
         f"# source: TM-100991 pdf p.{PAGE}, Figure {CFG['fig']}",
         f"# quantity: {CFG['func']} -- {CFG['title']}",
@@ -433,9 +435,10 @@ def write_csv(rows, CX, CY, cover, worst_seed):
         f"# RASTER. pdf p.{PAGE} is a single 300 dpi 1-bit CCITT image (2544x3300); this works",
         "#   on that bitmap directly and never resamples it.",
         "# CALIBRATION. Frame, tick lattice and axis polynomials come from the single-curve",
-        "#   path (tools/figure/axis.py calibrate_under) with STRAIGHT frame edges. The",
-        "#   single-curve figures choose straight or curved edges per figure; on this page",
-        "#   that rule would pick curved, which is not applied (night-2026-10-13).",
+        "#   path (tools/figure/axis.py calibrate_under), its frame edges chosen by the",
+        "#   single-curve rule (axis.choose_frame_order): held-out frame error",
+        f"#   straight {trials[1]['score']:.3f}   arcs {trials[2]['score']:.3f}"
+        f"   ->  {'ARCS' if forder == 2 else 'STRAIGHT'}",
         f"#   x: order {CX['order']}, interior-tick residual {CX['resid']:.4g}"
         f" over {CX['n']} ticks",
         f"#   y: order {CY['order']}, interior-tick residual {CY['resid']:.4g}"
