@@ -42,6 +42,20 @@ OPEN_SUMMARY = {
         "read error understates the cross-line error 2&ndash;4&times;, or the printed figure "
         "is not internally consistent.",
     ),
+    75: (
+        "Which P45 the gas generator torque&rsquo;s &Delta;H<sub>GT</sub> uses",
+        "The report is silent. Each real-time frame evaluates Eq.&nbsp;26 at the previous "
+        "frame&rsquo;s P45, as the Eq.&nbsp;80 iteration needs, and Q<sub>GT</sub> "
+        "(Eq.&nbsp;40) reuses it. Using the solved P45 for Q<sub>GT</sub> instead would move "
+        "the Figure&nbsp;9 step by up to 0.4&nbsp;%NG and 2&nbsp;% on Q<sub>PT</sub>; no trim "
+        "moves.",
+    ),
+    76: (
+        "pdf p.32 labels F<sub>2</sub>&rsquo;s sixth column with T41<sub>ns</sub>",
+        "The state vector on the same page has T41 sixth, and F<sub>2</sub>(6,6) = "
+        "&minus;1/&tau;<sub>2</sub> is a derivative with respect to T41; the five entries "
+        "above it say T41<sub>ns</sub>. Its effect on our linear models is not yet checked.",
+    ),
 }
 
 
