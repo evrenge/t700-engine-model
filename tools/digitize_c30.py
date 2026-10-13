@@ -432,9 +432,10 @@ def write_csv(rows, CX, CY, cover, worst_seed):
         "#   exactly",
         f"# RASTER. pdf p.{PAGE} is a single 300 dpi 1-bit CCITT image (2544x3300); this works",
         "#   on that bitmap directly and never resamples it.",
-        "# CALIBRATION. Frame, tick lattice and axis polynomials come from",
-        "#   tools/digitize_single_curve.py unchanged, so this figure is calibrated exactly as the",
-        "#   other fourteen are.",
+        "# CALIBRATION. Frame, tick lattice and axis polynomials come from the single-curve",
+        "#   path (tools/figure/axis.py calibrate_under) with STRAIGHT frame edges. The",
+        "#   single-curve figures choose straight or curved edges per figure; on this page",
+        "#   that rule would pick curved, which is not applied (night-2026-10-13).",
         f"#   x: order {CX['order']}, interior-tick residual {CX['resid']:.4g}"
         f" over {CX['n']} ticks",
         f"#   y: order {CY['order']}, interior-tick residual {CY['resid']:.4g}"

@@ -886,7 +886,8 @@ HDR = [
     "#            the data: rows above WA2c ~ 7.0 moved up by 0.003-0.010, rows between 4.5",
     "#            and 6.8 moved down by 0.001-0.010, and SYMBOL 1 near 3.0 barely moved.",
     "#            Nobody would have found that pattern by looking at the extracted numbers.",
-    "#   NOT transcribed. Values carry read error; see validation/out/digitize/a1_zoom_c*.png.",
+    "#   NOT transcribed. Values carry read error; see "
+    "validation/out/digitize/a1redo/a1_verify*.png.",
     "# points: 77 (11 speed lines x 7)",
     f"# digitized: 2026-09-10, recalibrated {RECALIBRATED}, by tools/digitize_a1.py; rerunnable",
 ]
@@ -1177,7 +1178,7 @@ if "--raw-only" not in sys.argv:
         "#   NOT transcribed. Values carry read error: the traced centreline, the axis",
         "#   calibration it is carried through, and the printed markers that share the fit",
         "#   all contribute. See the raw seven-point CSV's UNCERTAINTY block for the",
-        "#   marker term and validation/out/digitize/a1_zoom_c*.png for the ink.",
+        "#   marker term and validation/out/digitize/a1redo/a1_verify*.png for the ink.",
         "#",
         f"# Fit residual, per line: {POOLED_RMS:.2f} px pooled rms, {WORST_FIT:.2f} px worst.",
         f"# The stored polyline approximates the fitted curve to {chord:.2e} lbm/sec.",

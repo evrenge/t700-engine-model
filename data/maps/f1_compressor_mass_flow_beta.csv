@@ -51,7 +51,7 @@
 #   NOT transcribed. Values carry read error: the traced centreline, the axis
 #   calibration it is carried through, and the printed markers that share the fit
 #   all contribute. See the raw seven-point CSV's UNCERTAINTY block for the
-#   marker term and validation/out/digitize/a1_zoom_c*.png for the ink.
+#   marker term and validation/out/digitize/a1redo/a1_verify*.png for the ink.
 #
 # Fit residual, per line: 0.43 px pooled rms, 10.04 px worst.
 # The stored polyline approximates the fitted curve to 4.24e-03 lbm/sec.

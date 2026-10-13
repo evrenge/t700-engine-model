@@ -214,7 +214,7 @@
 #            the data: rows above WA2c ~ 7.0 moved up by 0.003-0.010, rows between 4.5
 #            and 6.8 moved down by 0.001-0.010, and SYMBOL 1 near 3.0 barely moved.
 #            Nobody would have found that pattern by looking at the extracted numbers.
-#   NOT transcribed. Values carry read error; see validation/out/digitize/a1_zoom_c*.png.
+#   NOT transcribed. Values carry read error; see validation/out/digitize/a1redo/a1_verify*.png.
 # points: 77 (11 speed lines x 7)
 # digitized: 2026-09-10, recalibrated 2026-09-11, by tools/digitize_a1.py; rerunnable
 ngc_pct,ps3_p2,wa2c_lbm_per_s,k,symbol

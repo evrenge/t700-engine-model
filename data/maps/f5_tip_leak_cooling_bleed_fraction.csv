@@ -124,12 +124,12 @@
 #
 # UNCERTAINTY, per point, 1 sigma, in data units -- the sigma_x and sigma_y columns.
 # Quadrature of four named contributions, each measured, none assumed:
-#   x: tick-fit residual 0.0104 | calibration order spread (deg 1-4) 0.0054 mean, 0.00804 max |
+#   x: tick-fit residual 0.0104 | calibration order spread (deg 1-4) 0.00716 mean, 0.00909 max |
 #      the two ticked edges calibrated separately, half their disagreement 0.00636 mean, 0.0091 max |
 #      glyph centre 0.000237 mean, 0.000354 max.  Total 1 sigma 0.0145 mean, 0.0166 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the
 #      held-out frame test rejects. Over orders 2-4 alone the spread is only 0.00694.)
-#   y: tick-fit residual 3.08e-06 | calibration order spread (deg 1-4) 1.24e-05 mean, 1.35e-05 max |
+#   y: tick-fit residual 3.08e-06 | calibration order spread (deg 1-4) 1.18e-05 mean, 1.39e-05 max |
 #      the two ticked edges calibrated separately, half their disagreement 1.42e-06 mean, 2.73e-06 max |
 #      glyph centre 2e-07 mean, 5.07e-07 max.  Total 1 sigma 1.23e-05 mean, 1.44e-05 max.
 #      (The order term is deliberately conservative: it includes the LINEAR map, which the

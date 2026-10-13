@@ -398,7 +398,7 @@ def run(key):
 
     # ---- uncertainty budget, per point, 1 sigma, in data units
     print("  uncertainty budget (1 sigma, data units):")
-    sig = {}
+    sig, terms = {}, {}
     for ax, CA, t, poly, across in (("x", CX, u, cx, v), ("y", CY, v, cy, u)):
         base = blend_value(CA["edgec"], t, across)
         # a. residual of the anchored fit about the printed ticks
@@ -415,6 +415,7 @@ def run(key):
         d = np.abs(np.polyval(np.polyder(poly), t)) * du * dpx[:, 0 if ax == "x" else 1]
         s = np.sqrt(a**2 + b**2 + c**2 + d**2)
         sig[ax] = s
+        terms[ax] = (b, c, d)
         print(
             f"    {ax}: tick-fit {a[0]:.4g} | order spread {b.mean():.4g} | "
             f"edge split {c.mean():.4g} | glyph {d.mean():.4g}  ->  1 sigma {s.mean():.4g} "
@@ -471,10 +472,10 @@ def run(key):
         Y=Yd,
         dpx=dpx,
         sig=sig,
+        terms=terms,
         loc=twotick,
         # the local map scale per marker, evaluated here because the map itself is a
         # closure over the chosen frame model
-        dudp={"x": _pixel_to_unit(to_uv, C, 0), "y": _pixel_to_unit(to_uv, C, 1)},
         forder=cal["forder"],
         frame_scores={fo: t["score"] for fo, t in trials.items()},
     )
@@ -975,14 +976,7 @@ def write_csv(key, r):
     A("# UNCERTAINTY, per point, 1 sigma, in data units -- the sigma_x and sigma_y columns.")
     A("# Quadrature of four named contributions, each measured, none assumed:")
     for ax, CA, t in (("x", r["CX"], r["u"]), ("y", r["CY"], r["v"])):
-        base = np.polyval(CA["c"], t)
-        b = np.max([np.abs(np.polyval(CA["allc"][o], t) - base) for o in CA["allc"]], axis=0)
-        c = 0.5 * np.abs(np.polyval(CA["edgec"][0], t) - np.polyval(CA["edgec"][1], t))
-        d = (
-            np.abs(np.polyval(np.polyder(CA["c"]), t))
-            * r["dudp"][ax]
-            * r["dpx"][:, 0 if ax == "x" else 1]
-        )
+        b, c, d = r["terms"][ax]  # the terms the sigma column is the quadrature of
         A(
             f"#   {ax}: tick-fit residual {CA['resid']:.3g} | calibration order spread (deg 1-4) "
             f"{b.mean():.3g} mean, {b.max():.3g} max |"
