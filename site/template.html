@@ -109,6 +109,7 @@ tbody tr:hover{background:var(--raise)}
 th[scope=row]{text-transform:none;letter-spacing:0;font-size:.95rem;color:var(--ink);
   border-bottom:1px solid var(--rule-soft);padding:11px 18px 11px 0;white-space:normal;
   max-width:34ch;vertical-align:top}
+th[scope=colgroup]{color:var(--ink);padding-top:22px}
 .sub{display:block;font-weight:400;font-size:.79rem;color:var(--muted);
   margin-top:3px;line-height:1.42;letter-spacing:0;text-transform:none}
 td.note{color:var(--muted);font-size:.85rem;font-family:var(--serif)}
@@ -461,14 +462,57 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   <div class="shead"><span class="snum">5</span><h2>Modelling decisions and departures</h2>
     <span class="eyebrow">each one recorded, each one costed</span></div>
   <div class="col">
-  <p>Where the report is silent, or reproducing it literally produces something demonstrably
-  wrong, a decision was needed. Each is listed with what it costs: a departure nobody can
-  measure will be undone by accident.</p></div>
+  <p>Two kinds of decision, each listed with what it costs: a departure nobody can measure
+  will be undone by accident. A <strong>departure</strong> is where we do something other than
+  what the report prints. A <strong>reading</strong> is where the report is silent or reads two
+  ways and we had to pick. The ledger, <code>docs/notes/open-questions.md</code>, holds every
+  decision: these and the routine rest, such as a misprint read the way the rest of the
+  report requires.</p></div>
 
   <div class="scroll"><table>
     <thead><tr><th scope="col">Decision</th><th scope="col">What the report says</th>
       <th scope="col">What we do, and what it costs</th></tr></thead>
     <tbody>
+    <tr><th scope="colgroup" colspan="3">Departures</th></tr>
+    <tr><th scope="row">Power turbine pressure solve
+      <span class="sub">Eq. 80</span></th>
+      <td>&ldquo;&hellip;because it is a nonlinear function of its own value, iterative
+      techniques must be used&rdquo; [pdf p.37].</td>
+      <td><strong>Closed (#45, #57).</strong> The printed
+      fixed-point iteration runs first. Where the mass-flow table&rsquo;s
+      elasticity is below &minus;1, most of a chop, it <strong>does not converge</strong>, and
+      the same equation is <em>solved exactly</em> instead: with u&nbsp;=&nbsp;Ps9/P45 it is a
+      piecewise-linear function against a line through the origin, so the root is unique and
+      one divide away.</td></tr>
+    <tr><th scope="row">Compressor map interpolation
+      <span class="sub">f1, Figure A1</span></th>
+      <td>Seven markers per speed line, joined by straight runs, with dotted lines joining
+      the matching markers of every line [pdf p.56]. No interpolation scheme stated.</td>
+      <td><strong>Still open (#60).</strong> Each speed line is traced from its
+      drawn line and resampled on a grid of our own in <em>beta</em>, the fraction of the
+      line&rsquo;s own pressure-ratio span; Ballin&rsquo;s seven-point table stays available
+      beside it. Against that table ours wins on some printed surfaces and loses on others,
+      so the scores do not decide it; it is kept by decision.</td></tr>
+    <tr><th scope="row">Speed above the compressor map
+      <span class="sub">f1, Figure A1</span></th>
+      <td>The top speed line is 100&nbsp;% NGC [pdf p.56], and &ldquo;the maximum gas generator
+      speed for which the model is valid is 100 percent&rdquo; [pdf p.39].</td>
+      <td><strong>Closed by decision (#77).</strong> f1 extends its top two lines
+      a tenth of a point past 100&nbsp;% before it clamps; no other table does. Ballin&rsquo;s
+      own Figure&nbsp;6 line ends on that top line, at a fuel flow where ours has just reached
+      it, so without the allowance the top points of Figures&nbsp;6&ndash;8 could not be
+      compared. Nothing else moves: every other model output is bit-identical.</td></tr>
+    <tr><th scope="row">Limited integrators
+      <span class="sub">Figs. C3, C7, C10</span></th>
+      <td>All three draw an unlimited <code>1/s</code> followed by a <em>separate</em>
+      saturation block &mdash; a topology that winds up.</td>
+      <td><strong>Closed by decision (#59).</strong> We clamp the state, which
+      does not wind up. The two agree on every surface the report prints and separate only under
+      a sustained load dump, where the drawn windup overspeeds NP beyond anything
+      printed.</td></tr>
+    </tbody>
+    <tbody>
+    <tr><th scope="colgroup" colspan="3">Readings</th></tr>
     <tr><th scope="row">Station 4.1 heat sink
       <span class="sub">Eqs. 48&ndash;53</span></th>
       <td>Prints both configurations and says which of its linear results use which
@@ -495,50 +539,25 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
       <td>Both selectable; the prose reading ships (#22). They converge to the same trim and differ
       only while a transient is under way, by a few tenths of a percent of speed at
       most.</td></tr>
-    <tr><th scope="row">Power turbine pressure solve
-      <span class="sub">Eq. 80</span></th>
-      <td>&ldquo;&hellip;because it is a nonlinear function of its own value, iterative
-      techniques must be used&rdquo; [pdf p.37].</td>
-      <td><strong>A departure from the printed method (#45, #57).</strong> The printed
-      fixed-point iteration runs first. Where the mass-flow table&rsquo;s
-      elasticity is below &minus;1, most of a chop, it <strong>does not converge</strong>, and
-      the same equation is <em>solved exactly</em> instead: with u&nbsp;=&nbsp;Ps9/P45 it is a
-      piecewise-linear function against a line through the origin, so the root is unique and
-      one divide away.</td></tr>
-    <tr><th scope="row">Compressor map interpolation
-      <span class="sub">f1, Figure A1</span></th>
-      <td>Seven markers per speed line, joined by straight runs, with dotted lines joining
-      the matching markers of every line [pdf p.56]. No interpolation scheme stated.</td>
-      <td><strong>A departure, still open (#60).</strong> Each speed line is traced from its
-      drawn line and resampled on a grid of our own in <em>beta</em>, the fraction of the
-      line&rsquo;s own pressure-ratio span; Ballin&rsquo;s seven-point table stays available
-      beside it. Against that table ours wins on some printed surfaces and loses on others,
-      so the scores do not decide it; it is kept by decision.</td></tr>
-    <tr><th scope="row">Speed above the compressor map
-      <span class="sub">f1, Figure A1</span></th>
-      <td>The top speed line is 100&nbsp;% NGC [pdf p.56], and &ldquo;the maximum gas generator
-      speed for which the model is valid is 100 percent&rdquo; [pdf p.39].</td>
-      <td><strong>A departure, closed by decision (#77).</strong> f1 extends its top two lines
-      a tenth of a point past 100&nbsp;% before it clamps; no other table does. Ballin&rsquo;s
-      own Figure&nbsp;6 line ends on that top line, at a fuel flow where ours has just reached
-      it, so without the allowance the top points of Figures&nbsp;6&ndash;8 could not be
-      compared. Nothing else moves: every other model output is bit-identical.</td></tr>
+    <tr><th scope="row">Gas generator torque in the real-time frame
+      <span class="sub">Eqs. 26, 40, 80</span></th>
+      <td>Silent on whether Q<sub>GT</sub>&rsquo;s enthalpy drop is taken at the previous
+      frame&rsquo;s P45 or at the one the Eq.&nbsp;80 iteration returns. Its one hint:
+      &ldquo;Present implementation restrictions at Ames require a minimum amount of
+      multiple-pass coding or iteration&rdquo; [pdf p.35].</td>
+      <td>The previous frame&rsquo;s P45, closed by decision (#75), so no second f7 look-up
+      follows the solve. Ballin&rsquo;s own Figure&nbsp;9 lines decide it: re-evaluating fits
+      them worse by well over their read error and slows the NG rise away from his.
+      Figure&nbsp;10 leans the other way by less than its read error, and the trims are the
+      same either way.</td></tr>
     <tr><th scope="row">Combustor efficiency
       <span class="sub">f6, Figure A6</span></th>
       <td>A line that looks sloped on the scan, and no numeric table.</td>
-      <td><strong>A reading, and immaterial (#62).</strong> Loaded as the constant the figure
+      <td><strong>Immaterial (#62).</strong> Loaded as the constant the figure
       draws: the digitized glyphs fit a horizontal line well inside the ink width, and the
       page&rsquo;s frame edges sit at four <em>different</em> angles, so the slope was the
       paper. The digitized slope would leave every printed comparison unchanged to four
       significant figures.</td></tr>
-    <tr><th scope="row">Limited integrators
-      <span class="sub">Figs. C3, C7, C10</span></th>
-      <td>All three draw an unlimited <code>1/s</code> followed by a <em>separate</em>
-      saturation block &mdash; a topology that winds up.</td>
-      <td><strong>A departure, closed by decision (#59).</strong> We clamp the state, which
-      does not wind up. The two agree on every surface the report prints and separate only under
-      a sustained load dump, where the drawn windup overspeeds NP beyond anything
-      printed.</td></tr>
     <tr><th scope="row">Jacobian perturbation step</th>
       <td>&ldquo;plus or minus two percent of equilibruim [<em>sic</em>] conditions&rdquo;
       [pdf p.28] &mdash; an <em>amplitude</em>, matched to the rotor speed deviations of real

@@ -37,10 +37,9 @@ _SPLIT = re.compile(r"(?<!\\)\|")
 OPEN_SUMMARY = {
     60: (
         "<code>f1</code> on a beta grid, not the printed table",
-        "A deliberate departure, kept by decision (&sect;5). It removes a manufactured "
-        "extrapolation entirely; against the printed table it wins on some printed surfaces "
-        "and loses on others. It sits under every number in &sect;6, through the compressor "
-        "map.",
+        "A deliberate departure, kept by decision (&sect;5): against Ballin&rsquo;s seven-point "
+        "table it wins on some printed surfaces and loses on others. It sits under every "
+        "number in &sect;6, through the compressor map.",
     ),
     74: (
         "Figure&nbsp;A1&rsquo;s speed lines do not form a smooth family",
