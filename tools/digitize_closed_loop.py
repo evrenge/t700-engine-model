@@ -80,6 +80,13 @@ touch, no column of the solid line is thicker than that; a touching dash adds a 
 JOIN_MIN_COLUMNS = 3
 """A joined dash thickens at least this many columns in a row: a dash is about 15 px long, and
 a single thick column is a speck on the line."""
+CLEAN_PX = 1.0
+CLEAN_REACH_PX = 30
+"""A column of the solid component no more than `CLEAN_PX` thicker than the solid line alone
+holds the solid line only. Where the two lines run together a dash overlaps the line by less
+than a line width, and the fused band's centre steps by a pixel at every dash: there the solid
+line is interpolated between the clean columns on either side, when both lie within
+`CLEAN_REACH_PX` columns (a dash and its two edges, with room)."""
 END_GAP_PX = 6
 END_ROWS = 12
 """A short component starting within `END_GAP_PX` columns beyond an end of the solid line, and
@@ -119,11 +126,13 @@ def separate(sel: np.ndarray, width: float) -> tuple[np.ndarray, ...]:
 
     A line of slope `s`, in rows per column, inks `width * sqrt(1 + s**2) + |s|` rows of a
     column, the slope taken column by column so that the steep flanks of a rippling line count
-    as the line, not as a join. Columns more than
-    `JOIN_PX` thicker, `JOIN_MIN_COLUMNS` or more in a row, hold a joined dash: the solid line
-    is the line-width slice at the end nearer the path its clean columns draw through, and the
-    dash is a line width in from the other end. Returns `(columns, solid centre, solid run)`
-    per column and `(columns, dash centre, dash run)` for the joined dashes."""
+    as the line, not as a join. Columns more than `JOIN_PX` thicker, `JOIN_MIN_COLUMNS` or more
+    in a row, hold a joined dash: the dash is a line width in from the end farther from the path
+    the clean columns draw through. The solid line is read from its clean columns
+    (`CLEAN_PX`) and interpolated across the others between them (`CLEAN_REACH_PX`); failing
+    that, it is the line-width slice at the other end, or the column's centre. Returns
+    `(columns, solid centre, solid run)` per column and `(columns, dash centre, dash run)` for
+    the joined dashes."""
     xs, top, bot = extents(sel)
     mid = 0.5 * (top + bot)
     slope = np.gradient(mid)
@@ -137,6 +146,13 @@ def separate(sel: np.ndarray, width: float) -> tuple[np.ndarray, ...]:
     solid_top = np.abs(upper - path) <= np.abs(lower - path)
     centre = np.where(joined, np.where(solid_top, upper, lower), mid)
     dash = np.where(solid_top, lower, upper)[joined]
+    clean = bot - top + 1.0 <= run + CLEAN_PX
+    cx = xs[clean]
+    left = np.clip(np.searchsorted(cx, xs, side="right") - 1, 0, cx.size - 1)
+    right = np.clip(np.searchsorted(cx, xs, side="left"), 0, cx.size - 1)
+    between = (cx[left] <= xs) & (cx[right] >= xs) & (cx[right] - cx[left] <= CLEAN_REACH_PX)
+    bridged = ~clean & between
+    centre[bridged] = np.interp(xs[bridged], cx, mid[clean])
     return xs, centre, run, xs[joined], dash, run[joined]
 
 

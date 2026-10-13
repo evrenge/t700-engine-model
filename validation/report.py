@@ -896,7 +896,7 @@ def gen_hel() -> dict:
             "rms vs flight test": {k: g.rms(g.gap(fno, k, "test")) for k in g.PANELS},
             "rms with np held": {k: g.rms(g.gap(fno, k, np_held=True)) for k in g.PANELS},
         }
-        key_in, label_in = g.INPUT[fno]
+        key_in, label_in, range_in = g.INPUT[fno]
         fig, axes = plt.subplots(5, 1, figsize=fs(8.0, 12.0), sharex=True)
         what = {12: "lateral cyclic input at 55 kt", 14: "pedal input at hover"}[fno]
         page = {12: 49, 14: 52}[fno]
@@ -919,6 +919,17 @@ def gen_hel() -> dict:
             if key in g.PANELS:
                 t, v = g.ours(fno, key)
                 ax.plot(t, v, "-", color=OURS, lw=1.1, label="ours, replaying his rotor speed")
+            if key == key_in:
+                ax.set_ylim(*range_in)
+                ax.text(
+                    0.01,
+                    0.88,
+                    "his input, on his printed scale: it reaches our model only through "
+                    "rotor speed",
+                    transform=ax.transAxes,
+                    fontsize=7,
+                    color=MUTED,
+                )
             _style(ax, "time, s" if key == "nr" else "", ylabel, title)
             if key == "ng":
                 where = "upper left" if fno == 12 else "lower center"

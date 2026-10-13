@@ -48,8 +48,12 @@ from test_hmu_trim import collective_for
 DT = realtime.FRAME_ENGINE_S
 FIGS = (12, 14)
 PANELS = ("ng", "fuel", "torque")
-INPUT = {12: ("lat_cyclic", "lateral cyclic, in."), 14: ("pedals", "pedals, in.")}
-"""Each figure's pilot input panel [pdf pp.49, 52]: drawn, never an input to our model."""
+INPUT = {
+    12: ("lat_cyclic", "lateral cyclic, in.", (-5.0, 5.0)),
+    14: ("pedals", "pedals, in.", (-3.0, 3.0)),
+}
+"""Each figure's pilot input panel and its printed range [pdf pp.49, 52]: drawn, never an input
+to our model."""
 TRIM_BEFORE_S = {12: 2.2, 14: 2.6}
 """Every panel is flat until the input moves (about 2.3 s on Figure 12, 2.65 s on Figure 14):
 the trim is the median before."""
