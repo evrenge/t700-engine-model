@@ -30,7 +30,7 @@ re-running the model, together with the comparison figures in `results/`;
 | Figures 9 and 10, fuel transients | whole-curve rms **0.62<!--rj:whole_curve_summary.min-->–3.80 %<!--rj:whole_curve_summary.max-->** of each panel's excursion, mean 1.64 %<!--rj:whole_curve_summary.mean--> over ten panels |
 | The report's own claim about Figure 6 | reproduced: in the 81–86 %NG band the report names, we overestimate fuel by **+6.34 %<!--rj:fuel_overestimate.ours_peak_pct-->**, against its own line's +5.98 %<!--rj:fuel_overestimate.ballin_peak_pct--> and its printed "as much as five percent" [pdf p.39] |
 | Figures 4 and 5, the linear models in time | at hover, Ballin's curves against ours, rms in % of trim: his 5-DOF against our 5-DOF 0.028<!--rj:figures_4_5.pairs.figure 5: 5-DOF vs our 5-DOF.np--> in NP, his 6-DOF (heat sink) against ours 0.033<!--rj:figures_4_5.pairs.figure 5: 6-DOF vs our 6-DOF.np-->, ours slightly more damped; Figure 4's linear models against our 5-DOF 0.025<!--rj:figures_4_5.pairs.figure 4: linear vs our 5-DOF.np-->, and his Gen Hel simulation against our nonlinear engine 0.045<!--rj:figures_4_5.pairs.figure 4: Gen Hel vs our nonlinear.np-->, whose rotor-blade lag dynamics the linear rotor load leaves out [pdf p.29] |
-| Figure 14, Gen Hel's closed loop, pedal input at hover | his printed rotor speed replayed into our engine and fuel control: rms against his Gen Hel line 0.11<!--rj:figure_14.rms vs his gen hel.ng--> %NG, fuel flow 1.5<!--rj:figure_14.rms vs his gen hel.fuel--> % of trim, torque 1.6<!--rj:figure_14.rms vs his gen hel.torque--> % of trim; the flight test sits 0.34<!--rj:figure_14.rms vs flight test.ng-->, 6.5<!--rj:figure_14.rms vs flight test.fuel--> and 5.0<!--rj:figure_14.rms vs flight test.torque--> from ours (#81) |
+| Figures 12 and 14, Gen Hel's closed loop | his printed rotor speed replayed into our engine and fuel control, rms against his Gen Hel line in NG (%NG), fuel flow and torque (% of trim): lateral cyclic at 55 kt 0.030<!--rj:gen_hel.figure 12.rms vs his gen hel.ng-->, 0.40<!--rj:gen_hel.figure 12.rms vs his gen hel.fuel-->, 0.37<!--rj:gen_hel.figure 12.rms vs his gen hel.torque-->; pedal at hover 0.11<!--rj:gen_hel.figure 14.rms vs his gen hel.ng-->, 1.4<!--rj:gen_hel.figure 14.rms vs his gen hel.fuel-->, 1.6<!--rj:gen_hel.figure 14.rms vs his gen hel.torque--> (#81) |
 | Table 3, the NASA-Lewis test engine | a characterization, not a target (#34): on the standard maps, at Table 2's conditions, ours passes +12.0 %<!--rj:table_3.stats_cases_2_6.WA2.ours_vs_ballin_pct.mean--> more air and runs a −7.5 %<!--rj:table_3.stats_cases_2_6.T45.ours_vs_ballin_pct.mean--> cooler T45 than Ballin's model (means, cases 2-6), which ran the test engine's own maps [pdf p.39] |
 | Frame cost | tens of microseconds per frame, against the report's 10 ms budget |
 
@@ -79,8 +79,8 @@ and the Appendix C fuel control is closed around it, so fuel flow is an **output
 model rather than an input to it.
 
 `SCOPE.md` sets out what is not claimed. In short: Figures 11–15 need the Gen Hel UH-60A
-blade-element simulation, which the report consumes and does not contain, so only Figure 14
-is compared, by replaying its printed rotor speed; Table 3 was
+blade-element simulation, which the report consumes and does not contain, so Figures 12 and
+14 are compared by replaying their printed rotor speed; Table 3 was
 produced with functions from a different engine and is evidence of method, never pass/fail;
 and nothing above 100 %NG is claimed, because Ballin claims nothing there either [pdf p.39].
 

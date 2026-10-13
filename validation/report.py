@@ -878,48 +878,53 @@ def figures_4_5() -> dict:
     return out
 
 
-def figure_14() -> dict:
-    """Figure 14 [pdf p.52]: his rotor speed replayed into our closed loop, NG, fuel and
-    torque against his Gen Hel line (`test_fig14`, #81)."""
-    import test_fig14 as f14
+def gen_hel() -> dict:
+    """Figures 12 and 14 [pdf pp.49, 52]: his rotor speed replayed into our closed loop, NG,
+    fuel and torque against his Gen Hel line (`test_gen_hel`, #81)."""
+    import test_gen_hel as g
 
-    r = f14.our_trim()
-    out: dict = {
-        "his trim": {k: f14.his_trim(k) for k in ("nr", "ng", "fuel", "torque")},
-        "our trim": {
-            "ng_pct": 100.0 * r.state.ng_rpm / c.NG_DES,
-            "fuel_both_engines_pph": 2.0 * f14.replay()["fuel"][0],
-            "q_pt_ftlbf": float(f14.replay()["torque"][0]),
-        },
-        "rms vs his gen hel": {k: f14.rms(f14.gap(k)) for k in f14.PANELS},
-        "rms vs flight test": {k: f14.rms(f14.gap(k, "test")) for k in f14.PANELS},
-        "rms with np held": {k: f14.rms(f14.gap(k, np_held=True)) for k in f14.PANELS},
-    }
-    fig, axes = plt.subplots(5, 1, figsize=fs(8.0, 12.0), sharex=True)
-    rows = (
-        ("pedals", "pedals, in.", "Figure 14, pdf p.52: pedal input at hover"),
-        ("torque", "total torque, % of trim", ""),
-        ("ng", "gas generator speed, %", ""),
-        ("fuel", "vehicle fuel flow, % of trim", ""),
-        ("nr", "main rotor speed, %", "his Gen Hel rotor speed is our NP input"),
-    )
-    for ax, (key, ylabel, title) in zip(axes, rows, strict=True):
-        for line, sty, colr, lab in (
-            ("gen_hel", "-", BALLIN, "Ballin, Gen Hel"),
-            ("test", "--", MUTED, "flight test"),
-        ):
-            t, v = f14.his(key, line)
-            if key in ("fuel", "torque"):
-                v = 100.0 * v / f14.his_trim(key, line)
-            ax.plot(t, v, sty, color=colr, lw=1.3 if line == "gen_hel" else 1.0, label=lab)
-        if key in f14.PANELS:
-            t, v = f14.ours(key)
-            ax.plot(t, v, "-", color=OURS, lw=1.1, label="ours, replaying his rotor speed")
-        _style(ax, "time, s" if key == "nr" else "", ylabel, title)
-        if key == "ng":
-            ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc="lower center")
-    fig.tight_layout()
-    save(fig, "figure-14-replay")
+    out: dict = {}
+    for fno in g.FIGS:
+        out[f"figure {fno}"] = {
+            "his trim": {k: g.his_trim(fno, k) for k in ("nr", "ng", "fuel", "torque")},
+            "our trim": {
+                "ng_pct": 100.0 * g.our_trim(fno).state.ng_rpm / c.NG_DES,
+                "fuel_both_engines_pph": 2.0 * g.trim_fuel_pph(fno),
+                "collective_pct": g.collective(fno),
+            },
+            "rms vs his gen hel": {k: g.rms(g.gap(fno, k)) for k in g.PANELS},
+            "rms vs flight test": {k: g.rms(g.gap(fno, k, "test")) for k in g.PANELS},
+            "rms with np held": {k: g.rms(g.gap(fno, k, np_held=True)) for k in g.PANELS},
+        }
+        key_in, label_in = g.INPUT[fno]
+        fig, axes = plt.subplots(5, 1, figsize=fs(8.0, 12.0), sharex=True)
+        what = {12: "lateral cyclic input at 55 kt", 14: "pedal input at hover"}[fno]
+        page = {12: 49, 14: 52}[fno]
+        rows = (
+            (key_in, label_in, f"Figure {fno}, pdf p.{page}: {what}"),
+            ("torque", "total torque, % of trim", ""),
+            ("ng", "gas generator speed, %", ""),
+            ("fuel", "vehicle fuel flow, % of trim", ""),
+            ("nr", "main rotor speed, %", "his Gen Hel rotor speed is our NP input"),
+        )
+        for ax, (key, ylabel, title) in zip(axes, rows, strict=True):
+            for line, sty, colr, lab in (
+                ("gen_hel", "-", BALLIN, "Ballin, Gen Hel"),
+                ("test", "--", MUTED, "flight test"),
+            ):
+                t, v = g.his(fno, key, line)
+                if key in ("fuel", "torque"):
+                    v = 100.0 * v / g.his_trim(fno, key, line)
+                ax.plot(t, v, sty, color=colr, lw=1.3 if line == "gen_hel" else 1.0, label=lab)
+            if key in g.PANELS:
+                t, v = g.ours(fno, key)
+                ax.plot(t, v, "-", color=OURS, lw=1.1, label="ours, replaying his rotor speed")
+            _style(ax, "time, s" if key == "nr" else "", ylabel, title)
+            if key == "ng":
+                where = "upper left" if fno == 12 else "lower center"
+                ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc=where)
+        fig.tight_layout()
+        save(fig, f"figure-{fno}-replay")
     return out
 
 
@@ -960,8 +965,8 @@ def _render(data: dict) -> None:
     data["table_3"] = table_3()
     print("figures 4-5 ...", flush=True)
     data["figures_4_5"] = figures_4_5()
-    print("figure 14 ...", flush=True)
-    data["figure_14"] = figure_14()
+    print("gen hel figures ...", flush=True)
+    data["gen_hel"] = gen_hel()
 
 
 # ============================================ the model's own behaviour, with no reference

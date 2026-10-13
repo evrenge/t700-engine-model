@@ -1,15 +1,16 @@
-"""Digitize the closed-loop figures -- Gen Hel with the T700 against flight test [pdf p.52].
+"""Digitize the closed-loop figures -- Gen Hel with the T700 against flight test
+[pdf pp.49, 52].
 
-Figure 14 is five stacked panels on one time axis, 2.0 to 10.0 s:
+Figures 12 and 14 are five stacked panels each on one time axis:
 
-    1 PEDALS     pedals, in. -- the pilot's input
+    1 INPUT      the pilot's input, in.: lateral cyclic (Figure 12), pedals (Figure 14)
     2 TORQUE     total torque of both engines, ft-lb x 10^-3
     3 NG         gas generator turbine speed, %
     4 FUEL       vehicle fuel flow, both engines, lb/hr
     5 NR         main rotor speed, %
 
 Each panel carries two lines: "SIKORSKY GEN HEL WITH T700 AND GEARBOX (AMES VERSION)", solid,
-and "1982 USAAEFA UH-60A TEST DATA", dashed [pdf p.52]. On the scan the solid line is one
+and "1982 USAAEFA UH-60A TEST DATA", dashed [pdf pp.49, 52]. On the scan the solid line is one
 long connected stroke and every dash a separate piece about 15 px long, so the two are told
 apart by connected components: a component at least `SOLID_MIN_PX` wide is the solid line, a
 smaller one a dash. Where the two lines cross or run together, a dash touches the solid line
@@ -36,6 +37,19 @@ from figure.raster import native_bitmap  # noqa: E402
 
 REF = Path("data/reference")
 FIGURES = {
+    12: {
+        "page": 49,
+        "ranges": [
+            ("lat_cyclic", "LATERAL CYCLIC, in.", -5.0, 5.0),
+            ("torque", "TOT. TORQUE, ft-lb X 10^-3", 18.0, 23.0),
+            ("ng", "GAS GEN. TURBINE, %", 88.0, 91.0),
+            ("fuel", "VEH. FUEL, lb/hr", 500.0, 700.0),
+            ("nr", "MAIN ROTOR SPEED, %", 97.0, 99.0),
+        ],
+        "t_range": (0.0, 6.0),
+        "t_major": 1.0,
+        "legend_above": {"lat_cyclic": 0.5},
+    },
     14: {
         "page": 52,
         "ranges": [
@@ -51,9 +65,9 @@ FIGURES = {
     },
 }
 """Per figure: its page, each panel's printed y range from its own tick labels, the time
-axis (printed 2.0 to 10.0, labelled every 2.0), and the value above which a panel's ink is
-legend, not data: Figure 14's legend fills the pedal panel above 1 in., its traces stay below
-0 in. [pdf p.52]."""
+axis as printed (Figure 12 0.0 to 6.0 labelled every 1.0, Figure 14 2.0 to 10.0 every 2.0),
+and the value above which a panel's ink is legend, not data: on both figures the legend fills
+the top panel above 1 in. and the traces stay below 0 in. [pdf pp.49, 52]."""
 SOLID_MIN_PX = 40
 """A component at least this many columns wide is the solid line: the dashes are 14-15 px."""
 SPECK_PX = 12
@@ -66,9 +80,16 @@ touch, no column of the solid line is thicker than that; a touching dash adds a 
 JOIN_MIN_COLUMNS = 3
 """A joined dash thickens at least this many columns in a row: a dash is about 15 px long, and
 a single thick column is a speck on the line."""
-SMOOTH_PX = 17
-"""Columns in the running mean of the solid line's centre that gives its local slope, about
-one dash length."""
+END_GAP_PX = 6
+END_ROWS = 12
+"""A short component starting within `END_GAP_PX` columns beyond an end of the solid line, and
+within `END_ROWS` rows of its height there, continues it: Figure 12's NG line breaks 4 px short
+of the frame and its last 20 columns stand alone."""
+NEAR_PX = 60
+SPECK_LINES = 4.0
+"""A dash more than `SPECK_LINES` line widths from both the solid line and the line through the
+dashed ink within `NEAR_PX` columns of it is a speck: Figure 12 has one below its rotor-speed
+traces near 1.9 s."""
 HIDDEN_PX = 30
 """A stretch without dash ink longer than this many columns is not a gap in the dash pattern
 (about 10 px) but the dashed line lying on the solid one."""
@@ -96,15 +117,17 @@ def extents(sel: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 def separate(sel: np.ndarray, width: float) -> tuple[np.ndarray, ...]:
     """The solid component split into the solid line and the dashes joined to it, in pixels.
 
-    The solid line alone inks `width * sqrt(1 + slope**2)` rows of a column. Columns more than
+    A line of slope `s`, in rows per column, inks `width * sqrt(1 + s**2) + |s|` rows of a
+    column, the slope taken column by column so that the steep flanks of a rippling line count
+    as the line, not as a join. Columns more than
     `JOIN_PX` thicker, `JOIN_MIN_COLUMNS` or more in a row, hold a joined dash: the solid line
     is the line-width slice at the end nearer the path its clean columns draw through, and the
     dash is a line width in from the other end. Returns `(columns, solid centre, solid run)`
     per column and `(columns, dash centre, dash run)` for the joined dashes."""
     xs, top, bot = extents(sel)
     mid = 0.5 * (top + bot)
-    slope = np.gradient(ndimage.uniform_filter1d(mid, SMOOTH_PX, mode="nearest"))
-    run = width * np.sqrt(1.0 + slope**2)
+    slope = np.gradient(mid)
+    run = width * np.sqrt(1.0 + slope**2) + np.abs(slope)
     thick, _ = ndimage.label(bot - top + 1.0 > run + JOIN_PX)
     sizes = np.bincount(thick.ravel())
     joined = (thick > 0) & (sizes[thick] >= JOIN_MIN_COLUMNS)
@@ -162,6 +185,64 @@ def fill_hidden(dx, dc, drun, sx, sc, srun, width: float):
     return out_x[o], out_c[o], out_r[o], seen[o]
 
 
+def classify(lab: np.ndarray, sl: list, v_of, cut: float | None) -> tuple[list, list]:
+    """The labels of the solid line's pieces and of the dashes, legend and specks left out.
+
+    A component at least `SOLID_MIN_PX` wide is solid, and so is a short one that continues it
+    past an end (`END_GAP_PX`, `END_ROWS`)."""
+    keep = {}
+    for i, s in enumerate(sl, start=1):
+        if s is None:
+            continue
+        ys, xs = np.nonzero(lab[s] == i)
+        if ys.size < SPECK_PX:
+            continue
+        if cut is not None and _scalar(v_of(s[0].start + ys.mean(), s[1].start + xs.mean())) > cut:
+            continue
+        keep[i] = s
+    solid = [i for i, s in keep.items() if s[1].stop - s[1].start >= SOLID_MIN_PX]
+    grown = True
+    while grown:
+        grown = False
+        xs, top, bot = extents(np.isin(lab, solid))
+        ends = ((xs[0], 0.5 * (top[0] + bot[0]), -1), (xs[-1], 0.5 * (top[-1] + bot[-1]), 1))
+        for i, s in keep.items():
+            if i in solid:
+                continue
+            col = s[1].start if s[1].start > xs[-1] else s[1].stop - 1
+            for x_end, y_end, side in ends:
+                rows = np.flatnonzero(lab[:, col] == i)
+                if 0 < side * (col - x_end) <= END_GAP_PX and abs(rows.mean() - y_end) <= END_ROWS:
+                    solid.append(i)
+                    grown = True
+                    break
+    return solid, [i for i in keep if i not in solid]
+
+
+def drop_specks(lab, dashes, jx, jc, sx, sc, width: float) -> list[int]:
+    """The dashes less a speck: one more than `SPECK_LINES` line widths from both the solid line
+    and the straight line through the other dash ink within `NEAR_PX` columns."""
+    far = SPECK_LINES * width
+    cents = {}
+    for i in dashes:
+        ys, xs = np.nonzero(lab == i)
+        cents[i] = (float(xs.mean()), float(ys.mean()))
+    out = []
+    for i, (xc, yc) in cents.items():
+        if abs(yc - np.interp(xc, sx, sc)) <= far:
+            out.append(i)
+            continue
+        ox = [x for j, (x, _y) in cents.items() if j != i] + list(jx)
+        oy = [y for j, (_x, y) in cents.items() if j != i] + list(jc)
+        ox, oy = np.array(ox), np.array(oy)
+        near = np.abs(ox - xc) <= NEAR_PX
+        if np.unique(ox[near]).size >= 2:
+            a, b = np.polyfit(ox[near], oy[near], 1)
+            if abs(yc - (a * xc + b)) <= far:
+                out.append(i)
+    return out
+
+
 def line_width(lab: np.ndarray, ids: list[int]) -> float:
     """The solid line's width in pixels: the median run over its flatter columns."""
     sel = np.isin(lab, ids)
@@ -179,20 +260,10 @@ def main() -> int:
             x_of, v_of, terr = calibrate(ink, p, cfg["t_range"], cfg["t_major"])
             lab, sl = components(ink, p)
             cut = cfg["legend_above"].get(p.key)
-            solid, dashes = [], []
-            for i, s in enumerate(sl, start=1):
-                if s is None:
-                    continue
-                ys, xs = np.nonzero(lab[s] == i)
-                if ys.size < SPECK_PX:
-                    continue
-                yc = s[0].start + float(ys.mean())
-                xc = s[1].start + float(xs.mean())
-                if cut is not None and _scalar(v_of(yc, xc)) > cut:
-                    continue
-                (solid if s[1].stop - s[1].start >= SOLID_MIN_PX else dashes).append(i)
+            solid, dashes = classify(lab, sl, v_of, cut)
             width = line_width(lab, solid)
             sx, sc, srun, jx, jc, jrun = separate(np.isin(lab, solid), width)
+            dashes = drop_specks(lab, dashes, jx, jc, sx, sc, width)
             fx, ftop, fbot = extents(np.isin(lab, dashes))
             frun = fbot - ftop + 1.0
             dx, dc, drun, seen = fill_hidden(
@@ -232,9 +303,10 @@ def main() -> int:
                             else ""
                         )
                         + f". The solid line is the components at least {SOLID_MIN_PX} px "
-                        f"wide, the dashes the rest, and a dash joined to the solid line is cut "
-                        f"from it where its column is over {JOIN_PX} px thicker than the line; "
-                        f"components under {SPECK_PX} px are specks"
+                        f"wide and the pieces continuing them, the dashes the rest, and a dash "
+                        f"joined to the solid line is cut from it where its column is over "
+                        f"{JOIN_PX} px thicker than the line; components under {SPECK_PX} px, "
+                        f"and dashes over {SPECK_LINES:g} line widths from both lines, are specks"
                         + (f"; ink above {cut:g} is the legend" if cut is not None else "")
                         + "\n"
                     )
