@@ -158,7 +158,7 @@ def test_the_two_continuous_models_are_identical_because_they_must_be():
 
 
 @pytest.mark.parametrize("case", (1, 2, 3))
-def test_the_discrete_map_moves_toward_ballins_2dof_column(case: int):
+def test_the_discrete_map_stays_within_bounds_of_ballins_2dof_column(case: int):
     """Table 1 column 4 is Ballin's real-time program, so compare a real-time map to it."""
     disc = discrete_ng_mode(case, tol=1e-12)
     dev = 100.0 * (disc / TABLE_1_2DOF[case] - 1.0)

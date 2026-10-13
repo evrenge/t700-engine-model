@@ -146,6 +146,24 @@ def _run(wf_hi: float, t_step: float, heat_sink: bool) -> dict[str, np.ndarray]:
     return tr
 
 
+@pytest.mark.parametrize("fig", sorted(STEP_TIME))
+def test_step_time_is_the_wfph_traces_own_half_way_crossing(fig: int):
+    """`STEP_TIME` is copied by hand; recompute it from the WFPH trace it was measured on.
+
+    The half level is midway between the plateau means before 0.4 s and after 1.0 s, both
+    clear of the step on either figure; the crossing is the first sign change of the trace
+    about it, interpolated linearly between the two samples that bracket it.
+    """
+    t, v = _reference(fig, "wfph")
+    half = 0.5 * (v[t < 0.4].mean() + v[t > 1.0].mean())
+    j = int(np.flatnonzero(np.diff(np.sign(v - half)) != 0)[0])
+    crossing = t[j] + (half - v[j]) * (t[j + 1] - t[j]) / (v[j + 1] - v[j])
+    assert abs(STEP_TIME[fig] - crossing) < 5e-5, (
+        f"Figure {fig}: STEP_TIME says {STEP_TIME[fig]} s, but the WFPH trace crosses its "
+        f"half level at {crossing:.5f} s"
+    )
+
+
 @pytest.mark.parametrize("fig,wf_hi,t_step", STEPS, ids=lambda v: str(v))
 @pytest.mark.parametrize("key", list(PANELS))
 def test_initial_state_matches_the_figure(fig: int, wf_hi: float, t_step: float, key: str):
