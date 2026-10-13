@@ -50,7 +50,8 @@ class TrimResult:
         residual stops depending on the state, and Newton can drive it to zero where the
         model means nothing. `f1:parameter` (corrected speed itself off the map) is the
         decisive clamp but not the only one: other tables may still be extrapolated, see
-        `extrapolated_tables` and `fully_on_data`.
+        `extrapolated_tables` and `fully_on_data`. `f1:above_top_line`, a read inside
+        `maps.F1_TOP_ALLOWANCE_PCT`, is an extrapolation, not a clamp (#77).
         """
         return "f1:parameter" not in self.clamps_at_solution
 
@@ -196,8 +197,10 @@ def solve(
 
     # Clamps are counted in `maps.clamp_scope`s, so a caller's enclosing count survives.
     # The feasible set for NG is `f1`'s own speed range (its first and last printed speed
-    # line), carried into physical rpm through Eqs. 5-6.
+    # line) plus its small allowance above the top line (#77), carried into physical rpm
+    # through Eqs. 5-6.
     ngc_lo, ngc_hi = maps.f1().param_range
+    ngc_hi += maps.f1().top_allowance
     root_theta2 = float(np.sqrt(corrections.theta2(amb.t_amb_degR)))
     ng_lo = ngc_lo / 100.0 * c.NG_DES * root_theta2
     ng_hi = ngc_hi / 100.0 * c.NG_DES * root_theta2

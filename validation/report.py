@@ -835,7 +835,9 @@ def sheet_engine_steady() -> dict:
     for k in pph:
         wf = wf_pps_from_pph(float(k))
         r = trim.solve(wf, c.NP_DES, AMB, guess=None)
-        if not r.trustworthy:
+        # On the printed map only: the report claims validity to 100 %NG [pdf p.39], and
+        # f1's allowance above its top line is there to reach Ballin's own edge points (#77).
+        if not r.trustworthy or "f1:above_top_line" in r.clamps_at_solution:
             continue
         f = frame(r.state, wf, AMB)
         rows.append(

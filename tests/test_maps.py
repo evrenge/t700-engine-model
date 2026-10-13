@@ -183,6 +183,27 @@ def test_f1_parameter_clamping_is_counted():
     maps.reset_clamps()
 
 
+def test_f1_extends_its_top_line_by_the_allowance_and_no_further():
+    """Above 100 % NGc, `f1` extends its top two lines up to `F1_TOP_ALLOWANCE_PCT` (#77):
+    continuous at the top line, still rising with speed, counted as an extrapolation rather
+    than a clamp. Beyond the allowance it clamps as before."""
+    m = maps.f1()
+    top = m.param_range[1]
+    edge = top + maps.F1_TOP_ALLOWANCE_PCT
+    with maps.clamp_scope() as inside:
+        at, just_above, at_edge = m(6.0, top), m(6.0, top + 1e-9), m(6.0, edge)
+    assert just_above == pytest.approx(at, abs=1e-9)
+    assert at_edge > at
+    assert "f1:parameter" not in inside and inside["f1:above_top_line"] == 2
+    with maps.clamp_scope() as beyond:
+        assert m(6.0, edge + 0.01) == at
+    assert beyond["f1:parameter"] == 1
+    from t700.control import schedules
+
+    # the only other speed maps, the fuel control's, keep their plain clamp
+    assert schedules.f_ec1().top_allowance == schedules.f_hm7().top_allowance == 0.0
+
+
 # --------------------------------------------------------------------------- physics
 
 

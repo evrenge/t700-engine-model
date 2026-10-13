@@ -27,9 +27,9 @@ by re-running the model; `tests/test_live_numbers.py` fails if one is no longer 
 | **Table 1, printed eigenvalues** | all **27**<!--rj:eigenvalues.notes.table_1_stats.n--> modes across three model variants: **rms 1.9 %<!--rj:eigenvalues.notes.table_1_stats.rms-->**, worst 4.7 %<!--rj:eigenvalues.notes.table_1_stats.worst--> (ours more damped) on the 2-DOF NG mode at hover, modes paired by dominant state, with the report's own ±2 % extraction step [pdf p.28] |
 | **Appendix B, 297 printed elements** | zero structure exact; all 206 non-zero elements compared one by one. `A` rms 6.3 %<!--rj:appendix_b.A.rms--> over 158<!--rj:appendix_b.A.n-->, `b` rms 6.4 %<!--rj:appendix_b.b.rms--> over 42<!--rj:appendix_b.b.n-->; the heat-sink rows carry the report's own TC_T41 inconsistency (open question #31) |
 | **Closed loop vs Table B.1** | **worst 0.25 %<!--rj:closed_loop.worst-->** over NG, NP, Wf, Ps3 and shaft power at three trims, **with fuel flow as an output**, averaged over the governor's own limit cycle |
-| Figure 6, NG vs fuel flow | mean -0.01 %NG<!--rj:steady.figure_6.mean-->, rms 0.24<!--rj:steady.figure_6.rms-->, worst −1.02<!--rj:steady.figure_6.worst--> over 28<!--rj:steady.figure_6.n--> of 29<!--rj:steady.figure_6.printed_points--> printed points |
-| Figure 7, shaft power vs fuel flow | mean +0.19 %<!--rj:steady.figure_7.mean-->, rms 0.69 %<!--rj:steady.figure_7.rms-->, worst +2.17<!--rj:steady.figure_7.worst--> over 14<!--rj:steady.figure_7.n--> of 15<!--rj:steady.figure_7.printed_points--> |
-| Figure 8, Ps3 vs NG | mean +0.07 %<!--rj:steady.figure_8.mean-->, rms 0.27 %<!--rj:steady.figure_8.rms-->, worst +0.64<!--rj:steady.figure_8.worst--> over 26<!--rj:steady.figure_8.n--> of 27<!--rj:steady.figure_8.printed_points--> |
+| Figure 6, NG vs fuel flow | mean -0.01 %NG<!--rj:steady.figure_6.mean-->, rms 0.23<!--rj:steady.figure_6.rms-->, worst −1.02<!--rj:steady.figure_6.worst--> over 29<!--rj:steady.figure_6.n--> of 29<!--rj:steady.figure_6.printed_points--> printed points |
+| Figure 7, shaft power vs fuel flow | mean +0.18 %<!--rj:steady.figure_7.mean-->, rms 0.66 %<!--rj:steady.figure_7.rms-->, worst +2.17<!--rj:steady.figure_7.worst--> over 15<!--rj:steady.figure_7.n--> of 15<!--rj:steady.figure_7.printed_points--> |
+| Figure 8, Ps3 vs NG | mean +0.07 %<!--rj:steady.figure_8.mean-->, rms 0.26 %<!--rj:steady.figure_8.rms-->, worst +0.64<!--rj:steady.figure_8.worst--> over 27<!--rj:steady.figure_8.n--> of 27<!--rj:steady.figure_8.printed_points--> |
 | Figures 9 and 10, fuel transients | whole-curve rms **0.62<!--rj:whole_curve_summary.min-->–3.80 %<!--rj:whole_curve_summary.max-->** of each panel's excursion, mean 1.64 %<!--rj:whole_curve_summary.mean--> over ten panels |
 | The report's own claim about Figure 6 | reproduced: in the 81–86 %NG band the report names, we overestimate fuel by **+6.34 %<!--rj:fuel_overestimate.ours_peak_pct-->**, against its own line's +5.98 %<!--rj:fuel_overestimate.ballin_peak_pct--> and its printed "as much as five percent" [pdf p.39] |
 | Frame cost | tens of microseconds per frame, against the report's 10 ms budget |
@@ -83,7 +83,7 @@ blade-element simulation, which the report consumes and does not contain; Table 
 produced with functions from a different engine and is evidence of method, never pass/fail;
 and nothing above 100 %NG is claimed, because Ballin claims nothing there either [pdf p.39].
 
-As of 2026-10-13, `docs/notes/open-questions.md` has logged 72 questions: 70 closed, 2 open
+As of 2026-10-13, `docs/notes/open-questions.md` has logged 73 questions: 71 closed, 2 open
 (#60, #74). Each row states what was asked and what was decided.
 
 ## Running it

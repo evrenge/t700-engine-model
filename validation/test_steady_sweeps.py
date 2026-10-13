@@ -117,19 +117,17 @@ def test_figure_7_shaft_power_tracks_except_at_the_lowest_power():
 
 
 def test_we_now_track_figure_6_across_its_whole_range():
-    """Figure 6's NG against fuel flow, over all its points but at most one.
+    """Figure 6's NG against fuel flow, over every one of its points.
 
     Trap: pdf p.40's frames are faint and tilted, and a digitizer that finds a frame by row
     fill anchors the axis on the denser caption instead, reading every speed high; that was
-    the whole of #46's low-power half (#64). One unreachable point is tolerated because
-    `f1`'s 100 % top speed line is a real boundary.
+    the whole of #46's low-power half (#64). Ballin's top point sits on `f1`'s 100 % top
+    line, which ours reaches at a hair less fuel; `maps.F1_TOP_ALLOWANCE_PCT` covers it (#77).
     """
     x, y = read_reference("fig06_realtime.csv", "wf_pph", "ng_pct")
     got = _ladder(x)
     missing = [v for v in x if v not in got]
-    assert len(missing) <= 1, f"more of Figure 6 is now unreachable: {missing}"
-    if missing:
-        assert missing[0] > 800.0, f"the unreachable point moved down to {missing[0]:.0f} lb/hr"
+    assert not missing, f"part of Figure 6 is now unreachable: {missing}"
     assert _ladder([800.0])[800.0]["ng_pct"] > 99.5, "we should still reach ~100 %NG"
 
     pairs = [(k, got[k]["ng_pct"] - v) for k, v in zip(x, y, strict=True) if k in got]

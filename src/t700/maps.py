@@ -21,6 +21,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
+from typing import Final
 
 import numpy as np
 
@@ -217,6 +218,9 @@ class SpeedMap:
     params: np.ndarray  # the parameter value of each line, ascending
     lines: list[Curve] = field(default_factory=list)
     source: str = ""
+    top_allowance: float = 0.0
+    """How far above the top line the top two lines are extended before the parameter
+    clamps. Zero for every map but `f1` (`F1_TOP_ALLOWANCE_PCT`, #77)."""
 
     def __post_init__(self) -> None:
         self.params.flags.writeable = False  # see Curve.__post_init__
@@ -224,7 +228,9 @@ class SpeedMap:
         self._pl: list[float] = self.params.tolist()
         self._plo: float = self._pl[0]
         self._phi: float = self._pl[-1]
+        self._top: float = self._phi + self.top_allowance
         self._param_key: str = f"{self.name}:parameter"
+        self._above_key: str = f"{self.name}:above_top_line"
         self._beta_grid: bool = len({line.x.size for line in self.lines}) == 1
 
     @property
@@ -248,20 +254,26 @@ class SpeedMap:
             )
         lo = self._plo
         hi = self._phi
-        if pq < lo or pq > hi:
-            _clamps[self._param_key] += 1
-        p = lo if pq < lo else (hi if pq > hi else float(pq))
-
         pl = self._pl
-        j = bisect_left(pl, p)
-        if j <= 0:
-            return float(self.lines[0](xq))
-        if j >= len(pl):
-            return float(self.lines[-1](xq))
-
-        p0 = pl[j - 1]
-        p1 = pl[j]
-        w = 0.0 if p1 == p0 else (p - p0) / (p1 - p0)
+        if hi < pq <= self._top:
+            # Inside the allowance: the top two lines, extended at constant beta (w > 1).
+            # Counted under its own key, which `extrapolated_tables` reports and
+            # `TrimResult.on_data` accepts.
+            _clamps[self._above_key] += 1
+            j = len(pl) - 1
+            w = (pq - pl[j - 1]) / (pl[j] - pl[j - 1])
+        else:
+            if pq < lo or pq > hi:
+                _clamps[self._param_key] += 1
+            p = lo if pq < lo else (hi if pq > hi else float(pq))
+            j = bisect_left(pl, p)
+            if j <= 0:
+                return float(self.lines[0](xq))
+            if j >= len(pl):
+                return float(self.lines[-1](xq))
+            p0 = pl[j - 1]
+            p1 = pl[j]
+            w = 0.0 if p1 == p0 else (p - p0) / (p1 - p0)
 
         if not self._beta_grid:  # unequal beta grids: no correspondence to interpolate on
             z0 = float(self.lines[j - 1](xq))
@@ -308,6 +320,7 @@ def load_speed_map(
     ycol: str,
     phys: Physics | None = None,
     directory: Path | None = None,
+    top_allowance: float = 0.0,
 ) -> SpeedMap:
     """Load a 2-D map whose rows are grouped by a parameter column.
 
@@ -330,7 +343,7 @@ def load_speed_map(
         lines.append(line)
     if phys is not None:
         CONDITIONING[name] = moved
-    return SpeedMap(name=name, params=params, lines=lines, source=src)
+    return SpeedMap(name=name, params=params, lines=lines, source=src, top_allowance=top_allowance)
 
 
 # --------------------------------------------------------------------------- physical conditioning
@@ -441,6 +454,15 @@ def load_curve(
 # Each loader is `functools.cache`d: the read-only tables load once.
 
 
+F1_TOP_ALLOWANCE_PCT: Final = 0.1
+"""Points of corrected speed above its 100 % top line that `f1` extrapolates before it
+clamps. Ours, not the report's (#77): Figure A1 stops at 100 % NGC [pdf p.56] and the model
+is valid to 100 percent [pdf p.39], but Ballin's own Figure 6 line ends on that top line at a
+fuel flow ours reaches the line just below, and above it a clamped `f1` invents equilibria
+(`TrimResult.on_data`). Fifty times what that point needs; a twentieth of the spacing of
+the top two printed lines."""
+
+
 @cache
 def f1() -> SpeedMap:
     """Compressor corrected mass flow, WA2c = f1(Ps3/P2, NGc). [pdf p.22, Eq. 7; Fig. A1]
@@ -466,6 +488,7 @@ def f1() -> SpeedMap:
             "reason it is applied to the raw one; the shape-preserving fit cannot "
             "introduce a rise the anchors do not have, so this conditions nothing.",
         ),
+        top_allowance=F1_TOP_ALLOWANCE_PCT,
     )
 
 
@@ -494,6 +517,7 @@ def f1_as_printed() -> SpeedMap:
             "digitized map already satisfies it at every one of 40 sampled ratios; "
             "`tests/test_maps.py` asserts that rather than conditioning it away.",
         ),
+        top_allowance=F1_TOP_ALLOWANCE_PCT,
     )
 
 
