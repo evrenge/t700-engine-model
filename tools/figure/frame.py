@@ -7,8 +7,9 @@ looks only at the data. Two geometry models (recipe, trap 7):
 * order 2 -- each edge an arc, plot coordinates by `make_sv`'s curvilinear blend.
 
 The single-curve figures choose between them by their own held-out frame test; A1 uses
-order 1, and A2, A7 and A9 order 2. Nothing here resamples the page: tilt and bow are carried
-as a map applied to the measured points.
+order 1, and A2, A7 and A9 order 2. The body figures 6-10 use `make_sv` on four straight
+lines (`fit_edges` on 6-8, `band_line` on 9-10). Nothing here resamples the page: tilt and bow
+are carried as a map applied to the measured points.
 """
 
 from __future__ import annotations

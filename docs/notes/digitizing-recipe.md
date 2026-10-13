@@ -246,7 +246,14 @@ their headers carry provenance no generator writes — so those tools *check* th
 instead of rewriting it, and return non-zero on any difference. CLAUDE.md records why that
 distinction matters.
 
-`digitize_fig678.py` and `digitize_fig910.py` still carry their own frame and axis code:
-the body figures are stacked panels with tilted frames rather than single framed plots, and
-they were not converted when the appendix tools were. They share the raster and the run
-helpers and nothing else. That is the largest piece of duplication left.
+`digitize_fig678.py` and `digitize_fig910.py` were moved onto the library on 2026-10-13, one
+step at a time; a step that moved data was kept only if every changed point stayed inside
+its file's own read error (0.5 px of the value axis on Figures 9-10) and every test passed
+untouched. Both take plot coordinates from `frame.make_sv` on four straight lines and ticks
+from `ticks.find_ticks`; Figures 6-8 also take the box from `find_frame_box`, the frame lines
+from `fit_edges`, and the axis maps from `axis.fit_anchored`, `choose_anchored` and
+`blend_value`. Figures 9-10 keep `frame.band_line` for their panel frames: `fit_edges` moved
+values by up to 1.40x that bound (Figure 10 T41) and Figure 9's step time by -0.28 ms, where
+0.05 ms was allowed. What else stays in the scripts has no library equivalent: glyph
+classification (6-8), and the panel search, marker lattice, line tracer and caption check
+(9-10).
