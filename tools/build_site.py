@@ -49,20 +49,6 @@ OPEN_SUMMARY = {
         "across lines, or the printed figure is not internally consistent. It sits under every "
         "number in &sect;6, through the compressor map.",
     ),
-    75: (
-        "Which P45 the gas generator torque&rsquo;s &Delta;H<sub>GT</sub> uses",
-        "The report is silent. Each real-time frame evaluates Eq.&nbsp;26 at the previous "
-        "frame&rsquo;s P45, as the Eq.&nbsp;80 iteration needs, and Q<sub>GT</sub> "
-        "(Eq.&nbsp;40) reuses it. The solved P45 instead would move the transients of "
-        "&sect;6.5, Figure&nbsp;9 most; no trim moves.",
-    ),
-    76: (
-        "pdf p.32 labels F<sub>2</sub>&rsquo;s sixth column with T41<sub>ns</sub>",
-        "The state vector on the same page has T41 sixth, and F<sub>2</sub>(6,6) = "
-        "&minus;1/&tau;<sub>2</sub> is a derivative with respect to T41; the five entries "
-        "above it say T41<sub>ns</sub>. Its effect on the 6-DOF comparisons in &sect;6 is not "
-        "yet checked.",
-    ),
 }
 
 

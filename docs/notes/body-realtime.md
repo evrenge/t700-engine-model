@@ -540,7 +540,8 @@ with row 6 printed as
 > Column 6 of `F₂` is labelled with respect to `T41_ns`, **not** `T41` — the `ns`
 > subscript is present on the first five entries and was re-read at 600 dpi. The sixth,
 > `F₂(6,6) = −1/τ₂`, is the coefficient of ΔT41 in Eq. 64, so the column contradicts
-> itself (ledger #76, open).
+> itself. The printed Appendix B numbers settle it: the column is with respect to `T41`, and
+> the five labels are a slip (ledger #76).
 
 ```
         ⎡ ∂ṄG/∂W_f            ⎤
