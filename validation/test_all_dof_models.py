@@ -233,3 +233,22 @@ def test_every_printed_table_1_mode(dof, t):
     dev = {k: 100.0 * (abs(ours[k]) - abs(v)) / abs(v) for k, v in TABLE_1[t][dof].items()}
     bad = {k: round(d, 2) for k, d in dev.items() if abs(d) >= EIGENVALUE_TOL_PCT}
     assert not bad, f"{dof} trim {t}: {bad} % against Table 1"
+
+
+def test_table_1_names_the_descent_pressure_modes_the_other_way_round_from_b6():
+    """Open question #78. Ballin's own Figures B2, B4 and B6, their modes named by dominant state
+    as ours are, agree with Table 1 [pdf p.31] at hover and level flight; at descent B6 [pdf
+    p.70] puts P41 at -4526 and P45 at -4432, which round to Table 1's P45 and P41 entries.
+    B6's P45 column is zero in the P3 and P41 rows, so its P45 mode is its P45 diagonal,
+    -4431, almost exactly. `TABLE_1` keeps the printed labels."""
+    for t in (1, 2, 3):
+        theirs = modes_by_state(ab.find(5, t))
+        p41, p45 = TABLE_1_5DOF[t]["P41"], TABLE_1_5DOF[t]["P45"]
+
+        def near(a: float, b: float) -> bool:
+            return abs(a / b - 1.0) < 0.005  # Table 1 prints three figures
+
+        as_printed = near(theirs["P41"], p41) and near(theirs["P45"], p45)
+        swapped = near(theirs["P41"], p45) and near(theirs["P45"], p41)
+        want = (False, True) if t == 3 else (True, False)
+        assert (as_printed, swapped) == want, f"trim {t}: B-figure modes {theirs}"

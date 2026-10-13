@@ -83,7 +83,7 @@ blade-element simulation, which the report consumes and does not contain; Table 
 produced with functions from a different engine and is evidence of method, never pass/fail;
 and nothing above 100 %NG is claimed, because Ballin claims nothing there either [pdf p.39].
 
-As of 2026-10-13, `docs/notes/open-questions.md` has logged 73 questions: 71 closed, 2 open
+As of 2026-10-13, `docs/notes/open-questions.md` has logged 74 questions: 72 closed, 2 open
 (#60, #74). Each row states what was asked and what was decided.
 
 ## Running it
