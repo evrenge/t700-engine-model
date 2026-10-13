@@ -1,7 +1,7 @@
 """Every comparison this project can make against the report, as tables and overlay plots.
 
-Recomputes every headline number, writes the site figures `site/assets/*.png` in both themes
-and dumps `site/assets/report.json`. This is the only figure pipeline. Model runs are
+Recomputes every headline number, writes the figures `results/*.png` and dumps
+`results/report.json`. This is the only figure pipeline. Model runs are
 imported from the test modules that own them, so the report measures the same runs the suite
 does; the statistics are computed here, independently of the tests' own assertions.
 
@@ -46,13 +46,12 @@ from test_fuel_step import read_reference  # noqa: E402
 from test_trim_points import CASES  # noqa: E402
 from test_trim_points import STATE_B1 as B1_STATE  # noqa: E402
 
-OUT = HERE.parent / "site" / "assets"
+OUT = HERE.parent / "results"
 REF = HERE.parent / "data" / "reference"
 AMB = Ambient(14.696, 518.67)
 
 THEME = plotstyle.LIGHT
-"""The theme the next figure is drawn in. Rebound by `use_theme`; `main` renders every sheet
-once per theme, so each sheet's model runs happen twice."""
+"""The one theme every figure is drawn in."""
 
 OURS = THEME.ours
 BALLIN = THEME.ballin
@@ -62,23 +61,15 @@ MUTED = THEME.muted
 GRID = THEME.grid
 
 
-def use_theme(theme: plotstyle.Theme) -> None:
-    """Point the module's colour names at one theme's tokens."""
-    global THEME, OURS, BALLIN, GE, GE2, MUTED, GRID
-    THEME = theme
-    OURS, BALLIN, GE, GE2 = theme.ours, theme.ballin, theme.ge, theme.ge2
-    MUTED, GRID = theme.muted, theme.grid
-
-
 def fs(w: float, h: float) -> tuple[float, float]:
-    """A figure size in inches, scaled so its content reads at the page's column width."""
+    """A figure size in inches, scaled by `plotstyle.FIG_SCALE`."""
     return (w * plotstyle.FIG_SCALE, h * plotstyle.FIG_SCALE)
 
 
 def save(fig, stem: str) -> None:
-    """Write `<stem>-<theme>.png` into the site's asset directory."""
+    """Write `<stem>.png` into `results/`."""
     OUT.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUT / f"{stem}-{THEME.name}.png", dpi=plotstyle.DPI)
+    fig.savefig(OUT / f"{stem}.png", dpi=plotstyle.DPI)
     plt.close(fig)
 
 
@@ -1306,7 +1297,7 @@ def sheet_engine_maps() -> dict:
 
 
 def main() -> int:
-    """Every sheet, once per theme. The numbers are identical, so only the first set keeps.
+    """Every sheet, then `report.json`.
 
     Missing IBM Plex is reported, not enforced: the DejaVu fallback figures are still correct.
     """
@@ -1314,17 +1305,11 @@ def main() -> int:
     if not plotstyle.available():
         print("NOTE: IBM Plex is not installed; figures will fall back to DejaVu Sans.")
     data: dict = {}
-    for theme in plotstyle.THEMES:
-        print(f"\n=== {theme.name} ===", flush=True)
-        use_theme(theme)
-        with plotstyle.context(theme):
-            _render(data if theme is plotstyle.THEMES[0] else {})
+    with plotstyle.context(THEME):
+        _render(data)
     (OUT / "report.json").write_text(json.dumps(data, indent=1))
     pngs = sorted(OUT.glob("*.png"))
-    print(
-        f"\nwrote {OUT}/report.json and {len(pngs)} plots "
-        f"({len(pngs) // len(plotstyle.THEMES)} figures x {len(plotstyle.THEMES)} themes)"
-    )
+    print(f"\nwrote {OUT}/report.json and {len(pngs)} figures")
     return 0
 
 

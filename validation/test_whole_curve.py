@@ -150,7 +150,7 @@ WHOLE_CURVE_RMS_CEILING_PCT = 4.0
 
 A ratchet, not a tolerance: set just above the worst panel, so a regression fails and an
 improvement is free; lower it when the model improves. Declared in `SCOPE.md`. Current values
-per panel are `whole_curve` in `site/assets/report.json`.
+per panel are `whole_curve` in `results/report.json`.
 """
 
 

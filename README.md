@@ -12,14 +12,11 @@ largely the record of how he made an implicit engine model run in real time, and
 cost. The report is included as `docs/ballin-tm100991.pdf` (NTRS accession N88-26378), and
 everything here is derived from it.
 
-**[Read the engineering report →](https://evrenge.github.io/t700-engine-model/)**: what was
-built, how the data was recovered from a scanned document, which modelling decisions depart
-from the report and what each costs, and the validation against every number it prints.
-
 ## Results
 
-The numbers below come from `site/assets/report.json`, which `validation/report.py` writes
-by re-running the model; `tests/test_live_numbers.py` fails if one is no longer current.
+The numbers below come from `results/report.json`, which `validation/report.py` writes by
+re-running the model, together with the comparison figures in `results/`;
+`tests/test_live_numbers.py` fails if a number is no longer current.
 
 | | |
 |---|---|
@@ -53,7 +50,7 @@ tests/           fast unit tests, and the architecture rules as executable check
 validation/      comparisons against the report, and the figure set
 docs/notes/      the report transcribed (equations, symbols, appendix inventories), and
                  the open-questions ledger
-site/            the published report, generated (see site/README.md)
+results/         report.json and the comparison figures, written by validation/report.py
 ```
 
 ## The rules it was built under
@@ -100,7 +97,7 @@ PYTHONPATH=src python validation/report.py   # every comparison, as figures and 
 
 A plain `pip install .` also works; the wheel carries `data/`. `Containerfile` builds the
 environment the published numbers were produced under, and `docs/notes/environment.md`
-records its versions. To rebuild the site, see `site/README.md`.
+records its versions.
 
 ## Licence and provenance
 

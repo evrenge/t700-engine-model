@@ -3,13 +3,13 @@
 Measurements move whenever the model or a digitization does, and nothing re-reads the
 sentences that quote them: README and SCOPE have both quoted numbers that had changed. So a
 live number carries an invisible marker straight after it naming its source in
-`site/assets/report.json`, which `validation/report.py` writes:
+`results/report.json`, which `validation/report.py` writes:
 
     rms 1.94 %<!--rj:eigenvalues.notes.table_1_stats.rms-->
     worst 0.81 %<!--rj:phase_plane.figure_9.worst|abs-->
 
-- The path is dotted, each segment a dict key or an integer list index -- the lookup
-  `tools/build_site.py` uses for the template's `{{rj:path|fmt}}`, in `tools/report_json.py`.
+- The path is dotted, each segment a dict key or an integer list index, looked up by
+  `tools/report_json.py`.
 - The number is the last one before the marker on its line, with at most a unit and `**`
   between them. It must equal the value rounded to as many decimals as are printed. A
   printed sign (`+`, `-`, `−`) must match; an unsigned number is positive.

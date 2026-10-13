@@ -3,8 +3,7 @@
 A sentence naming a test goes on naming it after the test is renamed, merged or deleted, and
 nothing else notices: docstrings here have cited tests that did not exist. This test reads
 
-- the markdown (`README.md`, `SCOPE.md`, `CLAUDE.md`, `site/README.md`, `docs/notes/*.md`)
-  and `site/template.html`, whole;
+- the markdown (`README.md`, `SCOPE.md`, `CLAUDE.md`, `docs/notes/*.md`), whole;
 - the comments (by `tokenize`) and the string statements -- docstrings, including the ones
   under constants (by `ast`) -- of every `.py` file in `src/`, `tests/`, `validation/` and
   `tools/`,
@@ -39,9 +38,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 CODE = ("src", "tests", "validation", "tools")
 DOCS = sorted(
-    [ROOT / "README.md", ROOT / "SCOPE.md", ROOT / "CLAUDE.md", ROOT / "site" / "README.md"]
+    [ROOT / "README.md", ROOT / "SCOPE.md", ROOT / "CLAUDE.md"]
     + list((ROOT / "docs" / "notes").glob("*.md"))
-    + [ROOT / "site" / "template.html"]
 )
 
 ALLOWED: dict[str, str] = {

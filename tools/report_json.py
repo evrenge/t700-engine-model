@@ -1,8 +1,7 @@
-"""One value out of `site/assets/report.json`, addressed by a dotted path.
+"""One value out of `results/report.json`, addressed by a dotted path.
 
-Shared by `tools/build_site.py`, whose template takes `{{rj:path|fmt}}`, and by
-`tests/test_live_numbers.py`, which holds the `<!--rj:path-->` markers in `README.md` and
-`SCOPE.md` to the same file, so the page and the documents address it the same way.
+Used by `tests/test_live_numbers.py`, which holds the `<!--rj:path-->` markers in `README.md`
+and `SCOPE.md` to that file.
 """
 
 from __future__ import annotations
@@ -10,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-REPORT_JSON = Path(__file__).resolve().parent.parent / "site" / "assets" / "report.json"
+REPORT_JSON = Path(__file__).resolve().parent.parent / "results" / "report.json"
 
 
 def load() -> dict:

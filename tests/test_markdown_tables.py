@@ -15,7 +15,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = sorted(
-    [ROOT / "README.md", ROOT / "SCOPE.md", ROOT / "CLAUDE.md", ROOT / "site" / "README.md"]
+    [ROOT / "README.md", ROOT / "SCOPE.md", ROOT / "CLAUDE.md"]
     + list((ROOT / "docs" / "notes").glob("*.md"))
 )
 

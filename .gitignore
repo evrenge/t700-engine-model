@@ -19,5 +19,5 @@ dist/
 # Agent worktrees
 .claude/worktrees/
 
-# the old artifact-era output directory; the site's figures live in site/assets/
+# the old artifact-era output directory; the figures live in results/
 validation/out/report/
