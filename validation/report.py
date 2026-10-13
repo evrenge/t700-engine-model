@@ -810,52 +810,54 @@ def table_3() -> dict:
 
 
 def figures_4_5() -> dict:
-    """Figures 4 and 5 [pdf pp.30, 34]: the linear models' response to fuel pulses at hover,
-    ours and Ballin's printed matrices against his plotted bands (`test_fig45`)."""
+    """Figures 4 and 5 [pdf pp.30, 34]: Ballin's curves against ours, pair by pair, at hover
+    (`test_fig45`). Figure 4's four curves lie on one another and are read as one line."""
     import test_fig45 as f45
 
-    out: dict = {"steps": {}, "figure_4": {}, "figure_5": {}}
+    out: dict = {"steps": {}, "pairs": {}, "his printed matrices": {}, "wrong pairings": {}}
     for fig in f45.FIGS:
         t0, lv = f45.steps(fig)
-        out["steps"][f"figure_{fig}"] = {"t_start_s": t0.tolist(), "level_pct": lv.tolist()}
-    names4 = ("ballin 5-DOF", "ballin 2-DOF", "ballin reduced", *f45.OURS_IN_FIG4, "6-DOF")
-    for name in names4:
-        gap = {k: f45.outside(name, 4, k) for k in f45.PANELS}
-        out["figure_4"][name] = {
-            k: {"rms": f45.rms(v), "max": float(v.max())} for k, v in gap.items()
-        }
-    for name, which in (("ballin 5-DOF", "outer"), ("5-DOF", "outer"), ("6-DOF", "inner")):
-        out["figure_5"][f"{name} vs {which}"] = {
-            k: {"rms": f45.rms(f45.to_curve(name, k, which))} for k in f45.PANELS
-        }
+        out["steps"][f"figure {fig}"] = {"t_start_s": t0.tolist(), "level_pct": lv.tolist()}
+
+    def score(name, fig, his):
+        return {k: f45.rms(f45.gap(name, fig, k, his)) for k in f45.PANELS}
+
+    for fig, his, ours in f45.PAIRS:
+        out["pairs"][f"figure {fig}: {his} vs our {ours}"] = score(ours, fig, his)
+    for fig, his, name in ((4, "all four", "ballin 5-DOF"), (5, "5-DOF", "ballin 5-DOF")):
+        out["his printed matrices"][f"figure {fig}: {his} vs his B2"] = score(name, fig, his)
+    for fig, his, ours in ((4, "all four", "6-DOF"), (5, "6-DOF", "5-DOF"), (5, "5-DOF", "6-DOF")):
+        out["wrong pairings"][f"figure {fig}: {his} vs our {ours}"] = score(ours, fig, his)
 
     fig, axes = plt.subplots(3, 2, figsize=fs(14.5, 10.0), sharex=True)
     for col, fno in enumerate(f45.FIGS):
         u = f45.fuel(fno)
         tt = np.linspace(0, 15, 3001)
         axes[0, col].plot(tt, [100 * u(x) for x in tt], color=MUTED, lw=1.2)
-        page = 30 if fno == 4 else 34
-        _style(axes[0, col], "", "fuel flow, % of trim", f"Figure {fno}, pdf p.{page}")
+        title = (
+            "Figure 4, pdf p.30: his four curves lie on one another"
+            if fno == 4
+            else "Figure 5, pdf p.34: his 5-DOF and 6-DOF"
+        )
+        _style(axes[0, col], "", "fuel flow, % of trim", title)
         for row, key in ((1, "ng"), (2, "np")):
             ax = axes[row, col]
-            tb, lo, up = f45.filled(fno, key)
-            ax.fill_between(
-                tb, lo, up, color=MUTED, alpha=0.35, lw=0, label="Ballin's plotted curves (band)"
-            )
-            if fno == 5:
-                t5, _outer, inner = f45.curves_5(key)
-                ax.plot(t5, inner, ".", color=BALLIN, ms=1.6, label="Ballin's 6-DOF, where apart")
             j = 1 if key == "ng" else 2
-            t, *ys = f45.response("ballin 5-DOF", fno)
-            ax.plot(t, ys[j - 1], color=BALLIN, lw=1.0, ls="--", label="Ballin's printed B2")
-            t, *ys = f45.response("5-DOF", fno)
-            ax.plot(t, ys[j - 1], color=OURS, lw=1.1, label="our 5-DOF")
             if fno == 4:
-                t, *ys = f45.response("nonlinear", fno)
-                ax.plot(t, ys[j - 1], color=GE, lw=0.9, label="our nonlinear engine + rotor load")
+                tb, v = f45.his_curves(4, key)["all four"]
+                ax.plot(tb, v, color=BALLIN, lw=3.0, alpha=0.45, label="Ballin, all four curves")
+                for name, sty, colr, lab in (
+                    ("5-DOF", "-", OURS, "our 5-DOF"),
+                    ("nonlinear", "--", GE, "our nonlinear engine"),
+                ):
+                    t, *ys = f45.response(name, 4)
+                    ax.plot(t, ys[j - 1], sty, color=colr, lw=1.1, label=lab)
             else:
-                t, *ys = f45.response("6-DOF", fno)
-                ax.plot(t, ys[j - 1], color=OURS, lw=1.1, ls=":", label="our 6-DOF (heat sink)")
+                for curve, sty in (("5-DOF", "-"), ("6-DOF", "--")):
+                    tb, v = f45.his_curves(5, key)[curve]
+                    ax.plot(tb, v, sty, color=BALLIN, lw=1.4, label=f"Ballin {curve}")
+                    t, *ys = f45.response(curve, 5)
+                    ax.plot(t, ys[j - 1], sty, color=OURS, lw=1.1, label=f"our {curve}")
             _style(
                 ax,
                 "time, s" if row == 2 else "",

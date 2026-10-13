@@ -1,19 +1,19 @@
-"""Figures 4 and 5 [pdf pp.30, 34]: the linear models' response to fuel pulses.
+"""Figures 4 and 5 [pdf pp.30, 34]: the linear models' response to fuel pulses, Ballin's
+curves against ours, one for one.
 
 Figure 4 overlays the Gen Hel UH-60A simulation and the 5-DOF, 2-DOF and reduced-order linear
-models, "nearly identical" [pdf p.29]. Figure 5 overlays the 6-DOF and 5-DOF, "with and
-without station 4.1 heat-sink model" [pdf p.34]. Both captions say only "a high-power flight
-condition"; it is the hover trim of Table B.1, because Ballin's own printed hover matrices
-(B2, B1) land inside Figure 4's plotted band and on Figure 5's outer curve, and the level and
-descent matrices miss its NP panel (#80).
+models, "nearly identical" [pdf p.29]: on the page the four lie on one another, so they are
+read as one line, the middle of their ink, and each of ours is compared with it. Figure 5
+overlays two curves that part, the 5-DOF and the 6-DOF, "with and without station 4.1
+heat-sink model" [pdf p.34]: they are separated (`his_curves`), and our 5-DOF is compared with
+his 5-DOF, our 6-DOF with his 6-DOF.
 
-`tools/digitize_fig45.py` reads each speed panel as a band: the uppermost and lowermost line
-centres per column. A response is scored by how far it falls outside that band, with dash
-gaps filled over `GAP_COLUMNS` and the figure's time read error allowed. In Figure 5, where
-both curves are inked and apart, the outer is the 5-DOF and the inner the 6-DOF.
-
-The input is the fuel trace's four plateaus at their printed tick values, from the digitized
-step instants. NG and NP are % of the trim value, which is what the axes print.
+Both captions say only "a high-power flight condition"; it is the hover trim of Table B.1,
+because Ballin's own printed hover matrices (B2, B1) reproduce his curves and the level and
+descent matrices miss Figure 4's NP panel (#80). The input is the fuel trace's four plateaus at
+their printed tick values, from the digitized step instants (`tools/digitize_fig45.py`). NG
+and NP are % of the trim value, which is what the axes print. Every difference allows the
+figure's time read error.
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from scipy import ndimage
 from scipy.linalg import expm
 
 from t700 import appendix_b as ab
@@ -43,9 +42,10 @@ PANELS = ("ng", "np")
 TIME_TOL_S = {4: 0.0314, 5: 0.0444}
 """Each figure's time read error: its worst interior major tick, as the digitizer reports it
 in every CSV header."""
-GAP_COLUMNS = 21
-"""The window that fills a broken line's gaps: on Figure 5 one curve runs alone for up to ten
-columns where the other's dash is missing."""
+LOCAL_S = 0.15
+"""How far, in time, a column with only one curve inked looks for columns where both are, to
+tell which curve it belongs to: Figure 5's dashes leave one curve alone for up to ten columns,
+0.1 s."""
 PX_PCT = {"ng": 2.0 / 707.0, "np": 3.0 / 707.0}
 """% of trim per pixel: each panel's printed range over its height, 707 px on both pages."""
 APART_PX = 8.0
@@ -147,57 +147,59 @@ def nonlinear(fig: int, dt: float = realtime.FRAME_ENGINE_S):
     return t, 100.0 * ng / r.state.ng_rpm, 100.0 * np_ / NP_RPM
 
 
-def _best(t, m, tb, target, tol, distance) -> np.ndarray:
-    """Per column, the smallest `distance` within the time read error."""
+def _best(t, m, tb, target, tol) -> np.ndarray:
+    """Per column, the smallest |response - target| within the time read error."""
     out = np.full(tb.size, np.inf)
     for tau in np.linspace(-tol, tol, 9):
-        out = np.minimum(out, distance(np.interp(tb + tau, t, m), target))
+        out = np.minimum(out, np.abs(np.interp(tb + tau, t, m) - target))
     return out
 
 
-def filled(fig: int, key: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """`(t, lower, upper)`: the panel's band with its dash gaps filled over `GAP_COLUMNS`."""
+@functools.cache
+def his_curves(fig: int, key: str) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Ballin's curves in one panel, each as `(t, value)`.
+
+    Figure 4: "all four", the middle of the ink in each column. Figure 5: where both curves are
+    inked and apart, the outer is the 5-DOF and the inner the 6-DOF (the heat sink damps it);
+    a column with one line inked joins the curve it continues, judged against the columns
+    within `LOCAL_S` where both are seen, or both curves where none are, since they coincide
+    there."""
     b = band(fig, key)
-    lo = ndimage.minimum_filter1d(b["lower"], GAP_COLUMNS)
-    return b["t"], lo, ndimage.maximum_filter1d(b["upper"], GAP_COLUMNS)
+    t, up, lo = b["t"], b["upper"], b["lower"]
+    mid = 0.5 * (up + lo)
+    if fig == 4:
+        return {"all four": (t, mid)}
+    apart = (b["runs"] >= 2) & ((up - lo) > APART_PX * PX_PCT[key])
+    above = mid >= 100.0
+    outer = np.where(above, up, lo)
+    inner = np.where(above, lo, up)
+    five, six = np.full(t.size, np.nan), np.full(t.size, np.nan)
+    five[apart], six[apart] = outer[apart], inner[apart]
+    ta, oa, ia = t[apart], outer[apart], inner[apart]
+    for j in np.flatnonzero(~apart):
+        near = np.abs(ta - t[j]) <= LOCAL_S
+        if not near.any():
+            five[j] = six[j] = mid[j]
+            continue
+        o = np.interp(t[j], ta[near], oa[near])
+        i = np.interp(t[j], ta[near], ia[near])
+        if abs(o - i) < APART_PX * PX_PCT[key]:
+            five[j] = six[j] = mid[j]
+        elif abs(mid[j] - o) < abs(mid[j] - i):
+            five[j] = mid[j]
+        else:
+            six[j] = mid[j]
+    return {
+        "5-DOF": (t[~np.isnan(five)], five[~np.isnan(five)]),
+        "6-DOF": (t[~np.isnan(six)], six[~np.isnan(six)]),
+    }
 
 
-def curves_5(key: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """`(t, outer, inner)` of Figure 5's two curves, over the columns where both are inked and
-    apart: the outer is the 5-DOF, the inner the 6-DOF."""
-    b = band(5, key)
-    apart = (b["runs"] >= 2) & ((b["upper"] - b["lower"]) > APART_PX * PX_PCT[key])
-    above = 0.5 * (b["upper"] + b["lower"]) >= 100.0
-    outer = np.where(above, b["upper"], b["lower"])
-    inner = np.where(above, b["lower"], b["upper"])
-    return b["t"][apart], outer[apart], inner[apart]
-
-
-def _panel(name: str, fig: int, key: str) -> tuple[np.ndarray, np.ndarray]:
+def gap(name: str, fig: int, key: str, curve: str) -> np.ndarray:
+    """Per column of Ballin's `curve`, how far response `name` is from it, % of trim."""
+    tb, v = his_curves(fig, key)[curve]
     t, ng, np_ = response(name, fig)
-    return t, (ng if key == "ng" else np_)
-
-
-def outside(name: str, fig: int, key: str) -> np.ndarray:
-    """How far, in % of trim, a response falls outside the panel's gap-filled band."""
-    tb, lo, up = filled(fig, key)
-    t, m = _panel(name, fig, key)
-    return _best(
-        t,
-        m,
-        tb,
-        (lo, up),
-        TIME_TOL_S[fig],
-        lambda v, g: np.maximum(0, np.maximum(g[0] - v, v - g[1])),
-    )
-
-
-def to_curve(name: str, key: str, which: str) -> np.ndarray:
-    """Distance, % of trim, from a response to Figure 5's outer or inner curve."""
-    tb, outer, inner = curves_5(key)
-    t, m = _panel(name, 5, key)
-    target = outer if which == "outer" else inner
-    return _best(t, m, tb, target, TIME_TOL_S[5], lambda v, g: np.abs(v - g))
+    return _best(t, ng if key == "ng" else np_, tb, v, TIME_TOL_S[fig])
 
 
 def rms(v: np.ndarray) -> float:
@@ -221,67 +223,72 @@ def test_the_input_sits_on_printed_tick_values(fig: int):
 
 def test_the_two_figures_share_one_input():
     """The same pulses, drawn twice: their step instants agree within the read error."""
-    gap = np.abs(steps(4)[0] - steps(5)[0])
-    assert gap.max() < max(TIME_TOL_S.values()), f"step instants differ by {gap} s"
+    diff = np.abs(steps(4)[0] - steps(5)[0])
+    assert diff.max() < max(TIME_TOL_S.values()), f"step instants differ by {diff} s"
 
 
-# ------------------------------------------------------------------------- Figure 4's band
+# --------------------------------------------------------------------- the pairs, one by one
 
 
-FIG4_BAND_RMS_PCT = {"ng": 0.011, "np": 0.027}
-"""Ours inside Figure 4's band, rms of the distance outside, % of trim: a characterization,
-1.25 times today's worst over our 5-DOF, 2-DOF, reduced-order and nonlinear responses."""
-OURS_IN_FIG4 = ("5-DOF", "2-DOF", "reduced", "nonlinear")
+PAIRS = (
+    (4, "all four", "5-DOF"),
+    (4, "all four", "2-DOF"),
+    (4, "all four", "reduced"),
+    (4, "all four", "nonlinear"),
+    (5, "5-DOF", "5-DOF"),
+    (5, "6-DOF", "6-DOF"),
+)
+"""Ballin's curve against ours: Figure 4's one line against each of our four, Figure 5's two
+curves against our two."""
+
+CURVE_RMS_PCT = {
+    "4 nonlinear": {"ng": 0.017, "np": 0.040},
+    "4 linear": {"ng": 0.029, "np": 0.055},
+    "5 5-DOF": {"ng": 0.012, "np": 0.036},
+    "5 6-DOF": {"ng": 0.041, "np": 0.045},
+}
+"""Ours against Ballin's curve, rms difference, % of trim: characterizations, 1.25 times
+today's worst in each group (Figure 4's three linear models share a bound)."""
 
 
-@pytest.mark.parametrize("name", ("ballin 5-DOF", "ballin 2-DOF", "ballin reduced"))
+def _bound(fig: int, ours: str, key: str) -> float:
+    group = "nonlinear" if ours == "nonlinear" else ("linear" if fig == 4 else ours)
+    return CURVE_RMS_PCT[f"{fig} {group}"][key]
+
+
+@pytest.mark.parametrize("fig,his,ours", PAIRS)
 @pytest.mark.parametrize("key", PANELS)
-def test_ballins_printed_hover_matrices_draw_figure_4(name: str, key: str):
-    """The identification (#80): his own Appendix B, at hover, lands in his figure."""
-    assert rms(outside(name, 4, key)) < FIG4_BAND_RMS_PCT[key], name
+def test_ours_follows_ballins_curve(fig: int, his: str, ours: str, key: str):
+    got = rms(gap(ours, fig, key, his))
+    assert got < _bound(fig, ours, key), f"Figure {fig} {his} vs our {ours} {key}: {got:.4f} %"
 
 
-@pytest.mark.parametrize("name", OURS_IN_FIG4)
+@pytest.mark.parametrize(
+    "fig,his,name",
+    (
+        (4, "all four", "ballin 5-DOF"),
+        (4, "all four", "ballin 2-DOF"),
+        (4, "all four", "ballin reduced"),
+        (5, "5-DOF", "ballin 5-DOF"),
+    ),
+)
 @pytest.mark.parametrize("key", PANELS)
-def test_ours_lands_in_figure_4s_band(name: str, key: str):
-    got = rms(outside(name, 4, key))
-    assert got < FIG4_BAND_RMS_PCT[key], f"our {name} {key}: {got:.4f} % of trim outside"
+def test_ballins_printed_hover_matrices_draw_his_curves(fig: int, his: str, name: str, key: str):
+    """The identification (#80): his own Appendix B, at hover, lands on his curves."""
+    assert rms(gap(name, fig, key, his)) < _bound(fig, "5-DOF", key), name
 
 
-FIG4_DECOY_MIN_PCT = 0.05
-"""The band test must be able to fail: our 6-DOF, which Figure 4 does not plot, lies outside
-it by several times the bound."""
-
-
-@pytest.mark.parametrize("key", PANELS)
-def test_figure_4s_band_rejects_the_heat_sink_model(key: str):
-    assert rms(outside("6-DOF", 4, key)) > FIG4_DECOY_MIN_PCT
-
-
-# ------------------------------------------------------------------------ Figure 5's curves
-
-
-FIG5_CURVE_RMS_PCT = {"5-DOF": {"ng": 0.008, "np": 0.039}, "6-DOF": {"ng": 0.041, "np": 0.047}}
-"""Our 5-DOF against Figure 5's outer curve and our 6-DOF against its inner one, rms over the
-columns where both are inked and apart, % of trim: a characterization, 1.25 times today's.
-The 6-DOF sits further off: ours is slightly more damped, and Appendix B's own heat-sink time
-constants (#31) barely change that."""
+DECOY_MIN_RATIO = 2.0
+"""The comparison must be able to fail: the wrong model sits at least this many times further
+from a curve than the right one."""
 
 
 @pytest.mark.parametrize("key", PANELS)
-def test_ballins_printed_5_dof_is_figure_5s_outer_curve(key: str):
-    assert rms(to_curve("ballin 5-DOF", key, "outer")) < FIG5_CURVE_RMS_PCT["5-DOF"][key]
-
-
-@pytest.mark.parametrize("name,which", (("5-DOF", "outer"), ("6-DOF", "inner")))
-@pytest.mark.parametrize("key", PANELS)
-def test_ours_lands_on_figure_5s_curves(name: str, which: str, key: str):
-    got = rms(to_curve(name, key, which))
-    assert got < FIG5_CURVE_RMS_PCT[name][key], f"our {name} {key}: {got:.4f} % of trim"
-
-
-@pytest.mark.parametrize("key", PANELS)
-def test_figure_5s_curves_tell_the_two_models_apart(key: str):
-    """Swapped, each model sits at least twice as far from the other's curve."""
-    for name, right, wrong in (("5-DOF", "outer", "inner"), ("6-DOF", "inner", "outer")):
-        assert rms(to_curve(name, key, wrong)) > 2.0 * rms(to_curve(name, key, right)), name
+def test_the_comparison_tells_the_models_apart(key: str):
+    """Our 6-DOF against Figure 4's line, and each of Figure 5's curves against the other
+    model, sit at least `DECOY_MIN_RATIO` times further off than the right pairing."""
+    assert rms(gap("6-DOF", 4, key, "all four")) > DECOY_MIN_RATIO * rms(
+        gap("5-DOF", 4, key, "all four")
+    )
+    for ours, right, wrong in (("5-DOF", "5-DOF", "6-DOF"), ("6-DOF", "6-DOF", "5-DOF")):
+        assert rms(gap(ours, 5, key, wrong)) > DECOY_MIN_RATIO * rms(gap(ours, 5, key, right))
