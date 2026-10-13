@@ -4,21 +4,21 @@
 # wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
 # shp: SHAFT HORSEPOWER (no unit printed), axis -200.0 to 2000.0
 # points: 14
-# shear corrected: left frame leans +19.93 px across the plot height, right +20.48 px; top frame -0.37 px across the width, bottom +2.65 px. The page is sheared; see `fit_frames`.
-# read error: after calibration the axis maps predict a tick they were not shown to rms 0.3898 in wf_pph and 1.377 in shp, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
+# shear corrected: left frame leans +19.87 px across the plot height, right +20.47 px; top frame -0.44 px across the width, bottom +2.61 px. The page is sheared; see `fit_frames`.
+# read error: after calibration the axis maps predict a tick they were not shown to rms 0.3837 in wf_pph and 1.376 in shp, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 wf_pph,shp
-201.3511,106.3544
-233.0769,181.8091
-285.5780,356.4549
-315.3859,459.6928
-412.0140,739.9498
-444.6125,835.0072
-481.4466,939.4899
-523.0365,1054.1603
-567.4413,1183.4991
-622.4951,1338.3208
-683.7675,1503.2810
-780.3774,1718.3863
-806.5219,1766.2346
-832.4125,1811.8961
+201.3589,106.3661
+233.0779,181.7996
+285.5726,356.4161
+315.3791,459.6466
+412.0102,739.9078
+444.6112,834.9720
+481.4484,939.4635
+523.0415,1054.1434
+567.4489,1183.4908
+622.5035,1338.3158
+683.7725,1503.2659
+780.3638,1718.3251
+806.4997,1766.1564
+832.3803,1811.7991

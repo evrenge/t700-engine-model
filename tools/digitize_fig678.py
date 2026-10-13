@@ -29,7 +29,7 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from figure.axis import blend_value, choose_anchored, fit_anchored  # noqa: E402
-from figure.frame import band_line, longest_run, longest_run_columns, make_sv  # noqa: E402
+from figure.frame import fit_edges, longest_run, longest_run_columns, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig678")
@@ -128,10 +128,12 @@ def find_frame(ink: np.ndarray) -> tuple[int, int, int, int]:
 
 
 FRAME_FIT_HALF_BAND_PX = 30
-"""Half-width of the first-pass search band around a nominal frame position, in pixels.
+"""Half-width of the window `frame.fit_edges` traces each frame line in, about its nominal
+position from `find_frame`, in pixels.
 
 Wide enough to contain the whole lean (15-19 px end to end on pp.41-42) plus the line's own
-thickness; a second pass narrows to 6 px about the first fit."""
+thickness; `fit_edges` keeps only the single narrow run per position and rejects samples
+more than 2 px off its straight fit, so a tick or a glyph inside the window is dropped."""
 
 
 def fit_frames(ink: np.ndarray, frame: tuple[int, int, int, int]) -> dict:
@@ -147,18 +149,18 @@ def fit_frames(ink: np.ndarray, frame: tuple[int, int, int, int]) -> dict:
     `x = a*y + b`.
     """
     left, top, right, bottom = frame
-    out = {}
-    for name, nominal, along, lo, hi in (
-        ("top", top, 1, left + 5, right - 4),
-        ("bottom", bottom, 1, left + 5, right - 4),
-        ("left", left, 0, top + 5, bottom - 4),
-        ("right", right, 0, top + 5, bottom - 4),
-    ):
-        # a pass short of 50 samples keeps the previous pass's line, or the nominal one
-        out[name], _, _ = band_line(
-            ink, along, nominal, lo, hi, 4, (FRAME_FIT_HALF_BAND_PX, 6), 10, 50
-        )
-    return out
+    h = FRAME_FIT_HALF_BAND_PX
+    fc, _ = fit_edges(
+        ink,
+        [
+            ("top", 1, top - h, top + h + 1, left + 5, right - 4),
+            ("bottom", 1, bottom - h, bottom + h + 1, left + 5, right - 4),
+            ("left", 0, left - h, left + h + 1, top + 5, bottom - 4),
+            ("right", 0, right - h, right + h + 1, top + 5, bottom - 4),
+        ],
+        verbose=False,
+    )
+    return {nm: (float(c[0]), float(c[1])) for nm, c in fc.items()}
 
 
 TICK_DEPTH_PX = 14

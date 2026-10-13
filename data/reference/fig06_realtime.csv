@@ -4,36 +4,36 @@
 # wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
 # ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
 # points: 29
-# shear corrected: left frame leans -7.57 px across the plot height, right -13.00 px; top frame +20.77 px across the width, bottom +23.51 px. The page is sheared; see `fit_frames`.
-# read error: after calibration the axis maps predict a tick they were not shown to rms 0.2843 in wf_pph and 0.02474 in ng_pct, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
+# shear corrected: left frame leans -7.45 px across the plot height, right -13.03 px; top frame +20.56 px across the width, bottom +23.33 px. The page is sheared; see `fit_frames`.
+# read error: after calibration the axis maps predict a tick they were not shown to rms 0.2762 in wf_pph and 0.0242 in ng_pct, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 wf_pph,ng_pct
-136.2644,69.9422
-142.1311,70.9563
-143.6968,71.9796
-147.8786,72.9774
-152.3829,73.9846
-157.0530,75.0010
-162.3417,76.0145
-167.4053,77.0133
-173.0822,78.0276
-180.3285,79.0161
-184.5589,80.0325
-217.2281,82.0212
-231.9120,83.0143
-248.6098,84.9690
-264.3641,84.9892
-284.8151,85.9897
-309.3609,86.9862
-329.2276,87.9717
-348.8377,88.9615
-377.8773,89.9715
-407.5218,90.9788
-438.4821,91.9803
-471.2760,92.9940
-503.8571,93.9897
-543.0284,94.9774
-642.7683,96.9466
-705.5827,97.9664
-754.1959,98.9918
-806.1646,100.0058
+136.2485,69.9426
+142.1061,70.9564
+143.6702,71.9794
+147.8460,72.9770
+152.3441,73.9841
+157.0080,75.0004
+162.2899,76.0139
+167.3473,77.0126
+173.0174,78.0270
+180.2554,79.0156
+184.4817,80.0321
+217.1210,82.0211
+231.7956,83.0144
+248.4861,84.9694
+264.2350,84.9896
+284.6831,85.9903
+309.2301,86.9871
+329.1011,87.9727
+348.7183,88.9626
+377.7723,89.9728
+407.4358,90.9802
+438.4194,91.9817
+471.2405,92.9955
+503.8496,93.9911
+543.0543,94.9786
+642.8613,96.9473
+705.6909,97.9666
+754.2933,98.9914
+806.2232,100.0046
