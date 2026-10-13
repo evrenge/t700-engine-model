@@ -1897,5 +1897,23 @@
    },
    "torque rms vs his gen hel": 1.005430817991079
   }
+ },
+ "gen_hel_15": {
+  "rms vs his gen hel": {
+   "nr": 0.8911294164477422
+  },
+  "rms with his load held": {
+   "nr": 1.6423479678546518
+  },
+  "rms vs flight test": {
+   "nr": 1.4814928844452246
+  },
+  "torque ratio": 67.95806079498918,
+  "our trim": {
+   "ng_pct": 89.73596328835846,
+   "q_pt_ftlbf": 150.25943705352586,
+   "collective_pct": 38.7332027080447
+  },
+  "collective scale pct per in": 9.971373662109519
  }
 }

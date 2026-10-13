@@ -252,6 +252,11 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
                 got.append(float(lines[j]))
             if len(set(got)) < n_panels:
                 continue
+            # some top needs a frame below it, as the height below does: on pdf p.53 the
+            # bottoms form as good a progression as the tops
+            lo, hi = 0.5 * pitch, 0.95 * pitch
+            if not any(np.any((lines > g + lo) & (lines < g + hi)) for g in got):
+                continue
             if best is None or err < best[0]:
                 best = (err, got, pitch)
     if best is None:

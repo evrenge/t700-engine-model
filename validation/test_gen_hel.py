@@ -65,10 +65,10 @@ INPUT = {
 }
 """Each figure's pilot input panel and its printed range [pdf pp.48, 49, 51, 52]. The lateral
 cyclic and the pedals are drawn only; the collective also drives our fuel control."""
-TRIM_BEFORE_S = {11: 3.2, 12: 2.2, 13: 1.2, 14: 2.6}
-"""Every panel is flat until the input moves (about 3.3, 2.3, 1.25 and 2.65 s on Figures 11-14):
-the trim is the median before."""
-TIME_TOL_S = {11: 0.0298, 12: 0.0203, 13: 0.0204, 14: 0.0353}
+TRIM_BEFORE_S = {11: 3.2, 12: 2.2, 13: 1.2, 14: 2.6, 15: 1.2}
+"""Every panel is flat until the input moves (about 3.3, 2.3, 1.25, 2.65 and 1.3 s on Figures
+11-15): the trim is the median before."""
+TIME_TOL_S = {11: 0.0298, 12: 0.0203, 13: 0.0204, 14: 0.0353, 15: 0.0152}
 """Each figure's time read error: its worst interior major tick over the five panels, as the
 digitizer writes it in each CSV header."""
 
@@ -90,11 +90,21 @@ def _np_trim_rpm(fig: int) -> float:
 
 @functools.cache
 def trim_fuel_pph(fig: int) -> float:
-    """Our fuel flow, lbm/hr per engine, at his printed NG and rotor speed on a standard day."""
-    target = his_trim(fig, "ng") / 100.0 * engine_c.NG_DES
+    """Our fuel flow, lbm/hr per engine, at his printed NG and rotor speed on a standard day;
+    on Figure 15, which prints no NG, at the torque `fig15_trim_torque`."""
+    if fig == 15:
+        target = fig15_trim_torque()
 
-    def miss(wf_pph: float) -> float:
-        return trim.solve(wf_pps_from_pph(wf_pph), _np_trim_rpm(fig), AMB).state.ng_rpm - target
+        def miss(wf_pph: float) -> float:
+            r = trim.solve(wf_pps_from_pph(wf_pph), _np_trim_rpm(fig), AMB)
+            return r.frame.q_pt_ftlbf - target
+
+    else:
+        target = his_trim(fig, "ng") / 100.0 * engine_c.NG_DES
+
+        def miss(wf_pph: float) -> float:
+            r = trim.solve(wf_pps_from_pph(wf_pph), _np_trim_rpm(fig), AMB)
+            return r.state.ng_rpm - target
 
     a, b = 350.0, 550.0
     fa, fb = miss(a), miss(b)
@@ -102,6 +112,26 @@ def trim_fuel_pph(fig: int) -> float:
         a, fa, b = b, fb, b - fb * (b - a) / (fb - fa)
         fb = miss(b)
     return b
+
+
+@functools.cache
+def torque_ratio() -> float:
+    """His total torque at the rotor over our engine's torque, both engines, at his trims of
+    Figures 11-14, mean: his torque on our engine's scale, since the gearbox ratio is not
+    printed."""
+    return float(
+        np.mean(
+            [1000.0 * his_trim(f, "torque") / (2.0 * our_trim(f).frame.q_pt_ftlbf) for f in FIGS]
+        )
+    )
+
+
+@functools.cache
+def fig15_trim_torque() -> float:
+    """Figure 15's trim torque per engine, ft*lbf: his main-rotor torque on our scale
+    (`torque_ratio`). The tail rotor and the accessories, which the report does not plot, are
+    left out (#81)."""
+    return 1000.0 * his_trim(15, "mr_torque") / (2.0 * torque_ratio())
 
 
 @functools.cache
@@ -258,9 +288,9 @@ RIPPLE_S = 0.12
 """His rotor speed is differentiated, and his torque smoothed, over this window: two periods of
 the 17 Hz ripple in his rotor speed, so the rebuilt load carries his rotor's slow demand and not
 the ripple."""
-SLOPE_TRIM = {11: 2, 12: 2, 13: 1, 14: 1}
+SLOPE_TRIM = {11: 2, 12: 2, 13: 1, 14: 1, 15: 2}
 """The Appendix B trim whose load slope (`DQ_REQ_DNP`) each figure takes: hover for the hover
-cases, level flight at 80 kt for 55 and 90 kt [pdf p.67]."""
+cases, level flight at 80 kt for 55, 87 and 90 kt [pdf p.67]."""
 LOAD_PANELS = ("nr", "ng", "fuel")
 """What the second test predicts: his torque is its input."""
 J_TOTAL = engine_c.J_PT + engine_c.J_LOAD_UH60A
@@ -283,14 +313,29 @@ def demand(fig: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     our frame grid: `(t, q_req, np_his)`.
 
     `q_req = Q_eng - J_TOTAL * d(omega)/dt`, his total torque scaled to ours at the trim, since
-    the gearbox ratio is not printed."""
+    the gearbox ratio is not printed. Figure 15 prints the main rotor's torque instead, which is
+    the demand itself, Q_mr of Q_req = Q_mr + Q_tr + Q_acc [pdf p.28]: there the tail rotor and
+    accessories are taken in proportion to it (#81)."""
+    key = "mr_torque" if fig == 15 else "torque"
     tn, nr = his(fig, "nr")
-    tq, q = his(fig, "torque")
+    tq, q = his(fig, key)
     t = np.arange(max(tn[0], tq[0]), min(tn[-1], tq[-1]), DT)
-    q_eng = our_trim(fig).frame.q_pt_ftlbf * _smooth(tq, q, t) / his_trim(fig, "torque")
+    q_scaled = our_trim(fig).frame.q_pt_ftlbf * _smooth(tq, q, t) / his_trim(fig, key)
     np_his = _smooth(tn, nr, t) / 100.0 * engine_c.NP_DES
+    if fig == 15:
+        return t, q_scaled, np_his
     domega = _smooth(tn, nr, t, deriv=1) / 100.0 * engine_c.NP_DES * RPM_TO_RAD_PER_SEC
-    return t, q_eng - J_TOTAL * domega, np_his
+    return t, q_scaled - J_TOTAL * domega, np_his
+
+
+@functools.cache
+def fig15_scale() -> float:
+    """Figure 15's collective scale, % of maximum per inch: from his trim to "the full-down
+    position" [pdf p.50], 0 % of maximum. Full down, his trace runs on the panel's frame, which
+    the digitizer keeps clear of, so its floor reads a few tenths of an inch high: the floor,
+    not 0 in., is full down."""
+    _t, c = his(15, "collective")
+    return collective(15) / (his_trim(15, "collective") - float(c.min()))
 
 
 @functools.cache
@@ -305,7 +350,8 @@ def load_replay(fig: int, held: bool = False) -> dict[str, np.ndarray]:
     np_trim = r.state.np_rpm
     q_trim = r.frame.q_pt_ftlbf
     slope = DQ_REQ_DNP[SLOPE_TRIM[fig]]
-    x0, scale = collective(fig), scale_of(fig)
+    x0 = collective(fig)
+    scale = fig15_scale() if fig == 15 else scale_of(fig)
     pilot = loop.Pilot(xcpc_pct=x0, pas_deg=100.0, pcprf_pct=his_trim(fig, "nr"))
     s = loop.seed(r, pilot, AMB)
     at_trim = lambda v: q_trim + slope * (v - np_trim)  # noqa: E731
@@ -375,3 +421,20 @@ def test_his_load_drives_the_second_test(fig: int, key: str):
     """With the load held at the trim, the second test sits at least `DECOY_MIN_RATIO` times
     further from his line."""
     assert rms(gap_load(fig, key, held=True)) > DECOY_MIN_RATIO * rms(gap_load(fig, key))
+
+
+FIG15_NR_RMS = 1.12
+"""Figure 15 [pdf p.53], the second test: our rotor speed against his Gen Hel line, rms, %. Its
+main-rotor torque is the load and its collective drives ours, down to "the full-down position"
+[pdf p.50]; it prints no NG or fuel to compare. A characterization, 1.25 times today's value:
+our fuel control's collective anticipation cuts the power sooner than Gen Hel's, so his rotor
+overspeeds by half a percent where ours does not."""
+
+
+def test_figure_15_rotor_speed_from_his_main_rotor_torque():
+    got = rms(gap_load(15, "nr"))
+    assert got < FIG15_NR_RMS, f"Figure 15 rotor speed: rms {got:.3f} %"
+
+
+def test_figure_15_load_drives_it():
+    assert rms(gap_load(15, "nr", held=True)) > DECOY_MIN_RATIO * rms(gap_load(15, "nr"))

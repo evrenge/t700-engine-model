@@ -76,6 +76,18 @@ FIGURES = {
         "t_major": 1.0,
         "legend": {"collective": (None, 4.0)},
     },
+    15: {
+        "page": 53,
+        "ranges": [
+            ("collective", "COLLECTIVE, in.", 0.0, 10.0),
+            ("accel", "NORMAL ACCELERATION, g", -1.0, 2.0),
+            ("mr_torque", "MAIN ROTOR TORQUE, ft-lb X 10^-3", 0.0, 30.0),
+            ("nr", "MAIN ROTOR SPEED, %", 96.0, 104.0),
+        ],
+        "t_range": (0.0, 6.0),
+        "t_major": 1.0,
+        "legend": {"collective": (6.0, None)},
+    },
     14: {
         "page": 52,
         "ranges": [

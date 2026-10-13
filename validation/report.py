@@ -1031,6 +1031,78 @@ def gen_hel_load() -> dict:
     return out
 
 
+def gen_hel_15() -> dict:
+    """Figure 15 [pdf p.53], the second test: his main-rotor torque and collective in, our rotor
+    speed out (`test_gen_hel`, #81)."""
+    import test_gen_hel as g
+
+    r = g.our_trim(15)
+    out = {
+        "rms vs his gen hel": {"nr": g.rms(g.gap_load(15, "nr"))},
+        "rms with his load held": {"nr": g.rms(g.gap_load(15, "nr", held=True))},
+        "rms vs flight test": {"nr": g.rms(g.gap_load(15, "nr", "test"))},
+        "torque ratio": g.torque_ratio(),
+        "our trim": {
+            "ng_pct": 100.0 * r.state.ng_rpm / c.NG_DES,
+            "q_pt_ftlbf": r.frame.q_pt_ftlbf,
+            "collective_pct": g.collective(15),
+        },
+        "collective scale pct per in": g.fig15_scale(),
+    }
+    fig, axes = plt.subplots(4, 1, figsize=fs(8.0, 10.0), sharex=True)
+    t_l, q_req, _np = g.demand(15)
+    L = g.load_replay(15)
+    rows = (
+        ("collective", "collective, in."),
+        ("mr_torque", "main rotor torque, % of trim"),
+        ("nr", "main rotor speed, %"),
+        ("ng", "gas generator speed, %"),
+    )
+    for ax, (key, ylabel) in zip(axes, rows, strict=True):
+        if key != "ng":
+            for line, sty, colr, lab in (
+                ("gen_hel", "-", BALLIN, "Ballin, Gen Hel"),
+                ("test", "--", MUTED, "flight test"),
+            ):
+                t, v = g.his(15, key, line)
+                if key == "mr_torque":
+                    v = 100.0 * v / g.his_trim(15, key, line)
+                ax.plot(t, v, sty, color=colr, lw=1.1 if line == "gen_hel" else 0.9, label=lab)
+        if key == "mr_torque":
+            ax.plot(t_l, 100.0 * q_req / q_req[0], "-", color=OURS, lw=1.1, label="ours")
+        if key == "nr":
+            ax.plot(L["t"], L["nr"], "-", color=OURS, lw=1.1)
+        if key == "ng":
+            ax.plot(L["t"], L["ng"], "-", color=OURS, lw=1.1)
+        note = {
+            "collective": f"his input: our collective follows it, {g.fig15_scale():.1f} % of "
+            "maximum per inch, to full down",
+            "mr_torque": "his main-rotor torque, averaged over two ripple periods: our load",
+            "nr": "predicted: his load in, our rotor speed out",
+            "ng": "ours only: Figure 15 prints no NG",
+        }[key]
+        y_note = 0.06 if key == "mr_torque" else 0.88
+        ax.text(0.01, y_note, note, transform=ax.transAxes, fontsize=7, color=MUTED)
+        title = (
+            "Figure 15, pdf p.53: a large collective input at 87 kt" if key == "collective" else ""
+        )
+        _style(ax, "time, s" if key == "ng" else "", ylabel, title)
+    handles, labels = axes[1].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper right",
+        bbox_to_anchor=(0.995, 0.998),
+        ncol=2,
+        frameon=False,
+        fontsize=7,
+        labelcolor=MUTED,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.97))
+    save(fig, "figure-15-load-replay")
+    return out
+
+
 def _render(data: dict) -> None:
     print("figures 6-8 ...", flush=True)
     data["steady"] = steady_sweeps()
@@ -1072,6 +1144,7 @@ def _render(data: dict) -> None:
     data["gen_hel"] = gen_hel()
     print("gen hel, the second test ...", flush=True)
     data["gen_hel_load"] = gen_hel_load()
+    data["gen_hel_15"] = gen_hel_15()
 
 
 # ============================================ the model's own behaviour, with no reference
