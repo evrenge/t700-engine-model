@@ -1,56 +1,56 @@
 # source: TM-100991 pdf p.46, Figure 10, panel PCNG
 # quantity: PCNG vs time, GE reference standard model data (+ markers) -- the hardware reference Ballin was himself validating against
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig910.py
-# t_s: time, seconds (0 to 5.0). The vertical frames are fitted over THIS panel's rows: left column 489.47 (slope -2.27 m px/row), right 2144.77 (slope -10.54), width 1655.30 px against the page-wide 1669. The page is skewed; see `Panel.left_slope`.
+# t_s: time, seconds (0 to 5.0). The vertical frames are fitted over THIS panel's rows: left column 489.38 (slope -1.93 m px/row), right 2144.55 (slope -9.84), width 1655.17 px against the page-wide 1669. The page is skewed; see `Panel.left_slope`.
 # value: PCNG, axis range 60.0 to 100.0, no unit printed on the figure
 # points: 45
-# x tick check: worst interior major tick off by 0.0067 s
-# frame tilt corrected: top +12.43 px, bottom +12.88 px across the panel (+3.84 % of panel height). The page is skewed; see `frame_tilt`.
+# x tick check: worst interior major tick off by 0.0068 s
+# frame tilt corrected: top +12.24 px, bottom +12.71 px across the panel (+3.79 % of panel height). The page is skewed; see `frame_tilt`.
 # sample lattice: pitch 33.07 px = 0.0999 s
 # NOT transcribed. Values carry read error.
 t_s,value
-0.09973,89.64899
-0.19885,89.69391
-0.30217,89.60313
-0.40620,89.71859
-0.50442,89.59028
-0.60531,88.21698
-0.70539,86.29876
-0.80624,86.33131
-0.90201,84.57974
-1.00248,84.05390
-1.10344,83.10796
-1.20090,82.54038
-1.30130,81.85787
-1.40206,81.54411
-1.49800,81.04912
-1.59875,80.80958
-1.69976,80.30119
-1.80017,80.08626
-1.89829,79.92615
-1.99813,79.40718
-2.09956,79.36633
-2.19644,78.83075
-2.29779,78.55976
-2.39885,78.61870
-2.49449,77.80669
-2.59456,77.65724
-2.69426,77.29892
-2.79395,77.35201
-2.89340,77.21100
-2.99320,77.08075
-3.09623,76.42781
-3.19538,76.48802
-3.29824,76.19403
-3.40161,76.05114
-3.50158,75.37424
-3.60245,75.38179
-3.70356,74.85261
-3.80288,74.59653
-3.90177,74.49528
-4.00094,74.03006
-4.10110,73.96855
-4.20016,73.60393
-4.30009,73.58498
-4.40024,73.16119
-4.50003,72.98879
+0.09991,89.66197
+0.19904,89.70647
+0.30237,89.61520
+0.40640,89.73024
+0.50462,89.60145
+0.60552,88.22725
+0.70558,86.30795
+0.80643,86.34007
+0.90219,84.58750
+1.00266,84.06106
+1.10361,83.11437
+1.20107,82.54619
+1.30147,81.86302
+1.40223,81.54873
+1.49817,81.05317
+1.59892,80.81312
+1.69993,80.30413
+1.80034,80.08870
+1.89846,79.92812
+1.99830,79.40856
+2.09972,79.36727
+2.19661,78.83111
+2.29796,78.55961
+2.39902,78.61814
+2.49465,77.80548
+2.59472,77.65555
+2.69442,77.29670
+2.79411,77.34939
+2.89357,77.20792
+2.99337,77.07720
+3.09640,76.42363
+3.19555,76.48345
+3.29841,76.18893
+3.40178,76.04557
+3.50174,75.36805
+3.60261,75.37517
+3.70372,74.84542
+3.80304,74.58885
+3.90192,74.48716
+4.00109,74.02139
+4.10125,73.95945
+4.20031,73.59431
+4.30024,73.57494
+4.40038,73.15061
+4.50018,72.97776
