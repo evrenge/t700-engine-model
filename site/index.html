@@ -378,13 +378,13 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <thead><tr><th scope="col">Manoeuvre</th><th scope="col">NP range, rpm</th>
       <th scope="col">NP settled</th><th scope="col">Wf range, lbm/hr</th>
       <th scope="col">Wf settled</th><th scope="col">limit branch used</th></tr></thead>
-    <tbody><tr><td>15 % load step</td><td class="mono">20,700 &ndash; 20,900</td><td class="mono">20,896</td><td class="mono">476 &ndash; 554</td><td class="mono">522</td><td class="mono small">droop</td></tr><tr><td>collective 52.75 -> 70 %</td><td class="mono">20,891 &ndash; 21,415</td><td class="mono">20,896</td><td class="mono">388 &ndash; 684</td><td class="mono">476</td><td class="mono small">droop</td></tr><tr><td>speed reference 100 -> 102 %</td><td class="mono">20,891 &ndash; 21,408</td><td class="mono">21,314</td><td class="mono">476 &ndash; 670</td><td class="mono">504</td><td class="mono small">droop</td></tr></tbody>
+    <tbody><tr><td>15 % load step</td><td class="mono">20,685 &ndash; 20,901</td><td class="mono">20,896</td><td class="mono">476 &ndash; 564</td><td class="mono">522</td><td class="mono small">droop</td></tr><tr><td>collective 52.75 -> 70 %</td><td class="mono">20,890 &ndash; 21,438</td><td class="mono">20,898</td><td class="mono">373 &ndash; 682</td><td class="mono">476</td><td class="mono small">droop</td></tr><tr><td>speed reference 100 -> 102 %</td><td class="mono">20,889 &ndash; 21,438</td><td class="mono">21,315</td><td class="mono">472 &ndash; 666</td><td class="mono">497</td><td class="mono small">droop</td></tr></tbody>
   </table></div>
   <div class="note-box"><h3>The loop settles to a cycle, not a point</h3>
   <p>The NG speed sensor&rsquo;s printed 0.05 %NG hysteresis band sustains a limit cycle: NP
-  oscillates 7.6 to
-  16.4&nbsp;rpm peak to peak at the three trims and does
-  not decay. Every closed-loop number quoted here is therefore a <strong>mean over whole
+  oscillates 13.0, 12.7
+  and 16.3&nbsp;rpm peak to peak at hover, level flight and
+  descent, and does not decay. Every closed-loop number quoted here is therefore a <strong>mean over whole
   cycles</strong>; a terminal sample would depend on where the run happens to stop.</p></div>
 </section>
 
@@ -586,7 +586,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   <div class="scroll"><table>
     <thead><tr><th scope="col">Comparison</th><th scope="col">rms %</th>
       <th scope="col">mean %</th><th scope="col">worst %</th><th scope="col"></th></tr></thead>
-    <tbody><tr><th scope="row">Table B.1, the printed engine state<span class="sub">21 numbers</span></th><td class="mono">0.222</td><td class="mono">-0.087</td><td class="mono strong">-0.806</td><td class="note">worst SHP &minus;0.81 % at descent</td></tr><tr><th scope="row">Table 1, printed eigenvalues<span class="sub">27 modes</span></th><td class="mono">1.937</td><td class="mono">0.558</td><td class="mono strong">4.701</td><td class="note">worst +4.7 % on the 2-DOF NG mode at hover</td></tr><tr><th scope="row">Appendix B, matrix A<span class="sub">158 non-zero</span></th><td class="mono">6.262</td><td class="mono">-0.354</td><td class="mono strong">-33.749</td><td class="note">every non-zero printed element, all twelve figures</td></tr><tr><th scope="row">Appendix B, fuel column b<span class="sub">42 non-zero</span></th><td class="mono">6.405</td><td class="mono">-1.330</td><td class="mono strong">24.299</td><td class="note">the 6-DOF half carries the heat sink's deficit</td></tr><tr><th scope="row">Closed loop against Table B.1<span class="sub">15 numbers</span></th><td class="mono">0.081</td><td class="mono">0.020</td><td class="mono strong">0.245</td><td class="note">fuel flow is an <em>output</em> here, not an input</td></tr></tbody>
+    <tbody><tr><th scope="row">Table B.1, the printed engine state<span class="sub">21 numbers</span></th><td class="mono">0.222</td><td class="mono">-0.087</td><td class="mono strong">-0.806</td><td class="note">worst SHP &minus;0.81 % at descent</td></tr><tr><th scope="row">Table 1, printed eigenvalues<span class="sub">27 modes</span></th><td class="mono">1.937</td><td class="mono">0.558</td><td class="mono strong">4.701</td><td class="note">worst +4.7 % on the 2-DOF NG mode at hover</td></tr><tr><th scope="row">Appendix B, matrix A<span class="sub">158 non-zero</span></th><td class="mono">6.262</td><td class="mono">-0.354</td><td class="mono strong">-33.749</td><td class="note">every non-zero printed element, all twelve figures</td></tr><tr><th scope="row">Appendix B, fuel column b<span class="sub">42 non-zero</span></th><td class="mono">6.405</td><td class="mono">-1.330</td><td class="mono strong">24.299</td><td class="note">the 6-DOF half carries the heat sink's deficit</td></tr><tr><th scope="row">Closed loop against Table B.1<span class="sub">15 numbers</span></th><td class="mono">0.080</td><td class="mono">0.011</td><td class="mono strong">0.246</td><td class="note">fuel flow is an <em>output</em> here, not an input</td></tr></tbody>
   </table></div>
   <div class="legend">
     <span><i class="swatch" style="background:var(--ours)"></i>our model</span>

@@ -6,8 +6,8 @@ the printed state with fuel flow as an output. The engine (body, Appendix A) and
 (Appendix C) are independent halves, so this is a cross-check, not a restatement.
 
 The load is not speed-independent: `dQreq/dNP = 0` would leave the governor alone holding NP.
-The slope is recovered from Appendix B in ratio to `|dQ_PT/dNP|` (open question #6), and the
-load inertia `J_LOAD_UH60A` the same way; both are the airframe's, cited, not invented.
+The slope `DQ_REQ_DNP` and the load inertia `J_LOAD_UH60A` are the ones the linear models use,
+both recovered from Appendix B (open question #6): the airframe's, cited, not invented.
 """
 
 from __future__ import annotations
@@ -20,8 +20,9 @@ import pytest
 from t700 import constants as engine_c
 from t700 import maps, trim
 from t700.control import loop
-from t700.engine import Ambient, State, frame
+from t700.engine import Ambient
 from t700.units import shp_from_torque, wf_pps_from_pph
+from test_all_dof_models import DQ_REQ_DNP
 from test_trim_points import CASES, STATE_B1
 
 AMB = Ambient(14.696, 518.67)
@@ -44,11 +45,11 @@ terminal sample, which is one phase of the limit cycle (open question #61). The 
 descent fuel flow, is partly inherited: the loop trims fuel until the torque matches, so the
 open-loop descent shaft-power error shows up in fuel flow instead."""
 
-# name, Wf lbm/hr, NG rpm, Ps3 psia, shaft torque ft*lbf, dQreq/dNP ratio (#6), shp --
-# Table B.1 from `test_trim_points`, the ratio from open question #6
+# name, Wf lbm/hr, NG rpm, Ps3 psia, shaft torque ft*lbf, dQreq/dNP ft*lbf/rpm, shp --
+# Table B.1 from `test_trim_points`, the load slope from Appendix B (open question #6)
 TRIMS = [
-    (b.name, b.wf_pph, b.ng_rpm, STATE_B1[b.name]["ps3"], b.q_shaft_ftlbf, ratio, b.shp)
-    for b, ratio in zip(CASES, (1.78, 1.45, 1.18), strict=True)
+    (b.name, b.wf_pph, b.ng_rpm, STATE_B1[b.name]["ps3"], b.q_shaft_ftlbf, DQ_REQ_DNP[n], b.shp)
+    for n, b in enumerate(CASES, start=1)
 ]
 
 XCPC_PCT = {"hover": 52.75, "level 80 kt": 35.87, "descent 80 kt": 23.01}
@@ -57,22 +58,6 @@ XCPC_PCT = {"hover": 52.75, "level 80 kt": 35.87, "descent 80 kt": 23.01}
 The settled state barely depends on it (the governor absorbs it), but the path does: at the
 hover collective, the level and descent runs spike fuel flow and leave `f1`'s data on the way
 there."""
-
-
-def _dqpt_dnp(result, wf_pps: float) -> float:
-    """dQ_PT/dNP by central difference, the report's own method for a derivative."""
-    h = 0.002 * result.state.np_rpm
-    q = []
-    for d in (-h, h):
-        st = State(
-            result.state.ng_rpm,
-            result.state.np_rpm + d,
-            result.state.p3_psia,
-            result.state.p41_psia,
-            result.state.p45_psia,
-        )
-        q.append(frame(st, wf_pps, AMB).q_pt_ftlbf)
-    return (q[1] - q[0]) / (2.0 * h)
 
 
 CYCLE_FRAMES = 1500
@@ -89,18 +74,17 @@ def mean_over_cycle(values) -> float:
     return float(np.mean(np.asarray(values)[-CYCLE_FRAMES:]))
 
 
-def closed_loop(wf_pph, q_shaft, ratio, n, pilot_of, load_scale_of=None):
+def closed_loop(wf_pph, q_shaft, dq_req_dnp, n, pilot_of, load_scale_of=None):
     """Close the loop from the open-loop trim at `wf_pph` and step it `n` frames.
 
     The one runner for every closed-loop scenario here and in `report.py`. The load is
-    `q_shaft * load_scale_of(i) + slope * (NP - NP_TRIM_RPM)`, `slope` being the trim's own
-    `|dQ_PT/dNP|` times `ratio` (open question #6); `pilot_of(i)` is the pilot on frame `i`,
+    `q_shaft * load_scale_of(i) + dq_req_dnp * (NP - NP_TRIM_RPM)`, the slope the linear
+    models use (open question #6); `pilot_of(i)` is the pilot on frame `i`,
     and the loop is seeded with frame 0's. Yields `(i, state, ecu_out, hmu_out, frame_out)`
     after each frame, so each caller records what it needs.
     """
     wf = wf_pps_from_pph(wf_pph)
     r = trim.solve(wf, engine_c.NP_DES, AMB)
-    slope = abs(_dqpt_dnp(r, wf)) * ratio
     s = None
     for i in range(n):
         pilot = pilot_of(i)
@@ -112,19 +96,19 @@ def closed_loop(wf_pph, q_shaft, ratio, n, pilot_of, load_scale_of=None):
             pilot,
             AMB,
             dt=DT,
-            load=lambda v, k=k: q_shaft * k + slope * (v - NP_TRIM_RPM),
+            load=lambda v, k=k: q_shaft * k + dq_req_dnp * (v - NP_TRIM_RPM),
             j_load=engine_c.J_LOAD_UH60A,
             heat_sink=True,
         )
         yield i, s, ecu_o, hmu_o, fr
 
 
-def _settle_run(wf_pph, q_shaft, ratio, xcpc_pct, pcprf_pct, n):
+def _settle_run(wf_pph, q_shaft, dq_req_dnp, xcpc_pct, pcprf_pct, n):
     """One held-pilot run: the final `(state, ecu_out, hmu_out, frame_out)` and the history
     of the five quantities Table B.1 prints."""
     pilot = loop.Pilot(xcpc_pct=xcpc_pct, pas_deg=100.0, pcprf_pct=pcprf_pct)
     hist: dict[str, list[float]] = {k: [] for k in ("NG", "NP", "Wf", "Ps3", "shp")}
-    for out in closed_loop(wf_pph, q_shaft, ratio, n, lambda _i: pilot):
+    for out in closed_loop(wf_pph, q_shaft, dq_req_dnp, n, lambda _i: pilot):
         _i, st, _e, h, fr = out
         hist["NG"].append(st.engine.ng_rpm)
         hist["NP"].append(st.engine.np_rpm)
@@ -139,7 +123,7 @@ _settled = functools.cache(_settle_run)
 
 
 def settle(
-    wf_pph, q_shaft, ratio, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, name=None, fresh=False
+    wf_pph, q_shaft, dq_req_dnp, xcpc_pct=None, n=SETTLE_FRAMES, pcprf=None, name=None, fresh=False
 ):
     """Close the loop from the open-loop trim and run it to steady state.
 
@@ -154,28 +138,28 @@ def settle(
     if xcpc_pct is None:
         xcpc_pct = XCPC_PCT[name] if name in XCPC_PCT else 52.75
     run = _settle_run if fresh else _settled
-    return run(wf_pph, q_shaft, ratio, xcpc_pct, PCPRF_PCT if pcprf is None else pcprf, n)[0]
+    return run(wf_pph, q_shaft, dq_req_dnp, xcpc_pct, PCPRF_PCT if pcprf is None else pcprf, n)[0]
 
 
-def settle_cycle(wf_pph, q_shaft, ratio, name=None, n=SETTLE_FRAMES):
+def settle_cycle(wf_pph, q_shaft, dq_req_dnp, name=None, n=SETTLE_FRAMES):
     """As `settle`, but returning the mean over the last whole cycles of each output.
 
 
     Also returns the peak-to-peak of each, so a caller can say how much of a deviation is
     the cycle and how much is the model.
     """
-    _final, hist = _settled(wf_pph, q_shaft, ratio, XCPC_PCT.get(name, 52.75), PCPRF_PCT, n)
+    _final, hist = _settled(wf_pph, q_shaft, dq_req_dnp, XCPC_PCT.get(name, 52.75), PCPRF_PCT, n)
     mean = {k: mean_over_cycle(v) for k, v in hist.items()}
     ptp = {k: float(np.ptp(np.asarray(v)[-CYCLE_FRAMES:])) for k, v in hist.items()}
     return mean, ptp
 
 
-@pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
-def test_the_closed_loop_governs_to_the_printed_trim(name, wf, ng, ps3, q, ratio, shp):
+@pytest.mark.parametrize("name,wf,ng,ps3,q,dq_req_dnp,shp", TRIMS, ids=lambda v: str(v))
+def test_the_closed_loop_governs_to_the_printed_trim(name, wf, ng, ps3, q, dq_req_dnp, shp):
     """Fuel flow is an output here: nothing tells the loop what it should be. Compared as a
     cycle mean (open question #61, `CYCLE_FRAMES`).
     """
-    got, ptp = settle_cycle(wf, q, ratio, name=name)
+    got, ptp = settle_cycle(wf, q, dq_req_dnp, name=name)
     want = {"NG": ng, "NP": NP_TRIM_RPM, "Wf": wf, "Ps3": ps3, "shp": shp}
     for key, w in want.items():
         dev = 100.0 * (got[key] / w - 1.0)
@@ -185,11 +169,11 @@ def test_the_closed_loop_governs_to_the_printed_trim(name, wf, ng, ps3, q, ratio
         )
 
 
-@pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
-def test_every_printed_trim_governs_on_the_droop_line(name, wf, ng, ps3, q, ratio, shp):
+@pytest.mark.parametrize("name,wf,ng,ps3,q,dq_req_dnp,shp", TRIMS, ids=lambda v: str(v))
+def test_every_printed_trim_governs_on_the_droop_line(name, wf, ng, ps3, q, dq_req_dnp, shp):
     """Closed loop, as open loop: a governor in steady flight sits on its droop line, not
     on a cam. And the ECU should be governing speed, not limiting temperature."""
-    _s, e, h, _fr = settle(wf, q, ratio, name=name)
+    _s, e, h, _fr = settle(wf, q, dq_req_dnp, name=name)
     assert h.limit == "droop", (name, h.limit)
     assert e.limiting == "speed", (name, e.limiting, e.tsig, e.spdsf)
 
@@ -199,10 +183,10 @@ def test_the_governor_absorbs_the_collective():
     collective only moves where the ECU's integrator sits. Sweep it nearly twofold and the
     settled engine barely notices, while `SPDG` travels.
     """
-    _name, wf, ng, _ps3, q, ratio, _shp = TRIMS[0]
+    _name, wf, ng, _ps3, q, dq_req_dnp, _shp = TRIMS[0]
     seen = []
     for xcpc in (35.0, 45.0, 52.75, 60.0, 70.0):
-        s, e, h, _fr = settle(wf, q, ratio, xcpc_pct=xcpc)
+        s, e, h, _fr = settle(wf, q, dq_req_dnp, xcpc_pct=xcpc)
         seen.append((xcpc, s.engine.ng_rpm, s.engine.np_rpm, h.wf_pph, e.spdg))
     ngs = [r[1] for r in seen]
     nps = [r[2] for r in seen]
@@ -222,9 +206,9 @@ def test_the_speed_reference_is_what_sets_power_turbine_speed():
     """[Fig. C1] The governor drives sensed NP to `PCPRF`, so the trimmed speed is the
     cockpit reference and not `NP_DES`.
     """
-    _name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    _name, wf, _ng, _ps3, q, dq_req_dnp, _shp = TRIMS[0]
     for pcprf, expect in ((99.0, 0.99 * engine_c.NP_DES), (100.0, engine_c.NP_DES)):
-        s, _e, _h, _fr = settle(wf, q, ratio, pcprf=pcprf)
+        s, _e, _h, _fr = settle(wf, q, dq_req_dnp, pcprf=pcprf)
         dev = 100.0 * (s.engine.np_rpm / expect - 1.0)
         assert abs(dev) < 0.1, (
             f"with PCPRF = {pcprf} % the loop should hold NP at {expect:.0f} rpm, "
@@ -238,13 +222,13 @@ def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope()
     95 %, power lever 120 deg) leaves `f1`, `f7` and `f9` untouched: `F_HM7`, the
     acceleration limit, binds and caps the fuel.
     """
-    _name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    _name, wf, _ng, _ps3, q, dq_req_dnp, _shp = TRIMS[0]
     cruise = loop.Pilot(xcpc_pct=52.75, pas_deg=100.0, pcprf_pct=PCPRF_PCT)
     slam = loop.Pilot(xcpc_pct=95.0, pas_deg=120.0, pcprf_pct=PCPRF_PCT)
     limits = {}
     # 300 frames at cruise, then the slam; clamps are counted from the slam on
     for i, _s, _e, h, _fr in closed_loop(
-        wf, q, ratio, 300 + 1200, lambda i: cruise if i < 300 else slam
+        wf, q, dq_req_dnp, 300 + 1200, lambda i: cruise if i < 300 else slam
     ):
         if i == 299:
             maps.reset_clamps()
@@ -263,13 +247,13 @@ def test_the_acceleration_limit_keeps_the_engine_inside_its_digitized_envelope()
     )
 
 
-@pytest.mark.parametrize("name,wf,ng,ps3,q,ratio,shp", TRIMS, ids=lambda v: str(v))
-def test_the_closed_loop_stays_inside_its_digitized_data(name, wf, ng, ps3, q, ratio, shp):
+@pytest.mark.parametrize("name,wf,ng,ps3,q,dq_req_dnp,shp", TRIMS, ids=lambda v: str(v))
+def test_the_closed_loop_stays_inside_its_digitized_data(name, wf, ng, ps3, q, dq_req_dnp, shp):
     """The Phase 5 gate must not reach its answer through extrapolated maps; each trim runs
     at its own collective (see `XCPC_PCT`).
     """
     maps.reset_clamps()
-    settle(wf, q, ratio, name=name, fresh=True)  # the clamps counted are this run's
+    settle(wf, q, dq_req_dnp, name=name, fresh=True)  # the clamps counted are this run's
     report = maps.clamp_report()
     maps.reset_clamps()
 
@@ -287,9 +271,9 @@ def test_the_limit_cycle_is_what_it_is_measured_to_be():
     sensor's 0.05 %NG hysteresis [Fig. C15, pdf p.91], is finer than the governor can
     resolve, and the cycle survives step refinement and collapses when `CH` alone is removed.
     """
-    want = {"hover": (7.5, 10.9), "level 80 kt": (12.0, 24.8), "descent 80 kt": (16.7, 39.8)}
-    for name, wf, _ng, _ps3, q, ratio, _shp in TRIMS:
-        _mean, ptp = settle_cycle(wf, q, ratio, name=name)
+    want = {"hover": (13.0, 25.8), "level 80 kt": (12.7, 26.5), "descent 80 kt": (16.3, 39.3)}
+    for name, wf, _ng, _ps3, q, dq_req_dnp, _shp in TRIMS:
+        _mean, ptp = settle_cycle(wf, q, dq_req_dnp, name=name)
         np_pp, ng_pp = want[name]
         assert ptp["NP"] == pytest.approx(np_pp, abs=1.0), f"{name} NP p-p {ptp['NP']:.3f}"
         assert ptp["NG"] == pytest.approx(ng_pp, abs=2.0), f"{name} NG p-p {ptp['NG']:.3f}"
@@ -300,8 +284,8 @@ def test_the_limit_cycle_is_what_it_is_measured_to_be():
 # ---------------------------------------------- Appendix C's forward path, which nothing saw
 
 LOAD_STEP_PCT = 15.0
-NP_DIP_RPM = (193.4, 195.4)
-WF_PEAK_PPH = (550.0, 558.0)
+NP_DIP_RPM = (209.4, 211.4)
+WF_PEAK_PPH = (559.5, 567.5)
 SLAM_RISE_MS = (140.0, 155.0)
 """Characterizations of the loop's transient, not accuracy claims (SCOPE.md's third
 category): the report prints no closed-loop time history (open question #65).
@@ -317,7 +301,7 @@ def test_a_load_step_response_pins_the_torque_motor_linkage():
     """A 15 % load step at hover, characterized: how far NP is dragged down before the fuel
     catches up, how much fuel it takes, and that NP comes back.
     """
-    name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    name, wf, _ng, _ps3, q, dq_req_dnp, _shp = TRIMS[0]
     pilot = loop.Pilot(xcpc_pct=XCPC_PCT[name], pas_deg=100.0, pcprf_pct=PCPRF_PCT)
     # The dip and the peak are read over the 1200 frames after the step that NP_DIP_RPM and
     # WF_PEAK_PPH were measured on; the recovery, 3000 frames after it.
@@ -327,7 +311,7 @@ def test_a_load_step_response_pins_the_torque_motor_linkage():
     for i, s, _e, h, _fr in closed_loop(
         wf,
         q,
-        ratio,
+        dq_req_dnp,
         n,
         lambda i: pilot,
         lambda i: (1.0 + LOAD_STEP_PCT / 100.0) if i >= step_at else 1.0,
@@ -353,12 +337,12 @@ def test_a_collective_slam_pins_the_collective_lag():
     """`CLLDS` is the load-demand-spindle lag, and only a moving collective can see it: slam
     the collective from the hover setting to 85 % and time the fuel command's 10-90 % rise.
     """
-    name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    name, wf, _ng, _ps3, q, dq_req_dnp, _shp = TRIMS[0]
     out, at, n = [], 600, 1800
     for _i, _s, _e, h, _fr in closed_loop(
         wf,
         q,
-        ratio,
+        dq_req_dnp,
         n,
         lambda i: loop.Pilot(
             xcpc_pct=85.0 if i >= at else XCPC_PCT[name], pas_deg=100.0, pcprf_pct=PCPRF_PCT
@@ -385,10 +369,10 @@ def test_the_t45_harness_lag_is_invisible_to_the_closed_loop():
     """
     from t700.control import constants as control_c
 
-    name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    name, wf, _ng, _ps3, q, dq_req_dnp, _shp = TRIMS[0]
 
     def settled():
-        st, _e, h, fr = settle(wf, q, ratio, name=name, fresh=True)  # under a patched TLGE
+        st, _e, h, fr = settle(wf, q, dq_req_dnp, name=name, fresh=True)  # under a patched TLGE
         return (st.engine.ng_rpm, st.engine.np_rpm, h.wf_pph, fr.t45_degR)
 
     before = settled()
@@ -406,8 +390,8 @@ def test_the_t45_harness_lag_is_invisible_to_the_closed_loop():
 
 
 GENTLE_SLAM_TO_PCT = 70.0
-SLAM_NP_RISE_RPM = (519.0, 531.0)
-SLAM_PEAK_PPH = (683.0, 690.0)
+SLAM_NP_RISE_RPM = (536.5, 548.5)
+SLAM_PEAK_PPH = (678.5, 685.5)
 """A collective slam small enough that no limit binds -- which is what makes `F_HM4` visible.
 
 `F_HM4` is the load-demand fuel-flow feedforward, `WFQPS3 = F_HM4(XLDSH)` [Fig. C17], on the
@@ -424,12 +408,12 @@ manoeuvre: NP rises rather than dips. Ballin's load-demand compensation is an ad
 def test_a_gentle_collective_slam_pins_the_load_demand_feedforward():
     """`F_HM4` moves the transient only while the Figure C18 cascade stays on the droop
     branch, so the test asserts that it does before asserting anything else."""
-    name, wf, _ng, _ps3, q, ratio, _shp = TRIMS[0]
+    name, wf, _ng, _ps3, q, dq_req_dnp, _shp = TRIMS[0]
     wf_hist, np_hist, limits, at, n = [], [], set(), 600, 1800
     for _i, s, _e, h, _fr in closed_loop(
         wf,
         q,
-        ratio,
+        dq_req_dnp,
         n,
         lambda i: loop.Pilot(
             xcpc_pct=GENTLE_SLAM_TO_PCT if i >= at else XCPC_PCT[name],

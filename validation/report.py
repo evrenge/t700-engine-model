@@ -671,8 +671,8 @@ def closed_loop() -> dict:
     import test_closed_loop as tcl
 
     rows, devs = [], []
-    for name, wf, ng, ps3, q, ratio, shp in tcl.TRIMS:
-        mean, ptp = tcl.settle_cycle(wf, q, ratio, name=name)
+    for name, wf, ng, ps3, q, dq, shp in tcl.TRIMS:
+        mean, ptp = tcl.settle_cycle(wf, q, dq, name=name)
         printed = {"NG": ng, "NP": tcl.NP_TRIM_RPM, "Wf": wf, "Ps3": ps3, "shp": shp}
         for k, p in printed.items():
             d = 100.0 * (mean[k] - p) / abs(p)
@@ -971,7 +971,7 @@ def sheet_closed_loop() -> dict:
     import test_closed_loop as tcl
     from t700.control import loop
 
-    name, wf, _ng, _ps3, q, ratio, _shp = tcl.TRIMS[0]
+    name, wf, _ng, _ps3, q, dq, _shp = tcl.TRIMS[0]
 
     def run(n, xcpc_of, load_scale_of=None, ref_of=None):
         rec = {k: [] for k in ("t", "np", "ng", "wf", "t41", "spdg", "lim")}
@@ -983,7 +983,7 @@ def sheet_closed_loop() -> dict:
                 pcprf_pct=(ref_of(i) if ref_of else tcl.PCPRF_PCT),
             )
 
-        for i, s, e, h, fr in tcl.closed_loop(wf, q, ratio, n, pilot_of, load_scale_of):
+        for i, s, e, h, fr in tcl.closed_loop(wf, q, dq, n, pilot_of, load_scale_of):
             rec["t"].append(i * tcl.DT)
             rec["np"].append(s.engine.np_rpm)
             rec["ng"].append(100.0 * s.engine.ng_rpm / c.NG_DES)
