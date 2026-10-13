@@ -4,24 +4,24 @@
 # wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
 # ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
 # points: 17
-# shear corrected: left frame leans -7.45 px across the plot height, right -13.03 px; top frame +20.56 px across the width, bottom +23.33 px. The page is sheared; see `fit_frames`.
-# read error: after calibration the axis maps predict a tick they were not shown to rms 0.276 in wf_pph and 0.02377 in ng_pct, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
+# shear corrected: left frame leans -7.45 px across the plot height, right -13.03 px; top frame +20.54 px across the width, bottom +23.28 px. The page is sheared; see `fit_frames`.
+# read error: after calibration the axis maps predict a tick they were not shown to rms 0.2761 in wf_pph and 0.02374 in ng_pct, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 wf_pph,ng_pct
-157.1622,72.4851
-165.2089,75.4518
-204.7003,82.0213
-234.7278,83.9968
-345.3623,87.9769
-371.2727,88.9553
+157.1619,72.4852
+165.2085,75.4518
+204.6997,82.0213
+234.7271,83.9968
+345.3621,87.9769
+371.2726,88.9553
 411.3694,89.9820
-444.4655,90.9738
-481.2314,91.9860
-522.8575,92.9830
-567.2027,93.9804
-622.3621,94.9646
-683.7250,95.9456
-754.6515,97.9833
-764.8728,99.4483
-832.1593,101.0209
-850.4556,101.5336
+444.4657,90.9738
+481.2318,91.9860
+522.8579,92.9830
+567.2030,93.9804
+622.3624,94.9646
+683.7249,95.9456
+754.6511,97.9833
+764.8724,99.4483
+832.1589,101.0209
+850.4553,101.5335

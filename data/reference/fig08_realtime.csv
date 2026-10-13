@@ -4,34 +4,34 @@
 # ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
 # ps3_psia: STATION 3 STATIC PRESSURE, psia, axis 40.0 to 280.0
 # points: 27
-# shear corrected: left frame leans +21.32 px across the plot height, right +17.81 px; top frame -1.39 px across the width, bottom +2.36 px. The page is sheared; see `fit_frames`.
-# read error: after calibration the axis maps predict a tick they were not shown to rms 0.0246 in ng_pct and 0.1331 in ps3_psia, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
+# shear corrected: left frame leans +21.22 px across the plot height, right +17.83 px; top frame -1.26 px across the width, bottom +2.34 px. The page is sheared; see `fit_frames`.
+# read error: after calibration the axis maps predict a tick they were not shown to rms 0.01882 in ng_pct and 0.1481 in ps3_psia, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 ng_pct,ps3_psia
-69.9895,61.6989
-70.9990,63.2267
-73.0214,67.6036
-74.0314,69.6249
-75.0392,71.6897
-76.0361,73.7749
-77.0302,75.8225
-78.0207,77.9490
-79.0151,80.1400
-80.0065,82.4780
-81.0144,88.2002
-82.0122,94.1574
-83.0191,99.4153
-84.0319,105.6154
-85.0276,112.7266
-87.0014,128.1390
-87.9941,135.7074
-88.9907,141.9305
-89.9888,150.0711
-90.9847,158.2366
-91.9794,166.4072
-92.9851,174.9987
-94.9909,193.7352
-95.9989,204.6802
-97.0042,215.4846
-98.0139,227.4368
-100.0191,244.8025
+69.9904,61.6984
+70.9998,63.2262
+73.0220,67.6031
+74.0319,69.6244
+75.0396,71.6892
+76.0364,73.7744
+77.0305,75.8220
+78.0209,77.9485
+79.0152,80.1395
+80.0066,82.4776
+81.0144,88.1997
+82.0122,94.1570
+83.0190,99.4149
+84.0319,105.6150
+85.0275,112.7262
+87.0012,128.1388
+87.9940,135.7072
+88.9906,141.9304
+89.9886,150.0710
+90.9845,158.2365
+91.9792,166.4072
+92.9849,174.9987
+94.9907,193.7353
+95.9987,204.6805
+97.0041,215.4850
+98.0138,227.4374
+100.0189,244.8038

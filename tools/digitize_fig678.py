@@ -29,7 +29,7 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from figure.axis import blend_value, choose_anchored, fit_anchored  # noqa: E402
-from figure.frame import fit_edges, longest_run, longest_run_columns, make_sv  # noqa: E402
+from figure.frame import find_frame_box, fit_edges, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
 from figure.ticks import find_ticks  # noqa: E402
 
@@ -97,40 +97,9 @@ SERIES = {
 }
 
 
-FRAME_MIN_RUN_FRAC = 0.08
-"""How much of the plot width a row must span in one unbroken run to be a frame line.
-
-Frames run 144-546 px of 1688 on the faint, tilted p.40 and nearly the full width on
-pp.41-42; the caption's longest letter stem is 20 px and a data glyph about 25. 8 % (135 px
-on p.40) sits a factor of five from both."""
-
-
-def find_frame(ink: np.ndarray) -> tuple[int, int, int, int]:
-    """The single plot frame. Same discriminator as everywhere else in this project:
-    a frame line spans the plot, text and data do not."""
-    h = ink.shape[0]
-    left, right = longest_run_columns(ink, 0.06, 0.97, 0.6)
-
-    # Longest run per row, not fill fraction: p.40's faint, tilted frame spreads its ink
-    # over twenty rows, and by fill the caption (dense text) wins. See FRAME_MIN_RUN_FRAC.
-    span = right - left
-    runs = np.array([longest_run(ink[y, left : right + 1]) for y in range(h)])
-    rows = np.flatnonzero(runs > FRAME_MIN_RUN_FRAC * span)
-    if rows.size:
-        groups = np.split(rows, np.flatnonzero(np.diff(rows) > 6) + 1)
-        if len(groups) >= 2:
-            return (
-                left,
-                int(round(groups[0].mean())),
-                right,
-                int(round(groups[-1].mean())),
-            )
-    raise RuntimeError("could not find two horizontal frame lines")
-
-
 FRAME_FIT_HALF_BAND_PX = 30
 """Half-width of the window `frame.fit_edges` traces each frame line in, about its nominal
-position from `find_frame`, in pixels.
+position from `frame.find_frame_box`, in pixels.
 
 Wide enough to contain the whole lean (15-19 px end to end on pp.41-42) plus the line's own
 thickness; `fit_edges` keeps only the single narrow run per position and rejects samples
@@ -143,8 +112,9 @@ def fit_frames(ink: np.ndarray, frame: tuple[int, int, int, int]) -> dict:
     These pages are sheared in x, not y (unlike Figures 9-10, open question #63): the
     vertical frames lean up to ~19 px across the plot height while top and bottom are level.
     Uncorrected that is up to 8 lbm/hr on the fuel-flow axis, worst at the low-power end
-    where open question #46 lives. `find_frame` returns the outermost extent, so its width
-    is too large by the lean; fitting each line along its length removes that.
+    where open question #46 lives. `frame.find_frame_box` returns one column or row per
+    frame line, a single point of a leaning one; fitting each line along its length removes
+    that.
 
     Returns slope/intercept for each: horizontals as `y = a*x + b`, verticals as
     `x = a*y + b`.
@@ -291,7 +261,10 @@ def main() -> int:
     failures: list[str] = []
     for f in FIGS:
         ink = native_bitmap(f.page)
-        fr = find_frame(ink)
+        # The plot box: the two strongest ink columns, and the outermost rows that span the
+        # plot once the page's tilt is sheared out (recipe, traps 3 and 4).
+        L, R, T, B = find_frame_box(ink)
+        fr = (int(L), int(T), int(R), int(B))
         left, top, right, bottom = fr
         series, stats = classify(ink, fr)
 
