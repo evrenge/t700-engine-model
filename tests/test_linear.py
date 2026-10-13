@@ -93,18 +93,16 @@ def test_eigenvalues_are_step_independent(name: str):
 
 
 @pytest.mark.parametrize("name", TRIMS)
-def test_two_dof_equals_reduced_five_identically(name: str):
-    """Linearizing the exact quasi-steady system *is* residualizing the full Jacobian.
-
-    dg/ds = A11 - A12 A22^-1 A21 by implicit differentiation. Ballin's two differ (-2.69
-    vs -2.81 at hover) because his reduced-order model is a separate program with the
-    opened Eq. 74 iteration; ours is a Newton solve to 1e-10 (open question #49).
+def test_two_dof_equals_reduced_five_at_a_tangent_step(name: str):
+    """With exact derivatives, linearizing the quasi-steady system *is* residualizing the
+    full Jacobian: dg/ds = A11 - A12 A22^-1 A21 by implicit differentiation.
 
     Checked at rel 1e-6, where both finite differences are converged, then at `_model`'s
     default 1e-5 as a growth alarm. Neither is the shipped extraction step, `linear.py`'s
     `rel_step` (the report's two percent): a central difference that wide carries
     truncation, and the quasi-steady `g(s)`, which slaves the pressures, curves differently
-    in NG from the 5-DOF `f(x)`, so the two routes part there, NG's diagonal included.
+    in NG from the 5-DOF `f(x)`, so the two routes part there, NG's diagonal included, as
+    Ballin's Table 1 columns 4 and 5 do (open question #49).
     """
     a = _model(name, DOF.TWO, rel_step=1e-6)
     b = _model(name, DOF.REDUCED_FIVE, rel_step=1e-6)

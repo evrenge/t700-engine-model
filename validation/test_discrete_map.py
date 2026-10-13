@@ -1,16 +1,12 @@
-"""Linearizing the real-time map itself -- open question #49.
-
-Table 1 [pdf p.31] prints a 2-DOF column and an order-reduced 5-DOF column that ought to
-describe the same system; Ballin's differ and ours are identical. That is a theorem: if
-`g(s) = f1(s, p(s))` with `f2(s, p) = 0` defining `p`, implicit differentiation gives
-`dg/ds = A11 - A12 A22^-1 A21`, the Schur complement order reduction forms. His differ
-because his 2-DOF is a separately coded program [pdf p.27] carrying the real-time numerics.
+"""What the 7 ms real-time frame costs, measured on its own linearization.
 
 This file linearizes `realtime.step` as a six-state discrete map (including Eq. 74's carried
-mass flow) and takes `ln(z)/dt` per mode, so Table 1 column 4 becomes an independent check of
-what the frame costs. Two of the six modes are frame artifacts with no continuous limit
-(P45's one-frame lag and Eq. 74's carry). Modes are identified by participation factor, never
-by position in a sorted spectrum. See SCOPE.md, "What the real-time approximation costs".
+mass flow), takes `ln(z)/dt` per mode, and compares it with our continuous model. It measures
+our frame, not Table 1: Ballin read his derivatives "at the input of each integrator" with
+all integrations suppressed [pdf p.28], which is what `t700.linear` does, not across a frame
+(open question #49). Two of the six modes are frame artifacts with no continuous limit (P45's
+one-frame lag and Eq. 74's carry). Modes are identified by participation factor, never by
+position in a sorted spectrum. See SCOPE.md, "What the real-time approximation costs".
 """
 
 from __future__ import annotations
@@ -26,9 +22,8 @@ from t700.engine import Ambient
 from t700.linear import DOF, extract
 from t700.units import wf_pps_from_pph
 
-# DQ_REQ_DNP is needed only for the NP mode. TABLE_1_2DOF is Table 1 column 4 [pdf p.31] --
-# Ballin's separately coded quasi-steady program.
-from test_all_dof_models import DQ_REQ_DNP, TABLE_1_2DOF, WF_PPH
+# DQ_REQ_DNP is needed only for the NP mode.
+from test_all_dof_models import DQ_REQ_DNP, WF_PPH
 from test_all_dof_models import participation as participation_factors
 
 AMB = Ambient(14.696, 518.67)
@@ -37,15 +32,15 @@ NP_RPM = 20895.0
 FRAME_S = 0.007
 """The report's engine frame [pdf p.47]."""
 
-DISCRETE_TOL_PCT = {1: 8.0, 2: 15.0, 3: 7.0}
-"""Ours, declared in `SCOPE.md`. The loose one (level) carries the #31/#43 interpolation
-residual, which the continuous model has too and which this file is not measuring."""
+FRAME_COST_TOL_PCT = {1: 16.0, 2: 5.0, 3: 2.0}
+"""Ours, declared in `SCOPE.md`: how much faster the 7 ms frame may make the NG mode than the
+continuous model, set a quarter above today's measurement. A characterization of our frame,
+not a comparison with the report."""
 
 
 TANGENT = 1e-5
-"""The continuous models here are tangents: the limit the discrete map converges to, and
-the Jacobian the Schur-complement identity is about. The shipped extraction uses the
-report's +-2 % (pdf p.28), a secant, which is neither."""
+"""The continuous model here is a tangent: the limit the discrete map converges to. The
+shipped extraction uses the report's +-2 % [pdf p.28], a secant, which is not."""
 
 STATE_NAMES = ("NG", "NP", "P3", "P41", "P45", "WA31")
 """Order of the six states of the frame map, for participation factors."""
@@ -144,27 +139,17 @@ def continuous_ng_mode(case: int) -> float:
     return float(np.sort(np.real(m.comparable_eigenvalues))[-1])
 
 
-def test_the_two_continuous_models_are_identical_because_they_must_be():
-    """The Schur complement of an exactly solved quasi-steady system *is* the reduction, so
-    any difference between Ballin's columns 4 and 5 is his numerics, not the engine.
-    """
-    for case in (1, 2, 3):
-        wf = wf_pps_from_pph(WF_PPH[case])
-        r = trim.solve(wf, NP_RPM, AMB)
-        kw = dict(j_load=c.J_LOAD_UH60A, dq_req_dnp=DQ_REQ_DNP[case], rel_step=TANGENT)
-        two = np.sort(np.real(extract(r, wf, dof=DOF.TWO, **kw).comparable_eigenvalues))
-        red = np.sort(np.real(extract(r, wf, dof=DOF.REDUCED_FIVE, **kw).comparable_eigenvalues))
-        assert np.allclose(two, red, atol=1e-6), (case, two, red)
-
-
 @pytest.mark.parametrize("case", (1, 2, 3))
-def test_the_discrete_map_stays_within_bounds_of_ballins_2dof_column(case: int):
-    """Table 1 column 4 is Ballin's real-time program, so compare a real-time map to it."""
+def test_what_the_frame_costs_the_ng_mode(case: int):
+    """The 7 ms frame [pdf p.47] makes the NG mode faster than the continuous model's, by
+    under `FRAME_COST_TOL_PCT`. Both sides have the pressure iterations converged, so the
+    difference is the frame alone, as the next test shows by refining it."""
+    cont = continuous_ng_mode(case)
     disc = discrete_ng_mode(case, tol=1e-12)
-    dev = 100.0 * (disc / TABLE_1_2DOF[case] - 1.0)
-    assert abs(dev) < DISCRETE_TOL_PCT[case], (
-        f"trim {case}: the discrete map gives {disc:.3f} /sec against Table 1 column 4's "
-        f"{TABLE_1_2DOF[case]}, {dev:+.1f} %"
+    cost = 100.0 * (disc / cont - 1.0)
+    assert 0.0 < cost < FRAME_COST_TOL_PCT[case], (
+        f"trim {case}: the 7 ms frame moves the NG mode {cost:+.2f} % "
+        f"({cont:.3f} -> {disc:.3f} /sec)"
     )
 
 
@@ -181,7 +166,7 @@ def test_the_frame_is_what_separates_the_discrete_map_from_the_continuous_one():
         f"halving dt should roughly halve the error for an explicit first-order scheme, "
         f"got ratios {ratios}"
     )
-    assert errs[-1] < 0.05 * abs(cont), (cont, modes)
+    assert errs[-1] < 0.04 * abs(cont), (cont, modes)
 
 
 def test_the_opened_iterations_add_modes_the_engine_does_not_have():
@@ -292,20 +277,7 @@ def test_the_printed_iteration_tolerance_costs_a_measurable_amount():
         tight = discrete_ng_mode(case, tol=1e-12)
         printed = discrete_ng_mode(case)
         shift = 100.0 * (printed / tight - 1.0)
-        assert -30.0 < shift < 0.0, (
+        assert -12.0 < shift < 0.0, (
             f"trim {case}: the printed tolerance moves the NG mode {shift:+.1f} % "
             f"({tight:.3f} -> {printed:.3f} /sec)"
         )
-
-
-def test_the_descent_residual_is_gone_and_the_level_one_replaced_it():
-    """Pins where the `f1` interpolation residual (#43) sits against Table 1 column 4: descent
-    tight, level the loose one. Changing the interpolation scheme relocates it (see
-    `docs/notes/open-questions.md` #43), so neither trim may drift back unnoticed.
-    """
-    for case, lo, hi in ((3, -7.0, 7.0), (2, 5.0, 15.0)):
-        cont = continuous_ng_mode(case)
-        disc = discrete_ng_mode(case, tol=1e-12)
-        for name, v in (("continuous", cont), ("discrete", disc)):
-            dev = 100.0 * (abs(v) / abs(TABLE_1_2DOF[case]) - 1.0)
-            assert lo < dev < hi, f"trim {case} {name}: {v:.3f} /sec, {dev:+.1f} %"

@@ -126,11 +126,11 @@ def test_solution_sits_inside_the_digitized_data(case: TrimCase):
 # --------------------------------------------------------------------------- dynamics
 
 
-EIGENVALUE_TOL_PCT = 8.0
+EIGENVALUE_TOL_PCT = 6.0
 """Ours, declared in `SCOPE.md`. A characterization, not an accuracy claim: a regression
-detector set above the measurement at the report's +-2 % extraction step [pdf p.28]. Ballin
-calls his own Table 1 columns, about 4 % apart, "in good agreement" [pdf p.29]; ours is not
-that."""
+detector set a quarter above today's measurement at the report's +-2 % extraction step
+[pdf p.28]. Ballin calls his own Table 1 columns, about 4 % apart, "in good agreement"
+[pdf p.29]; ours is not that."""
 
 
 def test_jacobian_eigenvalues_against_table_1():

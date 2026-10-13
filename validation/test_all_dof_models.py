@@ -120,33 +120,28 @@ def test_np_stays_decoupled_in_every_variant(dof: DOF, trim_no: int):
     assert np.abs(off).max() == 0.0, f"{dof.value} trim {trim_no}: NP column {off}"
 
 
-# ------------------------------------------- Table 1 columns 4 and 5, the NG mode
+# ------------------------------------------------ Table 1, each column's NG mode
 
 
-NG_MODE_COLUMN = {DOF.TWO: TABLE_1_2DOF, DOF.REDUCED_FIVE: TABLE_1_RED5}
-NG_MODE_LABEL = {DOF.TWO: "2-DOF", DOF.REDUCED_FIVE: "reduced-5"}
+NG_MODE_TOL_PCT = {DOF.FIVE: 2.0, DOF.TWO: 6.0, DOF.REDUCED_FIVE: 3.0}
+"""Ours, declared in `SCOPE.md`: a characterization set a quarter above today's measurement,
+not an accuracy claim."""
 
 
-@pytest.mark.parametrize("dof", [DOF.TWO, DOF.REDUCED_FIVE])
+@pytest.mark.parametrize("dof", [DOF.FIVE, DOF.TWO, DOF.REDUCED_FIVE], ids=str)
 @pytest.mark.parametrize("trim_no", [1, 2, 3])
-def test_ng_mode_against_table_1_columns_4_and_5(dof: DOF, trim_no: int):
-    """Our quasi-steady model's NG mode against Table 1's 2-DOF and reduced-5 columns.
-
-    The residual is the `f1` derivative ambiguity of open question #43 (see
-    `docs/notes/open-questions.md`); the discrete frame map Ballin actually ran is
-    closer (`test_discrete_map.py`). Our reduced-5 is identical to our 2-DOF by construction
-    (see `t700.linear`), so it cannot match both of Ballin's columns, which differ.
+def test_each_model_matches_its_own_table_1_column(dof: DOF, trim_no: int):
+    """Table 1's three columns are made three ways [pdf pp.27-28]: the 5-DOF and 2-DOF by
+    +-2 % central differences of two different nonlinear simulations, the reduced-order
+    5-DOF by setting the 5-DOF's pressure derivatives to zero. `extract` makes each of ours
+    the same way, so each NG mode is held to its own column (open question #49).
     """
-    ng = _model(dof, trim_no).comparable_eigenvalues[-1]
-    want = NG_MODE_COLUMN[dof][trim_no]
+    ng = modes_by_state(_model(dof, trim_no))["NG"]
+    want = TABLE_1[trim_no][dof]["NG"]
     dev = (abs(ng) - abs(want)) / abs(want) * 100.0
-    assert abs(dev) < 25.0, (
-        f"{TRIM[trim_no]}: {NG_MODE_LABEL[dof]} NG mode {ng:.3f} vs {want}, {dev:+.1f} %"
+    assert abs(dev) < NG_MODE_TOL_PCT[dof], (
+        f"{TRIM[trim_no]}: {dof} NG mode {ng:.3f} vs {want}, {dev:+.2f} %"
     )
-    if dof is DOF.TWO and trim_no == 3:
-        # Under the beta-gridded f1 descent is the tight trim; which trim the f1 derivative
-        # error bites depends on the interpolation (open question #43).
-        assert abs(dev) < 6.0, "descent should be the tight one under the beta-gridded f1"
 
 
 # --------------------------------------------------------- element-wise, the two gaps

@@ -98,22 +98,22 @@ a steady-state figure" below).
 
 ## What the real-time approximation costs
 
-Table 1's 2-DOF and order-reduced 5-DOF columns ought to describe the same system, and
-Ballin's differ [pdf p.31]. For an exactly solved quasi-steady model they cannot: the
-reduction is the Schur complement of the full Jacobian, which is what linearizing the 2-DOF
-model gives.
-`test_discrete_map.test_the_two_continuous_models_are_identical_because_they_must_be`
-asserts it at a tangent step; at the report's ±2 % step [pdf p.28], a secant, ours differ
-slightly.
+Table 1 [pdf p.31] prints three linear models, made three ways [pdf pp.27-28]: the 5-DOF by
+±2 % central differences of the complete simulation, the 2-DOF by the same on "a
+reduced-order nonlinear simulation which contained the volume dynamics approximation", and
+the reduced-order 5-DOF by setting the 5-DOF's pressure derivatives to zero. `t700.linear`
+makes each of ours the same way, and `test_all_dof_models.NG_MODE_TOL_PCT` holds each NG
+mode to its own column. With exact derivatives the 2-DOF and the reduction would be one
+model (`tests/test_linear.py::test_two_dof_equals_reduced_five_at_a_tangent_step`); at the
+±2 % step they part by a few percent, Ballin's and ours alike (#49).
 
-Ballin's 2-DOF is a separately coded program carrying the real-time numerics [pdf p.27], so
-`validation/test_discrete_map.py` also linearizes `realtime.step`, as a six-state map at the
-report's 7 ms frame [pdf p.47] including Eq. 74's carried flow. Refining the frame converges
-it on the continuous model at first order; two of its six modes are frame artifacts with no
-continuous limit; its NG mode stays within `test_discrete_map.DISCRETE_TOL_PCT` of Table 1's
-2-DOF column. Whether the frame explains part of the gap to Table 1 is open: at the test's
-solver tolerance the discrete map sits farther from Table 1 than the continuous model, so
-ledger #49's conclusion awaits the owner.
+`validation/test_discrete_map.py` measures what our own 7 ms frame [pdf p.47] costs. It
+linearizes `realtime.step` as a six-state map, including Eq. 74's carried flow, and compares
+it with our continuous model. Refining the frame converges it on the continuous model at
+first order; two of its six modes are frame artifacts with no continuous limit; the frame
+makes the NG mode faster by under `test_discrete_map.FRAME_COST_TOL_PCT`. It is not a check
+on Table 1: Ballin read his derivatives "at the input of each integrator" [pdf p.28], not
+across a frame.
 
 ## Tolerances
 
@@ -160,9 +160,10 @@ report, so never quote one as a result.
 | Figures 9/10 read error | +/-0.6 % of full scale | `test_figure_consistency.READ_ERROR_CEILING_PCT_FS`, on the fuel panels whose levels the captions print, and on the two figures' shared 400 lbm/hr trim (see "The figures' own read error" below) |
 | HMU collective at a Table B.1 trim | 5-95 % of maximum | `test_hmu_trim.COLLECTIVE_RANGE_PCT`. The report prints no collective for these trims, so this is a believability band, not a comparison. It tests that Appendix C and Table B.1, digitized independently, agree at all |
 | **Closed loop vs Table B.1** | **+/-0.5 %** | `test_closed_loop.CLOSED_LOOP_TOL_PCT`, the Phase 5 gate. Measured worst **0.245 %<!--rj:closed_loop.worst-->**, descent fuel flow, as a **mean over the limit cycle**: the loop settles to a cycle, not a point (#61), so a terminal sample depends on where the run stops. Fuel flow is an output, so the open-loop descent shaft-power error shows up in fuel flow instead |
-| **Table 1 eigenvalues** | **+/-8 %** | `test_trim_points.EIGENVALUE_TOL_PCT`. **A characterization, not an accuracy claim**: a regression detector set above today's **4.70 %<!--rj:eigenvalues.notes.table_1_stats.worst-->** worst over all 27<!--rj:eigenvalues.notes.table_1_stats.n--> printed modes (rms 1.94 %<!--rj:eigenvalues.notes.table_1_stats.rms-->), each paired by dominant state and asserted by `test_all_dof_models.test_every_printed_table_1_mode` at Table B.1's 20895 rpm, with the report's ±2 % extraction step [pdf p.28]. Ballin calls a 4 % mismatch "good agreement" for his own comparison [pdf p.29]; ours is not that, and this row keeps the difference visible |
+| **Table 1 eigenvalues** | **+/-6 %** | `test_trim_points.EIGENVALUE_TOL_PCT`. **A characterization, not an accuracy claim**: a regression detector set a quarter above today's **4.70 %<!--rj:eigenvalues.notes.table_1_stats.worst-->** worst over all 27<!--rj:eigenvalues.notes.table_1_stats.n--> printed modes (rms 1.94 %<!--rj:eigenvalues.notes.table_1_stats.rms-->), each paired by dominant state and asserted by `test_all_dof_models.test_every_printed_table_1_mode` at Table B.1's 20895 rpm, with the report's ±2 % extraction step [pdf p.28]. Ballin calls a 4 % mismatch "good agreement" for his own comparison [pdf p.29]; ours is not that, and this row keeps the difference visible |
 | Fuel overestimate, 81-86 %NG, vs the report's own claim | +/-8 % | `test_steady_sweeps.FUEL_OVERESTIMATE_CEILING_PCT`. The report's sharpest printed steady-state claim about itself: the real-time model tends to "overestimate fuel consumption by as much as five percent" [pdf p.39]. A ceiling above our measured 6.34 %<!--rj:fuel_overestimate.ours_peak_pct-->, against Ballin's own line's 5.98 %<!--rj:fuel_overestimate.ballin_peak_pct-->: ours exceeds his claim, and that is the finding |
-| Discrete real-time map vs Table 1 col. 4 | +/-8 % (hover), +/-15 % (level), +/-7 % (descent) | `test_discrete_map.DISCRETE_TOL_PCT`. The loose one (level) carries the #31/#43 interpolation residual, which the continuous model has too and which this comparison is not measuring. A bound, not evidence that the frame closes the gap (see "What the real-time approximation costs") |
+| Table 1 NG mode, each model against its own column | +/-2 % (full), +/-6 % (quasi-steady), +/-3 % (reduced) | `test_all_dof_models.NG_MODE_TOL_PCT`. A characterization set a quarter above today's measurement: each of our three linear models, made the way Ballin made his [pdf pp.27-28], against its own column (#49) |
+| What the 7 ms frame costs the NG mode | under 16 % (hover), 5 % (level), 2 % (descent) | `test_discrete_map.FRAME_COST_TOL_PCT`. Our real-time map against our continuous model, both with the pressure iterations converged; set a quarter above today's measurement. A characterization of our frame, not a comparison with Table 1 (see "What the real-time approximation costs") |
 
 ### Appendix B, element by element
 

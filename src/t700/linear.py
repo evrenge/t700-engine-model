@@ -15,11 +15,10 @@ plus reduced-order 5-DOF, in Table 1 column 5 only and nowhere in Appendix B.
 The 2-DOF is not a reduction of the 5-DOF: it is extracted from a different nonlinear
 simulation, with the volume dynamics "instantaneous" [pdf p.67]. Only `REDUCED_FIVE` is an
 order reduction [pdf p.28]; likewise 3-DOF and 6-DOF are both "extracted" [pdf p.33].
-Ballin's 2-DOF and reduced-5 differ (Table 1, hover -2.69 against -2.81) because his
-reduced-order model is a separate program with inexact numerics. Ours coincide exactly:
-linearizing the exactly solved quasi-steady system gives, by implicit differentiation,
-the Schur complement `A11 - A12 A22^-1 A21` that `REDUCED_FIVE` forms (open question #49).
-So our `TWO` is no independent check on Table 1 column 4.
+With exact derivatives `TWO` and `REDUCED_FIVE` would be one model: implicit
+differentiation of the quasi-steady system gives the Schur complement `A11 - A12 A22^-1 A21`
+that the reduction forms. At the report's +-2 % step they part, Ballin's (Table 1, hover
+-2.69 against -2.81 [pdf p.31]) and ours alike; see open question #49.
 
 | Ballin | ours |
 |---|---|
@@ -51,9 +50,7 @@ class DOF(StrEnum):
     """The five models. String-valued so `DOF("5dof")` and `DOF.FIVE` both work."""
 
     TWO = "2dof"
-    """The quasi-steady nonlinear model, linearized. Figs. B1/B3/B5, Table 1 col. 4.
-
-    Equals `REDUCED_FIVE` identically for us; see the module docstring."""
+    """The quasi-steady nonlinear model, linearized. Figs. B1/B3/B5, Table 1 col. 4."""
 
     THREE = "3dof"
     """`TWO` plus the heat-sink state. Figs. B7/B9/B11. No printed eigenvalues exist."""
