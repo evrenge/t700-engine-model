@@ -1103,6 +1103,41 @@ def gen_hel_15() -> dict:
     return out
 
 
+def flight_test_day() -> dict:
+    """The flight-test days of Figures 11-14 inferred from his trims, two readings, and both
+    Gen Hel tests rerun on them (`test_flight_test_day`, #82)."""
+    import test_flight_test_day as d
+    import test_gen_hel as g
+
+    out: dict = {}
+    for name, common in (("A, standard temperature", False), ("B, one temperature", True)):
+        f = d.fit(common)
+        day = d.days(common)
+        pressures = {
+            f"figure {fig}": float(p) for fig, p in zip(g.FIGS, f["pressures"], strict=True)
+        }
+        altitude = {
+            k: (1.0 - (v / 14.696) ** (1.0 / 5.2559)) / 6.8756e-6 for k, v in pressures.items()
+        }
+        out[name] = {
+            "pressures_psia": pressures,
+            "pressure_altitude_ft": altitude,
+            "t_degr": f["t_degr"],
+            "t_degF": f["t_degr"] - 459.67,
+            "gearbox_ratio": float(f["ratio"]),
+            "trim_rms_pct": d.rms_pct(f["residuals"]),
+            "first test rms": {
+                f"figure {fig}": {k: g.rms(g.gap(fig, k, day=day[fig])) for k in g.PANELS}
+                for fig in g.FIGS
+            },
+            "second test rms": {
+                f"figure {fig}": {k: g.rms(g.gap_load(fig, k, day=day[fig])) for k in g.LOAD_PANELS}
+                for fig in g.FIGS
+            },
+        }
+    return out
+
+
 def _render(data: dict) -> None:
     print("figures 6-8 ...", flush=True)
     data["steady"] = steady_sweeps()
@@ -1145,6 +1180,8 @@ def _render(data: dict) -> None:
     print("gen hel, the second test ...", flush=True)
     data["gen_hel_load"] = gen_hel_load()
     data["gen_hel_15"] = gen_hel_15()
+    print("flight-test day ...", flush=True)
+    data["flight_test_day"] = flight_test_day()
 
 
 # ============================================ the model's own behaviour, with no reference

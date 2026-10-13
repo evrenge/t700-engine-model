@@ -45,6 +45,7 @@ import pytest
 from t700 import constants as engine_c
 from t700 import realtime, trim
 from t700.control import loop
+from t700.engine import Ambient
 from t700.units import RPM_TO_RAD_PER_SEC, wf_pps_from_pph
 from test_all_dof_models import AMB, DQ_REQ_DNP
 from test_closed_loop import SETTLE_FRAMES
@@ -89,21 +90,21 @@ def _np_trim_rpm(fig: int) -> float:
 
 
 @functools.cache
-def trim_fuel_pph(fig: int) -> float:
-    """Our fuel flow, lbm/hr per engine, at his printed NG and rotor speed on a standard day;
-    on Figure 15, which prints no NG, at the torque `fig15_trim_torque`."""
+def trim_fuel_pph(fig: int, day: Ambient = AMB) -> float:
+    """Our fuel flow, lbm/hr per engine, at his printed NG and rotor speed on `day`, standard
+    unless given (#81); on Figure 15, which prints no NG, at the torque `fig15_trim_torque`."""
     if fig == 15:
         target = fig15_trim_torque()
 
         def miss(wf_pph: float) -> float:
-            r = trim.solve(wf_pps_from_pph(wf_pph), _np_trim_rpm(fig), AMB)
+            r = trim.solve(wf_pps_from_pph(wf_pph), _np_trim_rpm(fig), day)
             return r.frame.q_pt_ftlbf - target
 
     else:
         target = his_trim(fig, "ng") / 100.0 * engine_c.NG_DES
 
         def miss(wf_pph: float) -> float:
-            r = trim.solve(wf_pps_from_pph(wf_pph), _np_trim_rpm(fig), AMB)
+            r = trim.solve(wf_pps_from_pph(wf_pph), _np_trim_rpm(fig), day)
             return r.state.ng_rpm - target
 
     a, b = 350.0, 550.0
@@ -135,17 +136,18 @@ def fig15_trim_torque() -> float:
 
 
 @functools.cache
-def our_trim(fig: int) -> trim.TrimResult:
-    """Our open-loop trim at his printed NG and rotor speed, on a standard day."""
-    return trim.solve(wf_pps_from_pph(trim_fuel_pph(fig)), _np_trim_rpm(fig), AMB)
+def our_trim(fig: int, day: Ambient = AMB) -> trim.TrimResult:
+    """Our open-loop trim at his printed NG and rotor speed, on `day`."""
+    return trim.solve(wf_pps_from_pph(trim_fuel_pph(fig, day)), _np_trim_rpm(fig), day)
 
 
 @functools.cache
-def collective(fig: int) -> float:
+def collective(fig: int, day: Ambient = AMB) -> float:
     """The collective, % of maximum, at which our HMU commands our trim's fuel flow."""
-    r = our_trim(fig)
+    r = our_trim(fig, day)
     ps3 = engine_c.K_PS3 * r.state.p3_psia
-    return collective_for(r.state.ng_rpm, ps3, trim_fuel_pph(fig))[0]
+    t2 = day.t_amb_degR
+    return collective_for(r.state.ng_rpm, ps3, trim_fuel_pph(fig, day), t2=t2)[0]
 
 
 @functools.cache
@@ -161,33 +163,35 @@ def collective_scales() -> tuple[float, float]:
     return min(readings), max(readings)
 
 
-def scale_of(fig: int) -> float | None:
+def scale_of(fig: int, day: Ambient = AMB) -> float | None:
     """The collective scaling a figure is compared at, % of maximum per inch: proportional, his
     trim inches against the collective our HMU needs there. `XCPC` is "percent of maximum"
     [pdf p.81] and his collective axis starts at 0 in., so 0 in. reads as 0 % (#81). `None`
     where the collective does not move."""
-    return collective(fig) / his_trim(fig, "collective") if fig in COLLECTIVE_FIGS else None
+    if fig not in COLLECTIVE_FIGS:
+        return None
+    return collective(fig, day) / his_trim(fig, "collective")
 
 
 @functools.cache
-def replay(fig: int, np_held: bool = False, scale: float | None = None) -> dict[str, np.ndarray]:
+def replay(fig: int, np_held: bool = False, scale=None, day: Ambient = AMB) -> dict:
     """Our closed loop driven by his rotor speed: `t`, NG %, fuel and torque.
 
     Settled first with the load Appendix B's linear models carry about the trim (#6), then
     NP is set to his rotor speed every frame, and on Figures 11 and 13 the collective follows
     his, as a change from his trim times `scale`, % per inch. `np_held` keeps NP at the trim
     instead: what the loop does without the rotor-speed input, the decoy."""
-    r = our_trim(fig)
+    r = our_trim(fig, day)
     np_trim = r.state.np_rpm
     q_trim = r.frame.q_pt_ftlbf
-    x0 = collective(fig)
+    x0 = collective(fig, day)
     pilot = loop.Pilot(xcpc_pct=x0, pas_deg=100.0, pcprf_pct=his_trim(fig, "nr"))
-    s = loop.seed(r, pilot, AMB)
+    s = loop.seed(r, pilot, day)
     for _ in range(SETTLE_FRAMES):
         s, *_ = loop.step(
             s,
             pilot,
-            AMB,
+            day,
             dt=DT,
             load=lambda v: q_trim + DQ_REQ_DNP[1] * (v - np_trim),
             j_load=engine_c.J_LOAD_UH60A,
@@ -204,7 +208,7 @@ def replay(fig: int, np_held: bool = False, scale: float | None = None) -> dict[
         if scale is not None:
             xcpc = x0 + scale * (float(np.interp(ti, tc, cc)) - c0)
             pilot = dataclasses.replace(pilot, xcpc_pct=xcpc)
-        s, _e, h, fr = loop.step(s, pilot, AMB, dt=DT, load=0.0, j_load=engine_c.J_LOAD_UH60A)
+        s, _e, h, fr = loop.step(s, pilot, day, dt=DT, load=0.0, j_load=engine_c.J_LOAD_UH60A)
         out[i] = (100.0 * s.engine.ng_rpm / engine_c.NG_DES, h.wf_pph, fr.q_pt_ftlbf)
     return {"t": t, "ng": out[:, 0], "fuel": out[:, 1], "torque": out[:, 2]}
 
@@ -213,20 +217,20 @@ OWN = "own"
 """`scale` default: the figure's own `scale_of`."""
 
 
-def ours(fig: int, key: str, np_held: bool = False, scale=OWN) -> tuple[np.ndarray, np.ndarray]:
+def ours(fig: int, key: str, np_held: bool = False, scale=OWN, day: Ambient = AMB):
     """`(t, value)`: NG in %, fuel and torque in % of our trim."""
-    r = replay(fig, np_held, scale_of(fig) if scale == OWN else scale)
+    r = replay(fig, np_held, scale_of(fig, day) if scale == OWN else scale, day)
     v = r[key]
     return r["t"], v if key == "ng" else 100.0 * v / v[0]
 
 
-def gap(fig: int, key: str, line: str = "gen_hel", np_held: bool = False, scale=OWN):
+def gap(fig: int, key: str, line="gen_hel", np_held=False, scale=OWN, day: Ambient = AMB):
     """Per digitized column of his line, how far ours is from it: NG in % of design speed,
     fuel and torque in % of trim."""
     tb, vb = his(fig, key, line)
     if key != "ng":
         vb = 100.0 * vb / his_trim(fig, key, line)
-    t, v = ours(fig, key, np_held, scale)
+    t, v = ours(fig, key, np_held, scale, day)
     keep = (tb >= t[0]) & (tb <= t[-1])
     return _best(t, v, tb[keep], vb[keep], np.zeros(keep.sum()), TIME_TOL_S[fig])
 
@@ -308,7 +312,7 @@ def _smooth(t_src: np.ndarray, v_src: np.ndarray, t: np.ndarray, deriv: int = 0)
 
 
 @functools.cache
-def demand(fig: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def demand(fig: int, day: Ambient = AMB) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """His rotor's torque demand per engine, ft*lbf on our engine's scale, and his NP, rpm, on
     our frame grid: `(t, q_req, np_his)`.
 
@@ -320,7 +324,7 @@ def demand(fig: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     tn, nr = his(fig, "nr")
     tq, q = his(fig, key)
     t = np.arange(max(tn[0], tq[0]), min(tn[-1], tq[-1]), DT)
-    q_scaled = our_trim(fig).frame.q_pt_ftlbf * _smooth(tq, q, t) / his_trim(fig, key)
+    q_scaled = our_trim(fig, day).frame.q_pt_ftlbf * _smooth(tq, q, t) / his_trim(fig, key)
     np_his = _smooth(tn, nr, t) / 100.0 * engine_c.NP_DES
     if fig == 15:
         return t, q_scaled, np_his
@@ -339,25 +343,25 @@ def fig15_scale() -> float:
 
 
 @functools.cache
-def load_replay(fig: int, held: bool = False) -> dict[str, np.ndarray]:
+def load_replay(fig: int, held: bool = False, day: Ambient = AMB) -> dict[str, np.ndarray]:
     """Our closed loop driven by his rotor's demand: `t`, NR %, NG %, fuel and torque.
 
     Settled at the trim as `replay` is, then the load is his demand at his speed plus Appendix
     B's slope times the difference between our speed and his, and on Figures 11 and 13 the
     collective follows his at `scale_of`. NP is our own. `held` keeps the load at the trim:
     what the loop does without his demand, the decoy."""
-    r = our_trim(fig)
+    r = our_trim(fig, day)
     np_trim = r.state.np_rpm
     q_trim = r.frame.q_pt_ftlbf
     slope = DQ_REQ_DNP[SLOPE_TRIM[fig]]
-    x0 = collective(fig)
-    scale = fig15_scale() if fig == 15 else scale_of(fig)
+    x0 = collective(fig, day)
+    scale = fig15_scale() if fig == 15 else scale_of(fig, day)
     pilot = loop.Pilot(xcpc_pct=x0, pas_deg=100.0, pcprf_pct=his_trim(fig, "nr"))
-    s = loop.seed(r, pilot, AMB)
+    s = loop.seed(r, pilot, day)
     at_trim = lambda v: q_trim + slope * (v - np_trim)  # noqa: E731
     for _ in range(SETTLE_FRAMES):
-        s, *_ = loop.step(s, pilot, AMB, dt=DT, load=at_trim, j_load=engine_c.J_LOAD_UH60A)
-    t, q_req, np_his = demand(fig)
+        s, *_ = loop.step(s, pilot, day, dt=DT, load=at_trim, j_load=engine_c.J_LOAD_UH60A)
+    t, q_req, np_his = demand(fig, day)
     if scale is not None:
         tc, cc = his(fig, "collective")
         c0 = his_trim(fig, "collective")
@@ -370,7 +374,7 @@ def load_replay(fig: int, held: bool = False) -> dict[str, np.ndarray]:
         if scale is not None:
             xcpc = x0 + scale * (float(np.interp(ti, tc, cc)) - c0)
             pilot = dataclasses.replace(pilot, xcpc_pct=xcpc)
-        s, _e, h, fr = loop.step(s, pilot, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A)
+        s, _e, h, fr = loop.step(s, pilot, day, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A)
         out[i] = (
             100.0 * s.engine.np_rpm / engine_c.NP_DES,
             100.0 * s.engine.ng_rpm / engine_c.NG_DES,
@@ -380,20 +384,20 @@ def load_replay(fig: int, held: bool = False) -> dict[str, np.ndarray]:
     return {"t": t, "nr": out[:, 0], "ng": out[:, 1], "fuel": out[:, 2], "torque": out[:, 3]}
 
 
-def ours_load(fig: int, key: str, held: bool = False) -> tuple[np.ndarray, np.ndarray]:
+def ours_load(fig: int, key: str, held: bool = False, day: Ambient = AMB):
     """`(t, value)` of the second test: NR and NG in %, fuel and torque in % of our trim."""
-    r = load_replay(fig, held)
+    r = load_replay(fig, held, day)
     v = r[key]
     return r["t"], v if key in ("nr", "ng") else 100.0 * v / v[0]
 
 
-def gap_load(fig: int, key: str, line: str = "gen_hel", held: bool = False) -> np.ndarray:
+def gap_load(fig: int, key: str, line="gen_hel", held=False, day: Ambient = AMB) -> np.ndarray:
     """Per digitized column of his line, how far the second test is from it: NR and NG in %,
     fuel and torque in % of trim."""
     tb, vb = his(fig, key, line)
     if key in ("fuel", "torque"):
         vb = 100.0 * vb / his_trim(fig, key, line)
-    t, v = ours_load(fig, key, held)
+    t, v = ours_load(fig, key, held, day)
     keep = (tb >= t[0]) & (tb <= t[-1])
     return _best(t, v, tb[keep], vb[keep], np.zeros(keep.sum()), TIME_TOL_S[fig])
 
