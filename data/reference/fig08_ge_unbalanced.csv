@@ -5,13 +5,13 @@
 # ps3_psia: STATION 3 STATIC PRESSURE, psia, axis 40.0 to 280.0
 # points: 7
 # shear corrected: left frame leans +21.32 px across the plot height, right +17.81 px; top frame -1.39 px across the width, bottom +2.36 px. The page is sheared; see `fit_frames`.
-# read error: after calibration the axis maps predict a tick they were not shown to rms 0.02252 in ng_pct and 0.1333 in ps3_psia, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
+# read error: after calibration the axis maps predict a tick they were not shown to rms 0.0246 in ng_pct and 0.1331 in ps3_psia, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 ng_pct,ps3_psia
-75.5355,70.5464
-79.0178,77.0823
-87.9905,128.1183
-90.9864,154.2960
-95.9926,200.5915
-101.0101,240.7305
-102.0036,243.6799
+75.5350,70.5489
+79.0176,77.0828
+87.9929,128.1105
+90.9903,154.2886
+95.9986,200.5900
+101.0150,240.7331
+102.0076,243.6826

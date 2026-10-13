@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from figure.axis import blend_value, choose_anchored, fit_anchored  # noqa: E402
 from figure.frame import fit_edges, longest_run, longest_run_columns, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
+from figure.ticks import find_ticks  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig678")
 REF = Path("data/reference")
@@ -163,12 +164,11 @@ def fit_frames(ink: np.ndarray, frame: tuple[int, int, int, int]) -> dict:
     return {nm: (float(c[0]), float(c[1])) for nm, c in fc.items()}
 
 
-TICK_DEPTH_PX = 14
-TICK_MIN_FILL = 0.6
-TICK_WIDTH_PX = (2, 10)
-"""What a tick is, in native-scan pixels: a stroke reaching `TICK_DEPTH_PX` inside the
-frame, at least `TICK_MIN_FILL` of it inked, and between 2 and 10 px across. The width
-bound is what rejects a data glyph near a frame: glyphs are 15-25 px across, ticks 3-6."""
+TICK_EXCESS_PX = 7
+"""How far a tick must lengthen the ink run through its frame, beyond the frame's own
+rolling-median width, to be read as a labelled tick by `ticks.find_ticks`, in native-scan
+pixels. Measured 2026-10-13 on all twelve edges of Figures 6-8: the long ticks (majors, and
+Figure 6's 2.5 %NG half-majors) lengthen it by 8-12 px, the short minors by 2-6."""
 
 TICK_RESIDUAL_TOL = {6: 2.0, 7: 2.0, 8: 0.10}
 """How far a mapped major tick may sit from its round value, in data units, before the
@@ -186,58 +186,6 @@ TICK_RESIDUAL_TOL_Y = {6: 0.25, 7: 8.0, 8: 1.5}
 prints one every 2.5 %NG against labels every 5. On Figure 6 it is the only thing that tells
 a wrong y datum (ticks off the 2.5 grid by rms 0.9 %NG) from a real disagreement with
 Table B.1; the tolerances sit between that and the fitted frames' residuals."""
-
-
-def frame_ticks_v(
-    ink: np.ndarray, line: tuple[float, float], lo: int, hi: int, inward: int
-) -> np.ndarray:
-    """Rows of the ticks on one vertical frame. `inward` is +1 when the interior is to the
-    right of the line (the left frame) and -1 when it is to the left (the right frame)."""
-    fill = []
-    for y in range(lo + 4, hi - 3):
-        x0 = int(round(line[0] * y + line[1]))
-        a = x0 + 2 if inward > 0 else x0 - TICK_DEPTH_PX - 1
-        band = ink[y, a : a + TICK_DEPTH_PX]
-        if band.size < TICK_DEPTH_PX:
-            fill.append(0)
-            continue
-        adjacent = band[0] if inward > 0 else band[-1]
-        fill.append(int(band.sum()) if adjacent else 0)
-    on = np.flatnonzero(np.array(fill) >= TICK_DEPTH_PX * TICK_MIN_FILL)
-    if on.size == 0:
-        return np.zeros(0)
-    out = []
-    for g in np.split(on, np.flatnonzero(np.diff(on) > 3) + 1):
-        if TICK_WIDTH_PX[0] <= g.size <= TICK_WIDTH_PX[1]:
-            out.append(g.mean() + lo + 4)
-    return np.array(out)
-
-
-def frame_ticks(
-    ink: np.ndarray, line: tuple[float, float], lo: int, hi: int, inward: int
-) -> np.ndarray:
-    """Columns of the major ticks on one horizontal frame.
-
-    `inward` is +1 for a frame whose interior lies below it (the top frame) and -1 for one
-    whose interior lies above (the bottom frame).
-    """
-    fill = []
-    for x in range(lo + 4, hi - 3):
-        y0 = int(round(line[0] * x + line[1]))
-        # The band is contiguous with the frame: a tick is attached to it, a data glyph
-        # near it is not (Figure 6's curve runs along its own bottom frame).
-        a = y0 + 2 if inward > 0 else y0 - TICK_DEPTH_PX - 1
-        band = ink[a : a + TICK_DEPTH_PX, x]
-        adjacent = band[0] if inward > 0 else band[-1]
-        fill.append(int(band.sum()) if adjacent else 0)
-    on = np.flatnonzero(np.array(fill) >= TICK_DEPTH_PX * TICK_MIN_FILL)
-    if on.size == 0:
-        return np.zeros(0)
-    out = []
-    for g in np.split(on, np.flatnonzero(np.diff(on) > 3) + 1):
-        if TICK_WIDTH_PX[0] <= g.size <= TICK_WIDTH_PX[1]:
-            out.append(g.mean() + lo + 4)
-    return np.array(out)
 
 
 # ---------------------------------------------------------------- the printed scale bows
@@ -379,7 +327,7 @@ def main() -> int:
             lo_v, hi_v = (f.x_lo, f.x_hi) if horiz else (f.y_hi, f.y_lo)
             maps[side] = fit_anchored(np.zeros(0), np.zeros(0), 1, lo_v, hi_v)
             if horiz:
-                pos = frame_ticks(ink, fits[side], left, right, inward)
+                pos = find_ticks(ink, fits[side], 1, inward, left + 4, right - 3, TICK_EXCESS_PX)
                 if pos.size < 3:
                     tick_report.append(f"{side}: {pos.size} ticks, too few to check")
                     continue
@@ -388,7 +336,7 @@ def main() -> int:
                 t = u_of(pos, other)
                 grid, tol = TICK_GRID[f.num], TICK_RESIDUAL_TOL[f.num]
             else:
-                pos = frame_ticks_v(ink, fits[side], top, bottom, inward)
+                pos = find_ticks(ink, fits[side], 0, inward, top + 4, bottom - 3, TICK_EXCESS_PX)
                 if pos.size < 3:
                     tick_report.append(f"{side}: {pos.size} ticks, too few to check")
                     continue
