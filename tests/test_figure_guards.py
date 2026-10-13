@@ -1,7 +1,7 @@
 """The digitizing library's guards against silent wrong answers.
 
-Each case would otherwise be accepted and carried on from with a wrong number; see
-`docs/notes/review-2026-09-19.md`, #10-#19.
+Each case would otherwise be accepted and carried on from with a wrong number. They answer
+findings #10-#19 of the 2026-09-19 review, a resolved handover kept in git history.
 """
 
 from __future__ import annotations
