@@ -670,7 +670,7 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   <div class="scroll"><table>
     <thead><tr><th scope="col">Figure</th><th scope="col">Points scored</th>
       <th scope="col">mean</th><th scope="col">rms</th><th scope="col">worst</th></tr></thead>
-    <tbody><tr><th scope="row">Figure 6<span class="sub">NG against fuel flow. Deviation in %NG points, not percent &mdash; an absolute difference on a speed already expressed as a percentage.</span></th><td class="mono">29 of 29</td><td class="mono">-0.003</td><td class="mono">0.231</td><td class="mono strong">-1.013 %NG</td></tr><tr><th scope="row">Figure 7<span class="sub">Shaft power against fuel flow. The low-power end is the worst, and it is the same end where Table B.1 and this figure disagree with <em>each other</em> by 5.5 %.</span></th><td class="mono">14 of 15</td><td class="mono">0.184</td><td class="mono">0.682</td><td class="mono strong">+2.149 %</td></tr><tr><th scope="row">Figure 8<span class="sub">Ps3 against NG. No fuel flow appears in it, so it cannot be rescued by a compensating fuel-path error.</span></th><td class="mono">26 of 27</td><td class="mono">0.061</td><td class="mono">0.268</td><td class="mono strong">+0.651 %</td></tr></tbody>
+    <tbody><tr><th scope="row">Figure 6<span class="sub">NG against fuel flow. Deviation in %NG points, not percent &mdash; an absolute difference on a speed already expressed as a percentage.</span></th><td class="mono">28 of 29</td><td class="mono">-0.008</td><td class="mono">0.235</td><td class="mono strong">-1.018 %NG</td></tr><tr><th scope="row">Figure 7<span class="sub">Shaft power against fuel flow. The low-power end is the worst, and it is the same end where Table B.1 and this figure disagree with <em>each other</em> by 5.5 %.</span></th><td class="mono">14 of 15</td><td class="mono">0.194</td><td class="mono">0.687</td><td class="mono strong">+2.175 %</td></tr><tr><th scope="row">Figure 8<span class="sub">Ps3 against NG. No fuel flow appears in it, so it cannot be rescued by a compensating fuel-path error.</span></th><td class="mono">26 of 27</td><td class="mono">0.067</td><td class="mono">0.266</td><td class="mono strong">+0.643 %</td></tr></tbody>
   </table></div>
   <div class="note-box"><h3>Where the report disagrees with itself, and where we are the larger error</h3>
   <p>Table B.1 and Figures&nbsp;6&ndash;7 describe the same three operating points, one as
@@ -683,14 +683,14 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <thead><tr><th scope="col">Trim</th><th scope="col">W<sub>f</sub>, lbm/hr</th>
       <th scope="col">Table B.1 vs the figure</th><th scope="col">ours vs Table B.1</th>
       <th scope="col">nearest printed marker</th></tr></thead>
-    <tbody><tr><th scope="row">hover</th><td class="mono">476.3</td><td class="mono">-0.034 %</td><td class="mono strong">-0.060 %</td><td class="mono small">5.0 lbm/hr</td></tr><tr><th scope="row">level 80 kt</th><td class="mono">349.3</td><td class="mono">+0.133 %</td><td class="mono">-0.077 %</td><td class="mono small">0.6 lbm/hr</td></tr><tr><th scope="row">descent 80 kt</th><td class="mono">267.7</td><td class="mono">+1.306 %</td><td class="mono">-0.806 %</td><td class="mono small">2.8 lbm/hr</td></tr></tbody>
+    <tbody><tr><th scope="row">hover</th><td class="mono">476.3</td><td class="mono">-0.028 %</td><td class="mono strong">-0.060 %</td><td class="mono small">5.0 lbm/hr</td></tr><tr><th scope="row">level 80 kt</th><td class="mono">349.3</td><td class="mono">+0.148 %</td><td class="mono">-0.077 %</td><td class="mono small">0.6 lbm/hr</td></tr><tr><th scope="row">descent 80 kt</th><td class="mono">267.7</td><td class="mono">+1.329 %</td><td class="mono">-0.806 %</td><td class="mono small">2.7 lbm/hr</td></tr></tbody>
   </table></div>
   <p>This page used to state that spread as <strong>+5.49 / +1.32 / &minus;0.14 %</strong> on
   shaft power and draw a rule from it: do not tune below the report&rsquo;s own internal
   disagreement. Those numbers predate the digitizer corrections of 2026-09-14, which found the
   disagreement was ours. They were prose that nothing computed, so nothing caught them going
   stale; the table above is now recomputed on every build. <strong>The consequence changes with
-  them.</strong> The report&rsquo;s widest self-disagreement is 1.306 %, and at the
+  them.</strong> The report&rsquo;s widest self-disagreement is 1.329 %, and at the
   descent trim our shaft power sits outside it &mdash; that residual is
   <a href="#s9">question&nbsp;69</a>, not a sheltered one. Read the last column before quoting
   a row: Figure&nbsp;7 prints fifteen markers over its whole range, and on its steep low-power
