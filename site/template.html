@@ -471,16 +471,19 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
     <tbody>
     <tr><th scope="row">Station 4.1 heat sink
       <span class="sub">Eqs. 48&ndash;53</span></th>
-      <td>Prints both configurations and says which figures use which. Eqs.&nbsp;48&ndash;49
-      are the metal energy balance; Eq.&nbsp;50 is the lead&ndash;lag they collapse into.</td>
+      <td>Prints both configurations and says which of its linear results use which
+      [pdf pp.27, 67]; that Figures&nbsp;9&ndash;10 ran with it is our inference.
+      Eqs.&nbsp;48&ndash;49 are the metal energy balance; Eq.&nbsp;50 is the lead&ndash;lag
+      they collapse into.</td>
       <td>A <strong>switch</strong>, so either published configuration runs. Built on
       Eqs.&nbsp;48&ndash;49, not Eq.&nbsp;50: the collapse holds only for constant
       coefficients, and Eqs.&nbsp;51 and 53 vary with T41 and W41, so a lead&ndash;lag memory
-      goes stale on a fuel step.</td></tr>
+      goes stale on a fuel step. Integrated this way it closes the T41 overshoot gap
+      (#47).</td></tr>
     <tr><th scope="row">The two heat-sink time constants
       <span class="sub">&tau;&#8321;, &tau;&#8322; in Eq. 63</span></th>
       <td>Not printed anywhere, and trim-dependent by definition.</td>
-      <td>Recovered from Appendix&nbsp;B&rsquo;s own 3&#8209;DOF blocks. They imply a TC_T41
+      <td>Recovered from Appendix&nbsp;B&rsquo;s own 3&#8209;DOF blocks (#31). They imply a TC_T41
       larger than the printed 0.29 [pdf p.55]
       (<code>test_heat_sink_taus.IMPLIED_TC_T41</code>): Appendix&nbsp;B was generated with a
       different constant. We keep the printed one, which is why our 6&#8209;DOF fuel column
@@ -489,27 +492,28 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
       <span class="sub">Eq. 74</span></th>
       <td>Reads two ways: the printed equation lags only the bleed; the prose lags the whole
       flow leaving the compressor.</td>
-      <td>Both selectable; the prose reading ships. They converge to the same trim and differ
+      <td>Both selectable; the prose reading ships (#22). They converge to the same trim and differ
       only while a transient is under way, by a few tenths of a percent of speed at
       most.</td></tr>
     <tr><th scope="row">Power turbine pressure solve
       <span class="sub">Eq. 80</span></th>
       <td>&ldquo;&hellip;because it is a nonlinear function of its own value, iterative
       techniques must be used&rdquo; [pdf p.37].</td>
-      <td>The printed fixed-point iteration runs first. Where the mass-flow table&rsquo;s
+      <td><strong>A departure from the printed method (#45, #57).</strong> The printed
+      fixed-point iteration runs first. Where the mass-flow table&rsquo;s
       elasticity is below &minus;1, most of a chop, it <strong>does not converge</strong>, and
       the same equation is <em>solved exactly</em> instead: with u&nbsp;=&nbsp;Ps9/P45 it is a
       piecewise-linear function against a line through the origin, so the root is unique and
       one divide away.</td></tr>
     <tr><th scope="row">Compressor map interpolation
       <span class="sub">f1, Figure A1</span></th>
-      <td>Seven markers per speed line and no interpolation scheme stated.</td>
-      <td><strong>A departure, still open (#60).</strong> Interpolated at constant
-      <em>beta</em>, the fraction of each speed line&rsquo;s own pressure-ratio span, rather
-      than at constant abscissa, which on the Figure&nbsp;10 chop reads the 65&nbsp;% line far
-      past its last knot. Against the printed table it wins on some printed surfaces and loses
-      on others, so the scores do not decide it. Kept because a scheme that invents
-      extrapolation is wrong whatever it scores.</td></tr>
+      <td>Seven markers per speed line, joined by straight runs, with dotted lines joining
+      the matching markers of every line [pdf p.56]. No interpolation scheme stated.</td>
+      <td><strong>A departure, still open (#60).</strong> Each speed line is traced from its
+      drawn line and resampled on a grid of our own in <em>beta</em>, the fraction of the
+      line&rsquo;s own pressure-ratio span; Ballin&rsquo;s seven-point table stays available
+      beside it. Against that table ours wins on some printed surfaces and loses on others,
+      so the scores do not decide it; it is kept by decision.</td></tr>
     <tr><th scope="row">Speed above the compressor map
       <span class="sub">f1, Figure A1</span></th>
       <td>The top speed line is 100&nbsp;% NGC [pdf p.56], and &ldquo;the maximum gas generator
@@ -521,11 +525,12 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
       compared. Nothing else moves: every other model output is bit-identical.</td></tr>
     <tr><th scope="row">Combustor efficiency
       <span class="sub">f6, Figure A6</span></th>
-      <td>A curve with a visible slope, and no numeric table.</td>
-      <td><strong>A departure, and immaterial.</strong> Loaded as a constant: the digitized
-      glyphs fit a horizontal line well inside the ink width, and the page&rsquo;s frame edges
-      sit at four <em>different</em> angles, so the slope was the paper. The digitized slope
-      would leave every printed comparison unchanged to four significant figures.</td></tr>
+      <td>A line that looks sloped on the scan, and no numeric table.</td>
+      <td><strong>A reading, and immaterial (#62).</strong> Loaded as the constant the figure
+      draws: the digitized glyphs fit a horizontal line well inside the ink width, and the
+      page&rsquo;s frame edges sit at four <em>different</em> angles, so the slope was the
+      paper. The digitized slope would leave every printed comparison unchanged to four
+      significant figures.</td></tr>
     <tr><th scope="row">Limited integrators
       <span class="sub">Figs. C3, C7, C10</span></th>
       <td>All three draw an unlimited <code>1/s</code> followed by a <em>separate</em>
@@ -556,7 +561,8 @@ the metering valve:  WFMV = HMUSEL &times; PS3L.</div>
   <p>Ballin&rsquo;s model underestimates turbine temperature at trim in every validation case,
   and he says so. Reproducing that bias with the same sign is correct; matching the hardware
   better would be a <em>worse</em> replication. The same holds for his other admitted limits
-  &mdash; the 100 %NG ceiling,
+  &mdash; the 100 %NG ceiling (f1 reaches a tenth of a point past it only to meet his own
+  edge points, #77),
   direction-independent heat-sink constants, no T4.5 heat sink, damping slightly high,
   load-demand compensation weaker than the real aircraft.</p></div>
 </section>
