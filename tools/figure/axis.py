@@ -8,7 +8,8 @@ the best (trap 6). `tail_cv` is a third check that needs no printed frame value.
 The final fit adds the printed frame values, by one of three rules; switching a figure
 between them moves its published values, so all three stay:
 
-* `fit_anchored` -- hard, exact at both frames (A7 by default);
+* `fit_anchored` -- hard, exact at both frames (A7 by default; Figures 6-8, each edge's order
+  by `choose_anchored`);
 * `soft_anchor` / `fit_soft_anchored` -- each frame value entered twice among the ticks
   (the single-curve figures, A1);
 * `blend_axis` -- each entered once, per edge (A2, A9).
@@ -103,6 +104,39 @@ def fit_anchored(t, val, order, lo, hi):
         [lo, hi - lo], np.polynomial.polynomial.polymul([0.0, 1.0, -1.0], q)
     )
     return asc[::-1]
+
+
+def choose_anchored(t, val, lo, hi, orders=(1, 2, 3, 4)):
+    """`fit_anchored`'s order by leave-one-tick-out alone, and the held-out error: the rule of
+    the body figures 6-8, where both frames are anchors and none is left to hold out.
+
+    Every order, 1 (the straight map) included, is scored by refitting without each tick and
+    predicting it, so fitting the ticks does not spend the check that holds them out. The
+    lowest error wins and a tie goes to the lower order. A tick on or outside a frame,
+    `t(1-t) <= 1e-9`, is predicted but never fitted: the anchor fixes the map there already.
+    Returns `(coefficients, loo, rms of the fit over all ticks, order)`.
+    """
+    t, val = np.asarray(t, float), np.asarray(val, float)
+    inner = t * (1.0 - t) > 1e-9
+    best = (None, float("inf"), 0)
+    for order in orders:
+        errs = []
+        for i in range(t.size):
+            m = np.ones(t.size, bool)
+            m[i] = False
+            if order > 1 and m.sum() < order:
+                errs = None
+                break
+            c = fit_anchored(t[m & inner], val[m & inner], order, lo, hi)
+            errs.append(val[i] - float(np.polyval(c, t[i])))
+        if not errs:
+            continue
+        e = float(np.sqrt(np.mean(np.square(errs))))
+        if e < best[1]:
+            best = (fit_anchored(t[inner], val[inner], order, lo, hi), e, order)
+    coef, e, order = best
+    fitted = float(np.sqrt(np.mean(np.square(val - np.polyval(coef, t)))))
+    return coef, e, fitted, order
 
 
 def soft_anchor(t, val, sides, at, printed):

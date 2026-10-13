@@ -28,7 +28,8 @@ import numpy as np
 from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from figure.frame import longest_run  # noqa: E402
+from figure.axis import blend_value, choose_anchored, fit_anchored  # noqa: E402
+from figure.frame import longest_run, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig678")
@@ -199,9 +200,9 @@ bound is what rejects a data glyph near a frame: glyphs are 15-25 px across, tic
 TICK_RESIDUAL_TOL = {6: 2.0, 7: 2.0, 8: 0.10}
 """How far a mapped major tick may sit from its round value, in data units, before the
 calibration is rejected: about 0.25 % of each axis. A held-out check: the two printed frame
-values pin the map and each interior tick is predicted without itself (`bow_choose`). Set
-between the residuals without the shear correction (rms 4.1-4.8 lbm/hr, 0.20-0.27 %NG) and
-with it."""
+values pin the map and each interior tick is predicted without itself (`choose_anchored`).
+Set between the residuals without the shear correction (rms 4.1-4.8 lbm/hr, 0.20-0.27 %NG)
+and with it."""
 
 TICK_GRID = {6: 100.0, 7: 100.0, 8: 5.0}
 """Major tick spacing on each figure's abscissa, read off the printed axis labels."""
@@ -268,61 +269,12 @@ def frame_ticks(
 
 # ---------------------------------------------------------------- the printed scale bows
 
-BOW_MAX_DEGREE = 2
-"""Degrees tried for the bow term, chosen per edge by leave-one-out and never by eye."""
-
-
-def bow_fit(t: np.ndarray, resid: np.ndarray, deg: int) -> np.ndarray:
-    """Least-squares `P` in  `value = linear(t) + t(1-t)P(t)`.
-
-    The `t(1-t)` factor is the whole point: it vanishes at both frames, so the two printed
-    frame values stay **exact by construction** however the ticks come out. The frames
-    still pin the map; the ticks only say how it bends in between, which is the one thing
-    two endpoints cannot know.
-    """
-    w = t * (1.0 - t)
-    keep = w > 1e-9
-    A = np.vander(t[keep], deg + 1) * w[keep, None]
-    coef, *_ = np.linalg.lstsq(A, resid[keep], rcond=None)
-    return coef
-
-
-def bow_eval(coef: np.ndarray | None, t):
-    if coef is None:
-        return 0.0
-    t = np.asarray(t, float)
-    return t * (1.0 - t) * np.polyval(coef, t)
-
-
-def bow_choose(t: np.ndarray, resid: np.ndarray) -> tuple[np.ndarray | None, float, float, int]:
-    """Pick the bow degree by leave-one-out, and report the held-out error.
-
-    Every candidate degree, including -1 (no bow: the straight map wins), is scored by
-    refitting without each tick and predicting it, so fitting the ticks does not spend the
-    check that holds them out.
-    """
-    best = (None, float("inf"), -1)
-    for deg in range(-1, BOW_MAX_DEGREE + 1):
-        errs = []
-        for i in range(t.size):
-            m = np.ones(t.size, bool)
-            m[i] = False
-            if deg < 0:
-                errs.append(resid[i])
-            else:
-                if m.sum() < deg + 2:
-                    errs = None
-                    break
-                c = bow_fit(t[m], resid[m], deg)
-                errs.append(resid[i] - float(bow_eval(c, t[i])))
-        if not errs:
-            continue
-        loo = float(np.sqrt(np.mean(np.square(errs))))
-        if loo < best[1]:
-            best = (None if deg < 0 else bow_fit(t, resid, deg), loo, deg)
-    coef, loo, deg = best
-    fitted = float(np.sqrt(np.mean(np.square(resid - bow_eval(coef, t)))))
-    return coef, loo, fitted, deg
+BOW_ORDERS = (1, 2, 3, 4)
+"""Orders of `axis.fit_anchored` tried per edge, chosen by leave-one-out and never by eye:
+order 1 is the straight map between the two printed frame values, and 2-4 add a bow
+`t(1-t)P(t)` with `P` of degree 0-2. The `t(1-t)` factor vanishes at both frames, so the two
+printed frame values stay exact by construction however the ticks come out; the ticks only
+say how the map bends in between, which is the one thing two endpoints cannot know."""
 
 
 def classify(ink: np.ndarray, frame: tuple[int, int, int, int], margin: int = 22):
@@ -424,17 +376,15 @@ def main() -> int:
 
         fits = fit_frames(ink, fr)
 
-        # The parallelogram inverse: `u` is the fraction across at this row, `v` the
-        # fraction down at this column, both against the fitted frames.
-        def u_of(px, py, fits=fits):
-            lo = fits["left"][0] * np.asarray(py, float) + fits["left"][1]
-            hi = fits["right"][0] * np.asarray(py, float) + fits["right"][1]
-            return (np.asarray(px, float) - lo) / (hi - lo)
+        # The parallelogram inverse, `frame.make_sv` on the four fitted lines: `u` is the
+        # fraction across at this row, `v` the fraction DOWN at this column (make_sv's runs up).
+        to_sv, _ = make_sv(fits)
 
-        def v_of(py, px, fits=fits):
-            hi = fits["top"][0] * np.asarray(px, float) + fits["top"][1]
-            lo = fits["bottom"][0] * np.asarray(px, float) + fits["bottom"][1]
-            return (np.asarray(py, float) - hi) / (lo - hi)
+        def u_of(px, py, to_sv=to_sv):
+            return to_sv(px, py)[0]
+
+        def v_of(py, px, to_sv=to_sv):
+            return 1.0 - to_sv(px, py)[1]
 
         # Stage one: the straight map, used only to tell each tick which round value it is.
         def x_lin(px, py, f=f):
@@ -447,30 +397,31 @@ def main() -> int:
         # bow term exactly when leave-one-out says it predicts ticks it was not shown;
         # nothing is bent because it looked bent.
         tick_report = []
-        bows: dict[str, np.ndarray | None] = {}
+        maps: dict[str, np.ndarray] = {}
         held_out: dict[str, float] = {}
         for side, inward in (("top", +1), ("bottom", -1), ("left", +1), ("right", -1)):
             horiz = side in ("top", "bottom")
+            # each edge's map runs from the value at t = 0 to the value at t = 1, and stays
+            # straight unless its ticks say otherwise
+            lo_v, hi_v = (f.x_lo, f.x_hi) if horiz else (f.y_hi, f.y_lo)
+            maps[side] = fit_anchored(np.zeros(0), np.zeros(0), 1, lo_v, hi_v)
             if horiz:
                 pos = frame_ticks(ink, fits[side], left, right, inward)
                 if pos.size < 3:
                     tick_report.append(f"{side}: {pos.size} ticks, too few to check")
-                    bows[side] = None
                     continue
                 other = fits[side][0] * pos + fits[side][1]
                 vals = x_lin(pos, other)
                 t = u_of(pos, other)
-                lo_v, hi_v, grid, tol = f.x_lo, f.x_hi, TICK_GRID[f.num], TICK_RESIDUAL_TOL[f.num]
+                grid, tol = TICK_GRID[f.num], TICK_RESIDUAL_TOL[f.num]
             else:
                 pos = frame_ticks_v(ink, fits[side], top, bottom, inward)
                 if pos.size < 3:
                     tick_report.append(f"{side}: {pos.size} ticks, too few to check")
-                    bows[side] = None
                     continue
                 other = fits[side][0] * pos + fits[side][1]
                 vals = y_lin(pos, other)
                 t = v_of(pos, other)
-                lo_v, hi_v = f.y_hi, f.y_lo
                 grid, tol = TICK_GRID_Y[f.num], TICK_RESIDUAL_TOL_Y[f.num]
 
             # The grid is read off the ticks (Figure 6's bottom frame carries minors, its
@@ -486,7 +437,6 @@ def main() -> int:
             if sp is None:
                 r = vals - np.round(vals / grid) * grid
                 rms = float(np.sqrt(np.mean(r**2)))
-                bows[side] = None
                 tick_report.append(f"{side}: {pos.size} ticks, rms {rms:.4f} FAIL")
                 failures.append(
                     f"Figure {f.num} {side} frame: {pos.size} ticks land on no round grid "
@@ -497,8 +447,7 @@ def main() -> int:
 
             want = np.round(vals / sp) * sp
             resid = want - vals
-            coef, loo, fitted, deg = bow_choose(t, resid)
-            bows[side] = coef
+            maps[side], loo, fitted, order = choose_anchored(t, want, lo_v, hi_v, BOW_ORDERS)
             held_out[side] = loo
             span = abs(hi_v - lo_v)
             shape = ""
@@ -511,8 +460,8 @@ def main() -> int:
                 f"{side}: {pos.size} ticks on a {sp:g} grid, straight rms {straight:.4f} "
                 f"({straight / span * 100:.3f} %span){shape} -> "
                 + (
-                    f"degree {deg} bow, rms {fitted:.4f}, held-out {loo:.4f}"
-                    if coef is not None
+                    f"degree {order - 2} bow, rms {fitted:.4f}, held-out {loo:.4f}"
+                    if order > 1
                     else f"no bow (held-out {loo:.4f})"
                 )
             )
@@ -525,26 +474,14 @@ def main() -> int:
 
         # Stage three: the map the data goes through. Each axis carries the bow of its near
         # edge, blended to that of its far edge across the plot: the two ticked edges of
-        # one axis are not the same scale.
-        def x_of(px, py, f=f, bows=bows):
-            u = u_of(px, py)
+        # one axis are not the same scale. The blend weight is clipped to the frame.
+        def x_of(px, py, maps=maps):
             w = np.clip(v_of(py, px), 0.0, 1.0)
-            return (
-                f.x_lo
-                + u * (f.x_hi - f.x_lo)
-                + (1.0 - w) * bow_eval(bows.get("top"), u)
-                + w * bow_eval(bows.get("bottom"), u)
-            )
+            return blend_value((maps["top"], maps["bottom"]), u_of(px, py), w)
 
-        def y_of(py, px, f=f, bows=bows):
-            v = v_of(py, px)
+        def y_of(py, px, maps=maps):
             w = np.clip(u_of(px, py), 0.0, 1.0)
-            return (
-                f.y_hi
-                + v * (f.y_lo - f.y_hi)
-                + (1.0 - w) * bow_eval(bows.get("left"), v)
-                + w * bow_eval(bows.get("right"), v)
-            )
+            return blend_value((maps["left"], maps["right"]), v_of(py, px), w)
 
         print(f"\nFigure {f.num} (pdf p.{f.page})  frame {left},{top},{right},{bottom}")
         print(
@@ -593,8 +530,10 @@ def main() -> int:
                 )
                 fh.write("# NOT transcribed. Values carry read error.\n")
                 fh.write(f"{f.xkey},{f.ykey}\n")
-                for px, py in pts:
-                    fh.write(f"{x_of(px, py):.4f},{y_of(py, px):.4f}\n")
+                for xv, yv in zip(
+                    x_of(pts[:, 0], pts[:, 1]), y_of(pts[:, 1], pts[:, 0]), strict=True
+                ):
+                    fh.write(f"{xv:.4f},{yv:.4f}\n")
     if failures:
         print("\nTICK CHECK FAILED -- the axis calibration does not predict the printed ticks:")
         for line in failures:
