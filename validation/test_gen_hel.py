@@ -45,7 +45,7 @@ import pytest
 from t700 import constants as engine_c
 from t700 import realtime, trim
 from t700.control import loop
-from t700.units import wf_pps_from_pph
+from t700.units import RPM_TO_RAD_PER_SEC, wf_pps_from_pph
 from test_all_dof_models import AMB, DQ_REQ_DNP
 from test_closed_loop import SETTLE_FRAMES
 from test_fig45 import _best, rms
@@ -245,3 +245,133 @@ def test_ours_is_nearer_gen_hel_than_the_flight_test(fig: int, key: str):
     than his flight-test line, which the test aircraft's greater load demand compensation
     [pdf p.47] and the collective trim mismatches [pdf pp.47, 50] move away from it."""
     assert rms(gap(fig, key)) < rms(gap(fig, key, "test"))
+
+
+# ------------------------------------------- the second test: his rotor's demand in, speed out
+#
+# Replaying his rotor speed makes it an input, so the governor and the rotor's inertia are never
+# tested. The second test runs the other way: the drive train is rigid [pdf p.47], so the torque
+# the rotor demands is the engines' torque less what accelerates the inertia, and both are on
+# his plots. That demand is the load, and our model predicts the rotor speed itself (#81).
+
+RIPPLE_S = 0.12
+"""His rotor speed is differentiated, and his torque smoothed, over this window: two periods of
+the 17 Hz ripple in his rotor speed, so the rebuilt load carries his rotor's slow demand and not
+the ripple."""
+SLOPE_TRIM = {11: 2, 12: 2, 13: 1, 14: 1}
+"""The Appendix B trim whose load slope (`DQ_REQ_DNP`) each figure takes: hover for the hover
+cases, level flight at 80 kt for 55 and 90 kt [pdf p.67]."""
+LOAD_PANELS = ("nr", "ng", "fuel")
+"""What the second test predicts: his torque is its input."""
+J_TOTAL = engine_c.J_PT + engine_c.J_LOAD_UH60A
+"""The power turbine and its share of the rotor, as Appendix B's linear models carry it (#6)."""
+
+
+def _smooth(t_src: np.ndarray, v_src: np.ndarray, t: np.ndarray, deriv: int = 0) -> np.ndarray:
+    """`v_src` on the grid `t`, averaged over `RIPPLE_S` (held flat past the ends, where the
+    figure's trim continues), or the time derivative of that average."""
+    from scipy.ndimage import uniform_filter1d
+
+    n = int(round(RIPPLE_S / DT)) | 1
+    v = uniform_filter1d(np.interp(t, t_src, v_src), n, mode="nearest")
+    return np.gradient(v, DT) if deriv else v
+
+
+@functools.cache
+def demand(fig: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """His rotor's torque demand per engine, ft*lbf on our engine's scale, and his NP, rpm, on
+    our frame grid: `(t, q_req, np_his)`.
+
+    `q_req = Q_eng - J_TOTAL * d(omega)/dt`, his total torque scaled to ours at the trim, since
+    the gearbox ratio is not printed."""
+    tn, nr = his(fig, "nr")
+    tq, q = his(fig, "torque")
+    t = np.arange(max(tn[0], tq[0]), min(tn[-1], tq[-1]), DT)
+    q_eng = our_trim(fig).frame.q_pt_ftlbf * _smooth(tq, q, t) / his_trim(fig, "torque")
+    np_his = _smooth(tn, nr, t) / 100.0 * engine_c.NP_DES
+    domega = _smooth(tn, nr, t, deriv=1) / 100.0 * engine_c.NP_DES * RPM_TO_RAD_PER_SEC
+    return t, q_eng - J_TOTAL * domega, np_his
+
+
+@functools.cache
+def load_replay(fig: int, held: bool = False) -> dict[str, np.ndarray]:
+    """Our closed loop driven by his rotor's demand: `t`, NR %, NG %, fuel and torque.
+
+    Settled at the trim as `replay` is, then the load is his demand at his speed plus Appendix
+    B's slope times the difference between our speed and his, and on Figures 11 and 13 the
+    collective follows his at `scale_of`. NP is our own. `held` keeps the load at the trim:
+    what the loop does without his demand, the decoy."""
+    r = our_trim(fig)
+    np_trim = r.state.np_rpm
+    q_trim = r.frame.q_pt_ftlbf
+    slope = DQ_REQ_DNP[SLOPE_TRIM[fig]]
+    x0, scale = collective(fig), scale_of(fig)
+    pilot = loop.Pilot(xcpc_pct=x0, pas_deg=100.0, pcprf_pct=his_trim(fig, "nr"))
+    s = loop.seed(r, pilot, AMB)
+    at_trim = lambda v: q_trim + slope * (v - np_trim)  # noqa: E731
+    for _ in range(SETTLE_FRAMES):
+        s, *_ = loop.step(s, pilot, AMB, dt=DT, load=at_trim, j_load=engine_c.J_LOAD_UH60A)
+    t, q_req, np_his = demand(fig)
+    if scale is not None:
+        tc, cc = his(fig, "collective")
+        c0 = his_trim(fig, "collective")
+    out = np.zeros((t.size, 4))
+    for i, ti in enumerate(t):
+        if held:
+            load = at_trim
+        else:
+            load = lambda v, q=q_req[i], n=np_his[i]: q + slope * (v - n)  # noqa: E731
+        if scale is not None:
+            xcpc = x0 + scale * (float(np.interp(ti, tc, cc)) - c0)
+            pilot = dataclasses.replace(pilot, xcpc_pct=xcpc)
+        s, _e, h, fr = loop.step(s, pilot, AMB, dt=DT, load=load, j_load=engine_c.J_LOAD_UH60A)
+        out[i] = (
+            100.0 * s.engine.np_rpm / engine_c.NP_DES,
+            100.0 * s.engine.ng_rpm / engine_c.NG_DES,
+            h.wf_pph,
+            fr.q_pt_ftlbf,
+        )
+    return {"t": t, "nr": out[:, 0], "ng": out[:, 1], "fuel": out[:, 2], "torque": out[:, 3]}
+
+
+def ours_load(fig: int, key: str, held: bool = False) -> tuple[np.ndarray, np.ndarray]:
+    """`(t, value)` of the second test: NR and NG in %, fuel and torque in % of our trim."""
+    r = load_replay(fig, held)
+    v = r[key]
+    return r["t"], v if key in ("nr", "ng") else 100.0 * v / v[0]
+
+
+def gap_load(fig: int, key: str, line: str = "gen_hel", held: bool = False) -> np.ndarray:
+    """Per digitized column of his line, how far the second test is from it: NR and NG in %,
+    fuel and torque in % of trim."""
+    tb, vb = his(fig, key, line)
+    if key in ("fuel", "torque"):
+        vb = 100.0 * vb / his_trim(fig, key, line)
+    t, v = ours_load(fig, key, held)
+    keep = (tb >= t[0]) & (tb <= t[-1])
+    return _best(t, v, tb[keep], vb[keep], np.zeros(keep.sum()), TIME_TOL_S[fig])
+
+
+LOAD_REPLAY_RMS = {
+    11: {"nr": 0.2, "ng": 0.24, "fuel": 3.6},
+    12: {"nr": 0.037, "ng": 0.046, "fuel": 0.93},
+    13: {"nr": 0.2, "ng": 0.22, "fuel": 2.5},
+    14: {"nr": 0.092, "ng": 0.084, "fuel": 2.8},
+}
+"""The second test against his Gen Hel line, rms: NR and NG in %, fuel in % of trim. A
+characterization, 1.25 times today's value."""
+
+
+@pytest.mark.parametrize("fig", FIGS)
+@pytest.mark.parametrize("key", LOAD_PANELS)
+def test_his_load_gives_his_rotor_speed(fig: int, key: str):
+    got = rms(gap_load(fig, key))
+    assert got < LOAD_REPLAY_RMS[fig][key], f"Figure {fig} {key}: rms {got:.3f}"
+
+
+@pytest.mark.parametrize("fig", FIGS)
+@pytest.mark.parametrize("key", LOAD_PANELS)
+def test_his_load_drives_the_second_test(fig: int, key: str):
+    """With the load held at the trim, the second test sits at least `DECOY_MIN_RATIO` times
+    further from his line."""
+    assert rms(gap_load(fig, key, held=True)) > DECOY_MIN_RATIO * rms(gap_load(fig, key))

@@ -984,6 +984,53 @@ def gen_hel() -> dict:
     return out
 
 
+def gen_hel_load() -> dict:
+    """The second test on Figures 11-14 [pdf pp.48-52]: his rotor's demand in, our rotor speed,
+    NG and fuel out (`test_gen_hel.load_replay`, #81)."""
+    import test_gen_hel as g
+
+    out: dict = {}
+    fig, axes = plt.subplots(4, 3, figsize=fs(14.0, 11.0), sharex="row")
+    units = {"nr": "rotor speed, %", "ng": "gas generator speed, %", "fuel": "fuel, % of trim"}
+    for row, fno in enumerate(g.FIGS):
+        out[f"figure {fno}"] = {
+            "rms vs his gen hel": {k: g.rms(g.gap_load(fno, k)) for k in g.LOAD_PANELS},
+            "rms vs flight test": {k: g.rms(g.gap_load(fno, k, "test")) for k in g.LOAD_PANELS},
+            "rms with his load held": {
+                k: g.rms(g.gap_load(fno, k, held=True)) for k in g.LOAD_PANELS
+            },
+            "torque rms vs his gen hel": g.rms(g.gap_load(fno, "torque")),
+        }
+        for col, key in enumerate(g.LOAD_PANELS):
+            ax = axes[row, col]
+            for line, sty, colr, lab in (
+                ("gen_hel", "-", BALLIN, "Ballin, Gen Hel"),
+                ("test", "--", MUTED, "flight test"),
+            ):
+                t, v = g.his(fno, key, line)
+                if key == "fuel":
+                    v = 100.0 * v / g.his_trim(fno, key, line)
+                ax.plot(t, v, sty, color=colr, lw=1.2 if line == "gen_hel" else 0.9, label=lab)
+            t, v = g.ours_load(fno, key)
+            ax.plot(t, v, "-", color=OURS, lw=1.1, label="ours, from his rotor's demand")
+            ylabel = f"Figure {fno}\n{units[key]}" if col == 0 else units[key]
+            _style(ax, "time, s" if row == 3 else "", ylabel)
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper right",
+        bbox_to_anchor=(0.995, 0.998),
+        ncol=3,
+        frameon=False,
+        fontsize=8,
+        labelcolor=MUTED,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.97))
+    save(fig, "gen-hel-load-replay")
+    return out
+
+
 def _render(data: dict) -> None:
     print("figures 6-8 ...", flush=True)
     data["steady"] = steady_sweeps()
@@ -1023,6 +1070,8 @@ def _render(data: dict) -> None:
     data["figures_4_5"] = figures_4_5()
     print("gen hel figures ...", flush=True)
     data["gen_hel"] = gen_hel()
+    print("gen hel, the second test ...", flush=True)
+    data["gen_hel_load"] = gen_hel_load()
 
 
 # ============================================ the model's own behaviour, with no reference
