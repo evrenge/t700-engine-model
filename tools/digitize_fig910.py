@@ -274,6 +274,8 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     out = []
     for t, (key, label, lo, hi) in zip(tops, ranges, strict=True):
         t0, b0 = int(round(t)), int(round(t + height))
+        # Not `frame.fit_edges`: measured 2026-10-13, it moves values by up to 1.40x of 0.5 px
+        # (Figure 10 T41) and Figure 9's step time by -0.28 ms, against 0.05 ms (test_fuel_step).
         ts, ty, _ = frame_tilt(ink, t0, left, right)
         bs, by, _ = frame_tilt(ink, b0, left, right)
         # A frame the fit could not reach falls back to the other one rather than to zero:
