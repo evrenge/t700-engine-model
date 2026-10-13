@@ -40,6 +40,11 @@ PRINTED = {
     # the relay chain of UNCONSTRAINED below: B6 from Table C.1 [p.83]; the 1000 gain and
     # both relays' 1 from Fig. C3 [p.86]
     "B6": 1.0, "NP_LOOP_RELAY_GAIN": 1000.0, "RELAY_OUTPUT": 1.0,
+    # pinned by value only, read from the page images on 2026-10-13: Table C.1 [p.83-84];
+    # Fig. C13 [p.90]; Fig. C17 [p.91]
+    "CT12": 0.088, "CT16": 1.0, "KNDRP": 0.25, "NGREF": 101.0, "T11": 0.87,
+    "T45REF": 2004.0, "XKINTG": 0.18, "XKPROP": 0.20, "ZK3": 0.045,
+    "COLLECTIVE_RIGGING_GAIN": 0.914, "COLLECTIVE_RIGGING_BIAS": 5.34, "LOAD_DEMAND_BIAS": 3.26,
 }  # fmt: skip
 P = PRINTED
 
