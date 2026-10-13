@@ -33,6 +33,7 @@ from scipy import ndimage
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from figure.frame import band_line, longest_run_columns, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
+from figure.ticks import find_ticks  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig910")
 REF = Path("data/reference")
@@ -168,6 +169,14 @@ VFRAME_HALF_BAND_PX = 25
 VFRAME_MIN_ROWS = 40
 """The same, for a vertical frame fitted over one panel's rows. The band starts wide
 because the page-wide `left` can be a dozen pixels from the line inside a given panel."""
+
+TICK_EXCESS_PX = 8
+"""How far a tick must lengthen the ink run through the lower frame, beyond the frame's own
+rolling-median width, to be a major in the x tick check (`ticks.find_ticks`). Measured
+2026-10-13 on all twelve panels: the whole- and half-second ticks lengthen it by 9-13 px, the
+0.1 s minors by 2-7 (Figure 10's TORQ45 trace runs along its frame from 1.4 to 4.5 s and
+lifts both there). At 8 every panel finds all four interior whole seconds; the band count it
+replaced missed one or more on seven panels, and all four on Figure 10's T41."""
 
 
 def frame_tilt(ink: np.ndarray, y0: int, left: int, right: int) -> tuple[float, float, float]:
@@ -468,19 +477,8 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     def v_of(py, px):
         return p.v_lo + to_sv(px, py)[1] * (p.v_hi - p.v_lo)
 
-    # The tick band follows the lower frame. Rows 6 to 11 above it, measured on the p.45
-    # PCNG panel: rows 2-5 hold the frame's own shoulder, rows 12 and up only the trace,
-    # and nothing lies below the frame, so the ticks point inward.
-    counts = np.zeros(p.right - p.left + 1, dtype=int)
-    for i, x in enumerate(range(p.left, p.right + 1)):
-        yb = int(round(p.bot_at(x)))
-        counts[i] = int(ink[yb - 12 : yb - 6, x].sum())
-    hits = np.flatnonzero(counts >= 5)
-    ticks_px = []
-    if hits.size:
-        for g in np.split(hits, np.flatnonzero(np.diff(hits) > 3) + 1):
-            ticks_px.append(float(g.mean()) + p.left)
-    tp = np.array(ticks_px)
+    # The ticks on the lower frame point inward (up), and nothing lies below it.
+    tp = find_ticks(ink, p.edges()["bottom"], 1, -1, p.left, p.right + 1, TICK_EXCESS_PX)
     got = x_of(tp, p.bot_at(tp))
     err = float("nan")
     if got.size:
