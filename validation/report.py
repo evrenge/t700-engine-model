@@ -809,6 +809,65 @@ def table_3() -> dict:
     return {"rows": rows, "stats_cases_2_6": stats}
 
 
+def figures_4_5() -> dict:
+    """Figures 4 and 5 [pdf pp.30, 34]: the linear models' response to fuel pulses at hover,
+    ours and Ballin's printed matrices against his plotted bands (`test_fig45`)."""
+    import test_fig45 as f45
+
+    out: dict = {"steps": {}, "figure_4": {}, "figure_5": {}}
+    for fig in f45.FIGS:
+        t0, lv = f45.steps(fig)
+        out["steps"][f"figure_{fig}"] = {"t_start_s": t0.tolist(), "level_pct": lv.tolist()}
+    names4 = ("ballin 5-DOF", "ballin 2-DOF", "ballin reduced", *f45.OURS_IN_FIG4, "6-DOF")
+    for name in names4:
+        gap = {k: f45.outside(name, 4, k) for k in f45.PANELS}
+        out["figure_4"][name] = {
+            k: {"rms": f45.rms(v), "max": float(v.max())} for k, v in gap.items()
+        }
+    for name, which in (("ballin 5-DOF", "outer"), ("5-DOF", "outer"), ("6-DOF", "inner")):
+        out["figure_5"][f"{name} vs {which}"] = {
+            k: {"rms": f45.rms(f45.to_curve(name, k, which))} for k in f45.PANELS
+        }
+
+    fig, axes = plt.subplots(3, 2, figsize=fs(14.5, 10.0), sharex=True)
+    for col, fno in enumerate(f45.FIGS):
+        u = f45.fuel(fno)
+        tt = np.linspace(0, 15, 3001)
+        axes[0, col].plot(tt, [100 * u(x) for x in tt], color=MUTED, lw=1.2)
+        page = 30 if fno == 4 else 34
+        _style(axes[0, col], "", "fuel flow, % of trim", f"Figure {fno}, pdf p.{page}")
+        for row, key in ((1, "ng"), (2, "np")):
+            ax = axes[row, col]
+            tb, lo, up = f45.filled(fno, key)
+            ax.fill_between(
+                tb, lo, up, color=MUTED, alpha=0.35, lw=0, label="Ballin's plotted curves (band)"
+            )
+            if fno == 5:
+                t5, _outer, inner = f45.curves_5(key)
+                ax.plot(t5, inner, ".", color=BALLIN, ms=1.6, label="Ballin's 6-DOF, where apart")
+            j = 1 if key == "ng" else 2
+            t, *ys = f45.response("ballin 5-DOF", fno)
+            ax.plot(t, ys[j - 1], color=BALLIN, lw=1.0, ls="--", label="Ballin's printed B2")
+            t, *ys = f45.response("5-DOF", fno)
+            ax.plot(t, ys[j - 1], color=OURS, lw=1.1, label="our 5-DOF")
+            if fno == 4:
+                t, *ys = f45.response("nonlinear", fno)
+                ax.plot(t, ys[j - 1], color=GE, lw=0.9, label="our nonlinear engine + rotor load")
+            else:
+                t, *ys = f45.response("6-DOF", fno)
+                ax.plot(t, ys[j - 1], color=OURS, lw=1.1, ls=":", label="our 6-DOF (heat sink)")
+            _style(
+                ax,
+                "time, s" if row == 2 else "",
+                "gas turbine speed, %" if key == "ng" else "power turbine speed, %",
+            )
+            if row == 1:
+                ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc="lower right")
+    fig.tight_layout()
+    save(fig, "figures-4-5-overlay")
+    return out
+
+
 def _render(data: dict) -> None:
     print("figures 6-8 ...", flush=True)
     data["steady"] = steady_sweeps()
@@ -844,6 +903,8 @@ def _render(data: dict) -> None:
     data["fuel_overestimate"] = fuel_overestimate()
     print("table 3 ...", flush=True)
     data["table_3"] = table_3()
+    print("figures 4-5 ...", flush=True)
+    data["figures_4_5"] = figures_4_5()
 
 
 # ============================================ the model's own behaviour, with no reference

@@ -70,7 +70,6 @@ FUEL_TILT_TOL_PCT_HEIGHT = 1.0
 error, and the panels do not share a data range). The trace's per-column centroid scatters
 0.5-1.1 px (1 sigma), 0.15-0.33 % of a 330 px panel; 1.0 % is three sigma of that, and
 rejects the 11-14 px skew of an uncorrected page."""
-N_PANELS = 6
 T_LO, T_HI = 0.0, 5.0
 
 
@@ -211,7 +210,7 @@ def vframe_fit(ink: np.ndarray, x0: float, y0: int, y1: int) -> tuple[float, flo
 
 
 def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
-    """Locate the six panel frames.
+    """Locate the panel frames, one per entry of `ranges` (six on Figures 9-10).
 
     The vertical frame lines are the longest columnar runs, searched away from the page
     edges. A full-width row is not necessarily a frame (the WFPH step's two flat levels are
@@ -219,6 +218,7 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     six tops are found as an arithmetic progression, which the trace lines cannot join.
     """
     h = ink.shape[0]
+    n_panels = len(ranges)
     left, right = longest_run_columns(ink, 0.08, 0.97, 0.7)
 
     frac = ink[:, left : right + 1].mean(axis=1)
@@ -229,19 +229,19 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
             continue
         groups = np.split(rows, np.flatnonzero(np.diff(rows) > 3) + 1)
         lines = np.array([g.mean() for g in groups if g.size])
-        if lines.size >= 2 * N_PANELS:
+        if lines.size >= 2 * n_panels:
             break
-    if lines.size < 2 * N_PANELS:
-        raise RuntimeError(f"only {lines.size} horizontal lines found; need 12")
+    if lines.size < 2 * n_panels:
+        raise RuntimeError(f"only {lines.size} horizontal lines found; need {2 * n_panels}")
 
-    # the six tops are the best arithmetic progression among the candidates
+    # the tops are the best arithmetic progression among the candidates
     best = None
     for i, a in enumerate(lines):
         for b in lines[i + 1 :]:
             pitch = b - a
             if pitch < 300:
                 continue
-            want = a + pitch * np.arange(N_PANELS)
+            want = a + pitch * np.arange(n_panels)
             if want[-1] > h:
                 continue
             err = 0.0
@@ -250,17 +250,17 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
                 j = int(np.argmin(np.abs(lines - t)))
                 err += abs(lines[j] - t)
                 got.append(float(lines[j]))
-            if len(set(got)) < N_PANELS:
+            if len(set(got)) < n_panels:
                 continue
             if best is None or err < best[0]:
                 best = (err, got, pitch)
     if best is None:
-        raise RuntimeError(f"no six-panel progression among {lines}")
+        raise RuntimeError(f"no {n_panels}-panel progression among {lines}")
     err, tops, pitch = best
-    if err > 6.0 * N_PANELS:
+    if err > 6.0 * n_panels:
         raise RuntimeError(f"progression fits poorly (total {err:.1f} px): {tops}")
 
-    # Panel height is the same for all six, so take it once (the median top-to-bottom
+    # Panel height is the same for all panels, so take it once (the median top-to-bottom
     # distance): the nearest line below a top can be the WFPH step's level, not a frame.
     cands = []
     for t in tops:
@@ -462,7 +462,9 @@ def trace_line(
     return np.array(kept) if kept else np.zeros((0, 2))
 
 
-def calibrate(ink: np.ndarray, p: Panel) -> tuple:
+def calibrate(
+    ink: np.ndarray, p: Panel, t_range: tuple[float, float] = (T_LO, T_HI), major: float = 1.0
+) -> tuple:
     """Map pixels to data for one panel, and check the map against the printed ticks.
 
     Both frames of every axis carry a printed value, so they pin the (straight) map and the
@@ -472,9 +474,10 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     two differ by up to 2.1 px in time (Figure 9 WFPH), measured 2026-10-13.
     """
     to_sv, _ = make_sv(p.edges())
+    t_lo, t_hi = t_range
 
     def x_of(px, py):
-        return T_LO + to_sv(px, py)[0] * (T_HI - T_LO)
+        return t_lo + to_sv(px, py)[0] * (t_hi - t_lo)
 
     def v_of(py, px):
         return p.v_lo + to_sv(px, py)[1] * (p.v_hi - p.v_lo)
@@ -484,7 +487,7 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     got = x_of(tp, p.bot_at(tp))
     err = float("nan")
     if got.size:
-        want = np.arange(T_LO, T_HI + 1e-9, 1.0)
+        want = np.arange(t_lo, t_hi + 1e-9, major)
         near = [min(abs(got - w)) for w in want if np.any(np.abs(got - w) < 0.3)]
         if near:
             err = float(max(near))

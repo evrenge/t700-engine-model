@@ -1,7 +1,7 @@
 # Digitizing recipe
 
 Nineteen figures in the appendices carry model data — 11 engine functions, 8 control
-schedules — and five more in the body carry validation references. **None of them exists as
+schedules — and seven more in the body carry validation references. **None of them exists as
 numbers anywhere.** This file is how they are turned into CSV: how the pipeline works, what
 it refuses to do, and the traps that each cost a wrong file that looked right.
 
@@ -181,6 +181,7 @@ page's error directly.
 | `digitize_c30.py` | C30 (p.101) | `F_HM7`, the acceleration fuel limit — the one figure needing per-curve tracking |
 | `digitize_fig678.py` | 6, 7, 8 (pp.40–42) | `data/reference/fig06–08_*.csv`, three series each |
 | `digitize_fig910.py` | 9, 10 (pp.45–46) | `data/reference/fig09–10_*.csv`, six panels each |
+| `digitize_fig45.py` | 4, 5 (pp.30, 34) | `data/reference/fig04–05_*.csv`: the fuel input's plateaus, and each speed panel as a band of its overlaid traces |
 | `tools/figure/` | — | the shared library; writes nothing |
 | `rectify_page.py` | — | squares up a page for A1's component labelling. **Resamples**, which nothing else does |
 | `check_straightness.py` | — | audit: is each printed curve straight between its markers, measured in data space |

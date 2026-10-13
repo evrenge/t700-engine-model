@@ -44,7 +44,7 @@ failed=0
 # (open question #50), so only c23 has committed output.
 for entry in "digitize_a1" "digitize_a2" "digitize_single_curve" "digitize_a7" "digitize_a9" \
              "digitize_multi_curve c23" "digitize_c30" "digitize_fig678" \
-             "digitize_fig910"; do
+             "digitize_fig910" "digitize_fig45"; do
     set -- $entry
     t=$1
     shift

@@ -34,7 +34,7 @@ _TOLERANCE_HEADERS = {"tolerance", "bound", "steady state"}
 """The second header cell of each tolerance table in SCOPE.md, lowercased."""
 
 EXPECTED_TABLES = 3
-EXPECTED_ROWS = 43
+EXPECTED_ROWS = 45
 
 
 def _parse() -> tuple[list[tuple[str, str, str]], list[str], int]:
@@ -78,7 +78,7 @@ def _load(module: str):
 
 def _numbers(value) -> set[float]:
     if isinstance(value, dict):
-        return {float(v) for v in value.values()}
+        return set().union(*(_numbers(v) for v in value.values()))
     if isinstance(value, (tuple, list, set)):
         return {float(v) for v in value}
     return {float(value)}

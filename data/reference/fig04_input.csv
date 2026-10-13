@@ -1,0 +1,14 @@
+# source: TM-100991 pdf p.30, Figure 4, panel FUEL FLOW, % OF TRIM
+# quantity: the commanded fuel flow, one plateau per row after the trim (100 % of trim until the first row's start)
+# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig45.py
+# t_start_s: the column where the drawn step edge sits; level_pct: the median of the trace between edges, % of trim; scatter_pct: its standard deviation about that median, % of trim
+# read error: the plateaus sit on printed tick values 105, 95, 100, 102.5; the worst digitized level misses its value by -0.155 % of panel height
+# points: 4
+# x tick check: worst interior major tick off by 0.0314 s
+# frame tilt corrected: -0.23 % of panel height
+# NOT transcribed. Values carry read error.
+t_start_s,level_pct,scatter_pct
+0.26784,104.97675,0.00016
+1.29508,95.00837,0.00516
+2.25487,99.97836,0.03744
+5.00572,102.50727,0.01406
