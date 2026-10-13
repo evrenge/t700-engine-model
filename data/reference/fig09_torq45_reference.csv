@@ -4,7 +4,7 @@
 # t_s: time, seconds (0 to 5.0). The vertical frames are fitted over THIS panel's rows: left column 593.33 (slope -4.78 m px/row), right 2249.10 (slope -12.36), width 1655.76 px against the page-wide 1671. The page is skewed; see `Panel.left_slope`.
 # value: TORQ45, axis range 100.0 to 500.0, no unit printed on the figure
 # points: 45
-# x tick check: worst interior major tick off by 0.0154 s
+# x tick check: worst interior major tick off by 0.0140 s
 # frame tilt corrected: top +5.03 px, bottom +5.58 px across the panel (+1.60 % of panel height). The page is skewed; see `frame_tilt`.
 # sample lattice: pitch 33.25 px = 0.1004 s
 # NOT transcribed. Values carry read error.

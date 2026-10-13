@@ -4,24 +4,24 @@
 # ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
 # ps3_psia: STATION 3 STATIC PRESSURE, psia, axis 40.0 to 280.0
 # points: 17
-# shear corrected: left frame leans +21.04 px across the plot height, right +17.76 px; top frame -1.41 px across the width, bottom +2.41 px. The page is sheared; see `fit_frames`.
-# read error: after calibration the axis maps predict a tick they were not shown to rms 0.02255 in ng_pct and 0.1447 in ps3_psia, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
+# shear corrected: left frame leans +21.22 px across the plot height, right +17.83 px; top frame -1.26 px across the width, bottom +2.34 px. The page is sheared; see `fit_frames`.
+# read error: after calibration the axis maps predict a tick they were not shown to rms 0.01882 in ng_pct and 0.1481 in ps3_psia, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 ng_pct,ps3_psia
-81.0040,81.9109
-82.0048,86.8389
-84.0224,98.4221
-85.0179,105.9905
-86.9910,131.0217
-87.9868,141.1343
-88.9879,147.6408
-89.9686,158.6441
-90.9743,167.4562
-91.9628,177.4592
-92.9837,187.3193
-93.9796,197.8813
-94.9911,210.5226
-96.0089,223.1018
-98.0175,235.0952
-99.0162,238.6521
-100.0195,240.6287
+81.0045,81.9094
+82.0053,86.8362
+84.0231,98.4174
+85.0187,105.9851
+86.9925,131.0174
+87.9885,141.1313
+88.9899,147.6391
+89.9710,158.6445
+90.9771,167.4584
+91.9660,177.4632
+92.9872,187.3247
+93.9834,197.8876
+94.9952,210.5289
+96.0132,223.1069
+98.0215,235.0980
+99.0198,238.6540
+100.0224,240.6301

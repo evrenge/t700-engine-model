@@ -7,8 +7,9 @@ looks only at the data. Two geometry models (recipe, trap 7):
 * order 2 -- each edge an arc, plot coordinates by `make_sv`'s curvilinear blend.
 
 The single-curve figures choose between them by their own held-out frame test; A1 uses
-order 1, and A2, A7 and A9 order 2. Nothing here resamples the page: tilt and bow are carried
-as a map applied to the measured points.
+order 1, and A2, A7 and A9 order 2. The body figures 6-10 use `make_sv` on four straight
+lines (`fit_edges` on 6-8, `band_line` on 9-10). Nothing here resamples the page: tilt and bow
+are carried as a map applied to the measured points.
 """
 
 from __future__ import annotations
@@ -469,6 +470,54 @@ def print_segments(lines):
 def longest_run(mask) -> int:
     """Length of the longest contiguous True run in a 1-D boolean array."""
     return max((int(b - a) for a, b in runs(mask)), default=0)
+
+
+def longest_run_columns(ink, lo_frac, hi_frac, strong_frac):
+    """`(left, right)`: the outermost columns whose longest vertical ink run exceeds
+    `strong_frac` of the longest on the page, searched between `lo_frac` and `hi_frac` of the
+    width. A vertical frame spans the plot; text and data do not. The body figures' (6-10)
+    first guess at their vertical frames, refined by `band_line`."""
+    w = ink.shape[1]
+    m0, m1 = int(w * lo_frac), int(w * hi_frac)
+    cols = np.array([longest_run(ink[:, x]) if m0 <= x < m1 else 0 for x in range(w)])
+    strong = np.flatnonzero(cols > strong_frac * cols.max())
+    return int(strong.min()), int(strong.max())
+
+
+def band_line(ink, along, nominal, lo, hi, step, halves, max_ink, min_samples):
+    """One straight frame line from the ink centroid of a narrow band about it: the body
+    figures' (6-10) frame fitter.
+
+    `along=0` fits a vertical line, column as a function of row; `along=1` a horizontal one.
+    Positions `range(lo, hi, step)` along the line are sampled; pass k looks `halves[k]` px
+    either side of the previous pass's line, the first about the constant `nominal`. A
+    position is a sample if its band holds 1 to `max_ink` inked pixels: more is a tick or a
+    crossing trace. A pass with fewer than `min_samples` samples ends the fit. Returns
+    `((slope, intercept), passes completed, residual std of the last completed pass)`; the
+    line is that pass's, or `(0, nominal)` if none completed. Callers choose what an
+    incomplete fit means.
+    """
+    fitted = (0.0, float(nominal))
+    res = float("nan")
+    for k, half in enumerate(halves):
+        ts: list[float] = []
+        vs: list[float] = []
+        for t in range(lo, hi, step):
+            a = int(round(fitted[0] * t + fitted[1] - half))
+            if along == 0:
+                band = ink[t, max(a, 0) : a + 2 * half + 1]
+            else:
+                band = ink[max(a, 0) : a + 2 * half + 1, t]
+            idx = np.flatnonzero(band)
+            if idx.size and idx.size <= max_ink:
+                ts.append(float(t))
+                vs.append(a + float(idx.mean()))
+        if len(ts) < min_samples:
+            return fitted, k, res
+        s, b = np.polyfit(ts, vs, 1)
+        fitted = (float(s), float(b))
+        res = float(np.std(np.asarray(vs) - (s * np.asarray(ts) + b)))
+    return fitted, len(halves), res
 
 
 def edge_uv(fr, H):

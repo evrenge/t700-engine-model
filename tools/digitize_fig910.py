@@ -31,8 +31,9 @@ import numpy as np
 from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from figure.frame import longest_run  # noqa: E402
+from figure.frame import band_line, longest_run_columns, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
+from figure.ticks import find_ticks  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig910")
 REF = Path("data/reference")
@@ -111,6 +112,16 @@ class Panel:
         """Row of the lower frame at column `x`."""
         return self.bottom + self.bot_slope * (x - self.left)
 
+    def edges(self) -> dict[str, np.ndarray]:
+        """The four fitted frame lines in the form `frame.make_sv` takes: each a polynomial,
+        highest power first, the verticals in the row and the horizontals in the column."""
+        return {
+            "left": np.array([self.left_slope, self.left_at_top - self.left_slope * self.top]),
+            "right": np.array([self.right_slope, self.right_at_top - self.right_slope * self.top]),
+            "top": np.array([self.top_slope, self.top - self.top_slope * self.left]),
+            "bottom": np.array([self.bot_slope, self.bottom - self.bot_slope * self.left]),
+        }
+
     @property
     def tilt_pct_height(self) -> float:
         """Mean frame drop across the panel, as a percentage of panel height."""
@@ -159,6 +170,14 @@ VFRAME_MIN_ROWS = 40
 """The same, for a vertical frame fitted over one panel's rows. The band starts wide
 because the page-wide `left` can be a dozen pixels from the line inside a given panel."""
 
+TICK_EXCESS_PX = 8
+"""How far a tick must lengthen the ink run through the lower frame, beyond the frame's own
+rolling-median width, to be a major in the x tick check (`ticks.find_ticks`). Measured
+2026-10-13 on all twelve panels: the whole- and half-second ticks lengthen it by 9-13 px, the
+0.1 s minors by 2-7 (Figure 10's TORQ45 trace runs along its frame from 1.4 to 4.5 s and
+lifts both there). At 8 every panel finds all four interior whole seconds; the band count it
+replaced missed one or more on seven panels, and all four on Figure 10's T41."""
+
 
 def frame_tilt(ink: np.ndarray, y0: int, left: int, right: int) -> tuple[float, float, float]:
     """Fit one horizontal frame line: `(slope, row at `left`, residual)`, all in pixels.
@@ -169,19 +188,12 @@ def frame_tilt(ink: np.ndarray, y0: int, left: int, right: int) -> tuple[float, 
     crossing, or a tick), fit a line. The fitted row also replaces the panel search's,
     which is a centroid of the smeared tilted line.
     """
-    xs: list[int] = []
-    ys: list[float] = []
-    for x in range(left + 5, right - 4, 4):
-        band = ink[y0 - FRAME_HALF_BAND_PX : y0 + FRAME_HALF_BAND_PX + 1, x]
-        idx = np.flatnonzero(band)
-        if idx.size and idx.size <= 8:
-            xs.append(x)
-            ys.append(y0 - FRAME_HALF_BAND_PX + float(idx.mean()))
-    if len(xs) < FRAME_MIN_COLUMNS:
+    (a, b), done, res = band_line(
+        ink, 1, y0, left + 5, right - 4, 4, (FRAME_HALF_BAND_PX,), 8, FRAME_MIN_COLUMNS
+    )
+    if not done:
         return 0.0, float(y0), float("nan")
-    a, b = np.polyfit(xs, ys, 1)
-    res = float(np.std(np.asarray(ys) - (a * np.asarray(xs) + b)))
-    return float(a), float(a * left + b), res
+    return a, a * left + b, res
 
 
 def vframe_fit(ink: np.ndarray, x0: float, y0: int, y1: int) -> tuple[float, float, float]:
@@ -190,27 +202,12 @@ def vframe_fit(ink: np.ndarray, x0: float, y0: int, y1: int) -> tuple[float, flo
     Two passes, wide then narrow, for the same reason `frame_tilt` uses two: the starting
     guess is the page-wide extreme column and the true line can be a dozen pixels away.
     """
-    fitted = (0.0, float(x0))
-    half = VFRAME_HALF_BAND_PX
-    res = float("nan")
-    for _pass in (0, 1):
-        ys: list[float] = []
-        xs: list[float] = []
-        for y in range(y0 + 4, y1 - 3, 3):
-            centre = fitted[0] * y + fitted[1]
-            lo = int(round(centre - half))
-            band = ink[y, max(lo, 0) : lo + 2 * half + 1]
-            idx = np.flatnonzero(band)
-            if idx.size and idx.size <= 10:
-                ys.append(float(y))
-                xs.append(lo + float(idx.mean()))
-        if len(ys) < VFRAME_MIN_ROWS:
-            return 0.0, float(x0), float("nan")
-        a, b = np.polyfit(ys, xs, 1)
-        fitted = (float(a), float(b))
-        res = float(np.std(np.asarray(xs) - (a * np.asarray(ys) + b)))
-        half = 6
-    return fitted[0], fitted[0] * y0 + fitted[1], res
+    (a, b), done, res = band_line(
+        ink, 0, x0, y0 + 4, y1 - 3, 3, (VFRAME_HALF_BAND_PX, 6), 10, VFRAME_MIN_ROWS
+    )
+    if done < 2:
+        return 0.0, float(x0), float("nan")
+    return a, a * y0 + b, res
 
 
 def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
@@ -221,11 +218,8 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     full-width lines too, and pairing neighbours shifts every label by one panel), so the
     six tops are found as an arithmetic progression, which the trace lines cannot join.
     """
-    h, w = ink.shape
-    m0, m1 = int(w * 0.08), int(w * 0.97)
-    cols = np.array([longest_run(ink[:, x]) if m0 <= x < m1 else 0 for x in range(w)])
-    strong = np.flatnonzero(cols > 0.7 * cols.max())
-    left, right = int(strong.min()), int(strong.max())
+    h = ink.shape[0]
+    left, right = longest_run_columns(ink, 0.08, 0.97, 0.7)
 
     frac = ink[:, left : right + 1].mean(axis=1)
     lines: np.ndarray = np.zeros(0)
@@ -280,6 +274,8 @@ def find_panels(ink: np.ndarray, ranges: list) -> list[Panel]:
     out = []
     for t, (key, label, lo, hi) in zip(tops, ranges, strict=True):
         t0, b0 = int(round(t)), int(round(t + height))
+        # Not `frame.fit_edges`: measured 2026-10-13, it moves values by up to 1.40x of 0.5 px
+        # (Figure 10 T41) and the step time behind test_fuel_step.STEP_TIME by -0.28 ms (Fig 9).
         ts, ty, _ = frame_tilt(ink, t0, left, right)
         bs, by, _ = frame_tilt(ink, b0, left, right)
         # A frame the fit could not reach falls back to the other one rather than to zero:
@@ -471,34 +467,21 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
 
     Both frames of every axis carry a printed value, so they pin the (straight) map and the
     interior major ticks are the held-out check. `v_of` needs the column as well as the row,
-    because the frames are tilted (see `Panel.top_slope`).
+    because the frames are tilted (see `Panel.top_slope`). The map is `frame.make_sv` on the
+    four straight lines, not `frame.unit_square`'s homography: across these twelve panels the
+    two differ by up to 2.1 px in time (Figure 9 WFPH), measured 2026-10-13.
     """
+    to_sv, _ = make_sv(p.edges())
 
     def x_of(px, py):
-        lo = p.left_at_top + p.left_slope * (np.asarray(py, float) - p.top)
-        hi = p.right_at_top + p.right_slope * (np.asarray(py, float) - p.top)
-        return T_LO + (np.asarray(px, float) - lo) / (hi - lo) * (T_HI - T_LO)
+        return T_LO + to_sv(px, py)[0] * (T_HI - T_LO)
 
     def v_of(py, px):
-        dx = np.asarray(px, float) - p.left
-        top = p.top + p.top_slope * dx
-        bottom = p.bottom + p.bot_slope * dx
-        f = (np.asarray(py, float) - top) / (bottom - top)
-        return p.v_hi + f * (p.v_lo - p.v_hi)
+        return p.v_lo + to_sv(px, py)[1] * (p.v_hi - p.v_lo)
 
-    # The tick band follows the lower frame. Rows 6 to 11 above it, measured on the p.45
-    # PCNG panel: rows 2-5 hold the frame's own shoulder, rows 12 and up only the trace,
-    # and nothing lies below the frame, so the ticks point inward.
-    counts = np.zeros(p.right - p.left + 1, dtype=int)
-    for i, x in enumerate(range(p.left, p.right + 1)):
-        yb = int(round(p.bot_at(x)))
-        counts[i] = int(ink[yb - 12 : yb - 6, x].sum())
-    hits = np.flatnonzero(counts >= 5)
-    ticks_px = []
-    if hits.size:
-        for g in np.split(hits, np.flatnonzero(np.diff(hits) > 3) + 1):
-            ticks_px.append(float(g.mean()) + p.left)
-    got = np.array([x_of(t, p.bot_at(t)) for t in ticks_px])
+    # The ticks on the lower frame point inward (up), and nothing lies below it.
+    tp = find_ticks(ink, p.edges()["bottom"], 1, -1, p.left, p.right + 1, TICK_EXCESS_PX)
+    got = x_of(tp, p.bot_at(tp))
     err = float("nan")
     if got.size:
         want = np.arange(T_LO, T_HI + 1e-9, 1.0)
@@ -569,7 +552,8 @@ def main() -> int:
                 if pts.shape[0] == 0:
                     continue
                 path = REF / f"fig{fig:02d}_{p.key}_{kind}.csv"
-                ts_all = np.array([x_of(px, py) for px, py in pts])
+                ts_all = x_of(pts[:, 0], pts[:, 1])
+                vs_all = v_of(pts[:, 1], pts[:, 0])
                 dropped: list[int] = []
                 if ts_all.size > 8:
                     _g = np.diff(ts_all)
@@ -617,7 +601,7 @@ def main() -> int:
                     if kind == "reference":
                         fh.write(
                             f"# sample lattice: pitch {info['pitch']:.2f} px "
-                            f"= {x_of(p.left_at_top + info['pitch'], p.top) - T_LO:.4f} s\n"
+                            f"= {x_of(p.left_at_top + info['pitch'], p.top)[0] - T_LO:.4f} s\n"
                         )
                     # Past the end of the plotted curve the walker re-acquires ink (a frame
                     # line, a legend rule, a stray glyph). Every such artifact sits behind an
@@ -634,18 +618,18 @@ def main() -> int:
                             f"t = {', '.join(f'{ts[i]:.5f}' for i in dropped)} s, behind an "
                             f"x-gap of {gaps[cut - 1] / med:.0f}x the median sample interval "
                             f"({med:.5f} s). The curve ends at t={ts[cut - 1]:.5f} s with "
-                            f"value {v_of(pts[cut - 1][1], pts[cut - 1][0]):.5f}; "
+                            f"value {vs_all[cut - 1]:.5f}; "
                             f"the dropped samples read "
-                            f"{', '.join(f'{v_of(pts[i][1], pts[i][0]):.2f}' for i in dropped)}. "
+                            f"{', '.join(f'{vs_all[i]:.2f}' for i in dropped)}. "
                             f"Re-acquired ink past the end of the plotted curve, not data. "
                             f"See open question #48.\n"
                         )
                     fh.write("# NOT transcribed. Values carry read error.\n")
                     fh.write("t_s,value\n")
                     keep = set(range(len(pts))) - set(dropped)
-                    for i, (px, py) in enumerate(pts):
+                    for i in range(len(pts)):
                         if i in keep:
-                            fh.write(f"{x_of(px, py):.5f},{v_of(py, px):.5f}\n")
+                            fh.write(f"{ts_all[i]:.5f},{vs_all[i]:.5f}\n")
             print(
                 f"  {p.label:7} model {line.shape[0]:5d} pts | "
                 f"reference {marks.shape[0]:3d} | x tick worst {terr:.4f} s | "
@@ -654,8 +638,8 @@ def main() -> int:
             if p.key == "wfph" and line.shape[0]:
                 failures += check_fuel_panel(
                     fig,
-                    np.array([x_of(px, py) for px, py in line]),
-                    np.array([v_of(py, px) for px, py in line]),
+                    x_of(line[:, 0], line[:, 1]),
+                    v_of(line[:, 1], line[:, 0]),
                     abs(p.v_hi - p.v_lo),
                 )
     if failures:
