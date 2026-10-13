@@ -54,14 +54,16 @@ PRE_STEP_KEYS = ("pcng", "ps3", "t41", "t45", "torq45", "wfph")
 here: a literal copy goes stale silently when the digitizer changes."""
 
 
+def _plateau(fig: int, key: str, source: str = "model") -> float:
+    """Mean of one panel's record before the step: `model` is Ballin's line, `reference`
+    the status-81 '+' markers."""
+    t, v = read_reference(f"fig{fig:02d}_{key}_{source}.csv")
+    return float(v[t < tfs.STEP_TIME[fig] - 0.05].mean())
+
+
 def _pre_step(fig: int) -> dict[str, float]:
     """Both figures begin at the same 400 lbm/hr trim, so these are two reads of one state."""
-    t_step = tfs.STEP_TIME[fig]
-    out = {}
-    for key in PRE_STEP_KEYS:
-        t, v = read_reference(f"fig{fig:02d}_{key}_model.csv")
-        out[key] = float(v[t < t_step - 0.05].mean())
-    return out
+    return {key: _plateau(fig, key) for key in PRE_STEP_KEYS}
 
 
 # The WFPH panel is the input, and the caption prints both of its levels.
@@ -117,7 +119,7 @@ def test_ballins_own_cross_reference_between_figures_9_and_6_holds():
     The trim gap between his model and status-81 is the same quantity in Figure 9 and in
     Figure 6 at the same fuel flow.
     """
-    ng9_b, ng9_g = _pre_step(9)["pcng"], 89.759  # Ballin's line, GE '+' markers
+    ng9_b, ng9_g = _plateau(9, "pcng"), _plateau(9, "pcng", "reference")
     gap_transient = 100.0 * (ng9_b / ng9_g - 1.0)
 
     wf_b, nb = read_reference("fig06_realtime.csv")
@@ -290,9 +292,12 @@ def test_the_transient_sits_off_the_steady_locus_in_the_right_direction(fig, wf_
 def test_we_match_both_sides_of_the_figure_6_to_9_gap():
     """At 775 lbm/hr the sweeps (Figures 6-8) and Figure 9 disagree because Figure 9 has not
     settled when its record ends. We match both at once, and our own unsettled deficit
-    accounts for the gap.
+    accounts for the gap. Each panel is compared where its own record stops.
     """
-    t_end = 4.46  # where Ballin's Figure 9 record stops
+    ends = {}
+    for key in ("pcng", "ps3", "torq45"):
+        t, v = read_reference(f"fig09_{key}_model.csv")
+        ends[key] = float(t[-1]), float(v[-1])
     r775 = trim.sweep(np.arange(400.0, 776.0, 25.0), c.NP_DES, AMB)[-1]
     assert r775.trustworthy
     f775 = frame(r775.state, wf_pps_from_pph(775.0), AMB)
@@ -304,26 +309,25 @@ def test_we_match_both_sides_of_the_figure_6_to_9_gap():
     ng8, ps8 = read_reference("fig08_realtime.csv")
     ng_f6 = float(np.interp(775.0, wf6, ng6))
 
+    (t_ng, ng9), (t_ps3, ps9), (t_q, q9) = ends["pcng"], ends["ps3"], ends["torq45"]
     cases = {
         "NG": (
             ng_f6,
-            read_reference("fig09_pcng_model.csv")[1][-1],
+            ng9,
             100.0 * r775.state.ng_rpm / c.NG_DES,
-            float(np.interp(t_end, tr["t"], 100.0 * tr["ng"] / c.NG_DES)),
+            float(np.interp(t_ng, tr["t"], 100.0 * tr["ng"] / c.NG_DES)),
         ),
         "Ps3": (
             float(np.interp(ng_f6, ng8, ps8)),
-            float(np.interp(t_end, *read_reference("fig09_ps3_model.csv"))),
+            ps9,
             f775.ps3_psia,
-            float(np.interp(t_end, tr["t"], c.K_PS3 * tr["p3"])),
+            float(np.interp(t_ps3, tr["t"], c.K_PS3 * tr["p3"])),
         ),
         "shp": (
             float(np.interp(775.0, wf7, shp7)),
-            shp_from_torque(
-                float(np.interp(t_end, *read_reference("fig09_torq45_model.csv"))), c.NP_DES
-            ),
+            shp_from_torque(q9, c.NP_DES),
             shp_from_torque(f775.q_pt_ftlbf, c.NP_DES),
-            shp_from_torque(float(np.interp(t_end, tr["t"], tr["q_pt"])), c.NP_DES),
+            shp_from_torque(float(np.interp(t_q, tr["t"], tr["q_pt"])), c.NP_DES),
         ),
     }
 

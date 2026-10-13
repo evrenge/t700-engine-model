@@ -82,7 +82,7 @@ T4.5. Table B.1's hottest trim is 1632 [pdf p.67], and 1993 needs NG past the 10
 the model is valid to [pdf p.39], so no closed-loop run reaches the limiter. 2050 degR is
 inside `F_EC1`'s printed range, whose curves run to 2060 degR [Fig. C23, pdf p.94]."""
 
-OVERTEMP_SPDG = (1.9438, 1.9478)
+OVERTEMP_SPDG = (1.9166, 1.9204)
 """`SPDG` 8.4 s after a step to `OVERTEMP_DEGR`, from the hover trim's sensed state.
 
 A tripwire on Appendix C's temperature path (open question #65), not an accuracy claim:
@@ -97,7 +97,7 @@ def _overtemp(t45_hot=OVERTEMP_DEGR, n=1500, at=300):
     base = dict(
         np_rpm=20895.0,
         torq45_ftlbf=229.0,
-        w45_pps=8.18,
+        w45_pps=7.90,
         p45_psia=37.42,
         pcprf_pct=20895.0 * 100.0 / engine_c.NP_DES,
     )
