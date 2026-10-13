@@ -100,24 +100,25 @@ def test_two_dof_equals_reduced_five_identically(name: str):
     vs -2.81 at hover) because his reduced-order model is a separate program with the
     opened Eq. 74 iteration; ours is a Newton solve to 1e-10 (open question #49).
 
-    Checked at rel 1e-6, where both finite differences are converged. At the shipped 1e-5,
-    descent's `A[1,0]` carries truncation: the quasi-steady `g(s)` slaves the pressures and
-    curves harder in NG than the 5-DOF `f(x)`. That element is the NG->NP coupling, in no
-    compared eigenvalue (`A[0,1]` is zero, so the 2-DOF eigenvalues are the diagonal).
+    Checked at rel 1e-6, where both finite differences are converged, then at `_model`'s
+    default 1e-5 as a growth alarm. Neither is the shipped extraction step, `linear.py`'s
+    `rel_step` (the report's two percent): a central difference that wide carries
+    truncation, and the quasi-steady `g(s)`, which slaves the pressures, curves differently
+    in NG from the 5-DOF `f(x)`, so the two routes part there, NG's diagonal included.
     """
     a = _model(name, DOF.TWO, rel_step=1e-6)
     b = _model(name, DOF.REDUCED_FIVE, rel_step=1e-6)
     assert np.allclose(a.A, b.A, rtol=1e-6, atol=1e-9), f"\n{a.A}\n{b.A}"
     assert np.allclose(a.b, b.b, rtol=1e-6, atol=1e-9)
 
-    # The shipped step: a growth alarm, so a failure points at the step rather than the
-    # data (descent measured 9.6e-4).
+    # `_model`'s default step, not the shipped one: a growth alarm, so a failure points at
+    # the step rather than the data.
     a5 = _model(name, DOF.TWO)
     b5 = _model(name, DOF.REDUCED_FIVE)
     gap = float(np.max(np.abs(a5.A - b5.A) / np.maximum(np.abs(a5.A), 1e-30)))
     assert gap < 2e-3, (
-        f"{name}: at the shipped rel_step=1e-5 the two routes to the 2-DOF A differ by "
-        f"{gap:.2e} (9.6e-4 at descent on record); the step is no longer adequate."
+        f"{name}: at rel_step=1e-5 the two routes to the 2-DOF A differ by "
+        f"{gap:.2e}; the step is no longer adequate."
     )
 
 

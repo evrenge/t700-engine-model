@@ -7,9 +7,9 @@ Ballin makes the three pressures algebraic and solves them each frame:
 
 * the opened compressor mass-flow iteration (Eq. 74) carries one mass flow across the frame
   boundary instead of looping through the compressor map;
-* the inner P3/P41 loop (Eqs. 76, 78) is a Gauss-Seidel sweep -- "eleven arithmetic
-  operations required for each pass ... no relaxation algorithm is required for convergence"
-  [pdf p.37];
+* the inner P3/P41 loop (Eqs. 76, 78) is what the report calls "A fixed-point iteration"
+  [pdf p.37], swept here in Gauss-Seidel order -- "eleven arithmetic operations required for
+  each pass. No relaxation algorithm is required for convergence" [pdf p.37];
 * P45 is solved independently (Eq. 80), "because it is a nonlinear function of its own
   value, iterative techniques must be used" [pdf p.37].
 
@@ -25,7 +25,7 @@ Two decisions, not transcriptions:
   `WA31_(n) = WA3_(n) - WA3_bl_(n-1)`; the prose takes "the mass flow leaving the
   compressor in the previous interval" [pdf p.36], `WA31_(n) = WA31_(n-1)`. Both are implemented
   (`lag_whole_flow`); the default is the prose, the sentence that describes opening the
-  loop. The two differ by less than the report's own 0.1 % criterion.
+  loop. On the Fig. 9 step the two differ by more than the report's own 0.1 % criterion.
 """
 
 from __future__ import annotations
@@ -217,10 +217,10 @@ def _inner_pressure_loop(
 ) -> tuple[float, float, int, Exit]:
     """The P3/P41 fixed-point sweep, Eqs. 76 and 78.
 
-    Gauss-Seidel as the report describes it [pdf p.37]: P3 from the current P41, then P41
-    from the P3 just computed, not a simultaneous solve. T3 and theta_41 are held across
-    the sweep (recomputed once per frame outside), which makes it eleven arithmetic
-    operations a pass.
+    The report says only "A fixed-point iteration" [pdf p.37]; the order here is ours,
+    Gauss-Seidel in form: P3 from the current P41, then P41 from the P3 just computed, not
+    a simultaneous solve. T3 and theta_41 are held across the sweep (recomputed once per
+    frame outside), which makes it eleven arithmetic operations a pass.
 
     The stopping rule is the report's: "up to ten iterations may be required for
     convergence with less than 0.1 percent error, resulting in a total of 110 arithmetic

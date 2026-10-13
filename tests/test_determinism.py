@@ -71,7 +71,8 @@ def test_a_real_time_run_is_bit_identical_across_an_intervening_clamp_count():
 
 
 def test_a_trim_is_bit_identical_across_an_intervening_solve():
-    """The cached loaders and the continuation seed are both process-global."""
+    """The cached loaders are process-global; `trim.sweep`'s continuation guess is local
+    to the call. Either way an intervening sweep must leave no trace."""
     first = trim.solve(WF0, c.NP_DES, AMB).state
     trim.sweep([800.0, 700.0, 600.0])  # a different ladder, in between
     second = trim.solve(WF0, c.NP_DES, AMB).state

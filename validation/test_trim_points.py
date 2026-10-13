@@ -110,8 +110,9 @@ def test_gas_path_is_physically_ordered(case: TrimCase):
 def test_solution_sits_inside_the_digitized_data(case: TrimCase):
     """A trim that sits outside the maps is extrapolating, and must be declared.
 
-    The descent trim sits just below the 85 % speed line, so the blend reads line 82 past its
-    last knot with a weight of a few thousandths: allowed, recorded, not ignored.
+    The descent trim sits just above the 85 % speed line and records no clamp. It is still
+    allowed `f1@82` -- line 82 read past its last knot, which a dip below 85 % would cause --
+    so a small move does not fail the test; any other clamp is extrapolation.
     """
     r = _solve(case)
     allowed = {"f1@82"} if case.name == "descent 80 kt" else set()

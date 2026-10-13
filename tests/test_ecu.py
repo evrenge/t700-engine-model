@@ -87,8 +87,8 @@ OVERTEMP_SPDG = (1.9438, 1.9478)
 
 A tripwire on Appendix C's temperature path (open question #65), not an accuracy claim:
 the report prints no overtemperature transient. Every input is a literal, so only Appendix
-C's constants and `F_EC1` can move it. Measured 1.945780, band +/-0.1 %: tight enough that
-`TLGE` +/-10 % falls outside."""
+C's constants and `F_EC1` can move it. The band is +/-0.1 % about the value measured when
+it was set: tight enough that `TLGE` +/-10 % falls outside."""
 
 
 @functools.cache

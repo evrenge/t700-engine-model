@@ -89,10 +89,11 @@ def _reference(fig: int, key: str) -> tuple[np.ndarray, np.ndarray]:
 def _settled_window(tb, vb):
     """The reference's own settled samples, and the time its record actually stops.
 
-    The 4.6 upper bound is load-bearing: `fig09_t41_model.csv` and `fig09_torq45_model.csv`
-    each carry a spurious trailing sample at t ~ 4.9 (open question #48). Callers average
-    ours only up to the returned stop time (about 4.47 s, where Ballin's frame ends), since
-    on Figure 10 nothing has settled by then (#68).
+    The 4.6 upper bound was written against a spurious trailing sample near t ~ 4.9 in
+    `fig09_t41_model.csv` and `fig09_torq45_model.csv` (open question #48); the digitizer
+    now drops such samples and both records end near 4.47 s, where Ballin's frame ends, so
+    the bound is a guard. Callers average ours only up to the returned stop time, since on
+    Figure 10 nothing has settled by then (#68).
     """
     sel = (tb > 4.0) & (tb < 4.6)
     if not sel.any():

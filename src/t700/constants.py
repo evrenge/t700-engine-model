@@ -40,7 +40,7 @@ Never returns to the gas path [body-engine-model.md, Eqs. 15-17, 44]."""
 # --------------------------------------------------------------------------- gearbox
 
 K_DAMP: Final = 0.06854
-"""Helicopter gearbox damping coefficient, ft*lbf*sec/rad. [row 6]
+"""Power turbine speed damping coefficient, ft*lbf*sec/rad. [row 6; nomenclature, pdf p.10]
 
 Enters the power turbine torque balance [pdf p.25, Eq. 41] multiplied by
 (NP - NP_DES), i.e. speed *displacement*, though the surrounding prose describes it as
@@ -108,7 +108,7 @@ K_T49_2: Final = 172.3
 K_TH41_1: Final = 0.0018326
 """Station 4.1 squared-critical-velocity-ratio slope, 1/degR. [row 23]
 
-theta_41 = K_TH41_1*T41 + K_TH41_2 [pdf p.23, Eq. 25]"""
+theta_41 = K_TH41_1*T41 + K_TH41_2 [pdf p.24, Eq. 25]"""
 
 K_TH41_2: Final = 0.0856
 """Station 4.1 velocity ratio intercept, nondimensional. [row 24]"""
@@ -137,7 +137,7 @@ K_V45: Final = 13.63
 K_WGT: Final = 0.0876
 """Gas generator turbine flow coefficient, lbm*in^2/(lbf*sec). [row 30]
 
-W41 = K_WGT * P41 / sqrt(theta_41) [pdf p.23, Eq. 28]"""
+W41 = K_WGT * P41 / sqrt(theta_41) [pdf p.24, Eq. 28]"""
 
 # --------------------------------------------------------------------------- design speeds
 

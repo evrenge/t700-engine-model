@@ -1,4 +1,4 @@
-"""One frame of the T700 gas path: Eqs. 1-49, in the report's own order.
+"""One frame of the T700 gas path: Eqs. 1-47, in the report's own order.
 
 Given the five states and a fuel flow, `frame()` walks the gas path once -- inlet,
 compressor, bleeds, combustor, gas generator turbine, station 4.5 mixing, power turbine,
@@ -6,7 +6,7 @@ exhaust -- and returns every station value, the three torques and the five deriv
 
 One forward pass is enough because the three pressures are pure integrators (Eqs. 42-44):
 nothing solves for a pressure balance. The real-time implementation's opened iteration
-(Eqs. 74-80, pdf pp.36-38) belongs in `t700.realtime`.
+(Eqs. 74-80, pdf pp.36-37) belongs in `t700.realtime`.
 
     NG, NP    spool speeds, rpm
     P3        compressor discharge total pressure, psia
@@ -287,7 +287,7 @@ def frame(
     j_load: float = 0.0,
     t41_degR: float | None = None,
 ) -> Frame:
-    """Evaluate Eqs. 1-49 once.
+    """Evaluate Eqs. 1-47 once.
 
     Args:
         state: the five states.
