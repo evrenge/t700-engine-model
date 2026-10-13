@@ -31,7 +31,7 @@ import numpy as np
 from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from figure.frame import longest_run  # noqa: E402
+from figure.frame import longest_run, make_sv  # noqa: E402
 from figure.raster import native_bitmap  # noqa: E402
 
 OUT = Path("validation/out/digitize/fig910")
@@ -110,6 +110,16 @@ class Panel:
     def bot_at(self, x: float) -> float:
         """Row of the lower frame at column `x`."""
         return self.bottom + self.bot_slope * (x - self.left)
+
+    def edges(self) -> dict[str, np.ndarray]:
+        """The four fitted frame lines in the form `frame.make_sv` takes: each a polynomial,
+        highest power first, the verticals in the row and the horizontals in the column."""
+        return {
+            "left": np.array([self.left_slope, self.left_at_top - self.left_slope * self.top]),
+            "right": np.array([self.right_slope, self.right_at_top - self.right_slope * self.top]),
+            "top": np.array([self.top_slope, self.top - self.top_slope * self.left]),
+            "bottom": np.array([self.bot_slope, self.bottom - self.bot_slope * self.left]),
+        }
 
     @property
     def tilt_pct_height(self) -> float:
@@ -471,20 +481,17 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
 
     Both frames of every axis carry a printed value, so they pin the (straight) map and the
     interior major ticks are the held-out check. `v_of` needs the column as well as the row,
-    because the frames are tilted (see `Panel.top_slope`).
+    because the frames are tilted (see `Panel.top_slope`). The map is `frame.make_sv` on the
+    four straight lines, not `frame.unit_square`'s homography: across these twelve panels the
+    two differ by up to 2.1 px in time (Figure 9 WFPH), measured 2026-10-13.
     """
+    to_sv, _ = make_sv(p.edges())
 
     def x_of(px, py):
-        lo = p.left_at_top + p.left_slope * (np.asarray(py, float) - p.top)
-        hi = p.right_at_top + p.right_slope * (np.asarray(py, float) - p.top)
-        return T_LO + (np.asarray(px, float) - lo) / (hi - lo) * (T_HI - T_LO)
+        return T_LO + to_sv(px, py)[0] * (T_HI - T_LO)
 
     def v_of(py, px):
-        dx = np.asarray(px, float) - p.left
-        top = p.top + p.top_slope * dx
-        bottom = p.bottom + p.bot_slope * dx
-        f = (np.asarray(py, float) - top) / (bottom - top)
-        return p.v_hi + f * (p.v_lo - p.v_hi)
+        return p.v_lo + to_sv(px, py)[1] * (p.v_hi - p.v_lo)
 
     # The tick band follows the lower frame. Rows 6 to 11 above it, measured on the p.45
     # PCNG panel: rows 2-5 hold the frame's own shoulder, rows 12 and up only the trace,
@@ -498,7 +505,8 @@ def calibrate(ink: np.ndarray, p: Panel) -> tuple:
     if hits.size:
         for g in np.split(hits, np.flatnonzero(np.diff(hits) > 3) + 1):
             ticks_px.append(float(g.mean()) + p.left)
-    got = np.array([x_of(t, p.bot_at(t)) for t in ticks_px])
+    tp = np.array(ticks_px)
+    got = x_of(tp, p.bot_at(tp))
     err = float("nan")
     if got.size:
         want = np.arange(T_LO, T_HI + 1e-9, 1.0)
@@ -569,7 +577,8 @@ def main() -> int:
                 if pts.shape[0] == 0:
                     continue
                 path = REF / f"fig{fig:02d}_{p.key}_{kind}.csv"
-                ts_all = np.array([x_of(px, py) for px, py in pts])
+                ts_all = x_of(pts[:, 0], pts[:, 1])
+                vs_all = v_of(pts[:, 1], pts[:, 0])
                 dropped: list[int] = []
                 if ts_all.size > 8:
                     _g = np.diff(ts_all)
@@ -617,7 +626,7 @@ def main() -> int:
                     if kind == "reference":
                         fh.write(
                             f"# sample lattice: pitch {info['pitch']:.2f} px "
-                            f"= {x_of(p.left_at_top + info['pitch'], p.top) - T_LO:.4f} s\n"
+                            f"= {x_of(p.left_at_top + info['pitch'], p.top)[0] - T_LO:.4f} s\n"
                         )
                     # Past the end of the plotted curve the walker re-acquires ink (a frame
                     # line, a legend rule, a stray glyph). Every such artifact sits behind an
@@ -634,18 +643,18 @@ def main() -> int:
                             f"t = {', '.join(f'{ts[i]:.5f}' for i in dropped)} s, behind an "
                             f"x-gap of {gaps[cut - 1] / med:.0f}x the median sample interval "
                             f"({med:.5f} s). The curve ends at t={ts[cut - 1]:.5f} s with "
-                            f"value {v_of(pts[cut - 1][1], pts[cut - 1][0]):.5f}; "
+                            f"value {vs_all[cut - 1]:.5f}; "
                             f"the dropped samples read "
-                            f"{', '.join(f'{v_of(pts[i][1], pts[i][0]):.2f}' for i in dropped)}. "
+                            f"{', '.join(f'{vs_all[i]:.2f}' for i in dropped)}. "
                             f"Re-acquired ink past the end of the plotted curve, not data. "
                             f"See open question #48.\n"
                         )
                     fh.write("# NOT transcribed. Values carry read error.\n")
                     fh.write("t_s,value\n")
                     keep = set(range(len(pts))) - set(dropped)
-                    for i, (px, py) in enumerate(pts):
+                    for i in range(len(pts)):
                         if i in keep:
-                            fh.write(f"{x_of(px, py):.5f},{v_of(py, px):.5f}\n")
+                            fh.write(f"{ts_all[i]:.5f},{vs_all[i]:.5f}\n")
             print(
                 f"  {p.label:7} model {line.shape[0]:5d} pts | "
                 f"reference {marks.shape[0]:3d} | x tick worst {terr:.4f} s | "
@@ -654,8 +663,8 @@ def main() -> int:
             if p.key == "wfph" and line.shape[0]:
                 failures += check_fuel_panel(
                     fig,
-                    np.array([x_of(px, py) for px, py in line]),
-                    np.array([v_of(py, px) for px, py in line]),
+                    x_of(line[:, 0], line[:, 1]),
+                    v_of(line[:, 1], line[:, 0]),
                     abs(p.v_hi - p.v_lo),
                 )
     if failures:
