@@ -895,12 +895,13 @@ def figure_14() -> dict:
         "rms vs flight test": {k: f14.rms(f14.gap(k, "test")) for k in f14.PANELS},
         "rms with np held": {k: f14.rms(f14.gap(k, np_held=True)) for k in f14.PANELS},
     }
-    fig, axes = plt.subplots(4, 1, figsize=fs(8.0, 10.0), sharex=True)
+    fig, axes = plt.subplots(5, 1, figsize=fs(8.0, 12.0), sharex=True)
     rows = (
-        ("nr", "main rotor speed, %", "Figure 14, pdf p.52: pedal input at hover"),
+        ("pedals", "pedals, in.", "Figure 14, pdf p.52: pedal input at hover"),
+        ("torque", "total torque, % of trim", ""),
         ("ng", "gas generator speed, %", ""),
         ("fuel", "vehicle fuel flow, % of trim", ""),
-        ("torque", "total torque, % of trim", ""),
+        ("nr", "main rotor speed, %", "his Gen Hel rotor speed is our NP input"),
     )
     for ax, (key, ylabel, title) in zip(axes, rows, strict=True):
         for line, sty, colr, lab in (
@@ -911,10 +912,10 @@ def figure_14() -> dict:
             if key in ("fuel", "torque"):
                 v = 100.0 * v / f14.his_trim(key, line)
             ax.plot(t, v, sty, color=colr, lw=1.3 if line == "gen_hel" else 1.0, label=lab)
-        if key != "nr":
+        if key in f14.PANELS:
             t, v = f14.ours(key)
             ax.plot(t, v, "-", color=OURS, lw=1.1, label="ours, replaying his rotor speed")
-        _style(ax, "time, s" if key == "torque" else "", ylabel, title)
+        _style(ax, "time, s" if key == "nr" else "", ylabel, title)
         if key == "ng":
             ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc="lower center")
     fig.tight_layout()
