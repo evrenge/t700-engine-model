@@ -811,10 +811,17 @@ def table_3() -> dict:
 
 def figures_4_5() -> dict:
     """Figures 4 and 5 [pdf pp.30, 34]: Ballin's curves against ours, pair by pair, at hover
-    (`test_fig45`). Figure 4's four curves lie on one another and are read as one line."""
+    (`test_fig45`). Figure 4's three linear models lie on one another and are read as one line,
+    beside his Gen Hel line."""
     import test_fig45 as f45
 
-    out: dict = {"steps": {}, "pairs": {}, "his printed matrices": {}, "wrong pairings": {}}
+    out: dict = {
+        "steps": {},
+        "pairs": {},
+        "his printed matrices": {},
+        "wrong pairings": {},
+        "our nonlinear against his linear line": {},
+    }
     for fig in f45.FIGS:
         t0, lv = f45.steps(fig)
         out["steps"][f"figure {fig}"] = {"t_start_s": t0.tolist(), "level_pct": lv.tolist()}
@@ -824,10 +831,13 @@ def figures_4_5() -> dict:
 
     for fig, his, ours in f45.PAIRS:
         out["pairs"][f"figure {fig}: {his} vs our {ours}"] = score(ours, fig, his)
-    for fig, his, name in ((4, "all four", "ballin 5-DOF"), (5, "5-DOF", "ballin 5-DOF")):
+    for fig, his, name in ((4, "linear", "ballin 5-DOF"), (5, "5-DOF", "ballin 5-DOF")):
         out["his printed matrices"][f"figure {fig}: {his} vs his B2"] = score(name, fig, his)
-    for fig, his, ours in ((4, "all four", "6-DOF"), (5, "6-DOF", "5-DOF"), (5, "5-DOF", "6-DOF")):
+    for fig, his, ours in ((4, "linear", "6-DOF"), (5, "6-DOF", "5-DOF"), (5, "5-DOF", "6-DOF")):
         out["wrong pairings"][f"figure {fig}: {his} vs our {ours}"] = score(ours, fig, his)
+    out["our nonlinear against his linear line"]["figure 4: linear vs our nonlinear"] = score(
+        "nonlinear", 4, "linear"
+    )
 
     fig, axes = plt.subplots(3, 2, figsize=fs(14.5, 10.0), sharex=True)
     for col, fno in enumerate(f45.FIGS):
@@ -835,7 +845,7 @@ def figures_4_5() -> dict:
         tt = np.linspace(0, 15, 3001)
         axes[0, col].plot(tt, [100 * u(x) for x in tt], color=MUTED, lw=1.2)
         title = (
-            "Figure 4, pdf p.30: his four curves lie on one another"
+            "Figure 4, pdf p.30: his Gen Hel simulation and linear models"
             if fno == 4
             else "Figure 5, pdf p.34: his 5-DOF and 6-DOF"
         )
@@ -843,21 +853,19 @@ def figures_4_5() -> dict:
         for row, key in ((1, "ng"), (2, "np")):
             ax = axes[row, col]
             j = 1 if key == "ng" else 2
-            if fno == 4:
-                tb, v, _h = f45.his_curves(4, key)["all four"]
-                ax.plot(tb, v, color=BALLIN, lw=3.0, alpha=0.45, label="Ballin, all four curves")
-                for name, sty, colr, lab in (
-                    ("5-DOF", "-", OURS, "our 5-DOF"),
-                    ("nonlinear", "--", GE, "our nonlinear engine"),
-                ):
-                    t, *ys = f45.response(name, 4)
-                    ax.plot(t, ys[j - 1], sty, color=colr, lw=1.1, label=lab)
-            else:
-                for curve, sty in (("5-DOF", "-"), ("6-DOF", "--")):
-                    tb, v, _h = f45.his_curves(5, key)[curve]
-                    ax.plot(tb, v, sty, color=BALLIN, lw=1.4, label=f"Ballin {curve}")
-                    t, *ys = f45.response(curve, 5)
-                    ax.plot(t, ys[j - 1], sty, color=OURS, lw=1.1, label=f"our {curve}")
+            pairs = (
+                (
+                    ("Gen Hel", "nonlinear", "Gen Hel", "nonlinear engine"),
+                    ("linear", "5-DOF", "linear models", "5-DOF"),
+                )
+                if fno == 4
+                else (("5-DOF", "5-DOF", "5-DOF", "5-DOF"), ("6-DOF", "6-DOF", "6-DOF", "6-DOF"))
+            )
+            for (curve, ours, his_lab, our_lab), sty in zip(pairs, ("-", "--"), strict=True):
+                tb, v, _h = f45.his_curves(fno, key)[curve]
+                ax.plot(tb, v, sty, color=BALLIN, lw=1.4, label=f"Ballin {his_lab}")
+                t, *ys = f45.response(ours, fno)
+                ax.plot(t, ys[j - 1], sty, color=OURS, lw=1.1, label=f"our {our_lab}")
             _style(
                 ax,
                 "time, s" if row == 2 else "",

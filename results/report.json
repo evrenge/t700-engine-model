@@ -1614,21 +1614,21 @@
    }
   },
   "pairs": {
-   "figure 4: all four vs our 5-DOF": {
-    "ng": 0.009336266934211607,
-    "np": 0.04393751690110692
+   "figure 4: Gen Hel vs our nonlinear": {
+    "ng": 0.007866021087186561,
+    "np": 0.045348079297565125
    },
-   "figure 4: all four vs our 2-DOF": {
-    "ng": 0.02264569653676255,
-    "np": 0.019177857234525343
+   "figure 4: linear vs our 5-DOF": {
+    "ng": 0.005002540422861809,
+    "np": 0.025375732539512547
    },
-   "figure 4: all four vs our reduced": {
-    "ng": 0.010398772171288926,
-    "np": 0.04256916189222253
+   "figure 4: linear vs our 2-DOF": {
+    "ng": 0.011651049419749043,
+    "np": 0.011159752405642041
    },
-   "figure 4: all four vs our nonlinear": {
-    "ng": 0.013002058920874318,
-    "np": 0.03125067170942955
+   "figure 4: linear vs our reduced": {
+    "ng": 0.004961816554010277,
+    "np": 0.025844385570203895
    },
    "figure 5: 5-DOF vs our 5-DOF": {
     "ng": 0.005076659971265258,
@@ -1640,9 +1640,9 @@
    }
   },
   "his printed matrices": {
-   "figure 4: all four vs his B2": {
-    "ng": 0.014303139074156791,
-    "np": 0.024875716047317316
+   "figure 4: linear vs his B2": {
+    "ng": 0.005732810899184196,
+    "np": 0.00940951645823012
    },
    "figure 5: 5-DOF vs his B2": {
     "ng": 0.0027528580347493843,
@@ -1650,9 +1650,9 @@
    }
   },
   "wrong pairings": {
-   "figure 4: all four vs our 6-DOF": {
-    "ng": 0.10368000681122133,
-    "np": 0.12000953461068951
+   "figure 4: linear vs our 6-DOF": {
+    "ng": 0.08636582796222131,
+    "np": 0.11871539517407159
    },
    "figure 5: 6-DOF vs our 5-DOF": {
     "ng": 0.05664296473869104,
@@ -1661,6 +1661,12 @@
    "figure 5: 5-DOF vs our 6-DOF": {
     "ng": 0.09062302264971532,
     "np": 0.11846642587134092
+   }
+  },
+  "our nonlinear against his linear line": {
+   "figure 4: linear vs our nonlinear": {
+    "ng": 0.01618214697062431,
+    "np": 0.01237216295183696
    }
   }
  }

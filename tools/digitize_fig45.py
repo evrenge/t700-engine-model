@@ -12,7 +12,8 @@ Figure 5 overlays two: the 6-DOF (dashed) and 5-DOF (dash-dot) linear models. Th
 coincide over most of their length and are drawn in broken line styles, so this tool does not
 claim to tell them apart by style. Per column it records the ink band: the uppermost and the
 lowermost line centres (each edge inset by half the measured line width). Every trace in the
-panel lies between them at that time; where only one line is inked, the two are equal.
+panel lies between them at that time; where only one line is inked, the two are equal. It also
+records every ink run, from which `validation/test_fig45.py` separates each figure's two lines.
 
 The input panel's plateaus sit on printed tick values (100, 105, 95, 100, 102.5 % of trim), so
 their digitized levels measure the page's own read error, as Figures 9-10's fuel panels do.
@@ -272,37 +273,38 @@ def main() -> int:
                 fh.write("t_s,upper,lower,runs\n")
                 for t, up, lo, n in b:
                     fh.write(f"{t:.5f},{up:.5f},{lo:.5f},{int(n)}\n")
-            if fig == 5:
-                r = run_table(ink, p, x_of, v_of, width)
-                path = REF / f"fig{fig:02d}_{key}_runs.csv"
-                with path.open("w") as fh:
-                    fh.write(f"# source: TM-100991 pdf p.{page}, Figure {fig}, panel {p.label}\n")
-                    fh.write(
-                        f"# quantity: {p.label} vs time, every ink run in every column, so the "
-                        "two traces can be told apart where they cross: 6-DOF (dashed) and "
-                        "5-DOF (dash-dot) linear models\n"
-                    )
-                    fh.write(
-                        "# method: digitized -- native 300 dpi 1-bit scan, "
-                        "tools/digitize_fig45.py\n"
-                    )
-                    fh.write(
-                        f"# columns: column, the scan's pixel column, shared by the runs one "
-                        f"column holds; t_s; centre, the run's centre in % of trim; half_span, how "
-                        f"far the run reaches either side of its centre beyond half the "
-                        f"{width:.1f} px line width, % of trim. Specks are dropped as for "
-                        f"fig{fig:02d}_{key}.csv\n"
-                    )
-                    fh.write(f"# value: axis range {p.v_lo} to {p.v_hi}\n")
-                    fh.write(f"# points: {r.shape[0]}\n")
-                    fh.write(f"# x tick check: worst interior major tick off by {terr:.4f} s\n")
-                    fh.write(
-                        f"# frame tilt corrected: {p.tilt_pct_height:+.2f} % of panel height\n"
-                    )
-                    fh.write("# NOT transcribed. Values carry read error.\n")
-                    fh.write("column,t_s,centre,half_span\n")
-                    for x, t, cc, hh in r:
-                        fh.write(f"{int(x)},{t:.5f},{cc:.5f},{hh:.5f}\n")
+            r = run_table(ink, p, x_of, v_of, width)
+            path = REF / f"fig{fig:02d}_{key}_runs.csv"
+            what = (
+                "Gen Hel UH-60A simulation (solid) and the 5-DOF, 2-DOF and reduced-order "
+                "linear models (dashed, dash-dot, dotted)"
+                if fig == 4
+                else "6-DOF (dashed) and 5-DOF (dash-dot) linear models"
+            )
+            with path.open("w") as fh:
+                fh.write(f"# source: TM-100991 pdf p.{page}, Figure {fig}, panel {p.label}\n")
+                fh.write(
+                    f"# quantity: {p.label} vs time, every ink run in every column, so the "
+                    f"two traces can be told apart where they cross: {what}\n"
+                )
+                fh.write(
+                    "# method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig45.py\n"
+                )
+                fh.write(
+                    f"# columns: column, the scan's pixel column, shared by the runs one "
+                    f"column holds; t_s; centre, the run's centre in % of trim; half_span, how "
+                    f"far the run reaches either side of its centre beyond half the "
+                    f"{width:.1f} px line width, % of trim. Specks are dropped as for "
+                    f"fig{fig:02d}_{key}.csv\n"
+                )
+                fh.write(f"# value: axis range {p.v_lo} to {p.v_hi}\n")
+                fh.write(f"# points: {r.shape[0]}\n")
+                fh.write(f"# x tick check: worst interior major tick off by {terr:.4f} s\n")
+                fh.write(f"# frame tilt corrected: {p.tilt_pct_height:+.2f} % of panel height\n")
+                fh.write("# NOT transcribed. Values carry read error.\n")
+                fh.write("column,t_s,centre,half_span\n")
+                for x, t, cc, hh in r:
+                    fh.write(f"{int(x)},{t:.5f},{cc:.5f},{hh:.5f}\n")
             print(f"  {key}: {b.shape[0]} columns, x tick worst {terr:.4f} s")
     if failures:
         print("\nINPUT CHECK FAILED:", *failures, sep="\n  ")

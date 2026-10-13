@@ -1,11 +1,17 @@
 """Figures 4 and 5 [pdf pp.30, 34]: the linear models' response to fuel pulses, Ballin's
 curves against ours, one for one.
 
-Figure 4 overlays the Gen Hel UH-60A simulation and the 5-DOF, 2-DOF and reduced-order linear
-models, "nearly identical" [pdf p.29]: on the page the four lie on one another, so they are
-read as one line, the middle of their ink, and each of ours is compared with it. Figure 5
-overlays two curves that part, the 5-DOF and the 6-DOF, "with and without station 4.1
-heat-sink model" [pdf p.34]: they are separated (`his_curves`), and our 5-DOF is compared with
+Figure 4 overlays the Gen Hel UH-60A simulation (solid) and the 5-DOF, 2-DOF and
+reduced-order linear models (dashed, dash-dot, dotted), "nearly identical" [pdf p.29]. On the
+page the three linear models lie on one another as one stroke, and the solid line parts from it
+by up to 0.17 % of trim: the two lines are separated (`his_curves`), our nonlinear engine is
+compared with his Gen Hel line and our three linear models with his linear one. In NP the solid
+line leads and drops sharply at each fuel step, "higher-order dynamics ... a result of
+neglecting rotor-blade lag dynamics and the effects of rotor azimuthal variation in the linear
+rotor-load representation" [pdf p.29]. Our nonlinear engine carries that linear load (Appendix
+B's), so in NP it follows his linear line, not his Gen Hel one.
+Figure 5 overlays two curves that part, the 5-DOF and the 6-DOF, "with and without station 4.1
+heat-sink model" [pdf p.34]: they are separated the same way, and our 5-DOF is compared with
 his 5-DOF, our 6-DOF with his 6-DOF.
 
 Both captions say only "a high-power flight condition"; it is the hover trim of Table B.1,
@@ -42,25 +48,28 @@ PANELS = ("ng", "np")
 TIME_TOL_S = {4: 0.0314, 5: 0.0444}
 """Each figure's time read error: its worst interior major tick, as the digitizer reports it
 in every CSV header."""
+CURVES = {4: ("linear", "Gen Hel"), 5: ("5-DOF", "6-DOF")}
+"""Ballin's two lines in each figure, the one his printed 5-DOF (B2) response tells first:
+Figure 4's three linear models, drawn as one stroke, and his Gen Hel simulation; Figure 5's
+5-DOF and 6-DOF."""
 LOCAL_S = 0.15
 """How far, in time, a column with only one curve inked looks for columns where both are, to
 tell which curve it belongs to: Figure 5's dashes leave one curve alone for up to ten columns,
 0.1 s."""
 PX_PCT = {"ng": 2.0 / 707.0, "np": 3.0 / 707.0}
 """% of trim per pixel: each panel's printed range over its height, 707 px on both pages."""
-GUIDE_PX = 6.0
-"""Figure 5's two curves count as one where they come within this many pixels, one and a half
-line widths."""
-CLUSTER_PX = 4.0
-"""Runs in one column closer than a line width are one stroke: a steep dash-dot line breaks
-into stacked fragments."""
+LINE_PX = {4: 3.0, 5: 4.0}
+"""Each figure's line width, as the digitizer measures it and writes in its CSV headers."""
+GUIDE_LINES = 1.5
+"""A figure's two curves count as one where they come within one and a half line widths."""
 VOTE_S = 0.3
-"""Where tracking starts, which stroke is the 5-DOF is a vote over the columns this close."""
+"""Where tracking starts, which stroke is which is a vote over the columns this close."""
 TRACK_POINTS = 8
 """Each curve is followed by a line through its last eight points, about 0.08 s."""
 RESET_S = 0.3
 """A run of columns without both curves longer than this restarts the tracking: the curves
-may have crossed unseen."""
+may have crossed unseen. So does any such run across a fuel step: both curves turn there, so
+their slopes cannot carry them through, and Figure 4's NP lines cross at the first peak."""
 
 
 @functools.cache
@@ -169,10 +178,10 @@ def _best(t, m, tb, target, half, tol) -> np.ndarray:
 
 
 @functools.cache
-def runs(key: str) -> dict[str, np.ndarray]:
-    """Every ink run of Figure 5's `key` panel: its scan `column`, `t`, `centre` and `half`
-    span, % of trim."""
-    name = f"fig05_{key}_runs.csv"
+def runs(fig: int, key: str) -> dict[str, np.ndarray]:
+    """Every ink run of `fig`'s `key` panel: its scan `column`, `t`, `centre` and `half` span,
+    % of trim."""
+    name = f"fig{fig:02d}_{key}_runs.csv"
     col, t = read_reference(name, "column", "t_s")
     _, centre = read_reference(name, "column", "centre")
     _, half = read_reference(name, "column", "half_span")
@@ -189,12 +198,13 @@ def _predict(hist: list[tuple[float, float]], t: float) -> float:
 
 
 def _clusters(c: np.ndarray, h: np.ndarray, px: float) -> list[tuple[float, float]]:
-    """One column's runs merged where they touch, as `(centre, half span)`, bottom first."""
+    """One column's runs merged where they lie within a line width (`px` per line width), as
+    `(centre, half span)`, bottom first: a steep dash-dot line breaks into stacked fragments."""
     o = np.argsort(c)
     out: list[list[float]] = []
     for k in o:
         a, b = c[k] - h[k], c[k] + h[k]
-        if out and a - out[-1][1] <= CLUSTER_PX * px:
+        if out and a - out[-1][1] <= px:
             out[-1][1] = max(out[-1][1], b)
         else:
             out.append([a, b])
@@ -203,31 +213,29 @@ def _clusters(c: np.ndarray, h: np.ndarray, px: float) -> list[tuple[float, floa
 
 @functools.cache
 def his_curves(fig: int, key: str) -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Ballin's curves in one panel, each as `(t, value, half span)`.
+    """Ballin's two curves in one panel (`CURVES`), each as `(t, value, half span)`.
 
-    Figure 4: "all four", the middle of the ink in each column. Figure 5: a column's runs are
-    merged into strokes (`_clusters`); where it holds two strokes apart, the one nearer
-    Ballin's own printed 5-DOF (B2) response is his 5-DOF, by a vote over the columns within
-    `VOTE_S` weighted by the square of their separation, so the columns where the curves are
-    far apart, and B2's few-hundredths-of-a-percent offset from his ink cannot matter, decide
-    the close ones until the curves cross. A column with one stroke joins the nearer of the two
-    curves around it, or both where those are within `GUIDE_PX`, which is where the curves
-    coincide. The values are the ink's; B2 only says which line is which, and it is his
-    matrix, not ours."""
-    if fig == 4:
-        b = band(4, key)
-        return {"all four": (b["t"], 0.5 * (b["upper"] + b["lower"]), np.zeros(b["t"].size))}
-    r = runs(key)
+    A column's runs are merged into strokes (`_clusters`); where it holds two strokes apart,
+    the one nearer Ballin's own printed 5-DOF (B2) response is his 5-DOF, or in Figure 4 his
+    linear models, by a vote over the columns within `VOTE_S` weighted by the square of their
+    separation, so the columns where the curves are far apart, and B2's
+    few-hundredths-of-a-percent offset from his ink cannot matter, decide the close ones;
+    from there each curve is followed by its slope (`_predict`) until the curves cross. A
+    column with one stroke joins the nearer of the two curves around it, or both where those
+    are within `GUIDE_LINES` line widths, which is where the curves coincide. The values are
+    the ink's; B2 only says which line is which, and it is his matrix, not ours."""
+    r = runs(fig, key)
     col, t, c, h = r["column"], r["t"], r["centre"], r["half"]
     px = PX_PCT[key]
-    tg, *gs = response("ballin 5-DOF", 5)
+    guide = GUIDE_LINES * LINE_PX[fig] * px
+    tg, *gs = response("ballin 5-DOF", fig)
     g = gs[0] if key == "ng" else gs[1]
-    pairs, singles = [], []  # (t, lower, upper) strokes; (t, stroke)
+    pairs, singles = [], []  # (t, lower, upper stroke, scan column); (t, stroke)
     for idx in np.split(np.arange(t.size), np.flatnonzero(np.diff(col)) + 1):
         tt = float(np.mean(t[idx]))
-        cl = _clusters(c[idx], h[idx], px)
-        if len(cl) >= 2 and (cl[-1][0] - cl[-1][1]) - (cl[0][0] + cl[0][1]) > GUIDE_PX * px:
-            pairs.append((tt, cl[0], cl[-1]))
+        cl = _clusters(c[idx], h[idx], LINE_PX[fig] * px)
+        if len(cl) >= 2 and (cl[-1][0] - cl[-1][1]) - (cl[0][0] + cl[0][1]) > guide:
+            pairs.append((tt, cl[0], cl[-1], int(col[idx[0]])))
         else:
             singles.extend((tt, q) for q in cl)
     pt = np.array([q[0] for q in pairs])
@@ -236,43 +244,46 @@ def his_curves(fig: int, key: str) -> dict[str, tuple[np.ndarray, np.ndarray, np
     sep = np.array([(q[2][0] - q[2][1]) - (q[1][0] + q[1][1]) for q in pairs])
     b2 = np.interp(pt, tg, g)
     vote = np.where(np.abs(up_c - b2) < np.abs(lo_c - b2), 1.0, -1.0)
-    upper_is_five = np.zeros(pt.size, bool)
-    for seg in np.split(np.arange(pt.size), np.flatnonzero(np.diff(pt) > RESET_S) + 1):
+    upper_first = np.zeros(pt.size, bool)
+    phase = np.searchsorted(steps(fig)[0], pt)
+    pcol = np.array([q[3] for q in pairs])
+    cut = (np.diff(pt) > RESET_S) | ((np.diff(phase) != 0) & (np.diff(pcol) > 1))
+    for seg in np.split(np.arange(pt.size), np.flatnonzero(cut) + 1):
         k0 = int(seg[np.argmax(sep[seg])])
         w = seg[np.abs(pt[seg] - pt[k0]) <= VOTE_S]
-        upper_is_five[k0] = float(np.sum(vote[w] * sep[w] ** 2)) >= 0.0
+        upper_first[k0] = float(np.sum(vote[w] * sep[w] ** 2)) >= 0.0
         for order in (seg[seg > k0], seg[seg < k0][::-1]):
-            h5 = [(pt[k0], up_c[k0] if upper_is_five[k0] else lo_c[k0])]
-            h6 = [(pt[k0], lo_c[k0] if upper_is_five[k0] else up_c[k0])]
+            h1 = [(pt[k0], up_c[k0] if upper_first[k0] else lo_c[k0])]
+            h2 = [(pt[k0], lo_c[k0] if upper_first[k0] else up_c[k0])]
             for k in order:
-                p5, p6 = _predict(h5, pt[k]), _predict(h6, pt[k])
-                upper_is_five[k] = abs(up_c[k] - p5) + abs(lo_c[k] - p6) <= abs(lo_c[k] - p5) + abs(
-                    up_c[k] - p6
+                p1, p2 = _predict(h1, pt[k]), _predict(h2, pt[k])
+                upper_first[k] = abs(up_c[k] - p1) + abs(lo_c[k] - p2) <= abs(lo_c[k] - p1) + abs(
+                    up_c[k] - p2
                 )
-                h5.append((pt[k], up_c[k] if upper_is_five[k] else lo_c[k]))
-                h6.append((pt[k], lo_c[k] if upper_is_five[k] else up_c[k]))
-    rows5, rows6 = [], []
-    for k, (tt, lo, up) in enumerate(pairs):
-        rows5.append((tt, *(up if upper_is_five[k] else lo)))
-        rows6.append((tt, *(lo if upper_is_five[k] else up)))
-    f5, f6 = np.array(rows5), np.array(rows6)
+                h1.append((pt[k], up_c[k] if upper_first[k] else lo_c[k]))
+                h2.append((pt[k], lo_c[k] if upper_first[k] else up_c[k]))
+    rows1, rows2 = [], []
+    for k, (tt, lo, up, _x) in enumerate(pairs):
+        rows1.append((tt, *(up if upper_first[k] else lo)))
+        rows2.append((tt, *(lo if upper_first[k] else up)))
+    f1, f2 = np.array(rows1), np.array(rows2)
     for tt, (cc, hh) in singles:
-        near = np.abs(f5[:, 0] - tt) <= LOCAL_S
+        near = np.abs(f1[:, 0] - tt) <= LOCAL_S
         if not near.any():
-            rows5.append((tt, cc, hh))
-            rows6.append((tt, cc, hh))
+            rows1.append((tt, cc, hh))
+            rows2.append((tt, cc, hh))
             continue
-        a5 = float(np.interp(tt, f5[near, 0], f5[near, 1]))
-        a6 = float(np.interp(tt, f6[near, 0], f6[near, 1]))
-        if abs(a5 - a6) <= GUIDE_PX * px or abs(abs(cc - a5) - abs(cc - a6)) <= hh:
-            rows5.append((tt, cc, hh))
-            rows6.append((tt, cc, hh))
-        elif abs(cc - a5) < abs(cc - a6):
-            rows5.append((tt, cc, hh))
+        a1 = float(np.interp(tt, f1[near, 0], f1[near, 1]))
+        a2 = float(np.interp(tt, f2[near, 0], f2[near, 1]))
+        if abs(a1 - a2) <= guide or abs(abs(cc - a1) - abs(cc - a2)) <= hh:
+            rows1.append((tt, cc, hh))
+            rows2.append((tt, cc, hh))
+        elif abs(cc - a1) < abs(cc - a2):
+            rows1.append((tt, cc, hh))
         else:
-            rows6.append((tt, cc, hh))
+            rows2.append((tt, cc, hh))
     out = {}
-    for name, rows in (("5-DOF", rows5), ("6-DOF", rows6)):
+    for name, rows in zip(CURVES[fig], (rows1, rows2), strict=True):
         a = np.array(sorted(rows))
         out[name] = (a[:, 0], a[:, 1], a[:, 2])
     return out
@@ -314,19 +325,19 @@ def test_the_two_figures_share_one_input():
 
 
 PAIRS = (
-    (4, "all four", "5-DOF"),
-    (4, "all four", "2-DOF"),
-    (4, "all four", "reduced"),
-    (4, "all four", "nonlinear"),
+    (4, "Gen Hel", "nonlinear"),
+    (4, "linear", "5-DOF"),
+    (4, "linear", "2-DOF"),
+    (4, "linear", "reduced"),
     (5, "5-DOF", "5-DOF"),
     (5, "6-DOF", "6-DOF"),
 )
-"""Ballin's curve against ours: Figure 4's one line against each of our four, Figure 5's two
-curves against our two."""
+"""Ballin's curve against ours: Figure 4's Gen Hel line against our nonlinear engine and his
+linear line against our three linear models, Figure 5's two curves against our two."""
 
 CURVE_RMS_PCT = {
-    "4 nonlinear": {"ng": 0.017, "np": 0.040},
-    "4 linear": {"ng": 0.029, "np": 0.055},
+    "4 nonlinear": {"ng": 0.010, "np": 0.057},
+    "4 linear": {"ng": 0.015, "np": 0.033},
     "5 5-DOF": {"ng": 0.007, "np": 0.035},
     "5 6-DOF": {"ng": 0.038, "np": 0.042},
 }
@@ -349,9 +360,9 @@ def test_ours_follows_ballins_curve(fig: int, his: str, ours: str, key: str):
 @pytest.mark.parametrize(
     "fig,his,name",
     (
-        (4, "all four", "ballin 5-DOF"),
-        (4, "all four", "ballin 2-DOF"),
-        (4, "all four", "ballin reduced"),
+        (4, "linear", "ballin 5-DOF"),
+        (4, "linear", "ballin 2-DOF"),
+        (4, "linear", "ballin reduced"),
         (5, "5-DOF", "ballin 5-DOF"),
     ),
 )
@@ -369,10 +380,18 @@ between our two models: our 6-DOF is about 1.9 times nearer to it than our 5-DOF
 
 @pytest.mark.parametrize("key", PANELS)
 def test_the_comparison_tells_the_models_apart(key: str):
-    """Our 6-DOF against Figure 4's line, and each of Figure 5's curves against the other
-    model, sit at least `DECOY_MIN_RATIO` times further off than the right pairing."""
-    assert rms(gap("6-DOF", 4, key, "all four")) > DECOY_MIN_RATIO * rms(
-        gap("5-DOF", 4, key, "all four")
+    """Our 6-DOF against Figure 4's linear line, and each of Figure 5's curves against the
+    other model, sit at least `DECOY_MIN_RATIO` times further off than the right pairing."""
+    assert rms(gap("6-DOF", 4, key, "linear")) > DECOY_MIN_RATIO * rms(
+        gap("5-DOF", 4, key, "linear")
     )
     for ours, right, wrong in (("5-DOF", "5-DOF", "6-DOF"), ("6-DOF", "6-DOF", "5-DOF")):
         assert rms(gap(ours, 5, key, wrong)) > DECOY_MIN_RATIO * rms(gap(ours, 5, key, right))
+
+
+def test_our_nonlinear_np_follows_his_linear_load():
+    """Figure 4's NP: our nonlinear engine, on Appendix B's linear rotor load, sits nearer his
+    linear line than his Gen Hel line, whose rotor-blade lag dynamics it lacks [pdf p.29]."""
+    to_linear = rms(gap("nonlinear", 4, "np", "linear"))
+    to_gen_hel = rms(gap("nonlinear", 4, "np", "Gen Hel"))
+    assert to_linear * DECOY_MIN_RATIO < to_gen_hel, f"{to_linear:.4f} vs {to_gen_hel:.4f} %"
