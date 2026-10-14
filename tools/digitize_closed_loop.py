@@ -149,6 +149,10 @@ ZIGZAG_FRACTION = 0.5
 """A panel whose solid line is steeper than a row per column in more than this fraction of its
 columns is read stroke by stroke and at its turns (`zigzag`): Figure 15's main-rotor torque, at
 82 %, against at most 17 % in every other panel of Figures 11-15."""
+END_DASH_PX = 15
+"""At a panel end, the dashed line is followed back to the solid one along its first (or last)
+dash alone, the columns within this many of its end: a dash is about 15 px long, and the dashes
+after it already curve (Figure 15's rotor speed)."""
 HIDDEN_PX = 30
 """A stretch without dash ink longer than this many columns is not a gap in the dash pattern
 (about 10 px) but the dashed line lying on the solid one."""
@@ -308,8 +312,12 @@ def fill_hidden(dx, dc, drun, sx, sc, srun, width: float):
 
     A stretch of columns without dash ink longer than `HIDDEN_PX` whose dash ink on both
     sides (or on its one side, at a panel end) sits within a line width of the solid line is
-    the dashed line hidden under the solid: there it takes the solid line's centre. Returns
-    the columns, centres and runs with a `seen` flag, 1 for dash ink and 0 for hidden."""
+    the dashed line hidden under the solid: there it takes the solid line's centre. At a panel
+    end the dashed line may leave the solid one at a slant before its first dash shows
+    (Figure 15's torque and rotor speed, Figure 14's rotor speed): there its first dash,
+    extended straight back to where it meets the solid line (`END_DASH_PX`), gives the column
+    where it leaves, and it is hidden from the panel end to there. Returns the columns,
+    centres and runs with a `seen` flag, 1 for dash ink and 0 for hidden."""
     o = np.argsort(dx)
     dx, dc, drun = dx[o], dc[o], drun[o]
     solid_at = dict(zip(sx.tolist(), zip(sc.tolist(), srun.tolist(), strict=True), strict=True))
@@ -326,6 +334,22 @@ def fill_hidden(dx, dc, drun, sx, sc, srun, width: float):
         ends = [on_solid(x, c) for x, c in ((x0, c0), (x1, c1)) if c is not None]
         if ends and all(ends):
             add += [x for x in range(x0 + 1, x1) if x in solid_at]
+        elif c0 is None or c1 is None:
+            # A panel end: follow the dashed line back from its first (or last) dash.
+            x_dash, step = (int(x1), -1) if c0 is None else (int(x0), 1)
+            mine = np.abs(dx - x_dash) <= END_DASH_PX
+            fit = None
+            if np.unique(dx[mine]).size >= 2:
+                fit = tuple(float(v) for v in np.polyfit(dx[mine], dc[mine], 1))
+            leave = None
+            if fit is not None:
+                for x in range(x_dash + step, int(x0) if c0 is None else int(x1), step):
+                    if x in solid_at and abs(fit[0] * x + fit[1] - solid_at[x][0]) <= width:
+                        leave = x
+                        break
+            if leave is not None:
+                lo, hi = (int(x0) + 1, leave + 1) if c0 is None else (leave, int(x1))
+                add += [x for x in range(lo, hi) if x in solid_at]
     hx = np.array(add, int)
     out_x = np.concatenate([dx, hx])
     out_c = np.concatenate([dc, [solid_at[x][0] for x in add]])
@@ -384,24 +408,33 @@ def legend_note(legend: tuple | None) -> str:
     return f"; ink from {lo:g} to {hi:g} is the legend"
 
 
-def _line_at(x: float, ox: np.ndarray, oy: np.ndarray) -> float | None:
-    """The straight line through the points within `NEAR_PX` columns of `x`, at `x`; `None`
-    with fewer than two columns of them."""
+def _line_near(x: float, ox: np.ndarray, oy: np.ndarray) -> tuple[float, float] | None:
+    """Slope and intercept of the straight line through the points within `NEAR_PX` columns of
+    `x`; `None` with fewer than two columns of them."""
     near = np.abs(ox - x) <= NEAR_PX
     if np.unique(ox[near]).size < 2:
         return None
     a, b = np.polyfit(ox[near], oy[near], 1)
-    return float(a * x + b)
+    return float(a), float(b)
+
+
+def _off(x: float, y: float, fit: tuple[float, float]) -> float:
+    """How far the point lies from the line `fit`, at right angles to it: on a steep stretch
+    the gap in rows alone overstates it (Figure 15's torque, where the dashed line falls at
+    three rows a column)."""
+    a, b = fit
+    return abs(y - (a * x + b)) / float(np.hypot(1.0, a))
 
 
 def check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width: float):
     """The dashes and joined dashes the dashed line's own ink agrees on.
 
     A dash is kept when the straight line through the other dashes within `NEAR_PX` columns
-    passes within `SPECK_LINES` line widths of it; with too few of them, when it lies that close
-    to the solid line or to the joined dashes. A joined dash is dropped when the dashes around
-    it put the dashed line farther than that from it: a thick stretch of the solid line, not a
-    dash. Returns the kept dash labels and the kept joined dashes' columns, centres and runs."""
+    passes within `SPECK_LINES` line widths of it, measured at right angles to that line
+    (`_off`); with too few of them, when it lies that close to the solid line or to the joined
+    dashes. A joined dash is dropped when the dashes around it put the dashed line farther
+    than that from it: a thick stretch of the solid line, not a dash. Returns the kept dash
+    labels and the kept joined dashes' columns, centres and runs."""
     far = SPECK_LINES * width
     cents = []
     for i in dashes:
@@ -412,19 +445,19 @@ def check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width: float):
     keep = []
     for k in range(len(dashes)):
         others = np.arange(cx.size) != k
-        line = _line_at(cx[k], cx[others], cy[others])
+        line = _line_near(cx[k], cx[others], cy[others])
         if line is None:
-            line = _line_at(cx[k], jx, jc)
+            line = _line_near(cx[k], jx, jc)
             near = abs(cy[k] - np.interp(cx[k], sx, sc)) <= far
-            ok = near or (line is not None and abs(cy[k] - line) <= far)
+            ok = near or (line is not None and _off(cx[k], cy[k], line) <= far)
         else:
-            ok = abs(cy[k] - line) <= far
+            ok = _off(cx[k], cy[k], line) <= far
         if ok:
             keep.append(k)
     kx, ky = cx[keep], cy[keep]
     agree = np.array(
         [
-            (lv := _line_at(x, kx, ky)) is None or abs(c - lv) <= far
+            (fit := _line_near(x, kx, ky)) is None or _off(x, c, fit) <= far
             for x, c in zip(jx, jc, strict=True)
         ],
         bool,
