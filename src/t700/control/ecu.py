@@ -12,8 +12,9 @@ leaves the HMU alone).
 Each error is compensated (`SPDSF`, `TSIG`) and a maximum error selector passes the larger
 to the P+I: T4.5 limiting takes over from NP governing when its error is the bigger. Sign
 trap: `SPDER` is positive when sensed NP exceeds the reference and drives `SPDG` up, and
-more `SPDG` means less fuel (the HMU subtracts `TMRU`). At every Table B.1 trim T45 sits
-350-570 deg R below `T45REF`, so the temperature path is inert in steady flight.
+more `SPDG` means less fuel (the HMU subtracts `TMRU`). At every Table B.1 trim the sensed
+`T45EL` sits about 360-570 deg R below `T45REF`, so the temperature path is inert in steady
+flight.
 
 Single-engine, as the report draws it: Fig. C2's load-share switch is open, so `XQLO` is
 zero (`engine2_torq45` lets that be tested), and Fig. C8's `ZLOLIM` is on its -1.0 branch,

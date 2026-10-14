@@ -89,6 +89,31 @@ def _style(ax, xlabel="", ylabel="", title=""):
     plotstyle.mono_ticks(ax, THEME)
 
 
+def _corner_note(ax, text: str) -> None:
+    """A small note in whichever corner of the panel its lines leave emptiest."""
+    ax.autoscale_view()
+    to_axes = ax.transData + ax.transAxes.inverted()
+    pts = np.vstack([to_axes.transform(ln.get_xydata()) for ln in ax.get_lines()])
+    corner = min(
+        ((x, y) for y in (0.0, 1.0) for x in (0.0, 1.0)),
+        key=lambda c: np.count_nonzero(
+            (np.abs(pts[:, 0] - c[0]) < 0.36) & (np.abs(pts[:, 1] - c[1]) < 0.2)
+        ),
+    )
+    ax.text(
+        0.02 if corner[0] == 0.0 else 0.98,
+        0.04 if corner[1] == 0.0 else 0.96,
+        text,
+        transform=ax.transAxes,
+        ha="left" if corner[0] == 0.0 else "right",
+        va="bottom" if corner[1] == 0.0 else "top",
+        fontsize=6.6,
+        color=MUTED,
+        zorder=1,
+        bbox=dict(fc=THEME.ground, ec="none", alpha=0.82, pad=1.8),
+    )
+
+
 def _stats(dev: np.ndarray) -> dict:
     dev = np.asarray(dev, dtype=float)
     return {
@@ -109,7 +134,7 @@ FIG678 = {
         key="ng_pct",
         xlabel="fuel flow Wf, lbm/hr",
         ylabel="gas generator speed, %NG",
-        title="Figure 6 [pdf p.40] -- NG against fuel flow",
+        title="Figure 6, pdf p.40: NG against fuel flow",
     ),
     7: dict(
         file="fig07",
@@ -118,7 +143,7 @@ FIG678 = {
         key="shp",
         xlabel="fuel flow Wf, lbm/hr",
         ylabel="shaft horsepower",
-        title="Figure 7 [pdf p.41] -- shaft power against fuel flow",
+        title="Figure 7, pdf p.41: shaft power against fuel flow",
     ),
     8: dict(
         file="fig08",
@@ -127,7 +152,7 @@ FIG678 = {
         key="ps3",
         xlabel="gas generator speed, %NG",
         ylabel="compressor discharge Ps3, psia",
-        title="Figure 8 [pdf p.42] -- Ps3 against NG",
+        title="Figure 8, pdf p.42: Ps3 against NG",
     ),
 }
 
@@ -212,10 +237,10 @@ def steady_sweeps() -> dict:
 PANEL_LABEL = {
     "pcng": ("gas generator speed", "%NG"),
     "ps3": ("compressor discharge Ps3", "psia"),
-    "t41": ("turbine inlet T4.1", "deg R"),
-    "t45": ("power turbine inlet T4.5", "deg R"),
-    "torq45": ("power turbine torque", "ft*lbf"),
-    "wfph": ("fuel flow (the INPUT)", "lbm/hr"),
+    "t41": ("turbine inlet T41", "°R"),
+    "t45": ("power turbine inlet T45", "°R"),
+    "torq45": ("power turbine torque", "ft·lbf"),
+    "wfph": ("fuel flow, the input", "lbm/hr"),
 }
 
 
@@ -272,8 +297,8 @@ def transients() -> dict:
 
         plotstyle.title(
             fig,
-            f"Figure {no} [pdf p.{ {9: 45, 10: 46}[no] }] -- "
-            f"fuel step 400 -> {wf_hi:.0f} lbm/hr, heat sink on",
+            f"Figure {no}, pdf p.{ {9: 45, 10: 46}[no] }: "
+            f"fuel step 400 → {wf_hi:.0f} lbm/hr, heat sink on",
         )
         fig.tight_layout(rect=(0, 0, 1, 0.965))
         save(fig, f"figure-{no}-overlay")
@@ -458,13 +483,17 @@ def eigenvalues() -> dict:
     return out
 
 
+MODEL_NAME = {"5dof": "5-DOF", "2dof": "2-DOF", "red5": "reduced 5-DOF"}
+"""Table 1's three model variants, as the slides name them."""
+
+
 def eigenvalue_plot(data: dict) -> None:
     """Table 1's 27 printed modes against ours, and the two spectra the report omits."""
     fig, axes = plt.subplots(1, 2, figsize=fs(15.5, 5.4), width_ratios=[1.35, 1.0])
 
     ax = axes[0]
     rows = data["table_1"]
-    labels = [f"{r['model'][:4]} {r['trim'].split()[0][:4]} {r['mode']}" for r in rows]
+    labels = [f"{MODEL_NAME[r['model']]} {r['trim'].split()[0]} {r['mode']}" for r in rows]
     idx = np.arange(len(rows))
     ax.barh(
         idx + 0.2,
@@ -513,10 +542,12 @@ def eigenvalue_plot(data: dict) -> None:
             ax.plot([-a], [k], **plotstyle.points("ours", ms=6), zorder=4)
         y.append(k)
         lab.append(
-            f"{r['figure']} {r['model']} {r['trim'].split()[0][:4]}"
+            f"{r['figure']} {r['model']} {r['trim'].split()[0]}"
             + ("  ill-cond." if r["ill_conditioned"] else "")
         )
     ax.set_xscale("symlog", linthresh=0.1)
+    # −0.1 and −1 sit too close on this scale for both labels.
+    ax.set_xticks([-1.0, 0.0, 0.1, 1.0, 10.0, 100.0, 1e3, 1e4])
     ax.set_yticks(y)
     ax.set_yticklabels(lab, fontsize=7)
     ax.invert_yaxis()
@@ -527,7 +558,7 @@ def eigenvalue_plot(data: dict) -> None:
         if r["ballin_unstable"]:
             worst = min(r["ballin"])
             ax.annotate(
-                "B8 as printed is UNSTABLE at +3.07 /sec:\nfour digits carry ~+/-50 in row 6",
+                "B8 as printed is unstable at +3.07 /sec:\nfour digits carry about ±50 in row 6",
                 xy=(-worst, k),
                 xytext=(-worst * 30, k + 0.55),
                 fontsize=7,
@@ -536,11 +567,21 @@ def eigenvalue_plot(data: dict) -> None:
             )
     _style(
         ax,
-        "-eigenvalue, 1/sec  (symlog).  Left of the dotted line is unstable",
+        "−eigenvalue, 1/sec (symlog). Left of the dotted line is unstable",
         "",
-        "The two spectra Table 1 does NOT print, from the matrices themselves",
+        "The two spectra Table 1 does not print, from the matrices themselves",
     )
-    ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="upper left")
+    # An empty row above the first figure keeps the legend off the markers.
+    ax.set_ylim(len(got) - 0.5, -1.5)
+    ax.legend(
+        fontsize=8,
+        labelcolor=MUTED,
+        loc="upper left",
+        frameon=True,
+        facecolor=THEME.ground,
+        edgecolor="none",
+        framealpha=1.0,
+    )
 
     fig.tight_layout()
     save(fig, "eigenvalues-all-models")
@@ -591,7 +632,7 @@ def appendix_b() -> dict:
             py[sel],
             **plotstyle.points("ours", marker=shape, ms=4, mew=1.0),
             zorder=3,
-            label=f"{tag} elements ({len(sel)})",
+            label=f"{tag} elements, all {len(sel)} printed",
         )
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -686,7 +727,7 @@ def phase_plane() -> dict:
             ax,
             "gas generator speed, %NG",
             "Ps3, psia",
-            f"Figure {no} in the phase plane -- no time axis",
+            f"Figure {no} in the phase plane: no time axis",
         )
         ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
         out[f"figure_{no}"] = _stats(
@@ -715,7 +756,7 @@ def table_b1_plot(b1: dict, cl: dict) -> None:
     """Open loop and closed loop against the same 21 printed numbers."""
     fig, ax = plt.subplots(figsize=fs(13.0, 5.2))
     rows = b1["rows"]
-    labels = [f"{r['trim'].split()[0][:4]} {r['quantity']}" for r in rows]
+    labels = [f"{r['trim'].split()[0]} {r['quantity']}" for r in rows]
     idx = np.arange(len(rows))
     ax.bar(
         idx,
@@ -745,7 +786,7 @@ def table_b1_plot(b1: dict, cl: dict) -> None:
         ax,
         "",
         "deviation from printed, %",
-        "Table B.1 [pdf p.67], 21 printed numbers. Dotted lines are our +/-0.5 % bound",
+        "Table B.1, pdf p.67: 21 printed numbers. Dotted lines are our ±0.5 % bound",
     )
     ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
     fig.tight_layout()
@@ -1330,8 +1371,8 @@ def sheet_engine_steady() -> dict:
         ),
         (
             "station temperatures",
-            "deg R",
-            [("T3", "t3"), ("T4.1", "t41"), ("T4.5", "t45"), ("T4.9", "t49")],
+            "°R",
+            [("T3", "t3"), ("T41", "t41"), ("T45", "t45"), ("T49", "t49")],
         ),
         ("air path", "lbm/sec", [("Wa2 inlet", "wa2"), ("Wa31 to burner", "wa31")]),
         ("shaft power", "hp", [("SHP", "shp")]),
@@ -1350,7 +1391,7 @@ def sheet_engine_steady() -> dict:
             ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
     plotstyle.title(
         fig,
-        "The equilibrium operating line over the whole trim range. No reference data -- this is "
+        "The equilibrium operating line over the whole trim range. No reference data: this is "
         "the model's own behaviour",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.965))
@@ -1382,7 +1423,7 @@ def sheet_open_loop() -> dict:
     for pph, ls in steps:
         tr = tfs._run(pph, 0.5, True)
         t = tr["t"]
-        lab = f"400 -> {pph:.0f}"
+        lab = f"400 → {pph:.0f} lbm/hr"
         for ax, key, fn in (
             (axes[0], "ng", lambda v: 100.0 * v / c.NG_DES),
             (axes[1], "t41", lambda v: v),
@@ -1406,18 +1447,29 @@ def sheet_open_loop() -> dict:
         }
     for ax, ylab, title in (
         (axes[0], "%NG", "gas generator speed"),
-        (axes[1], "deg R", "turbine inlet T4.1"),
-        (axes[2], "ft*lbf", "power turbine torque"),
+        (axes[1], "°R", "turbine inlet T41"),
+        (axes[2], "ft·lbf", "power turbine torque"),
         (axes[3], "psia", "compressor discharge Ps3"),
     ):
         _style(ax, "time, s", ylab, title)
-    axes[0].legend(frameon=False, fontsize=7.5, labelcolor=MUTED, loc="best", title="lbm/hr")
+    # One legend above the four panels, where it covers no line.
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.935),
+        ncol=4,
+        frameon=False,
+        fontsize=8,
+        labelcolor=MUTED,
+    )
     plotstyle.title(
         fig,
         "Open loop: four fuel steps from the same 400 lbm/hr trim, heat sink on, "
         "power turbine held at design speed",
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.tight_layout(rect=(0, 0, 1, 0.885))
     save(fig, "open-loop-family")
     return out
 
@@ -1468,13 +1520,13 @@ def sheet_closed_loop() -> dict:
     for row, (label, d) in zip(axes, cases, strict=True):
         for ax, key, ylab, title in (
             (row[0], "np", "rpm", "power turbine speed NP"),
-            (row[1], "wf", "lbm/hr", "fuel flow, an OUTPUT here"),
+            (row[1], "wf", "lbm/hr", "fuel flow, an output here"),
             (row[2], "ng", "%NG", "gas generator speed"),
             (row[3], "spdg", "volts", "ECU torque-motor demand SPDG"),
         ):
             ax.plot(d["t"], d[key], **plotstyle.line("ours"), zorder=3)
             _style(ax, "time, s", ylab, f"{title}")
-        row[0].set_ylabel(f"{label}\n\nrpm", color=MUTED, fontsize=9)
+        row[0].set_ylabel(f"{label.replace('->', '→')}\n\nrpm", color=MUTED, fontsize=9)
         out[label] = {
             "np_min": float(d["np"].min()),
             "np_max": float(d["np"].max()),
@@ -1502,32 +1554,32 @@ def sheet_schedules() -> dict:
         (
             "F_HM1",
             "Fig. C24, pdf p.95",
-            "T2, deg R",
+            "T2, °R",
             "WFPTP",
             sch.f_hm1,
-            "topping line -- the fuel ceiling",
+            "topping line, the fuel ceiling",
         ),
-        ("F_HM2", "Fig. C25, pdf p.96", "PAS, deg", "WFPRF", sch.f_hm2, "power available spindle"),
+        ("F_HM2", "Fig. C25, pdf p.96", "PAS, °", "WFPRF", sch.f_hm2, "power available spindle"),
         (
             "F_HM3",
             "Fig. C26, pdf p.97",
-            "XLDSH, deg",
+            "XLDSH, °",
             "PNG",
             sch.f_hm3,
-            "load demand -> NG reference",
+            "load demand → NG reference",
         ),
         (
             "F_HM4",
             "Fig. C27, pdf p.98",
-            "XLDSH, deg",
+            "XLDSH, °",
             "WFQPS3",
             sch.f_hm4,
-            "load demand -> fuel feedforward",
+            "load demand → fuel feedforward",
         ),
         (
             "F_HM5",
             "Fig. C28, pdf p.99",
-            "T2, deg R",
+            "T2, °R",
             "WFIRF",
             sch.f_hm5,
             "idle schedule, fuel term",
@@ -1535,7 +1587,7 @@ def sheet_schedules() -> dict:
         (
             "F_HM6",
             "Fig. C29, pdf p.100",
-            "T2, deg R",
+            "T2, °R",
             "PCNGI",
             sch.f_hm6,
             "idle schedule, speed reference",
@@ -1548,18 +1600,8 @@ def sheet_schedules() -> dict:
         xs = np.linspace(cur.x.min(), cur.x.max(), 400)
         ax.plot(xs, [float(cur(v)) for v in xs], **plotstyle.line("ours"), zorder=3)
         ax.plot(cur.x, cur.y, **plotstyle.points("ballin"), zorder=4)
-        _style(ax, xl, yl, f"{name} -- {what}")
-        ax.text(
-            0.02,
-            0.04,
-            f"{cur.x.size} printed markers\n{src}",
-            transform=ax.transAxes,
-            fontsize=6.8,
-            color=MUTED,
-            va="bottom",
-            zorder=1,
-            bbox=dict(fc=THEME.ground, ec="none", alpha=0.82, pad=1.8),
-        )
+        _style(ax, xl, yl, f"{name}: {what}")
+        _corner_note(ax, f"{cur.x.size} printed markers\n{src}")
         out[name] = {
             "knots": int(cur.x.size),
             "source": src,
@@ -1571,10 +1613,8 @@ def sheet_schedules() -> dict:
     shades = plotstyle.shades("ballin", len(m7.params))
     for param, line, col in zip(m7.params, m7.lines, shades, strict=True):
         ax.plot(line.x, line.y, **plotstyle.line("ballin", color=col), zorder=3, label=f"{param:g}")
-    _style(ax, "PCNGHL, %NG", "WFPAC", "F_HM7 -- acceleration limit, 7 T2 lines")
-    ax.legend(
-        frameon=False, fontsize=6, labelcolor=MUTED, ncol=2, title="T2, deg R", title_fontsize=6
-    )
+    _style(ax, "PCNGHL, %NG", "WFPAC", "F_HM7: acceleration limit, 7 T2 lines")
+    ax.legend(frameon=False, fontsize=6, labelcolor=MUTED, ncol=2, title="T2, °R", title_fontsize=6)
     out["F_HM7"] = {
         "lines": int(len(m7.params)),
         "source": "Fig. C30, pdf p.101",
@@ -1585,8 +1625,8 @@ def sheet_schedules() -> dict:
     shades = plotstyle.shades("ballin", len(ec.params))
     for param, line, col in zip(ec.params, ec.lines, shades, strict=True):
         ax.plot(line.x, line.y, **plotstyle.line("ballin", color=col), zorder=3, label=f"{param:g}")
-    _style(ax, "W45R", "TAU45, sec", "F_EC1 -- thermocouple time constant")
-    ax.legend(frameon=False, fontsize=6, labelcolor=MUTED, title="T45L, deg R", title_fontsize=6)
+    _style(ax, "W45R", "TAU45, sec", "F_EC1: thermocouple time constant")
+    ax.legend(frameon=False, fontsize=6, labelcolor=MUTED, title="T45L, °R", title_fontsize=6)
     out["F_EC1"] = {
         "lines": int(len(ec.params)),
         "source": "Fig. C23, pdf p.94",
@@ -1594,7 +1634,7 @@ def sheet_schedules() -> dict:
 
     plotstyle.title(
         fig,
-        "Appendix C's eight scheduling functions. None exists as a table -- the fuel control "
+        "Appendix C's eight scheduling functions. None exists as a table: the fuel control "
         "is specified entirely as pictures",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.955))
@@ -1659,8 +1699,8 @@ def sheet_engine_maps() -> dict:
         ("f2", "Fig. A2, p.57", "compressor temperature, Eq. 10"),
         ("f3", "Fig. A3, p.58", "seal-pressurization bleed B1, Eq. 12"),
         ("f4", "Fig. A4, p.59", "power-turbine-balance bleed B2, Eq. 13"),
-        ("f5", "Fig. A5, p.60", "tip-leak + cooling bleed B3"),
-        ("f6", "Fig. A6, p.61", "combustor efficiency -- a CONSTANT"),
+        ("f5", "Fig. A5, p.60", "tip-leak + cooling bleed B3, Eq. 14"),
+        ("f6", "Fig. A6, p.61", "combustor efficiency, a constant"),
         ("f7", "Fig. A7, p.62", "gas generator turbine energy, Eq. 26"),
         ("f8", "Fig. A8, p.63", "power turbine energy, Eq. 32"),
         ("f9", "Fig. A9, p.64", "power turbine mass flow, Eq. 33"),
@@ -1676,18 +1716,13 @@ def sheet_engine_maps() -> dict:
         printed = maps.load_curve(MAP_FILE[name], f"{name}, as digitized")
         ax.plot(xs, [float(cur(v)) for v in xs], **plotstyle.line("ours"), zorder=3)
         ax.plot(printed.x, printed.y, **plotstyle.points("ballin", ms=4), zorder=4)
-        _style(ax, xl, yl, f"{name} -- {what}")
-        ax.text(
-            0.02,
-            0.05,
-            f"{cur.x.size} knots\n{src}",
-            transform=ax.transAxes,
-            fontsize=6.6,
-            color=MUTED,
-            va="bottom",
-            zorder=1,
-            bbox=dict(fc=THEME.ground, ec="none", alpha=0.82, pad=1.8),
-        )
+        _style(ax, xl, yl, f"{name}: {what}")
+        if name == "f6":
+            # A constant: one percent either side, with no offset label over the axis.
+            v = float(cur(xs[0]))
+            ax.set_ylim(v - 0.01, v + 0.01)
+            ax.ticklabel_format(axis="y", useOffset=False)
+        _corner_note(ax, f"{printed.x.size} printed markers\n{src.replace(', p.', ', pdf p.')}")
         out[name] = {
             "knots": int(cur.x.size),
             "source": src,
@@ -1704,7 +1739,7 @@ def sheet_engine_maps() -> dict:
     # f1's derived file is a beta grid and carries no `# x:` header of its own; the axes it
     # is *evaluated* on are the raw extraction's, which is what the panel plots.
     fx, fy = "Ps3/P2", "WA2c, lbm/sec"
-    _style(ax, fx, fy, "f1 -- compressor map, 11 speed lines")
+    _style(ax, fx, fy, "f1: compressor map, 11 speed lines")
     ax.legend(frameon=False, fontsize=5.5, labelcolor=MUTED, ncol=2, title="%NGc", title_fontsize=6)
     out["f1"] = {
         "lines": int(len(m1.params)),
