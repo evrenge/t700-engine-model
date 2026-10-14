@@ -15,7 +15,7 @@ assumption is needed, and two are fitted:
 On a standard day our engine needs about a fifth more fuel and a fifth more torque at his NG
 than his trims print, on every figure, so most of what separates them is pressure. The fits
 are evidence about the boundary conditions he flew, never a constant of the model: the
-comparisons stay on a standard day until the reading is confirmed (#81).
+comparisons stay on a standard day (#82).
 """
 
 from __future__ import annotations

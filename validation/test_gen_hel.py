@@ -373,7 +373,8 @@ many times further from his line."""
 FLAT_FIG15 = pytest.mark.xfail(
     strict=True,
     reason="Figure 15, rotor free: our rotor speed misses his line by 0.90 % rms, a flat line "
-    "at the trim by 1.34 %, 1.49 times: under DECOY_MIN_RATIO. Left to the user (#81).",
+    "at the trim by 1.34 %, 1.49 times, under DECOY_MIN_RATIO: the same dip, as deep, 0.74 s "
+    "late. A recorded finding (#81).",
 )
 
 

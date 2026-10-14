@@ -86,8 +86,8 @@ rotor free under his torque; Table 3 was produced with functions from a differen
 is evidence of method, never pass/fail; and nothing above 100 %NG is claimed, because Ballin
 claims nothing there either [pdf p.39].
 
-As of 2026-10-14, `docs/notes/open-questions.md` has logged 78 questions: 75 closed, 3 open
-(#60, #74, #82). Each row states what was asked and what was decided.
+As of 2026-10-14, `docs/notes/open-questions.md` has logged 78 questions: 76 closed, 2 open
+(#60, #74). Each row states what was asked and what was decided.
 
 ## Running it
 
