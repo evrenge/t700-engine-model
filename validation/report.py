@@ -53,12 +53,7 @@ AMB = Ambient(14.696, 518.67)
 THEME = plotstyle.LIGHT
 """The one theme every figure is drawn in."""
 
-OURS = THEME.ours
-BALLIN = THEME.ballin
-GE = THEME.ge
-GE2 = THEME.ge2
 MUTED = THEME.muted
-GRID = THEME.grid
 
 
 def fs(w: float, h: float) -> tuple[float, float]:
@@ -178,31 +173,17 @@ def steady_sweeps() -> dict:
             ref_x, ref_y = rt[0][keep], rt[1][keep]
             at_x = np.array([at[k][spec["key"]] for k in ref_x])
 
-        ax.plot(unb[0], unb[1], "s", color=GE2, ms=4, alpha=0.75, zorder=2, label="GE unbalanced")
-        ax.plot(s81[0], s81[1], "^", color=GE, ms=4, alpha=0.75, zorder=2, label="GE status 81")
-        ax.plot(
-            rt[0],
-            rt[1],
-            "o",
-            color=BALLIN,
-            ms=5,
-            mec=THEME.ground,
-            mew=0.8,
-            zorder=4,
-            label="Ballin real-time",
-        )
-        ax.plot(ours_x, ours_y, "-", color=OURS, lw=2.2, zorder=3, label="our model")
+        ax.plot(*unb, **plotstyle.points("ge", marker="s", ms=4), zorder=2, label="GE unbalanced")
+        ax.plot(*s81, **plotstyle.points("ge", marker="^", ms=4), zorder=2, label="GE status 81")
+        ax.plot(*rt, **plotstyle.points("ballin"), zorder=4, label="Ballin real-time")
+        ax.plot(ours_x, ours_y, **plotstyle.line("ours"), zorder=3, label="our model")
         # Table B.1's three trims on the same axes: where the diamond misses the circle the
         # report disagrees with itself (see `internal_spread`). Figure 8's abscissa is NG.
         b1x, b1y = _b1_markers(no)
         ax.plot(
             b1x,
             b1y,
-            "D",
-            color=THEME.ink,
-            ms=7,
-            mec=THEME.ground,
-            mew=1.2,
+            **plotstyle.points("ballin", marker="D", ms=7),
             zorder=5,
             label="Table B.1 (printed numbers)",
         )
@@ -259,23 +240,21 @@ def transients() -> dict:
             label, unit = PANEL_LABEL[key]
             if mp.exists():
                 tb, vb = read_reference(mp, "t_s", "value")
-                ax.plot(tb, vb, "-", color=BALLIN, lw=1.6, zorder=3, label="Ballin real-time")
+                ax.plot(tb, vb, **plotstyle.line("ballin"), zorder=3, label="Ballin real-time")
             if gp.exists():
                 tg, vg = read_reference(gp, "t_s", "value")
-                ax.plot(tg, vg, "+", color=GE, ms=5, mew=1.2, zorder=2, label="GE reference")
+                ax.plot(tg, vg, **plotstyle.points("ge"), zorder=2, label="GE reference")
             if key == "wfph":
                 ax.plot(
                     t,
                     np.where(t < tfs.STEP_TIME[no], 400.0, wf_hi),
-                    "-",
-                    color=OURS,
-                    lw=2,
+                    **plotstyle.line("ours"),
                     zorder=4,
                     label="our input",
                 )
             else:
                 ours = tfs.PANELS[key](tr)
-                ax.plot(t, ours, "-", color=OURS, lw=2, zorder=4, label="our model")
+                ax.plot(t, ours, **plotstyle.line("ours"), zorder=4, label="our model")
                 if mp.exists():
                     late, t_last = tfs._settled_window(tb, vb)
                     if late.size:
@@ -491,7 +470,7 @@ def eigenvalue_plot(data: dict) -> None:
         idx + 0.2,
         [-r["printed"] for r in rows],
         height=0.38,
-        color=BALLIN,
+        color=plotstyle.colour("ballin"),
         zorder=3,
         label="Table 1, printed",
     )
@@ -499,7 +478,7 @@ def eigenvalue_plot(data: dict) -> None:
         idx - 0.2,
         [-r["ours"] for r in rows],
         height=0.38,
-        color=OURS,
+        color=plotstyle.colour("ours"),
         zorder=3,
         label="our Jacobian",
     )
@@ -530,8 +509,8 @@ def eigenvalue_plot(data: dict) -> None:
     y, lab = [], []
     for k, r in enumerate(got):
         for a, b in zip(r["ours"], r["ballin"], strict=True):
-            ax.plot([-b], [k], "o", color=BALLIN, ms=6, zorder=3)
-            ax.plot([-a], [k], "o", color=OURS, ms=6, mfc="none", mew=1.6, zorder=4)
+            ax.plot([-b], [k], **plotstyle.points("ballin", ms=6), zorder=3)
+            ax.plot([-a], [k], **plotstyle.points("ours", ms=6), zorder=4)
         y.append(k)
         lab.append(
             f"{r['figure']} {r['model']} {r['trim'].split()[0][:4]}"
@@ -541,9 +520,9 @@ def eigenvalue_plot(data: dict) -> None:
     ax.set_yticks(y)
     ax.set_yticklabels(lab, fontsize=7)
     ax.invert_yaxis()
-    ax.plot([], [], "o", color=BALLIN, ms=6, label="Ballin's printed matrix")
-    ax.plot([], [], "o", color=OURS, ms=6, mfc="none", mew=1.6, label="ours")
-    ax.axvline(0.0, color="#b4453a", lw=1.1, ls=":", zorder=2)
+    ax.plot([], [], **plotstyle.points("ballin", ms=6), label="Ballin's printed matrix")
+    ax.plot([], [], **plotstyle.points("ours", ms=6), label="ours")
+    ax.axvline(0.0, **plotstyle.guide(ls=":"), zorder=2)
     for k, r in enumerate(got):
         if r["ballin_unstable"]:
             worst = min(r["ballin"])
@@ -552,8 +531,8 @@ def eigenvalue_plot(data: dict) -> None:
                 xy=(-worst, k),
                 xytext=(-worst * 30, k + 0.55),
                 fontsize=7,
-                color="#b4453a",
-                arrowprops=dict(arrowstyle="->", color="#b4453a", lw=0.9),
+                color=THEME.ink,
+                arrowprops=dict(arrowstyle="->", color=THEME.ink, lw=0.9),
             )
     _style(
         ax,
@@ -568,6 +547,10 @@ def eigenvalue_plot(data: dict) -> None:
 
 
 # ============================================================ Appendix B, 297 elements
+
+
+ELEMENT_MARKER = {"A": "o", "b": "s"}
+"""Appendix B's A and b elements, both ours against his printed one: one colour, two shapes."""
 
 
 def appendix_b() -> dict:
@@ -600,16 +583,13 @@ def appendix_b() -> dict:
     px = np.array([abs(p[0]) for p in pairs])
     py = np.array([abs(p[1]) for p in pairs])
     lim = [min(px.min(), py.min()) * 0.6, max(px.max(), py.max()) * 1.6]
-    ax.plot(lim, lim, "-", color=MUTED, lw=1, zorder=2)
-    for tag, col in (("A", OURS), ("b", GE)):
+    ax.plot(lim, lim, **plotstyle.guide(), zorder=2)
+    for tag, shape in ELEMENT_MARKER.items():
         sel = [k for k, p in enumerate(pairs) if p[2].endswith(tag)]
         ax.plot(
             px[sel],
             py[sel],
-            "o",
-            ms=4,
-            color=col,
-            alpha=0.65,
+            **plotstyle.points("ours", marker=shape, ms=4, mew=1.0),
             zorder=3,
             label=f"{tag} elements ({len(sel)})",
         )
@@ -622,16 +602,13 @@ def appendix_b() -> dict:
 
     ax = axes[1]
     keys = sorted(blocks)
-    ax.axvline(0.0, color=MUTED, lw=1, zorder=2)
+    ax.axvline(0.0, **plotstyle.guide(), zorder=2)
     for k, key in enumerate(keys):
         v = np.array(blocks[key])
         ax.plot(
             v,
             np.full(v.size, k) + np.random.default_rng(0).normal(0, 0.06, v.size),
-            "o",
-            ms=4,
-            color=OURS if key.endswith("A") else GE,
-            alpha=0.6,
+            **plotstyle.points("ours", marker=ELEMENT_MARKER[key[-1]], ms=4, mew=1.0),
             zorder=3,
         )
     ax.set_yticks(range(len(keys)))
@@ -701,10 +678,10 @@ def phase_plane() -> dict:
         bal_ps3 = np.interp(tb, tp, vp)
         eq = read_reference("fig08_realtime.csv", "ng_pct", "ps3_psia")
         ax.plot(
-            eq[0], eq[1], "--", color=MUTED, lw=1.2, zorder=2, label="Figure 8 equilibrium locus"
+            *eq, **plotstyle.points("ballin", ms=3.5), zorder=2, label="Ballin, Figure 8 (steady)"
         )
-        ax.plot(vb, bal_ps3, "-", color=BALLIN, lw=1.8, zorder=3, label="Ballin")
-        ax.plot(ng, ps3, "-", color=OURS, lw=2, zorder=4, label="ours")
+        ax.plot(vb, bal_ps3, **plotstyle.line("ballin"), zorder=3, label="Ballin")
+        ax.plot(ng, ps3, **plotstyle.line("ours"), zorder=4, label="ours")
         _style(
             ax,
             "gas generator speed, %NG",
@@ -744,7 +721,7 @@ def table_b1_plot(b1: dict, cl: dict) -> None:
         idx,
         [r["dev_pct"] for r in rows],
         width=0.55,
-        color=OURS,
+        color=plotstyle.colour("ours"),
         zorder=3,
         label="open loop, Wf prescribed",
     )
@@ -755,22 +732,20 @@ def table_b1_plot(b1: dict, cl: dict) -> None:
     ax.plot(
         xs,
         [cl_map[(rows[i]["trim"], rows[i]["quantity"])] for i in xs],
-        "D",
-        color=BALLIN,
-        ms=6,
+        **plotstyle.points("ours", marker="D", ms=6, mfc=THEME.ground),
         zorder=4,
         label="closed loop, Wf an output",
     )
-    ax.axhline(0.0, color=MUTED, lw=1, zorder=2)
+    ax.axhline(0.0, **plotstyle.guide(), zorder=2)
     for s in (0.5, -0.5):
-        ax.axhline(s, color=GRID, lw=1.2, ls="--", zorder=2)
+        ax.axhline(s, **plotstyle.guide(ls=":"), zorder=2)
     ax.set_xticks(idx)
     ax.set_xticklabels(labels, rotation=60, ha="right", fontsize=7)
     _style(
         ax,
         "",
         "deviation from printed, %",
-        "Table B.1 [pdf p.67], 21 printed numbers. Dashed lines are our +/-0.5 % bound",
+        "Table B.1 [pdf p.67], 21 printed numbers. Dotted lines are our +/-0.5 % bound",
     )
     ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
     fig.tight_layout()
@@ -857,38 +832,34 @@ def figures_4_5() -> dict:
         "nonlinear", 4, "linear"
     )
 
-    fig, axes = plt.subplots(3, 2, figsize=fs(14.5, 10.0), sharex=True)
-    for col, fno in enumerate(f45.FIGS):
+    # One panel per pair, two lines each: Figure 4 his Gen Hel and his linear models, Figure 5
+    # his 5-DOF and 6-DOF, each beside the model of ours it is scored against.
+    fig, axes = plt.subplots(3, 4, figsize=fs(18.0, 10.0), sharex=True)
+    columns = (
+        (4, "Gen Hel", "nonlinear", "Gen Hel", "nonlinear engine", "his Gen Hel"),
+        (4, "linear", "5-DOF", "linear models", "5-DOF", "his linear models"),
+        (5, "5-DOF", "5-DOF", "5-DOF", "5-DOF", "his 5-DOF"),
+        (5, "6-DOF", "6-DOF", "6-DOF", "6-DOF", "his 6-DOF"),
+    )
+    tt = np.linspace(0, 15, 3001)
+    for col, (fno, curve, ours, his_lab, our_lab, what) in enumerate(columns):
         u = f45.fuel(fno)
-        tt = np.linspace(0, 15, 3001)
-        axes[0, col].plot(tt, [100 * u(x) for x in tt], color=MUTED, lw=1.2)
-        title = (
-            "Figure 4, pdf p.30: his Gen Hel simulation and linear models"
-            if fno == 4
-            else "Figure 5, pdf p.34: his 5-DOF and 6-DOF"
+        page = {4: 30, 5: 34}[fno]
+        axes[0, col].plot(tt, [100 * u(x) for x in tt], **plotstyle.line("ballin"))
+        _style(
+            axes[0, col],
+            "",
+            "fuel flow, % of trim" if col == 0 else "",
+            f"Figure {fno}, pdf p.{page}: {what}",
         )
-        _style(axes[0, col], "", "fuel flow, % of trim", title)
+        t, *ys = f45.response(ours, fno)
         for row, key in ((1, "ng"), (2, "np")):
             ax = axes[row, col]
-            j = 1 if key == "ng" else 2
-            pairs = (
-                (
-                    ("Gen Hel", "nonlinear", "Gen Hel", "nonlinear engine"),
-                    ("linear", "5-DOF", "linear models", "5-DOF"),
-                )
-                if fno == 4
-                else (("5-DOF", "5-DOF", "5-DOF", "5-DOF"), ("6-DOF", "6-DOF", "6-DOF", "6-DOF"))
-            )
-            for (curve, ours, his_lab, our_lab), sty in zip(pairs, ("-", "--"), strict=True):
-                tb, v, _h = f45.his_curves(fno, key)[curve]
-                ax.plot(tb, v, sty, color=BALLIN, lw=1.4, label=f"Ballin {his_lab}")
-                t, *ys = f45.response(ours, fno)
-                ax.plot(t, ys[j - 1], sty, color=OURS, lw=1.1, label=f"our {our_lab}")
-            _style(
-                ax,
-                "time, s" if row == 2 else "",
-                "gas turbine speed, %" if key == "ng" else "power turbine speed, %",
-            )
+            tb, v, _h = f45.his_curves(fno, key)[curve]
+            ax.plot(tb, v, **plotstyle.line("ballin"), label=f"Ballin {his_lab}")
+            ax.plot(t, ys[row - 1], **plotstyle.line("ours"), label=f"our {our_lab}")
+            ylabel = "gas turbine speed, %" if key == "ng" else "power turbine speed, %"
+            _style(ax, "time, s" if row == 2 else "", ylabel if col == 0 else "")
             if row == 1:
                 ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc="lower right")
     fig.tight_layout()
@@ -942,14 +913,14 @@ def gen_hel() -> dict:
             ("nr", "main rotor speed, %", ""),
         )
         for ax, (key, ylabel, title) in zip(axes, rows, strict=True):
-            for line, sty, colr, lab in (
-                ("gen_hel", "-", BALLIN, "Ballin, Gen Hel"),
-                ("test", "--", MUTED, "flight test"),
+            for line, src, lab in (
+                ("gen_hel", "ballin", "Ballin, Gen Hel"),
+                ("test", "flight", "flight test"),
             ):
                 t, v = g.his(fno, key, line)
                 if key in ("fuel", "torque"):
                     v = 100.0 * v / g.his_trim(fno, key, line)
-                ax.plot(t, v, sty, color=colr, lw=1.3 if line == "gen_hel" else 1.0, label=lab)
+                ax.plot(t, v, **plotstyle.line(src), label=lab)
             if key in g.PANELS:
                 if moves:
                     t, v_lo = g.ours(fno, key, scale=lo)
@@ -958,14 +929,14 @@ def gen_hel() -> dict:
                         t,
                         np.minimum(v_lo, v_hi),
                         np.maximum(v_lo, v_hi),
-                        color=OURS,
+                        color=plotstyle.colour("ours"),
                         alpha=0.15,
                         lw=0,
                         label=f"ours, collective at {lo:.1f}-{hi:.1f} % per inch",
                     )
                 t, v = g.ours(fno, key)
                 lab = "ours, replaying his rotor speed" + (" and collective" if moves else "")
-                ax.plot(t, v, "-", color=OURS, lw=1.1, label=lab)
+                ax.plot(t, v, **plotstyle.line("ours"), label=lab)
             if key == key_in:
                 ax.set_ylim(*range_in)
                 note = (
@@ -1021,16 +992,16 @@ def gen_hel_load() -> dict:
         }
         for col, key in enumerate(g.LOAD_PANELS):
             ax = axes[row, col]
-            for line, sty, colr, lab in (
-                ("gen_hel", "-", BALLIN, "Ballin, Gen Hel"),
-                ("test", "--", MUTED, "flight test"),
+            for line, src, lab in (
+                ("gen_hel", "ballin", "Ballin, Gen Hel"),
+                ("test", "flight", "flight test"),
             ):
                 t, v = g.his(fno, key, line)
                 if key == "fuel":
                     v = 100.0 * v / g.his_trim(fno, key, line)
-                ax.plot(t, v, sty, color=colr, lw=1.2 if line == "gen_hel" else 0.9, label=lab)
+                ax.plot(t, v, **plotstyle.line(src), label=lab)
             t, v = g.ours_load(fno, key)
-            ax.plot(t, v, "-", color=OURS, lw=1.1, label="ours, from his rotor's demand")
+            ax.plot(t, v, **plotstyle.line("ours"), label="ours, from his rotor's demand")
             ylabel = f"Figure {fno}\n{units[key]}" if col == 0 else units[key]
             _style(ax, "time, s" if row == 3 else "", ylabel)
     handles, labels = axes[0, 0].get_legend_handles_labels()
@@ -1078,20 +1049,20 @@ def gen_hel_15() -> dict:
     )
     for ax, (key, ylabel) in zip(axes, rows, strict=True):
         if key != "ng":
-            for line, sty, colr, lab in (
-                ("gen_hel", "-", BALLIN, "Ballin, Gen Hel"),
-                ("test", "--", MUTED, "flight test"),
+            for line, src, lab in (
+                ("gen_hel", "ballin", "Ballin, Gen Hel"),
+                ("test", "flight", "flight test"),
             ):
                 t, v = g.his(15, key, line)
                 if key == "mr_torque":
                     v = 100.0 * v / g.his_trim(15, key, line)
-                ax.plot(t, v, sty, color=colr, lw=1.1 if line == "gen_hel" else 0.9, label=lab)
+                ax.plot(t, v, **plotstyle.line(src), label=lab)
         if key == "mr_torque":
-            ax.plot(t_l, 100.0 * q_req / q_req[0], "-", color=OURS, lw=1.1, label="ours")
+            ax.plot(t_l, 100.0 * q_req / q_req[0], **plotstyle.line("ours"), label="ours")
         if key == "nr":
-            ax.plot(L["t"], L["nr"], "-", color=OURS, lw=1.1)
+            ax.plot(L["t"], L["nr"], **plotstyle.line("ours"))
         if key == "ng":
-            ax.plot(L["t"], L["ng"], "-", color=OURS, lw=1.1)
+            ax.plot(L["t"], L["ng"], **plotstyle.line("ours"))
         note = {
             "collective": f"his input: our collective follows it, {g.fig15_scale():.1f} % of "
             "maximum per inch, to full down",
@@ -1248,30 +1219,25 @@ def sheet_engine_steady() -> dict:
         (
             "station pressures",
             "psia",
-            [("Ps3", "ps3", OURS), ("P41", "p41", BALLIN), ("P45", "p45", GE)],
+            [("Ps3", "ps3"), ("P41", "p41"), ("P45", "p45")],
         ),
         (
             "station temperatures",
             "deg R",
-            [
-                ("T3", "t3", GE),
-                ("T4.1", "t41", BALLIN),
-                ("T4.5", "t45", OURS),
-                ("T4.9", "t49", GE2),
-            ],
+            [("T3", "t3"), ("T4.1", "t41"), ("T4.5", "t45"), ("T4.9", "t49")],
         ),
-        ("air path", "lbm/sec", [("Wa2 inlet", "wa2", OURS), ("Wa31 to burner", "wa31", BALLIN)]),
-        ("shaft power", "hp", [("SHP", "shp", OURS)]),
-        ("specific fuel consumption, above 50 hp", "lbm/hr per hp", [("SFC", "sfc", BALLIN)]),
-        ("customer + cooling bleed", "% of inlet flow", [("bleed", "bleed", GE)]),
+        ("air path", "lbm/sec", [("Wa2 inlet", "wa2"), ("Wa31 to burner", "wa31")]),
+        ("shaft power", "hp", [("SHP", "shp")]),
+        ("specific fuel consumption, above 50 hp", "lbm/hr per hp", [("SFC", "sfc")]),
+        ("customer + cooling bleed", "% of inlet flow", [("bleed", "bleed")]),
     ]
     # SFC = Wf/SHP is meaningless where shaft power crosses zero near the bottom of the range
     # (the free turbine absorbing), so that panel starts above 50 hp.
     usable = g["shp"] > 50.0
     for ax, (title, unit, series) in zip(axes.ravel(), panels, strict=True):
-        for label, key, col in series:
+        for (label, key), ls in zip(series, plotstyle.FAMILY, strict=False):
             m = usable if key == "sfc" else np.ones_like(usable, dtype=bool)
-            ax.plot(g["ng"][m], g[key][m], "-", color=col, lw=2, zorder=3, label=label)
+            ax.plot(g["ng"][m], g[key][m], **plotstyle.line("ours", ls=ls), zorder=3, label=label)
         _style(ax, "gas generator speed, %NG", unit, title)
         if len(series) > 1:
             ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
@@ -1302,11 +1268,11 @@ def sheet_open_loop() -> dict:
     """A family of fuel steps from the same trim, with the heat sink."""
     import test_fuel_step as tfs
 
-    steps = [(125.0, "#9c5bd0"), (250.0, GE), (550.0, OURS), (775.0, BALLIN)]
+    steps = list(zip((125.0, 250.0, 550.0, 775.0), plotstyle.FAMILY, strict=True))
 
     fig, axes = plt.subplots(1, 4, figsize=fs(17.0, 4.3))
     out = {}
-    for pph, col in steps:
+    for pph, ls in steps:
         tr = tfs._run(pph, 0.5, True)
         t = tr["t"]
         lab = f"400 -> {pph:.0f}"
@@ -1316,7 +1282,9 @@ def sheet_open_loop() -> dict:
             (axes[2], "q_pt", lambda v: v),
             (axes[3], "p3", lambda v: c.K_PS3 * v),
         ):
-            ax.plot(t, fn(np.asarray(tr[key])), "-", color=col, lw=1.8, zorder=3, label=lab)
+            ax.plot(
+                t, fn(np.asarray(tr[key])), **plotstyle.line("ours", ls=ls), zorder=3, label=lab
+            )
         ng = 100.0 * np.asarray(tr["ng"]) / c.NG_DES
         t41 = np.asarray(tr["t41"])
         # Peak and overshoot belong to the steps up; over a step down the maximum is just
@@ -1391,13 +1359,13 @@ def sheet_closed_loop() -> dict:
     fig, axes = plt.subplots(3, 4, figsize=fs(17.0, 10.2))
     out = {}
     for row, (label, d) in zip(axes, cases, strict=True):
-        for ax, key, ylab, title, col in (
-            (row[0], "np", "rpm", "power turbine speed NP", OURS),
-            (row[1], "wf", "lbm/hr", "fuel flow, an OUTPUT here", BALLIN),
-            (row[2], "ng", "%NG", "gas generator speed", GE),
-            (row[3], "spdg", "volts", "ECU torque-motor demand SPDG", GE2),
+        for ax, key, ylab, title in (
+            (row[0], "np", "rpm", "power turbine speed NP"),
+            (row[1], "wf", "lbm/hr", "fuel flow, an OUTPUT here"),
+            (row[2], "ng", "%NG", "gas generator speed"),
+            (row[3], "spdg", "volts", "ECU torque-motor demand SPDG"),
         ):
-            ax.plot(d["t"], d[key], "-", color=col, lw=1.8, zorder=3)
+            ax.plot(d["t"], d[key], **plotstyle.line("ours"), zorder=3)
             _style(ax, "time, s", ylab, f"{title}")
         row[0].set_ylabel(f"{label}\n\nrpm", color=MUTED, fontsize=9)
         out[label] = {
@@ -1471,8 +1439,8 @@ def sheet_schedules() -> dict:
     for ax, (name, src, xl, yl, fn, what) in zip(axes.ravel(), specs, strict=False):
         cur = fn()
         xs = np.linspace(cur.x.min(), cur.x.max(), 400)
-        ax.plot(xs, [float(cur(v)) for v in xs], "-", color=OURS, lw=2, zorder=3)
-        ax.plot(cur.x, cur.y, "x", color=BALLIN, ms=7, mew=1.6, zorder=4)
+        ax.plot(xs, [float(cur(v)) for v in xs], **plotstyle.line("ours"), zorder=3)
+        ax.plot(cur.x, cur.y, **plotstyle.points("ballin"), zorder=4)
         _style(ax, xl, yl, f"{name} -- {what}")
         ax.text(
             0.02,
@@ -1482,7 +1450,7 @@ def sheet_schedules() -> dict:
             fontsize=6.8,
             color=MUTED,
             va="bottom",
-            zorder=5,
+            zorder=1,
             bbox=dict(fc=THEME.ground, ec="none", alpha=0.82, pad=1.8),
         )
         out[name] = {
@@ -1492,17 +1460,10 @@ def sheet_schedules() -> dict:
 
     ax = axes.ravel()[6]
     m7 = sch.f_hm7()
-    for k, param in enumerate(m7.params):
-        line = m7.lines[k]
-        ax.plot(
-            line.x,
-            line.y,
-            "-",
-            lw=1.6,
-            zorder=3,
-            color=plt.cm.viridis(k / max(len(m7.params) - 1, 1)),
-            label=f"{param:g}",
-        )
+    # His printed lines, as digitized, are what the model reads: drawn as his, one shade each.
+    shades = plotstyle.shades("ballin", len(m7.params))
+    for param, line, col in zip(m7.params, m7.lines, shades, strict=True):
+        ax.plot(line.x, line.y, **plotstyle.line("ballin", color=col), zorder=3, label=f"{param:g}")
     _style(ax, "PCNGHL, %NG", "WFPAC", "F_HM7 -- acceleration limit, 7 T2 lines")
     ax.legend(
         frameon=False, fontsize=6, labelcolor=MUTED, ncol=2, title="T2, deg R", title_fontsize=6
@@ -1514,17 +1475,9 @@ def sheet_schedules() -> dict:
 
     ax = axes.ravel()[7]
     ec = sch.f_ec1()
-    for k, param in enumerate(ec.params):
-        line = ec.lines[k]
-        ax.plot(
-            line.x,
-            line.y,
-            "-",
-            lw=1.8,
-            zorder=3,
-            color=plt.cm.plasma(0.15 + 0.7 * k / max(len(ec.params) - 1, 1)),
-            label=f"{param:g}",
-        )
+    shades = plotstyle.shades("ballin", len(ec.params))
+    for param, line, col in zip(ec.params, ec.lines, shades, strict=True):
+        ax.plot(line.x, line.y, **plotstyle.line("ballin", color=col), zorder=3, label=f"{param:g}")
     _style(ax, "W45R", "TAU45, sec", "F_EC1 -- thermocouple time constant")
     ax.legend(frameon=False, fontsize=6, labelcolor=MUTED, title="T45L, deg R", title_fontsize=6)
     out["F_EC1"] = {
@@ -1613,8 +1566,9 @@ def sheet_engine_maps() -> dict:
         cur = getattr(maps, name)()
         xl, yl = _axis_labels(MAP_FILE[name])
         xs = np.linspace(cur.x.min(), cur.x.max(), 400)
-        ax.plot(xs, [float(cur(v)) for v in xs], "-", color=OURS, lw=2, zorder=3)
-        ax.plot(cur.x, cur.y, "x", color=BALLIN, ms=6, mew=1.4, zorder=4)
+        printed = maps.load_curve(MAP_FILE[name], f"{name}, as digitized")
+        ax.plot(xs, [float(cur(v)) for v in xs], **plotstyle.line("ours"), zorder=3)
+        ax.plot(printed.x, printed.y, **plotstyle.points("ballin", ms=4), zorder=4)
         _style(ax, xl, yl, f"{name} -- {what}")
         ax.text(
             0.02,
@@ -1624,7 +1578,7 @@ def sheet_engine_maps() -> dict:
             fontsize=6.6,
             color=MUTED,
             va="bottom",
-            zorder=5,
+            zorder=1,
             bbox=dict(fc=THEME.ground, ec="none", alpha=0.82, pad=1.8),
         )
         out[name] = {
@@ -1636,17 +1590,10 @@ def sheet_engine_maps() -> dict:
 
     ax = axes.ravel()[10]
     m1 = maps.f1()
-    for k, param in enumerate(m1.params):
-        line = m1.lines[k]
-        ax.plot(
-            line.x,
-            line.y,
-            "-",
-            lw=1.3,
-            zorder=3,
-            color=plt.cm.viridis(k / (len(m1.params) - 1)),
-            label=f"{param:g}",
-        )
+    # Our beta-grid speed lines (#60), one shade of ours each.
+    shades = plotstyle.shades("ours", len(m1.params))
+    for param, line, col in zip(m1.params, m1.lines, shades, strict=True):
+        ax.plot(line.x, line.y, **plotstyle.line("ours", color=col), zorder=3, label=f"{param:g}")
     # f1's derived file is a beta grid and carries no `# x:` header of its own; the axes it
     # is *evaluated* on are the raw extraction's, which is what the panel plots.
     fx, fy = "Ps3/P2", "WA2c, lbm/sec"
@@ -1663,23 +1610,24 @@ def sheet_engine_maps() -> dict:
     ax.plot(
         printed.lines[5].x,
         printed.lines[5].y,
-        "o--",
-        color=BALLIN,
-        ms=5,
-        lw=1.4,
+        **plotstyle.line("ballin", marker="o", ms=5),
         zorder=3,
         label="as printed, 7 markers",
     )
     ax.plot(
-        m1.lines[5].x, m1.lines[5].y, "-", color=OURS, lw=2, zorder=4, label="on the beta grid, 56"
+        m1.lines[5].x,
+        m1.lines[5].y,
+        **plotstyle.line("ours"),
+        zorder=4,
+        label="on the beta grid, 56",
     )
     _style(ax, fx, fy, "f1: 89 % line, both ways")
     ax.legend(frameon=False, fontsize=7, labelcolor=MUTED, loc="best")
 
     plotstyle.title(
         fig,
-        "Appendix A's eleven engine function tables, as digitized. Crosses are the printed "
-        "markers; the line is what the model evaluates",
+        "Appendix A's eleven engine function tables. Dots are the printed markers as digitized; "
+        "the line is what the model evaluates, after conditioning",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.958))
     save(fig, "engine-maps")

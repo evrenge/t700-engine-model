@@ -36,7 +36,6 @@ class Theme:
     ours: str
     ballin: str
     ge: str
-    ge2: str
 
 
 LIGHT = Theme(
@@ -49,8 +48,74 @@ LIGHT = Theme(
     ours="#2364b5",
     ballin="#c94f1d",
     ge="#0d8a5f",
-    ge2="#6f4fc0",
 )
+
+# ------------------------------------------------------------------ one look per data source
+#
+# Every figure draws a source the same way: Ballin orange, flight test grey dashed, GE green,
+# ours blue. Curves are lines, printed or computed numbers are markers in the source's colour.
+# Orange, green and grey dashed never mark anything of ours.
+
+SOURCES = ("ballin", "flight", "ge", "ours")
+LINE_WIDTH = {"ballin": 1.2, "flight": 1.0, "ge": 1.2, "ours": 1.6}
+FAMILY = ("-", "--", ":", "-.")
+"""Several curves of one source in one panel: its colour, told apart by these line styles in
+order, each labelled; `shades` beyond four."""
+
+
+def colour(source: str, theme: Theme = LIGHT) -> str:
+    """The colour of a source: `ballin`, `flight`, `ge` or `ours`."""
+    return {
+        "ballin": theme.ballin,
+        "flight": theme.muted,
+        "ge": theme.ge,
+        "ours": theme.ours,
+    }[source]
+
+
+def line(source: str, theme: Theme = LIGHT, **kw) -> dict:
+    """`plot` keywords for a curve of `source`; the flight test is always dashed."""
+    out = {
+        "color": colour(source, theme),
+        "lw": LINE_WIDTH[source],
+        "ls": "--" if source == "flight" else "-",
+    }
+    return out | kw
+
+
+def points(source: str, theme: Theme = LIGHT, **kw) -> dict:
+    """`plot` keywords for numbers of `source` drawn as markers: printed ones filled, ours
+    hollow, GE's as plus signs unless a second GE set needs another shape."""
+    c = colour(source, theme)
+    out = {"ls": "none", "color": c, "ms": 5.0}
+    if source == "ours":
+        out |= {"marker": "o", "mfc": "none", "mew": 1.4}
+    elif source == "ge":
+        out |= {"marker": "+", "mew": 1.2}
+    else:
+        out |= {"marker": "o", "mfc": c, "mec": c}
+    return out | kw
+
+
+def guide(theme: Theme = LIGHT, **kw) -> dict:
+    """`plot`/`axhline` keywords for a reference line that is no data: zero, 1:1, a bound."""
+    return {"color": theme.faint, "lw": 0.8} | kw
+
+
+def shades(source: str, n: int, theme: Theme = LIGHT) -> list[str]:
+    """`n` shades of a source's colour, light to dark, for a family of more than four
+    curves of one source: mixed with the ground from 60 % down to none."""
+    rgb = matplotlib.colors.to_rgb(colour(source, theme))
+    ground = matplotlib.colors.to_rgb(theme.ground)
+    out = []
+    for k in range(n):
+        f = 0.6 * (1.0 - k / max(n - 1, 1))
+        out.append(
+            matplotlib.colors.to_hex(
+                [(1.0 - f) * a + f * b for a, b in zip(rgb, ground, strict=True)]
+            )
+        )
+    return out
 
 
 def available() -> bool:
@@ -110,7 +175,7 @@ def rc(theme: Theme) -> dict:
         "figure.titleweight": "semibold",
         "lines.linewidth": 2.0,
         "lines.solid_capstyle": "round",
-        "axes.prop_cycle": matplotlib.cycler(color=[theme.ours, theme.ballin, theme.ge, theme.ge2]),
+        "axes.prop_cycle": matplotlib.cycler(color=[theme.ours]),
     }
 
 
