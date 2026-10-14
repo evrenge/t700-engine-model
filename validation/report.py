@@ -888,6 +888,19 @@ def _printed_range(fno: int, key: str) -> tuple[float, float]:
     raise ValueError(f"{path.name}: no axis range")
 
 
+LIMIT_PAD = 0.03
+"""Where a line leaves his printed range, the panel widens past it by this fraction of the
+range, so the whole line shows."""
+
+
+def _printed_or_wider(ax, lo: float, hi: float) -> None:
+    """His printed y range, widened only where a line drawn so far leaves it."""
+    ys = np.concatenate([np.asarray(ln.get_ydata(), float) for ln in ax.get_lines()])
+    ys = ys[np.isfinite(ys)]
+    pad = LIMIT_PAD * (hi - lo)
+    ax.set_ylim(min(lo, ys.min() - pad), max(hi, ys.max() + pad))
+
+
 def _gen_hel_picture(fno: int, rotor: str) -> None:
     """One test on one of his figures: his panels in his order, on his printed ranges (fuel and
     torque in % of trim), his Gen Hel and flight-test lines and ours. Panels that are inputs
@@ -926,10 +939,6 @@ def _gen_hel_picture(fno: int, rotor: str) -> None:
             if pct:
                 v = 100.0 * v / g.his_trim(fno, key, line)
             ax.plot(t, v, **plotstyle.line(src), label=lab)
-        lo, hi = _printed_range(fno, key)
-        if pct:
-            lo, hi = (100.0 * x / g.his_trim(fno, key) for x in (lo, hi))
-        ax.set_ylim(lo, hi)
         if key in inputs:
             note = {
                 key_in: "input: his pilot input"
@@ -945,6 +954,10 @@ def _gen_hel_picture(fno: int, rotor: str) -> None:
             _note(
                 ax, f"ours against his Gen Hel line: rms {g.rms(g.gap(fno, key, rotor)):.2f} {unit}"
             )
+        lo, hi = _printed_range(fno, key)
+        if pct:
+            lo, hi = (100.0 * x / g.his_trim(fno, key) for x in (lo, hi))
+        _printed_or_wider(ax, lo, hi)
         title = f"Figure {fno}, pdf p.{page}: {what}. {TEST_NAME[rotor].capitalize()}"
         _style(ax, "time, s" if key == rows[-1][0] else "", ylabel, title if key == key_in else "")
     handles, labels = [], []
@@ -1147,10 +1160,6 @@ def _both_tests_picture(fno: int) -> None:
         if pct:
             v = 100.0 * v / g.his_trim(fno, key)
         ax.plot(t, v, **plotstyle.line("ballin"), label="Ballin, Gen Hel")
-        lo, hi = _printed_range(fno, key)
-        if pct:
-            lo, hi = (100.0 * x / g.his_trim(fno, key) for x in (lo, hi))
-        ax.set_ylim(lo, hi)
         unit = "% of trim" if pct else "%"
         notes = []
         for rotor, ls in (("imposed", "-"), ("free", "--")):
@@ -1159,6 +1168,10 @@ def _both_tests_picture(fno: int) -> None:
             t, v = g.ours(fno, key, rotor)
             ax.plot(t, v, **plotstyle.line("ours", ls=ls), label=f"ours, {TEST_NAME[rotor]}")
             notes.append(f"{rotor} {g.rms(g.gap(fno, key, rotor)):.2f}")
+        lo, hi = _printed_range(fno, key)
+        if pct:
+            lo, hi = (100.0 * x / g.his_trim(fno, key) for x in (lo, hi))
+        _printed_or_wider(ax, lo, hi)
         _note(ax, f"rms against his Gen Hel line, {unit}: " + ", ".join(notes))
         if key == "nr":
             _note(ax, "rotor speed imposed: his, by construction", inside=True)
