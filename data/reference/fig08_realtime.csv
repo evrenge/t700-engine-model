@@ -3,13 +3,14 @@
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
 # ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
 # ps3_psia: STATION 3 STATIC PRESSURE, psia, axis 40.0 to 280.0
-# points: 27
+# points: 31
 # shear corrected: left frame leans +21.22 px across the plot height, right +17.83 px; top frame -1.26 px across the width, bottom +2.34 px. The page is sheared; see `fit_frames`.
 # read error: after calibration the axis maps predict a tick they were not shown to rms 0.01882 in ng_pct and 0.1481 in ps3_psia, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 ng_pct,ps3_psia
 69.9904,61.6984
-70.9998,63.2262
+70.9985,63.5756
+72.0093,65.5938
 73.0220,67.6031
 74.0319,69.6244
 75.0396,71.6892
@@ -23,6 +24,7 @@ ng_pct,ps3_psia
 83.0190,99.4149
 84.0319,105.6150
 85.0275,112.7262
+86.0239,120.4783
 87.0012,128.1388
 87.9940,135.7072
 88.9906,141.9304
@@ -30,8 +32,10 @@ ng_pct,ps3_psia
 90.9845,158.2365
 91.9792,166.4072
 92.9849,174.9987
+93.9841,183.6146
 94.9907,193.7353
 95.9987,204.6805
 97.0041,215.4850
 98.0138,227.4374
+99.0179,235.9503
 100.0189,244.8038

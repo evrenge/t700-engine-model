@@ -119,6 +119,17 @@ a polynomial, highest power first; A1 holds its edges as `(intercept, slope)`. P
 pair unreversed probes a line with its slope and intercept exchanged, and it walked the
 probe a million rows off the page. Loud, immediately — but the next one might not be.
 
+**13. Where markers overprint, one blob holds several, and a blob reader drops them all.**
+Figures 6-8 print three series over one curve, so a disc, a cross and a triangle often touch,
+and five of Figure 7's discs run together into one chain at low power. Read as blobs, those
+are too big or the wrong shape: Figure 7 lost ten of its 25 real-time markers that way, and a
+merged blob kept by mistake puts its centroid between two glyphs. Take the blob apart
+instead (`digitize_fig678.classify`): a filled disc has a solid core no stroke reaches, and
+its centre comes from its own free edge, never the blob's; crosses and triangles are then
+found in what is left by templates of their lone instances on the same page. And tell a
+triangle from a cross by the paper it encloses, not by its bottom row: a thin base read four
+triangles as crosses.
+
 ## Checks the figure gives you for free
 
 The tool is never told to expect any of these, which is what makes them checks.

@@ -3,15 +3,20 @@
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
 # wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
 # shp: SHAFT HORSEPOWER (no unit printed), axis -200.0 to 2000.0
-# points: 14
+# points: 19
 # shear corrected: left frame leans +19.89 px across the plot height, right +20.50 px; top frame -0.43 px across the width, bottom +2.58 px. The page is sheared; see `fit_frames`.
 # read error: after calibration the axis maps predict a tick they were not shown to rms 0.4374 in wf_pph and 1.399 in shp, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 wf_pph,shp
-201.3720,106.3790
-233.0925,181.8062
-285.5875,356.4076
+157.3063,-0.9418
+204.6189,108.4318
+220.7599,144.6542
+234.6697,174.3001
+250.0991,248.8090
+283.7431,348.7445
 315.3933,459.6315
+346.1116,551.2823
+372.4472,625.0846
 412.0201,739.8920
 444.6190,834.9619
 481.4537,939.4622

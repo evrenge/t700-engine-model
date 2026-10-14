@@ -3,15 +3,19 @@
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_fig678.py; glyphs separated by shape
 # wf_pph: FUEL FLOW, lb/hr, axis 100.0 to 900.0
 # ng_pct: GAS GENERATOR SPEED, percent, axis 65.0 to 105.0
-# points: 17
+# points: 21
 # shear corrected: left frame leans -7.45 px across the plot height, right -13.03 px; top frame +20.54 px across the width, bottom +23.28 px. The page is sheared; see `fit_frames`.
 # read error: after calibration the axis maps predict a tick they were not shown to rms 0.2761 in wf_pph and 0.02374 in ng_pct, worst edge of the two. That is the scale to judge a deviation against: a disagreement smaller than this one is not resolved by the figure.
 # NOT transcribed. Values carry read error.
 wf_pph,ng_pct
 157.1619,72.4852
-165.2085,75.4518
+190.0796,81.0249
 204.6997,82.0213
+220.1149,83.0177
 234.7271,83.9968
+249.4648,84.9973
+282.2102,85.9874
+314.3439,86.9853
 345.3621,87.9769
 371.2726,88.9553
 411.3694,89.9820
@@ -22,6 +26,6 @@ wf_pph,ng_pct
 622.3624,94.9646
 683.7249,95.9456
 754.6511,97.9833
-764.8724,99.4483
+779.8577,98.9948
 832.1589,101.0209
 850.4553,101.5335
