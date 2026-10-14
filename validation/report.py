@@ -867,144 +867,92 @@ def figures_4_5() -> dict:
     return out
 
 
-def gen_hel() -> dict:
-    """Figures 11-14 [pdf pp.48-52]: his rotor speed, and his collective where it moves,
-    replayed into our closed loop; NG, fuel and torque against his Gen Hel line
-    (`test_gen_hel`, #81)."""
+GEN_HEL_WHAT = {
+    11: (48, "collective input at 90 kt"),
+    12: (49, "lateral cyclic input at 55 kt"),
+    13: (51, "collective input at hover"),
+    14: (52, "pedal input at hover"),
+    15: (53, "large collective input at 87 kt"),
+}
+"""Each Gen Hel figure's page and what it shows [pdf pp.48-53]."""
+TEST_NAME = {"imposed": "rotor speed imposed", "free": "rotor free"}
+
+
+def _printed_range(fno: int, key: str) -> tuple[float, float]:
+    """A panel's printed y range, from its data file's provenance header."""
+    path = REF / f"fig{fno:02d}_{key}_gen_hel.csv"
+    for ln in path.read_text().splitlines():
+        if ln.startswith("# value: axis range"):
+            lo, hi = ln.split("range", 1)[1].split(" to ")
+            return float(lo), float(hi)
+    raise ValueError(f"{path.name}: no axis range")
+
+
+def _gen_hel_picture(fno: int, rotor: str) -> None:
+    """One test on one of his figures: his panels in his order, on his printed ranges (fuel and
+    torque in % of trim), his Gen Hel and flight-test lines and ours. Panels that are inputs
+    to the test carry his lines only, marked so."""
     import test_gen_hel as g
 
-    out: dict = {}
-    lo, hi = g.collective_scales()
-    what = {
-        11: (48, "collective input at 90 kt"),
-        12: (49, "lateral cyclic input at 55 kt"),
-        13: (51, "collective input at hover"),
-        14: (52, "pedal input at hover"),
-    }
-    for fno in g.FIGS:
-        key_in, label_in, range_in = g.INPUT[fno]
-        moves = fno in g.COLLECTIVE_FIGS
-        d = {
-            "his trim": {k: g.his_trim(fno, k) for k in ("nr", "ng", "fuel", "torque")},
-            "our trim": {
-                "ng_pct": 100.0 * g.our_trim(fno).state.ng_rpm / c.NG_DES,
-                "fuel_both_engines_pph": 2.0 * g.trim_fuel_pph(fno),
-                "collective_pct": g.collective(fno),
-            },
-            "rms vs his gen hel": {k: g.rms(g.gap(fno, k)) for k in g.PANELS},
-            "rms vs flight test": {k: g.rms(g.gap(fno, k, "test")) for k in g.PANELS},
-            "rms with his inputs held": {k: g.held(fno, k) for k in g.PANELS},
-        }
-        if moves:
-            d["his trim"]["collective_in"] = g.his_trim(fno, "collective")
-            d["collective scale pct per in"] = g.scale_of(fno)
-            d["collective scale range pct per in"] = [lo, hi]
-            d["rms across the scale range"] = {
-                k: [g.rms(g.gap(fno, k, scale=x)) for x in (lo, hi)] for k in g.PANELS
-            }
-        out[f"figure {fno}"] = d
-        page, title_in = what[fno]
-        fig, axes = plt.subplots(5, 1, figsize=fs(8.0, 12.0), sharex=True)
-        rows = (
-            (key_in, label_in, f"Figure {fno}, pdf p.{page}: {title_in}"),
-            ("torque", "total torque, % of trim", ""),
-            ("ng", "gas generator speed, %", ""),
-            ("fuel", "vehicle fuel flow, % of trim", ""),
-            ("nr", "main rotor speed, %", ""),
-        )
-        for ax, (key, ylabel, title) in zip(axes, rows, strict=True):
-            for line, src, lab in (
-                ("gen_hel", "ballin", "Ballin, Gen Hel"),
-                ("test", "flight", "flight test"),
-            ):
-                t, v = g.his(fno, key, line)
-                if key in ("fuel", "torque"):
-                    v = 100.0 * v / g.his_trim(fno, key, line)
-                ax.plot(t, v, **plotstyle.line(src), label=lab)
-            if key in g.PANELS:
-                if moves:
-                    t, v_lo = g.ours(fno, key, scale=lo)
-                    _, v_hi = g.ours(fno, key, scale=hi)
-                    ax.fill_between(
-                        t,
-                        np.minimum(v_lo, v_hi),
-                        np.maximum(v_lo, v_hi),
-                        color=plotstyle.colour("ours"),
-                        alpha=0.15,
-                        lw=0,
-                        label=f"ours, collective at {lo:.1f}-{hi:.1f} % per inch",
-                    )
-                t, v = g.ours(fno, key)
-                lab = "ours, replaying his rotor speed" + (" and collective" if moves else "")
-                ax.plot(t, v, **plotstyle.line("ours"), label=lab)
-            if key == key_in:
-                ax.set_ylim(*range_in)
-                note = (
-                    f"his input, on his printed scale: our collective follows it at "
-                    f"{g.scale_of(fno):.1f} % of maximum per inch"
-                    if moves
-                    else "his input, on his printed scale: it reaches our model only through "
-                    "rotor speed"
-                )
-                ax.text(0.01, 0.88, note, transform=ax.transAxes, fontsize=7, color=MUTED)
-            if key == "nr":
-                ax.text(
-                    0.01,
-                    0.88,
-                    "his Gen Hel rotor speed: our NP input",
-                    transform=ax.transAxes,
-                    fontsize=7,
-                    color=MUTED,
-                )
-            _style(ax, "time, s" if key == "nr" else "", ylabel, title)
-        handles, labels = axes[2].get_legend_handles_labels()
-        fig.legend(
-            handles,
-            labels,
-            loc="upper right",
-            bbox_to_anchor=(0.995, 0.998),
-            ncol=2,
-            frameon=False,
-            fontsize=7,
-            labelcolor=MUTED,
-        )
-        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.975))
-        save(fig, f"figure-{fno}-replay")
-    return out
-
-
-def gen_hel_load() -> dict:
-    """The second test on Figures 11-14 [pdf pp.48-52]: his rotor's demand in, our rotor speed,
-    NG and fuel out (`test_gen_hel.load_replay`, #81)."""
-    import test_gen_hel as g
-
-    out: dict = {}
-    fig, axes = plt.subplots(4, 3, figsize=fs(14.0, 11.0), sharex="row")
-    units = {"nr": "rotor speed, %", "ng": "gas generator speed, %", "fuel": "fuel, % of trim"}
-    for row, fno in enumerate(g.FIGS):
-        out[f"figure {fno}"] = {
-            "rms vs his gen hel": {k: g.rms(g.gap_load(fno, k)) for k in g.LOAD_PANELS},
-            "rms vs flight test": {k: g.rms(g.gap_load(fno, k, "test")) for k in g.LOAD_PANELS},
-            "rms with his load held": {
-                k: g.rms(g.gap_load(fno, k, held=True)) for k in g.LOAD_PANELS
-            },
-            "torque rms vs his gen hel": g.rms(g.gap_load(fno, "torque")),
-        }
-        for col, key in enumerate(g.LOAD_PANELS):
-            ax = axes[row, col]
-            for line, src, lab in (
-                ("gen_hel", "ballin", "Ballin, Gen Hel"),
-                ("test", "flight", "flight test"),
-            ):
-                t, v = g.his(fno, key, line)
-                if key == "fuel":
-                    v = 100.0 * v / g.his_trim(fno, key, line)
-                ax.plot(t, v, **plotstyle.line(src), label=lab)
-            t, v = g.ours_load(fno, key)
-            ax.plot(t, v, **plotstyle.line("ours"), label="ours, from his rotor's demand")
-            ylabel = f"Figure {fno}\n{units[key]}" if col == 0 else units[key]
-            _style(ax, "time, s" if row == 3 else "", ylabel)
-    handles, labels = axes[0, 0].get_legend_handles_labels()
+    key_in, label_in, _ = g.INPUT[fno]
+    tq = g.torque_key(fno)
+    rows = [(key_in, label_in)]
+    if fno == 15:
+        rows += [(tq, "main rotor torque, % of trim"), ("nr", "main rotor speed, %")]
+    else:
+        rows += [
+            (tq, "total torque, % of trim"),
+            ("ng", "gas generator speed, %"),
+            ("fuel", "vehicle fuel flow, % of trim"),
+            ("nr", "main rotor speed, %"),
+        ]
+    inputs = {key_in, "nr"} if rotor == "imposed" else {key_in, *({tq} if fno == 15 else ())}
+    moves = fno in g.COLLECTIVE_FIGS
+    cin = " and collective" if moves else ""
+    ours_label = {
+        "imposed": f"ours, rotor speed imposed: his rotor speed{cin} in",
+        "free": f"ours, rotor free: his {'main-rotor ' if fno == 15 else ''}torque{cin} in, "
+        "rotor speed out",
+    }[rotor]
+    page, what = GEN_HEL_WHAT[fno]
+    fig, axes = plt.subplots(len(rows), 1, figsize=fs(8.0, 2.3 * len(rows) + 0.8), sharex=True)
+    for ax, (key, ylabel) in zip(axes, rows, strict=True):
+        pct = key in ("fuel", "torque", "mr_torque")
+        for line, src, lab in (
+            ("gen_hel", "ballin", "Ballin, Gen Hel"),
+            ("test", "flight", "flight test"),
+        ):
+            t, v = g.his(fno, key, line)
+            if pct:
+                v = 100.0 * v / g.his_trim(fno, key, line)
+            ax.plot(t, v, **plotstyle.line(src), label=lab)
+        lo, hi = _printed_range(fno, key)
+        if pct:
+            lo, hi = (100.0 * x / g.his_trim(fno, key) for x in (lo, hi))
+        ax.set_ylim(lo, hi)
+        if key in inputs:
+            note = {
+                key_in: "input: his pilot input"
+                + (", which drives our collective" if moves else ", felt only through the rotor"),
+                "nr": "input: his rotor speed is ours",
+                tq: "input: his main-rotor torque is our rotor's load",
+            }[key]
+            _note(ax, note, inside=True)
+        else:
+            t, v = g.ours(fno, key, rotor)
+            ax.plot(t, v, **plotstyle.line("ours"), label=ours_label)
+            unit = "% of trim" if pct else "%"
+            _note(
+                ax, f"ours against his Gen Hel line: rms {g.rms(g.gap(fno, key, rotor)):.2f} {unit}"
+            )
+        title = f"Figure {fno}, pdf p.{page}: {what}. {TEST_NAME[rotor].capitalize()}"
+        _style(ax, "time, s" if key == rows[-1][0] else "", ylabel, title if key == key_in else "")
+    handles, labels = [], []
+    for ax in axes:
+        for h, lab in zip(*ax.get_legend_handles_labels(), strict=True):
+            if lab not in labels:
+                handles.append(h)
+                labels.append(lab)
     fig.legend(
         handles,
         labels,
@@ -1012,84 +960,140 @@ def gen_hel_load() -> dict:
         bbox_to_anchor=(0.995, 0.998),
         ncol=3,
         frameon=False,
-        fontsize=8,
-        labelcolor=MUTED,
-    )
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.97))
-    save(fig, "gen-hel-load-replay")
-    return out
-
-
-def gen_hel_15() -> dict:
-    """Figure 15 [pdf p.53], the second test: his main-rotor torque and collective in, our rotor
-    speed out (`test_gen_hel`, #81)."""
-    import test_gen_hel as g
-
-    r = g.our_trim(15)
-    out = {
-        "rms vs his gen hel": {"nr": g.rms(g.gap_load(15, "nr"))},
-        "rms with his load held": {"nr": g.rms(g.gap_load(15, "nr", held=True))},
-        "rms vs flight test": {"nr": g.rms(g.gap_load(15, "nr", "test"))},
-        "torque ratio": g.torque_ratio(),
-        "our trim": {
-            "ng_pct": 100.0 * r.state.ng_rpm / c.NG_DES,
-            "q_pt_ftlbf": r.frame.q_pt_ftlbf,
-            "collective_pct": g.collective(15),
-        },
-        "collective scale pct per in": g.fig15_scale(),
-    }
-    fig, axes = plt.subplots(4, 1, figsize=fs(8.0, 10.0), sharex=True)
-    t_l, q_req, _np = g.demand(15)
-    L = g.load_replay(15)
-    rows = (
-        ("collective", "collective, in."),
-        ("mr_torque", "main rotor torque, % of trim"),
-        ("nr", "main rotor speed, %"),
-        ("ng", "gas generator speed, %"),
-    )
-    for ax, (key, ylabel) in zip(axes, rows, strict=True):
-        if key != "ng":
-            for line, src, lab in (
-                ("gen_hel", "ballin", "Ballin, Gen Hel"),
-                ("test", "flight", "flight test"),
-            ):
-                t, v = g.his(15, key, line)
-                if key == "mr_torque":
-                    v = 100.0 * v / g.his_trim(15, key, line)
-                ax.plot(t, v, **plotstyle.line(src), label=lab)
-        if key == "mr_torque":
-            ax.plot(t_l, 100.0 * q_req / q_req[0], **plotstyle.line("ours"), label="ours")
-        if key == "nr":
-            ax.plot(L["t"], L["nr"], **plotstyle.line("ours"))
-        if key == "ng":
-            ax.plot(L["t"], L["ng"], **plotstyle.line("ours"))
-        note = {
-            "collective": f"his input: our collective follows it, {g.fig15_scale():.1f} % of "
-            "maximum per inch, to full down",
-            "mr_torque": "his main-rotor torque, averaged over two ripple periods: our load",
-            "nr": "predicted: his load in, our rotor speed out",
-            "ng": "ours only: Figure 15 prints no NG",
-        }[key]
-        y_note = 0.06 if key == "mr_torque" else 0.88
-        ax.text(0.01, y_note, note, transform=ax.transAxes, fontsize=7, color=MUTED)
-        title = (
-            "Figure 15, pdf p.53: a large collective input at 87 kt" if key == "collective" else ""
-        )
-        _style(ax, "time, s" if key == "ng" else "", ylabel, title)
-    handles, labels = axes[1].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="upper right",
-        bbox_to_anchor=(0.995, 0.998),
-        ncol=2,
-        frameon=False,
         fontsize=7,
         labelcolor=MUTED,
     )
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.97))
-    save(fig, "figure-15-load-replay")
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.955))
+    save(fig, f"figure-{fno}-rotor-{rotor}")
+
+
+def _note(ax, text: str, inside: bool = False) -> None:
+    """A panel's one-line note: above it on the right, clear of the curves, or `inside` at the
+    top left of an input panel."""
+    if inside:
+        ax.text(0.01, 0.86, text, transform=ax.transAxes, fontsize=7, color=MUTED)
+    else:
+        ax.set_title(text, loc="right", fontsize=7, color=MUTED, fontweight="normal")
+
+
+def gen_hel(rotor: str) -> dict:
+    """Figures 11-15 [pdf pp.48-53], one of the two tests (`test_gen_hel.run`, #81): each
+    figure's picture, and its rms against his Gen Hel line, against his flight test, and with
+    his inputs held."""
+    import test_gen_hel as g
+
+    out: dict = {}
+    lo, hi = g.collective_scales()
+    for fno in g.FIGS_OF[rotor]:
+        keys = [k for f, k in g.cases(rotor) if f == fno]
+        his_keys = ("nr", "mr_torque") if fno == 15 else ("nr", "torque", "ng", "fuel")
+        d = {
+            "rms vs his gen hel": {k: g.rms(g.gap(fno, k, rotor)) for k in keys},
+            "rms vs flight test": {k: g.rms(g.gap(fno, k, rotor, "test")) for k in keys},
+            "rms with his inputs held": {k: g.rms(g.gap(fno, k, rotor, held=True)) for k in keys},
+            "his trim": {k: g.his_trim(fno, k) for k in his_keys},
+            "our trim": {
+                "ng_pct": 100.0 * g.our_trim(fno).state.ng_rpm / c.NG_DES,
+                "fuel_both_engines_pph": 2.0 * g.trim_fuel_pph(fno),
+                "q_pt_ftlbf": g.our_trim(fno).frame.q_pt_ftlbf,
+                "collective_pct": g.collective(fno),
+            },
+        }
+        if fno in g.COLLECTIVE_FIGS:
+            d["his trim"]["collective_in"] = g.his_trim(fno, "collective")
+            d["collective scale pct per in"] = g.scale_of(fno)
+        if rotor == "imposed" and fno in (11, 13):
+            d["collective scale range pct per in"] = [lo, hi]
+            d["rms across the scale range"] = {
+                k: [g.rms(g.gap(fno, k, rotor, scale=x)) for x in (lo, hi)] for k in keys
+            }
+        out[f"figure {fno}"] = d
+        _gen_hel_picture(fno, rotor)
+    if rotor == "free":
+        out["torque ratio"] = g.torque_ratio()
     return out
+
+
+def gen_hel_misses() -> dict:
+    """Where ours departs from his Gen Hel line on Figures 11-15, measured at the points the
+    slides name (#81): peaks, the moments the fuel turns, settled values, and on Figure 15 the
+    deceleration limit and how fast each rotor slows."""
+    import test_gen_hel as g
+
+    def his_pct(fno, key):
+        t, v = g.his(fno, key)
+        return t, (100.0 * v / g.his_trim(fno, key) if key in ("fuel", "torque") else v)
+
+    def peak(t, v, lo, hi, sign=1):
+        m = (t >= lo) & (t <= hi)
+        k = int(np.argmax(sign * v[m]))
+        return {"value": float(v[m][k]), "t_s": float(t[m][k])}
+
+    def first_below(t, v, level, after):
+        m = t >= after
+        k = np.flatnonzero(v[m] < level)
+        return float(t[m][k[0]])
+
+    def rate(t, v, lo, hi):
+        m = (t >= lo) & (t <= hi)
+        return float(np.polyfit(t[m], v[m], 1)[0])
+
+    out: dict = {}
+    t, v = g.ours(11, "fuel", "imposed")
+    tb, vb = his_pct(11, "fuel")
+    tr, nr = g.ours(11, "nr", "free")
+    tn, nh = g.his(11, "nr")
+    out["figure 11"] = {
+        "fuel peak": {"ours": peak(t, v, 3.0, 4.5), "his": peak(tb, vb, 3.0, 4.5)},
+        "fuel back below 110 % s": {
+            "ours": first_below(t, v, 110.0, 3.85),
+            "his": first_below(tb, vb, 110.0, 3.95),
+        },
+        "rotor free nr peak": {"ours": peak(tr, nr, 4.0, 6.0), "his": peak(tn, nh, 4.0, 6.0)},
+    }
+    t, v = g.ours(13, "fuel", "imposed")
+    tb, vb = his_pct(13, "fuel")
+    tq, q = g.ours(13, "torque", "imposed")
+    tqb, qb = his_pct(13, "torque")
+    t8, q8 = g.ours(13, "torque", "imposed", scale=FIG13_SCALE_CHECK)
+    tr, nr = g.ours(13, "nr", "free")
+    tn, nh = g.his(13, "nr")
+    out["figure 13"] = {
+        "fuel below 97 % s": {
+            "ours": first_below(t, v, 97.0, 1.2),
+            "his": first_below(tb, vb, 97.0, 1.2),
+        },
+        "settled torque at 6 s": {
+            "ours": float(np.interp(6.0, tq, q)),
+            "his": float(np.interp(6.0, tqb, qb)),
+            "ours at the scale check": float(np.interp(6.0, t8, q8)),
+        },
+        "scale check pct per in": FIG13_SCALE_CHECK,
+        "rotor free nr peak": {"ours": peak(tr, nr, 1.0, 2.6), "his": peak(tn, nh, 1.0, 2.6)},
+    }
+    t, v = g.ours(14, "fuel", "imposed")
+    tb, vb = his_pct(14, "fuel")
+    out["figure 14"] = {
+        "fuel low": {"ours": peak(t, v, 9.0, 10.0, -1), "his": peak(tb, vb, 9.0, 10.0, -1)},
+    }
+    r = g.run(15, "free")
+    tn, nh = g.his(15, "nr")
+    dec = r["t"][r["limit"] == "decel"]
+    out["figure 15"] = {
+        "deceleration limit s": [float(dec[0]), float(dec[-1])],
+        "nr peak": {"ours": peak(r["t"], r["nr"], 1.0, 2.5), "his": peak(tn, nh, 1.0, 2.5)},
+        "nr fall 2.3-3.3 s pct per s": {
+            "ours": rate(r["t"], r["nr"], 2.3, 3.3),
+            "his": rate(tn, nh, 2.3, 3.3),
+        },
+        "nr low": {"ours": peak(r["t"], r["nr"], 2.0, 5.0, -1), "his": peak(tn, nh, 2.0, 5.0, -1)},
+    }
+    return out
+
+
+FIG13_SCALE_CHECK = 8.0
+"""A collective scale inside the unprinted range, % per inch, at which Figure 13's settled torque
+is read for the slide: a measurement of how far the scale reaches, never a setting (#81)."""
 
 
 def flight_test_day() -> dict:
@@ -1115,13 +1119,14 @@ def flight_test_day() -> dict:
             "t_degF": f["t_degr"] - 459.67,
             "gearbox_ratio": float(f["ratio"]),
             "trim_rms_pct": d.rms_pct(f["residuals"]),
-            "first test rms": {
-                f"figure {fig}": {k: g.rms(g.gap(fig, k, day=day[fig])) for k in g.PANELS}
-                for fig in g.FIGS
-            },
-            "second test rms": {
-                f"figure {fig}": {k: g.rms(g.gap_load(fig, k, day=day[fig])) for k in g.LOAD_PANELS}
-                for fig in g.FIGS
+            **{
+                f"rotor {rotor} rms": {
+                    f"figure {fig}": {
+                        k: g.rms(g.gap(fig, k, rotor, day=day[fig])) for k in g.PANELS_OF[rotor]
+                    }
+                    for fig in g.FIGS
+                }
+                for rotor in g.ROTORS
             },
         }
     return out
@@ -1164,11 +1169,11 @@ def _render(data: dict) -> None:
     data["table_3"] = table_3()
     print("figures 4-5 ...", flush=True)
     data["figures_4_5"] = figures_4_5()
-    print("gen hel figures ...", flush=True)
-    data["gen_hel"] = gen_hel()
-    print("gen hel, the second test ...", flush=True)
-    data["gen_hel_load"] = gen_hel_load()
-    data["gen_hel_15"] = gen_hel_15()
+    print("gen hel, rotor speed imposed ...", flush=True)
+    data["gen_hel_imposed"] = gen_hel("imposed")
+    print("gen hel, rotor free ...", flush=True)
+    data["gen_hel_free"] = gen_hel("free")
+    data["gen_hel_misses"] = gen_hel_misses()
     print("flight-test day ...", flush=True)
     data["flight_test_day"] = flight_test_day()
 
