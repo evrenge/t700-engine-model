@@ -3,7 +3,7 @@
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_closed_loop.py
 # columns: t_s; value, the centre of the line's ink in the column; half_span, how far that ink reaches either side of its centre beyond half the 4.0 px line width; seen, 1 for dash ink, 0 where the dashed line lies on the solid one and takes its value. The solid line is the components at least 40 px wide and the pieces continuing them, the dashes the rest, and a dash joined to the solid line is cut from it where its column is over 2.5 px thicker than the line; components under 12 px, and dashes over 4 line widths from the dashes around them, are specks
 # value: axis range 96.0 to 104.0
-# points: 628
+# points: 629
 # x tick check: worst interior major tick off by 0.0110 s
 # frame tilt corrected: +0.26 % of panel height
 # NOT transcribed. Values carry read error.
@@ -286,12 +286,13 @@ t_s,value,half_span,seen
 3.20507,97.53119,0.00000,1
 3.20868,97.52345,0.00000,1
 3.21230,97.52346,0.00000,1
+3.26283,97.55275,0.00582,1
 3.26645,97.53433,0.00289,1
-3.27001,97.62451,0.00000,1
-3.27363,97.62163,0.00289,1
-3.27725,97.60149,0.00754,1
+3.27007,97.53145,0.00000,1
+3.27367,97.53436,0.00289,1
+3.27729,97.53437,0.00289,1
 3.28090,97.53439,0.00289,1
-3.28448,97.59065,0.00289,1
+3.28451,97.53440,0.00289,1
 3.34948,97.58605,0.00000,1
 3.35309,97.58607,0.00000,1
 3.35670,97.58608,0.00000,1

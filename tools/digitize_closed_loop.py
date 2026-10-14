@@ -137,6 +137,18 @@ SPECK_LINES = 4.0
 """A dash more than `SPECK_LINES` line widths from the straight line through the other dashes
 within `NEAR_PX` columns is a speck (Figure 12 has one below its rotor-speed traces near 1.9 s),
 and so is a joined dash that far from them (`check_dashes`)."""
+SLOPE_SPAN_PX = 3
+"""A column's slope, which sets the thickness a clean column may have, is the smaller of its own
+step and the step across `SLOPE_SPAN_PX` columns either side: where a dash touches the line,
+the fused columns' centres jump, and only across them does the line's own slope show. Taken
+from those columns alone, Figure 11's fuel line at 4.02 s, fused with a dash, looked clean."""
+BRIDGE_FIT_PX = 6
+"""A bridge across fused columns matches the solid line's slope on either side, fitted over
+this many clean columns beyond each end."""
+ZIGZAG_FRACTION = 0.5
+"""A panel whose solid line is steeper than a row per column in more than this fraction of its
+columns is read stroke by stroke and at its turns (`zigzag`): Figure 15's main-rotor torque, at
+82 %, against at most 17 % in every other panel of Figures 11-15."""
 HIDDEN_PX = 30
 """A stretch without dash ink longer than this many columns is not a gap in the dash pattern
 (about 10 px) but the dashed line lying on the solid one."""
@@ -161,21 +173,59 @@ def extents(sel: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return xs, top, bot
 
 
+def _slope(xs: np.ndarray, mid: np.ndarray) -> np.ndarray:
+    """Rows per column, column by column: the smaller of the column's own step and the step
+    across `SLOPE_SPAN_PX` columns either side."""
+    own = np.gradient(mid, xs)
+    k = SLOPE_SPAN_PX
+    across = (np.interp(xs + k, xs, mid) - np.interp(xs - k, xs, mid)) / (2.0 * k)
+    return np.where(np.abs(own) < np.abs(across), own, across)
+
+
+def _end_slope(cx: np.ndarray, cy: np.ndarray, k: int, side: int) -> float:
+    """The solid line's slope at clean column `cx[k]`, from the clean columns within
+    `BRIDGE_FIT_PX` of it on `side` (-1 left, 1 right), the column itself included."""
+    near = (side * (cx - cx[k]) >= 0) & (np.abs(cx - cx[k]) <= BRIDGE_FIT_PX)
+    if near.sum() < 2:
+        return float("nan")
+    return float(np.polyfit(cx[near], cy[near], 1)[0])
+
+
+def _bridge(x: np.ndarray, cx: np.ndarray, cy: np.ndarray, left: np.ndarray, right: np.ndarray):
+    """Values at the columns `x` between clean columns `cx[left]` and `cx[right]`: the cubic
+    matching the solid line's value and slope at both, straight where a slope is missing."""
+    out = np.empty(x.size)
+    for i, (xi, a, b) in enumerate(zip(x, left, right, strict=True)):
+        x0, x1, y0, y1 = cx[a], cx[b], cy[a], cy[b]
+        h = float(x1 - x0)
+        u = (xi - x0) / h
+        m0, m1 = _end_slope(cx, cy, a, -1), _end_slope(cx, cy, b, 1)
+        if np.isnan(m0) or np.isnan(m1):
+            out[i] = y0 + u * (y1 - y0)
+            continue
+        h00, h10 = 2 * u**3 - 3 * u**2 + 1, u**3 - 2 * u**2 + u
+        h01, h11 = -2 * u**3 + 3 * u**2, u**3 - u**2
+        out[i] = h00 * y0 + h10 * h * m0 + h01 * y1 + h11 * h * m1
+    return out
+
+
 def separate(sel: np.ndarray, width: float) -> tuple[np.ndarray, ...]:
     """The solid component split into the solid line and the dashes joined to it, in pixels.
 
     A line of slope `s`, in rows per column, inks `width * sqrt(1 + s**2) + |s|` rows of a
-    column, the slope taken column by column so that the steep flanks of a rippling line count
-    as the line, not as a join. Columns more than `JOIN_PX` thicker, `JOIN_MIN_COLUMNS` or more
-    in a row, hold a joined dash: the dash is a line width in from the end farther from the path
-    the clean columns draw through. The solid line is read from its clean columns
-    (`CLEAN_PX`) and interpolated across the others between them (`CLEAN_REACH_PX`); failing
-    that, it is the line-width slice at the other end, or the column's centre. Returns
-    `(columns, solid centre, solid run)` per column and `(columns, dash centre, dash run)` for
-    the joined dashes."""
+    column, the slope taken column by column (`_slope`) so that the steep flanks of a rippling
+    line count as the line, not as a join. Columns more than `JOIN_PX` thicker,
+    `JOIN_MIN_COLUMNS` or more in a row, hold a joined dash: the dash is a line width in from
+    the end farther from the path the clean columns draw through. Where the dashed line crosses
+    without touching, a column holds two runs of ink, and the solid line is the one nearer that
+    path. The solid line is read from its clean columns (`CLEAN_PX`) and bridged across the
+    others between them (`CLEAN_REACH_PX`) by a cubic matching its slope on either side
+    (`_bridge`); failing that, it is the line-width slice at the other end, or the column's
+    centre. Returns `(columns, solid centre, solid run)` per column and `(columns, dash centre,
+    dash run)` for the joined dashes."""
     xs, top, bot = extents(sel)
     mid = 0.5 * (top + bot)
-    slope = np.gradient(mid)
+    slope = _slope(xs, mid)
     run = width * np.sqrt(1.0 + slope**2) + np.abs(slope)
     thick, _ = ndimage.label(bot - top + 1.0 > run + JOIN_PX)
     sizes = np.bincount(thick.ravel())
@@ -186,14 +236,58 @@ def separate(sel: np.ndarray, width: float) -> tuple[np.ndarray, ...]:
     solid_top = np.abs(upper - path) <= np.abs(lower - path)
     centre = np.where(joined, np.where(solid_top, upper, lower), mid)
     dash = np.where(solid_top, lower, upper)[joined]
-    clean = bot - top + 1.0 <= run + CLEAN_PX
-    cx = xs[clean]
+    own_c, own_n = mid.copy(), bot - top + 1.0
+    for k, x in enumerate(xs):
+        runs = _runs(sel[:, x])
+        if len(runs) > 1:
+            a, b = min(runs, key=lambda r: abs(0.5 * (r[0] + r[1]) - path[k]))
+            own_c[k], own_n[k] = 0.5 * (a + b), b - a + 1.0
+    clean = own_n <= run + CLEAN_PX
+    centre[clean] = own_c[clean]
+    cx, cy = xs[clean], own_c[clean]
     left = np.clip(np.searchsorted(cx, xs, side="right") - 1, 0, cx.size - 1)
     right = np.clip(np.searchsorted(cx, xs, side="left"), 0, cx.size - 1)
     between = (cx[left] <= xs) & (cx[right] >= xs) & (cx[right] - cx[left] <= CLEAN_REACH_PX)
     bridged = ~clean & between
-    centre[bridged] = np.interp(xs[bridged], cx, mid[clean])
+    centre[bridged] = _bridge(xs[bridged], cx, cy, left[bridged], right[bridged])
     return xs, centre, run, xs[joined], dash, run[joined]
+
+
+def zigzag(sel: np.ndarray, width: float) -> tuple[np.ndarray, ...]:
+    """A solid line steeper than a row per column, read column by column and at its turns.
+
+    Along a steep stroke a column's ink is the stroke's passage through it, so the line is the
+    centre of that ink; where two strokes cross and a column holds two runs of ink, the line is
+    the run its neighbours lead to. At a turn the column holds the end of one stroke and the
+    start of the next, and its centre lies below a peak or above a trough: read that way,
+    Figure 15's main-rotor torque ripple lost its printed amplitude. So at each peak, and each
+    trough, standing out by at least a line width, the line is a half line width in from the
+    ink's top, or bottom. No dash is cut from the solid line: where the dashed line lies on it
+    (Figure 15 before 1.3 s) the turns are those of both lines together. Returns what
+    `separate` does, with no joined dashes."""
+    from scipy.signal import find_peaks
+
+    xs, top, bot = extents(sel)
+    inset = 0.5 * (width - 1.0)
+    centre = 0.5 * (top + bot)
+    runs = [_runs(sel[:, x]) for x in xs]
+    single = np.array([len(r) == 1 for r in runs])
+    path = np.interp(xs, xs[single], centre[single])
+    for k in np.flatnonzero(~single):
+        a, b = min(runs[k], key=lambda r: abs(0.5 * (r[0] + r[1]) - path[k]))
+        centre[k] = 0.5 * (a + b)
+    peaks, _ = find_peaks(-top, prominence=width)
+    troughs, _ = find_peaks(bot, prominence=width)
+    centre[peaks] = top[peaks] + inset
+    centre[troughs] = bot[troughs] - inset
+    empty = np.zeros(0)
+    return xs, centre, bot - top + 1.0, empty, empty, empty
+
+
+def steep_fraction(sel: np.ndarray) -> float:
+    """The fraction of the solid line's columns where it is steeper than a row per column."""
+    xs, top, bot = extents(sel)
+    return float(np.mean(np.abs(np.gradient(0.5 * (top + bot), xs)) > 1.0))
 
 
 def values(xs, centre, run, x_of, v_of, width: float) -> np.ndarray:
@@ -351,13 +445,21 @@ def main() -> int:
         page = cfg["page"]
         ink = native_bitmap(page)
         print(f"\nFigure {fig} (pdf p.{page})")
+        panels = []
         for p in find_panels(ink, cfg["ranges"]):
             x_of, v_of, terr = calibrate(ink, p, cfg["t_range"], cfg["t_major"])
             lab, sl = components(ink, p)
             legend = cfg["legend"].get(p.key)
             solid, dashes = classify(lab, sl, v_of, legend)
-            width = line_width(lab, solid)
-            sx, sc, srun, jx, jc, jrun = separate(np.isin(lab, solid), width)
+            steep = steep_fraction(np.isin(lab, solid)) > ZIGZAG_FRACTION
+            panels.append((p, x_of, v_of, terr, lab, legend, solid, dashes, steep))
+        # A zigzag's columns are all stroke, so its own line width cannot be read: it is the
+        # pen's, the median over the figure's other panels.
+        pen = float(np.median([line_width(q[4], q[6]) for q in panels if not q[8]] or [np.nan]))
+        for p, x_of, v_of, terr, lab, legend, solid, dashes, steep in panels:
+            width = pen if steep else line_width(lab, solid)
+            read = zigzag if steep else separate
+            sx, sc, srun, jx, jc, jrun = read(np.isin(lab, solid), width)
             dashes, jx, jc, jrun = check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width)
             fx, ftop, fbot = extents(np.isin(lab, dashes))
             frun = fbot - ftop + 1.0
@@ -402,7 +504,18 @@ def main() -> int:
                         f"joined to the solid line is cut from it where its column is over "
                         f"{JOIN_PX} px thicker than the line; components under {SPECK_PX} px, "
                         f"and dashes over {SPECK_LINES:g} line widths from the dashes around them, "
-                        f"are specks" + legend_note(legend) + "\n"
+                        f"are specks"
+                        + legend_note(legend)
+                        + (
+                            f". The solid line here is steeper than a row per column in over "
+                            f"{ZIGZAG_FRACTION:.0%} of its columns: it is the centre of each "
+                            f"column's ink along a stroke, and a half line width in from the top "
+                            f"of each peak and the bottom of each trough; before the dashed line "
+                            f"leaves it, the peaks and troughs are those of both lines together"
+                            if steep and name == "gen_hel"
+                            else ""
+                        )
+                        + "\n"
                     )
                     fh.write(f"# value: axis range {p.v_lo} to {p.v_hi}\n")
                     fh.write(f"# points: {r.shape[0]}\n")
@@ -423,6 +536,7 @@ def main() -> int:
                 f"  {p.key}: solid {len(solid)} component(s), {len(dashes)} dashes, "
                 f"{jx.size} columns with a dash joined, {int((seen == 0).sum())} hidden, line "
                 f"{width:.1f} px, x tick worst {terr:.4f} s"
+                + (", read as a zigzag" if steep else "")
             )
     return 0
 
