@@ -1091,6 +1091,94 @@ def gen_hel_misses() -> dict:
     return out
 
 
+METHOD_END_S = 0.3
+"""How far before each figure's last frame the two tests' settled values are read."""
+
+
+def gen_hel_methods() -> dict:
+    """Figures 11-14, the two tests against each other and his Gen Hel line (#81): one picture
+    each, and per panel how far apart the tests are, where they part most, and their settled
+    values beside his."""
+    import test_gen_hel as g
+
+    out: dict = {}
+    for fno in g.FIGS:
+        d: dict = {}
+        for key in ("torque", "ng", "fuel"):
+            ti, vi = g.ours(fno, key, "imposed")
+            tf, vf = g.ours(fno, key, "free")
+            gap_ = np.interp(ti, tf, vf) - vi
+            k = int(np.argmax(np.abs(gap_)))
+            tb, vb = g.his(fno, key)
+            if key != "ng":
+                vb = 100.0 * vb / g.his_trim(fno, key)
+            te = ti[-1] - METHOD_END_S
+            d[key] = {
+                "rms free less imposed": float(np.sqrt(np.mean(np.square(gap_)))),
+                "largest free less imposed": {"value": float(gap_[k]), "t_s": float(ti[k])},
+                "settled": {
+                    "t_s": float(te),
+                    "imposed": float(np.interp(te, ti, vi)),
+                    "free": float(np.interp(te, tf, vf)),
+                    "his": float(np.interp(te, tb, vb)),
+                },
+            }
+        out[f"figure {fno}"] = d
+        _both_tests_picture(fno)
+    return out
+
+
+def _both_tests_picture(fno: int) -> None:
+    """His Gen Hel line and both tests of ours on his printed ranges: the comparison of the two
+    methods, without the flight test."""
+    import test_gen_hel as g
+
+    rows = (
+        ("torque", "total torque, % of trim"),
+        ("ng", "gas generator speed, %"),
+        ("fuel", "vehicle fuel flow, % of trim"),
+        ("nr", "main rotor speed, %"),
+    )
+    page, what = GEN_HEL_WHAT[fno]
+    fig, axes = plt.subplots(len(rows), 1, figsize=fs(8.0, 2.3 * len(rows) + 0.8), sharex=True)
+    for ax, (key, ylabel) in zip(axes, rows, strict=True):
+        pct = key in ("fuel", "torque")
+        t, v = g.his(fno, key)
+        if pct:
+            v = 100.0 * v / g.his_trim(fno, key)
+        ax.plot(t, v, **plotstyle.line("ballin"), label="Ballin, Gen Hel")
+        lo, hi = _printed_range(fno, key)
+        if pct:
+            lo, hi = (100.0 * x / g.his_trim(fno, key) for x in (lo, hi))
+        ax.set_ylim(lo, hi)
+        unit = "% of trim" if pct else "%"
+        notes = []
+        for rotor, ls in (("imposed", "-"), ("free", "--")):
+            if key == "nr" and rotor == "imposed":
+                continue
+            t, v = g.ours(fno, key, rotor)
+            ax.plot(t, v, **plotstyle.line("ours", ls=ls), label=f"ours, {TEST_NAME[rotor]}")
+            notes.append(f"{rotor} {g.rms(g.gap(fno, key, rotor)):.2f}")
+        _note(ax, f"rms against his Gen Hel line, {unit}: " + ", ".join(notes))
+        if key == "nr":
+            _note(ax, "rotor speed imposed: his, by construction", inside=True)
+        _style(ax, "time, s" if key == "nr" else "", ylabel)
+    plotstyle.title(fig, f"Figure {fno}, pdf p.{page}: {what}. The two tests")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper right",
+        bbox_to_anchor=(0.995, 0.965),
+        ncol=3,
+        frameon=False,
+        fontsize=7,
+        labelcolor=MUTED,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.945))
+    save(fig, f"figure-{fno}-both-tests")
+
+
 FIG13_SCALE_CHECK = 8.0
 """A collective scale inside the unprinted range, % per inch, at which Figure 13's settled torque
 is read for the slide: a measurement of how far the scale reaches, never a setting (#81)."""
@@ -1174,6 +1262,7 @@ def _render(data: dict) -> None:
     print("gen hel, rotor free ...", flush=True)
     data["gen_hel_free"] = gen_hel("free")
     data["gen_hel_misses"] = gen_hel_misses()
+    data["gen_hel_methods"] = gen_hel_methods()
     print("flight-test day ...", flush=True)
     data["flight_test_day"] = flight_test_day()
 
