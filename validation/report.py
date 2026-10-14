@@ -1234,8 +1234,9 @@ def _both_tests_picture(fno: int) -> None:
 
 
 FIG13_SCALE_CHECK = 8.0
-"""A collective scale inside the unprinted range, % per inch, at which Figure 13's settled torque
-is read for the slide: a measurement of how far the scale reaches, never a setting (#81)."""
+"""A collective scale just below the range our two readings span (Figures 11 and 13, 8.8-13.5 % per
+inch), at which Figure 13's settled torque is read for the slide. With the 9.6 reading it
+brackets his settled torque: a measurement of how far the scale reaches, never a setting (#81)."""
 
 
 def flight_test_day() -> dict:
