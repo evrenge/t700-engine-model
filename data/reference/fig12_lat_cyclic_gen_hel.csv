@@ -1,7 +1,7 @@
 # source: TM-100991 pdf p.49, Figure 12, panel LATERAL CYCLIC, in.
 # quantity: LATERAL CYCLIC, in. vs time, SIKORSKY GEN HEL WITH T700 AND GEARBOX (AMES VERSION), solid
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_closed_loop.py
-# columns: t_s; value, the centre of the line's ink in the column; half_span, how far that ink reaches either side of its centre beyond half the 4.0 px line width. The solid line is the components at least 40 px wide and the pieces continuing them, the dashes the rest, and a dash joined to the solid line is cut from it where its column is over 2.5 px thicker than the line; components under 12 px, and dashes over 4 line widths from the dashes around them, are specks; ink above 0.5 is the legend
+# columns: t_s; value, the centre of the line's ink in the column; half_span, how far that ink reaches either side of its centre beyond half the 4.0 px line width. The solid line is the components at least 40 px wide and the pieces continuing them, the dashes the rest, and a dash joined to the solid line is cut from it where its column is over 2.5 px thicker than the line; components under 12 px, and dashes over 4 line widths from the dashes around them and over 25 px from any kept dash's end, are specks; ink above 0.5 is the legend
 # value: axis range -5.0 to 5.0
 # points: 1629
 # x tick check: worst interior major tick off by 0.0141 s

@@ -1,7 +1,7 @@
 # source: TM-100991 pdf p.53, Figure 15, panel NORMAL ACCELERATION, g
 # quantity: NORMAL ACCELERATION, g vs time, SIKORSKY GEN HEL WITH T700 AND GEARBOX (AMES VERSION), solid
 # method: digitized -- native 300 dpi 1-bit scan, tools/digitize_closed_loop.py
-# columns: t_s; value, the centre of the line's ink in the column; half_span, how far that ink reaches either side of its centre beyond half the 4.0 px line width. The solid line is the components at least 40 px wide and the pieces continuing them, the dashes the rest, and a dash joined to the solid line is cut from it where its column is over 2.5 px thicker than the line; components under 12 px, and dashes over 4 line widths from the dashes around them, are specks
+# columns: t_s; value, the centre of the line's ink in the column; half_span, how far that ink reaches either side of its centre beyond half the 4.0 px line width. The solid line is the components at least 40 px wide and the pieces continuing them, the dashes the rest, and a dash joined to the solid line is cut from it where its column is over 2.5 px thicker than the line; components under 12 px, and dashes over 4 line widths from the dashes around them and over 25 px from any kept dash's end, are specks
 # value: axis range -1.0 to 2.0
 # points: 1570
 # x tick check: worst interior major tick off by 0.0120 s

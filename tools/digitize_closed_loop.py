@@ -149,6 +149,11 @@ ZIGZAG_FRACTION = 0.5
 """A panel whose solid line is steeper than a row per column in more than this fraction of its
 columns is read stroke by stroke and at its turns (`zigzag`): Figure 15's main-rotor torque, at
 82 %, against at most 17 % in every other panel of Figures 11-15."""
+CHAIN_PX = 25
+"""A dash whose end lies within this many pixels of a kept dash's end continues the dashed line
+and is kept too, however the line bends there: consecutive dashes on Figures 11-15 are 6-18 px
+apart end to end, and the specks 64-97 px from any dash (Figure 15's flight-test torque, which
+swings in V shapes, lost about 37 dashes to the straight-line test alone)."""
 END_DASH_PX = 15
 """At a panel end, the dashed line is followed back to the solid one along its first (or last)
 dash alone, the columns within this many of its end: a dash is about 15 px long, and the dashes
@@ -319,7 +324,7 @@ def fill_hidden(dx, dc, drun, sx, sc, srun, width: float):
     where it leaves, and it is hidden from the panel end to there. Returns the columns,
     centres and runs with a `seen` flag, 1 for dash ink and 0 for hidden."""
     o = np.argsort(dx)
-    dx, dc, drun = dx[o], dc[o], drun[o]
+    dx, dc, drun = dx[o].astype(int), dc[o], drun[o]
     solid_at = dict(zip(sx.tolist(), zip(sc.tolist(), srun.tolist(), strict=True), strict=True))
 
     def on_solid(x: int, c: float) -> bool:
@@ -432,9 +437,11 @@ def check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width: float):
     A dash is kept when the straight line through the other dashes within `NEAR_PX` columns
     passes within `SPECK_LINES` line widths of it, measured at right angles to that line
     (`_off`); with too few of them, when it lies that close to the solid line or to the joined
-    dashes. A joined dash is dropped when the dashes around it put the dashed line farther
-    than that from it: a thick stretch of the solid line, not a dash. Returns the kept dash
-    labels and the kept joined dashes' columns, centres and runs."""
+    dashes. A dash failing that is kept still when one of its ends lies within `CHAIN_PX` of a
+    kept dash's end, so a bend in the dashed line keeps its dashes. A joined dash is dropped
+    when the dashes around it put the dashed line farther than that from it: a thick stretch
+    of the solid line, not a dash. Returns the kept dash labels and the kept joined dashes'
+    columns, centres and runs."""
     far = SPECK_LINES * width
     cents = []
     for i in dashes:
@@ -454,6 +461,22 @@ def check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width: float):
             ok = _off(cx[k], cy[k], line) <= far
         if ok:
             keep.append(k)
+    ends = []
+    for i in dashes:
+        ys, xs = np.nonzero(lab == i)
+        lo, hi = xs.min(), xs.max()
+        ends.append(np.array([[lo, ys[xs == lo].mean()], [hi, ys[xs == hi].mean()]]))
+    grown = True
+    while grown:
+        grown = False
+        for k in range(len(dashes)):
+            if k in keep:
+                continue
+            gaps = [np.hypot(*(a - b)) for j in keep for a in ends[k] for b in ends[j]]
+            if gaps and min(gaps) <= CHAIN_PX:
+                keep.append(k)
+                grown = True
+    keep.sort()
     kx, ky = cx[keep], cy[keep]
     agree = np.array(
         [
@@ -463,6 +486,41 @@ def check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width: float):
         bool,
     )
     return [dashes[k] for k in keep], jx[agree], jc[agree], jrun[agree]
+
+
+def dash_strokes(lab: np.ndarray, dashes: list[int]) -> tuple[np.ndarray, ...]:
+    """Each dash read as the short straight stroke it is: per column of a dash, its ink's centre
+    and run, the centres replaced by the least-squares line through that dash's own columns.
+    A column's centre alone steps by whole pixels and bends at the dash's rounded ends; nothing
+    is averaged across dashes or gaps. Returns `(columns, centres, runs)`."""
+    out_x, out_c, out_r = [], [], []
+    for i in dashes:
+        xs, top, bot = extents(lab == i)
+        mid = 0.5 * (top + bot)
+        if xs.size >= 2:
+            a, b = np.polyfit(xs, mid, 1)
+            mid = a * xs + b
+        out_x.append(xs)
+        out_c.append(mid)
+        out_r.append(bot - top + 1.0)
+    if not out_x:
+        return np.zeros(0, int), np.zeros(0), np.zeros(0)
+    return np.concatenate(out_x), np.concatenate(out_c), np.concatenate(out_r)
+
+
+def joined_strokes(jx: np.ndarray, jc: np.ndarray) -> np.ndarray:
+    """The joined dashes' centres, each run of consecutive columns (a dash cut from the solid
+    line) replaced by its least-squares line, as `dash_strokes` reads a free one."""
+    out = jc.astype(float).copy()
+    if jx.size == 0:
+        return out
+    order = np.argsort(jx)
+    breaks = np.flatnonzero(np.diff(jx[order]) > 1) + 1
+    for run in np.split(order, breaks):
+        if run.size >= 2:
+            a, b = np.polyfit(jx[run], jc[run], 1)
+            out[run] = a * jx[run] + b
+    return out
 
 
 def line_width(lab: np.ndarray, ids: list[int]) -> float:
@@ -494,11 +552,10 @@ def main() -> int:
             read = zigzag if steep else separate
             sx, sc, srun, jx, jc, jrun = read(np.isin(lab, solid), width)
             dashes, jx, jc, jrun = check_dashes(lab, dashes, jx, jc, jrun, sx, sc, width)
-            fx, ftop, fbot = extents(np.isin(lab, dashes))
-            frun = fbot - ftop + 1.0
+            fx, fc, frun = dash_strokes(lab, dashes)
             dx, dc, drun, seen = fill_hidden(
                 np.concatenate([fx, jx]),
-                np.concatenate([0.5 * (ftop + fbot), jc]),
+                np.concatenate([fc, joined_strokes(jx, jc)]),
                 np.concatenate([frun, jrun]),
                 sx,
                 sc,
@@ -528,7 +585,8 @@ def main() -> int:
                         f"half the {width:.1f} px line width"
                         + (
                             "; seen, 1 for dash ink, 0 where the dashed line lies on the solid "
-                            "one and takes its value"
+                            "one and takes its value. Each dash's centres lie on the straight "
+                            "line through its own columns"
                             if flag is not None
                             else ""
                         )
@@ -536,8 +594,8 @@ def main() -> int:
                         f"wide and the pieces continuing them, the dashes the rest, and a dash "
                         f"joined to the solid line is cut from it where its column is over "
                         f"{JOIN_PX} px thicker than the line; components under {SPECK_PX} px, "
-                        f"and dashes over {SPECK_LINES:g} line widths from the dashes around them, "
-                        f"are specks"
+                        f"and dashes over {SPECK_LINES:g} line widths from the dashes around them "
+                        f"and over {CHAIN_PX} px from any kept dash's end, are specks"
                         + legend_note(legend)
                         + (
                             f". The solid line here is steeper than a row per column in over "
