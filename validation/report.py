@@ -16,6 +16,7 @@ The four comparison surfaces the report prints:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -157,6 +158,21 @@ FIG678 = {
 }
 
 
+FIG678_UNIT = {6: ("%NG", "%NG"), 7: ("shp", "shp"), 8: ("psia", "%")}
+"""Each figure's miss in its own units, and what it is scored in. The absolute miss where a
+percentage misleads: Figure 6's speed is already a percentage, and Figure 7's shaft power
+falls to 9 shp at the low-power end, where the axis read error alone is 15 % of the value.
+Per cent of his value on Figure 8, whose Ps3 never falls below 60 psia."""
+
+
+def _read_error(file: str, key: str) -> float:
+    """The ordinate's read error a digitized file's header publishes, in its own units."""
+    for ln in (REF / file).read_text().splitlines():
+        if ln.startswith("# read error:"):
+            return float(re.search(rf"([0-9.]+) in {key}\b", ln).group(1))
+    raise ValueError(f"{file} publishes no read error")
+
+
 def _b1_markers(no: int) -> tuple[np.ndarray, np.ndarray]:
     """Table B.1's three trims plotted on Figure `no`'s own axes."""
     xs, ys = [], []
@@ -173,6 +189,7 @@ def steady_sweeps() -> dict:
     import test_steady_sweeps as tss
 
     out = {}
+    misses = {}
     fig, axes = plt.subplots(1, 3, figsize=fs(16.5, 4.8))
 
     for ax, (no, spec) in zip(axes, sorted(FIG678.items()), strict=True):
@@ -190,7 +207,8 @@ def steady_sweeps() -> dict:
             ours_x = np.array([grid[k]["ng_pct"] for k in gx])
             ours_y = np.array([grid[k]["ps3"] for k in gx])
             inside = (rt[0] >= ours_x.min()) & (rt[0] <= ours_x.max())
-            at_x, ref_y = np.interp(rt[0][inside], ours_x, ours_y), rt[1][inside]
+            ref_x = rt[0][inside]
+            at_x, ref_y = np.interp(ref_x, ours_x, ours_y), rt[1][inside]
         else:
             ours_x, ours_y = gx, np.array([grid[k][spec["key"]] for k in gx])
             at = tss._ladder(rt[0])
@@ -215,21 +233,60 @@ def steady_sweeps() -> dict:
         _style(ax, spec["xlabel"], spec["ylabel"], spec["title"])
         ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="best")
 
-        if no == 6:
-            dev = at_x - ref_y  # %NG points, an absolute difference
-            unit = "%NG"
-        else:
-            dev = 100.0 * (at_x - ref_y) / np.abs(ref_y)
-            unit = "%"
+        absolute = at_x - ref_y
+        percent = 100.0 * absolute / np.abs(ref_y)
+        own, scored = FIG678_UNIT[no]
+        err = _read_error(f"{spec['file']}_realtime.csv", spec["yc"])
         out[f"figure_{no}"] = {
-            **_stats(dev),
-            "unit": unit,
+            **_stats(percent if scored == "%" else absolute),
+            "unit": scored,
             "printed_points": int(rt[0].size),
+            "absolute": {**_stats(absolute), "unit": own},
+            "percent": _stats(percent),
+            "read_error": err,
         }
+        misses[no] = (ref_x, ref_y, absolute, percent, err)
 
     fig.tight_layout()
     save(fig, "figures-6-8-overlay")
+    _steady_misses_picture(misses)
     return out
+
+
+def _steady_misses_picture(misses: dict) -> None:
+    """Each printed point's miss on Figures 6-8, in the figure's own units and in per cent of
+    his value, against the axis read error each file's header publishes: constant in units,
+    and in per cent growing as his value falls."""
+    fig, axes = plt.subplots(2, 3, figsize=fs(16.5, 7.4))
+    for col, (no, (x, y, absolute, percent, err)) in enumerate(sorted(misses.items())):
+        spec = FIG678[no]
+        own = FIG678_UNIT[no][0]
+        o = np.argsort(x)
+        band = 100.0 * err / np.abs(y[o])
+        for ax, v, ylabel, lo, hi in (
+            (axes[0, col], absolute, f"ours − his, {own}", -err, err),
+            (axes[1, col], percent, "ours − his, % of his value", -band, band),
+        ):
+            ax.fill_between(x[o], lo, hi, color=THEME.grid, lw=0, zorder=0)
+            ax.axhline(0.0, **plotstyle.guide(), zorder=1)
+            ax.plot(x, v, **plotstyle.points("ours"), zorder=3)
+            top = max(np.abs(v).max(), err if ax is axes[0, col] else 0.0)
+            ax.set_ylim(-1.25 * top, 1.25 * top)
+            _style(ax, spec["xlabel"], ylabel)
+        for row, what in ((0, own), (1, "per cent of his value")):
+            axes[row, col].set_title(
+                f"Figure {no}, in {what}",
+                loc="left",
+                fontfamily=[plotstyle.SANS_CONDENSED, plotstyle.SANS],
+            )
+        _note(axes[0, col], f"grey: axis read error, ±{err:.2g} {own}")
+    plotstyle.title(
+        fig,
+        "Figures 6-8: each printed point of Ballin's real-time model, our miss in the figure's "
+        "units and in per cent",
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.955))
+    save(fig, "figures-6-8-misses")
 
 
 # ========================================================= Figures 9-10, the fuel transients

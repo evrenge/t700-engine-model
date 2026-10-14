@@ -34,6 +34,11 @@ FIG6_WORST_PCT_NG = 1.25
 is the meaningful bound; the worst is one marker on a steep stretch of the curve, i.e.
 abscissa error rather than a speed disagreement."""
 
+FIG7_RMS_SHP = 2.5
+FIG7_WORST_SHP = 6.5
+"""Deviation from Figure 7's real-time series, in shaft horsepower. Both declared in
+`SCOPE.md`, set above the measured values to catch a regression."""
+
 NP_RPM = c.NP_DES
 """NP_des, Table A.1 [pdf p.55]. Figures 6-8 run at design speed (#35, read off Figure 7
 itself), Ballin's curves and the GE models' alike."""
@@ -99,21 +104,22 @@ def test_figure_8_ps3_against_ng_tracks_across_the_range():
     assert abs(dev.mean()) < 1.0, f"mean Ps3 deviation {dev.mean():+.2f} %"
 
 
-def test_figure_7_shaft_power_tracks_except_at_the_lowest_power():
-    """Shaft power against fuel flow: within 5 % over most of the range.
+def test_figure_7_shaft_power_tracks_across_the_range():
+    """Shaft power against fuel flow over every printed point, in shaft horsepower.
 
-    The exception is the low-power end, where shaft power is a small difference of large
-    enthalpies and upstream error is amplified (see #46 and `report.py::internal_spread`).
+    In shp, not per cent: the low-power points fall to 9 shp, where the axis read error alone
+    is 15 % of the value, so a percentage there measures the denominator (#83).
     """
     x, y = read_reference("fig07_realtime.csv", "wf_pph", "shp")
     got = _ladder(x)
-    dev = np.array(
-        [(got[k]["shp"] - v) / abs(v) * 100.0 for k, v in zip(x, y, strict=True) if k in got]
+    missing = [v for v in x if v not in got]
+    assert not missing, f"part of Figure 7 is now unreachable: {missing}"
+    dev = np.array([got[k]["shp"] - v for k, v in zip(x, y, strict=True)])
+    rms = float(np.sqrt(np.mean(dev**2)))
+    assert rms < FIG7_RMS_SHP, f"rms deviation from Figure 7 {rms:.2f} shp over {dev.size} points"
+    assert np.abs(dev).max() < FIG7_WORST_SHP, (
+        f"worst deviation from Figure 7 {np.abs(dev).max():.2f} shp"
     )
-    within = int((np.abs(dev) < 5.0).sum())
-    assert within >= 12, f"only {within} of {dev.size} points within 5 %"
-    assert np.abs(dev).max() < 13.0, f"worst SHP deviation {np.abs(dev).max():.1f} %"
-    assert dev[0] > dev[-1], "the low-power end should be the worst; the trend has changed"
 
 
 def test_we_now_track_figure_6_across_its_whole_range():
