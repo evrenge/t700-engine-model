@@ -87,7 +87,7 @@ never silently corrected. Each cites its ledger row.
 | Figure A3's `0.11` axis label sits well below its tick, the only misplaced label on the page | 58 | read the plateau as 0.1091 | #42 |
 | `TC_T41`'s units are printed `sec^(9/5)` in two places; Eq. 51 requires `sec^(1/5)` | 55 | units wrong, value 0.29 right and used | #4 |
 | Figure A10's ordinate label `PS9/P49` is inverted relative to its own values | 65 | use the plotted values as `f10` directly | #5 |
-| Eq. 29 does not conserve energy, by construction and by the report's own words — `H45 = K_H45·H44` is one multiplicative fraction, not a mass-weighted mix | 24 | reproduced as printed, so the overall energy balance does not close (#52 measures by how much) | #52 |
+| Eq. 29 does not conserve energy, by construction: the report makes the mixed enthalpy proportional to H44, so `H45 = K_H45·H44` is one multiplicative fraction, not a mass-weighted mix | 24 | reproduced as printed, so the overall energy balance does not close (#52 measures by how much) | #52 |
 
 **Four more looked like the report's and were ours**: a torque threshold that seemed absurd
 because we had read rotor-hub torque as engine torque (#11); an exhaust pressure ratio we

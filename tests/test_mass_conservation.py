@@ -240,7 +240,7 @@ def test_the_combustor_energy_balance_closes(wf_pph: float):
 def test_station_4_5_mixing_loses_energy_as_the_report_specifies(wf_pph: float):
     """Eq. 29 does NOT conserve energy, by construction, and this records how much.
 
-    "The enthalpy of the mixed gases is proportional to enthalpy [at] station 4.4" [pdf
+    "The enthalpy of the mixed gases is proportional to enthalpy at station 4.4" [pdf
     p.24], so Eq. 29 is `h45 = K_H45 * h44`, not the flow-weighted mix
 
         h45 = (W41*h44 + B3*K_bl*WA2*h3) / W45
