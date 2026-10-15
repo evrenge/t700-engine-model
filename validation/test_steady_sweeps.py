@@ -107,7 +107,7 @@ def test_figure_8_ps3_against_ng_tracks_across_the_range():
 def test_figure_7_shaft_power_tracks_across_the_range():
     """Shaft power against fuel flow over every printed point, in shaft horsepower.
 
-    In shp, not per cent: the low-power points fall to 9 shp, where the axis read error alone
+    In shp, not percent: the low-power points fall to 9 shp, where the axis read error alone
     is 15 % of the value, so a percentage there measures the denominator (#83).
     """
     x, y = read_reference("fig07_realtime.csv", "wf_pph", "shp")
@@ -223,7 +223,7 @@ SPEC = {
 
 
 def _spreads(fig: int, series: str):
-    """(Ballin - GE, ours - GE) on GE's own abscissae, in %NG or per cent."""
+    """(Ballin - GE, ours - GE) on GE's own abscissae, in %NG or percent."""
     stem, xc, yc, mode = SPEC[fig]
     bx, by = read_reference(f"{stem}_realtime.csv", xc, yc)
     gx, gy = read_reference(f"{stem}_{series}.csv", xc, yc)
@@ -239,7 +239,7 @@ def _spreads(fig: int, series: str):
 @pytest.mark.parametrize("series", ["ge_status81", "ge_unbalanced"])
 def test_our_distance_from_ge_is_comparable_to_ballins(fig: int, series: str):
     """We sit no further from the GE models than Ballin's own model does, give or take a
-    point and a half. Not a claim that we beat him: a deviation from Ballin of a per cent or
+    point and a half. Not a claim that we beat him: a deviation from Ballin of a percent or
     two is within the scatter of his own validation.
     """
     d_bal, d_our = _spreads(fig, series)
@@ -276,7 +276,7 @@ and 8), for the scatter argument to hold. Set below the measured worst."""
 
 def test_the_two_ge_models_disagree_with_each_other_substantially():
     """GE's own two models differ from each other by far more than we differ from Ballin:
-    whatever "agreement" meant in 1988, it did not mean a few tenths of a per cent.
+    whatever "agreement" meant in 1988, it did not mean a few tenths of a percent.
     """
     for fig in (6, 7, 8):
         stem, xc, yc, mode = SPEC[fig]

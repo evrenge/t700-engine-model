@@ -138,7 +138,7 @@ def _tm_null_and_band() -> tuple[float, float]:
 
 @pytest.mark.parametrize("k", [-1.03, -0.97, 0.97, 1.03])
 def test_the_torque_motor_deadband_sits_where_the_printed_biases_put_it(k: float):
-    """Inside the band the integrator never moves; three per cent outside it, it does, and
+    """Inside the band the integrator never moves; three percent outside it, it does, and
     in the direction of the error. Moving the null or the band by 5 % flips one of these."""
     null, half = _tm_null_and_band()
     u = dataclasses.replace(HMU_BASE, spdg=null + k * half)

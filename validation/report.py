@@ -162,7 +162,7 @@ FIG678_UNIT = {6: ("%NG", "%NG"), 7: ("shp", "shp"), 8: ("psia", "%")}
 """Each figure's miss in its own units, and what it is scored in. The absolute miss where a
 percentage misleads: Figure 6's speed is already a percentage, and Figure 7's shaft power
 falls to 9 shp at the low-power end, where the axis read error alone is 15 % of the value.
-Per cent of his value on Figure 8, whose Ps3 never falls below 60 psia."""
+Percent of his value on Figure 8, whose Ps3 never falls below 60 psia."""
 
 
 def _read_error(file: str, key: str) -> float:
@@ -254,9 +254,9 @@ def steady_sweeps() -> dict:
 
 
 def _steady_misses_picture(misses: dict) -> None:
-    """Each printed point's miss on Figures 6-8, in the figure's own units and in per cent of
+    """Each printed point's miss on Figures 6-8, in the figure's own units and in percent of
     his value, against the axis read error each file's header publishes: constant in units,
-    and in per cent growing as his value falls."""
+    and in percent growing as his value falls."""
     fig, axes = plt.subplots(2, 3, figsize=fs(16.5, 7.4))
     for col, (no, (x, y, absolute, percent, err)) in enumerate(sorted(misses.items())):
         spec = FIG678[no]
@@ -273,7 +273,7 @@ def _steady_misses_picture(misses: dict) -> None:
             top = max(np.abs(v).max(), err if ax is axes[0, col] else 0.0)
             ax.set_ylim(-1.25 * top, 1.25 * top)
             _style(ax, spec["xlabel"], ylabel)
-        for row, what in ((0, own), (1, "per cent of his value")):
+        for row, what in ((0, own), (1, "percent of his value")):
             axes[row, col].set_title(
                 f"Figure {no}, in {what}",
                 loc="left",
@@ -283,7 +283,7 @@ def _steady_misses_picture(misses: dict) -> None:
     plotstyle.title(
         fig,
         "Figures 6-8: each printed point of Ballin's real-time model, our miss in the figure's "
-        "units and in per cent",
+        "units and in percent",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.955))
     save(fig, "figures-6-8-misses")
@@ -717,7 +717,7 @@ def appendix_b() -> dict:
         ax,
         "deviation from printed, %",
         "",
-        "By block. The 6-DOF b is the one with a shape, and it is the heat sink's",
+        "By block: only the heat-sink models' b columns stray (3-, 6-DOF)",
     )
     fig.tight_layout()
     save(fig, "appendix-b-elements")
