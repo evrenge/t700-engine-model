@@ -35,6 +35,11 @@ re-running the model, together with the comparison figures in `results/`;
 | Table 3, the NASA-Lewis test engine | a characterization, not a target (#34): on the standard maps, at Table 2's conditions, ours passes +12.0 %<!--rj:table_3.stats_cases_2_6.WA2.ours_vs_ballin_pct.mean--> more air and runs a −7.5 %<!--rj:table_3.stats_cases_2_6.T45.ours_vs_ballin_pct.mean--> cooler T45 than Ballin's model (means, cases 2-6), which ran the test engine's own maps [pdf p.39] |
 | Frame cost | tens of microseconds per frame, against the report's 10 ms budget |
 
+The write-up is a presentation for gas-turbine performance engineers that walks through the
+model and every comparison above: [PDF, backup slides included](presentation/t700-replication.pdf)
+and [PowerPoint](presentation/t700-replication.pptx), whose speaker notes carry the
+decision-log numbers. Its numbers are read from `results/report.json` when the deck is built.
+
 ## What is in here
 
 ```
@@ -55,6 +60,7 @@ validation/      comparisons against the report, and the figure set
 docs/notes/      the report transcribed (equations, symbols, appendix inventories), and
                  the open-questions ledger
 results/         report.json and the comparison figures, written by validation/report.py
+presentation/    the write-up, as PDF and PowerPoint
 ```
 
 ## The rules it was built under
